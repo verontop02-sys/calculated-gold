@@ -424,9 +424,9 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`Calculated Gold API http://localhost:${PORT}`);
-  console.log(`CORS origin: ${CORS_ORIGIN}`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Calculated Gold API listening on ${PORT}`);
+  console.log(`CORS origins: ${corsOrigins.join(', ')}`);
 });
 
 server.on('error', (err) => {
