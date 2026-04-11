@@ -1,0 +1,17 @@
+# Blueprint: Render → New → Blueprint → подключить репозиторий.
+# Секреты в Dashboard сервиса: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (legacy eyJ…),
+# CORS_ORIGIN=https://gold-panel.web.app,https://gold-panel.firebaseapp.com
+services:
+  - type: web
+    name: gold-calculated-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install
+    startCommand: npm run start -w server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production

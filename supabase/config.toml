@@ -1,0 +1,7 @@
+# Подставь свой ref из URL: https://<ref>.supabase.co
+# Или выполни: npx supabase link --project-ref <ref>
+
+project_id = "glhfrchbzmxxlftswfck"
+
+[functions.cbr-quote]
+verify_jwt = false

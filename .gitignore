@@ -1,0 +1,13 @@
+node_modules/
+dist/
+server/data/
+.env
+.env.local
+server/.env
+*.log
+.DS_Store
+firebase-debug.log
+functions/.env
+secrets/
+.firebase/
+supabase/.temp/

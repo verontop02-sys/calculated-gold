@@ -1,0 +1,22 @@
+{
+  "name": "calculated-gold",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "free-ports": "kill-port 5173 8787",
+    "dev": "concurrently -n server,client -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "dev:clean": "npm run free-ports && npm run dev",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server",
+    "deploy": "npm run build && firebase deploy",
+    "deploy:hosting": "npm run build && firebase deploy --only hosting",
+    "deploy:supabase-cbr": "npx supabase functions deploy cbr-quote --project-ref glhfrchbzmxxlftswfck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "kill-port": "^2.0.1"
+  }
+}
