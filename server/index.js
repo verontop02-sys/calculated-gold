@@ -373,13 +373,8 @@ app.post(
   asyncHandler(async (req, res) => {
     const { email, password, role } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'Email и пароль обязательны' });
-    const r = String(role || 'courier').toLowerCase();
-    if (r === 'admin') {
-      return res.status(400).json({
-        error: 'Администратора нельзя создать из панели. Создайте второго админа вручную в Supabase при необходимости.',
-      });
-    }
-    const dbRole = r === 'seller' ? 'seller' : 'courier';
+    const VALID_ROLES = ['courier', 'seller', 'admin'];
+    const dbRole = VALID_ROLES.includes(String(role || '').toLowerCase()) ? String(role).toLowerCase() : 'courier';
     const { data: created, error: cErr } = await supabase.auth.admin.createUser({
       email: String(email).trim(),
       password: String(password),
@@ -398,6 +393,23 @@ app.post(
     );
     if (uErr) console.error('[profiles upsert after create]', uErr);
     res.json({ ok: true, uid: newId });
+  })
+);
+
+app.patch(
+  '/api/users/:uid/role',
+  asyncHandler(requireAdmin),
+  asyncHandler(async (req, res) => {
+    const uid = req.params.uid;
+    const { role } = req.body || {};
+    const VALID_ROLES = ['courier', 'seller', 'admin'];
+    if (!VALID_ROLES.includes(String(role || '').toLowerCase())) {
+      return res.status(400).json({ error: 'Недопустимая роль. Доступно: courier, seller, admin' });
+    }
+    const dbRole = String(role).toLowerCase();
+    const { error } = await supabase.from('profiles').upsert({ id: uid, role: dbRole }, { onConflict: 'id' });
+    if (error) throw error;
+    res.json({ ok: true, uid, role: dbRole });
   })
 );
 

@@ -8,6 +8,13 @@ if (import.meta.env.PROD && !import.meta.env.VITE_API_BASE) {
   );
 }
 
+const AUTH_EXPIRED_EVENT = 'cg:session-expired';
+
+export function onSessionExpired(fn) {
+  window.addEventListener(AUTH_EXPIRED_EVENT, fn, { once: false });
+  return () => window.removeEventListener(AUTH_EXPIRED_EVENT, fn);
+}
+
 function withBase(path) {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   return `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
@@ -48,6 +55,9 @@ async function request(path, options = {}) {
     throw err;
   }
   if (!res.ok) {
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+    }
     const err = new Error(data?.error || `HTTP ${res.status}`);
     err.status = res.status;
     err.body = data;
@@ -71,4 +81,5 @@ export const api = {
   createUser: (email, password, role) =>
     request('/users', { method: 'POST', body: JSON.stringify({ email, password, role }) }),
   deleteUser: (uid) => request(`/users/${uid}`, { method: 'DELETE' }),
+  changeRole: (uid, role) => request(`/users/${uid}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
 };

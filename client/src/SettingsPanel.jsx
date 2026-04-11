@@ -8,11 +8,15 @@ export function SettingsPanel() {
   const [settings, setSettings] = useState(null);
   const [users, setUsers] = useState([]);
   const [usersNote, setUsersNote] = useState('');
-  /** 'loading' | 'ok' | 'error' — список пользователей только при успешном API */
   const [userListStatus, setUserListStatus] = useState('loading');
   const [newUser, setNewUser] = useState({ email: '', password: '', role: 'courier' });
   const [saving, setSaving] = useState(false);
+  const [savedSection, setSavedSection] = useState(null);
   const [err, setErr] = useState('');
+  const [confirmDeleteUid, setConfirmDeleteUid] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [changingRoleUid, setChangingRoleUid] = useState(null);
+  const [roleChangeBusy, setRoleChangeBusy] = useState(null);
 
   const canManageUsers = userListStatus === 'ok';
 
@@ -46,9 +50,10 @@ export function SettingsPanel() {
     load().catch((e) => setErr(e.message));
   }, [load]);
 
-  async function save() {
+  async function save(section) {
     setErr('');
     setSaving(true);
+    setSavedSection(null);
     try {
       const patch = {
         buybackPercentOfScrap: settings.buybackPercentOfScrap,
@@ -57,7 +62,9 @@ export function SettingsPanel() {
       };
       const next = await api.saveSettings(patch);
       setSettings(next);
+      setSavedSection(section);
       toast('Настройки сохранены', 'success');
+      setTimeout(() => setSavedSection(null), 2500);
     } catch (e) {
       setErr(e.message);
       toast(e.message, 'error');
@@ -92,9 +99,26 @@ export function SettingsPanel() {
     }
   }
 
-  async function removeUser(uid) {
+  async function applyRoleChange(uid, newRole) {
+    setRoleChangeBusy(uid);
+    setErr('');
+    try {
+      await api.changeRole(uid, newRole);
+      setUsers((prev) => prev.map((u) => u.uid === uid ? { ...u, role: newRole } : u));
+      setChangingRoleUid(null);
+      toast('Роль изменена', 'success');
+    } catch (ex) {
+      setErr(ex.message);
+      toast(ex.message, 'error');
+    } finally {
+      setRoleChangeBusy(null);
+    }
+  }
+
+  async function confirmDelete(uid) {
     if (!canManageUsers) return;
-    if (!confirm('Удалить пользователя?')) return;
+    setConfirmDeleteUid(null);
+    setDeleting(true);
     setErr('');
     try {
       await api.deleteUser(uid);
@@ -103,13 +127,20 @@ export function SettingsPanel() {
     } catch (ex) {
       setErr(ex.message);
       toast(ex.message, 'error');
+    } finally {
+      setDeleting(false);
     }
   }
 
   if (!settings) {
     return (
       <div className="settings settings-boot glass">
-        {err ? <p className="err-msg">{err}</p> : (
+        {err ? (
+          <div style={{ textAlign: 'center' }}>
+            <p className="err-msg" style={{ marginBottom: 16 }}>{err}</p>
+            <button type="button" className="btn-ghost" onClick={() => load()}>Повторить</button>
+          </div>
+        ) : (
           <>
             <div className="spinner" />
             <p className="muted">Загрузка настроек…</p>
@@ -123,28 +154,32 @@ export function SettingsPanel() {
 
   return (
     <div className="settings">
+      {/* Политика выкупа */}
       <div className="glass block">
         <h2 className="block-title">Политика выкупа</h2>
         <p className="muted small block-desc">Процент от расчётной ломовой стоимости. Коридор — симметричный разброс вокруг ориентира.</p>
         <label className="field">
           <span className="field-label">Выкуп, % от ломовой</span>
-          <input type="number" min={0} max={100} step={0.5} value={settings.buybackPercentOfScrap} onChange={(e) => setSettings((s) => ({ ...s, buybackPercentOfScrap: parseFloat(e.target.value) || 0 }))} />
+          <input
+            type="number" min={0} max={100} step={0.5}
+            value={settings.buybackPercentOfScrap}
+            onChange={(e) => { setSavedSection(null); setSettings((s) => ({ ...s, buybackPercentOfScrap: parseFloat(e.target.value) || 0 })); }}
+          />
         </label>
         <label className="field">
           <span className="field-label">Полуширина коридора, %</span>
-          <input type="number" min={0} max={50} step={0.5} value={settings.rangeHalfWidthPercent} onChange={(e) => setSettings((s) => ({ ...s, rangeHalfWidthPercent: parseFloat(e.target.value) || 0 }))} />
+          <input
+            type="number" min={0} max={50} step={0.5}
+            value={settings.rangeHalfWidthPercent}
+            onChange={(e) => { setSavedSection(null); setSettings((s) => ({ ...s, rangeHalfWidthPercent: parseFloat(e.target.value) || 0 })); }}
+          />
         </label>
-        <button type="button" className="btn-primary" disabled={saving} onClick={save}>
-          {saving ? (
-            <>
-              <span className="spinner inline" /> Сохранение…
-            </>
-          ) : (
-            'Сохранить политику'
-          )}
+        <button type="button" className={`btn-primary save-btn${savedSection === 'policy' ? ' save-btn--ok' : ''}`} disabled={saving} onClick={() => save('policy')}>
+          {saving ? <><span className="spinner inline" /> Сохранение…</> : savedSection === 'policy' ? '✓ Сохранено' : 'Сохранить политику'}
         </button>
       </div>
 
+      {/* Поправки по пробам */}
       <div className="glass block">
         <h2 className="block-title">Поправки по пробам, %</h2>
         <p className="muted small block-desc">Дополнительный множитель к сумме: +2 означает +2% к расчёту для этой пробы.</p>
@@ -152,40 +187,112 @@ export function SettingsPanel() {
           {probs.map((p) => (
             <label key={p} className="adj-cell">
               <span className="prob">{p}</span>
-              <input type="number" step={0.1} value={settings.purityAdjustments[p] ?? 0} onChange={(e) => setAdj(p, e.target.value)} />
+              <input
+                type="number" step={0.1}
+                value={settings.purityAdjustments[p] ?? 0}
+                onChange={(e) => { setSavedSection(null); setAdj(p, e.target.value); }}
+              />
             </label>
           ))}
         </div>
-        <button type="button" className="btn-primary" style={{ marginTop: 14 }} disabled={saving} onClick={save}>
-          {saving ? (
-            <>
-              <span className="spinner inline" /> Сохранение…
-            </>
-          ) : (
-            'Сохранить пробы'
-          )}
+        <button type="button" className={`btn-primary save-btn${savedSection === 'adj' ? ' save-btn--ok' : ''}`} style={{ marginTop: 14 }} disabled={saving} onClick={() => save('adj')}>
+          {saving ? <><span className="spinner inline" /> Сохранение…</> : savedSection === 'adj' ? '✓ Сохранено' : 'Сохранить пробы'}
         </button>
       </div>
 
+      {/* Доступы */}
       <div className="glass block">
         <h2 className="block-title">Доступы</h2>
         <p className="muted small block-desc">
           Администратор создаёт логины. <strong>Продавец</strong> и <strong>курьер</strong> видят только калькулятор и не могут добавлять пользователей.
         </p>
         {usersNote && <p className="users-note muted small block-desc">{usersNote}</p>}
-        <ul className="user-list">
-          {users.map((u) => (
-            <li key={u.uid} className="user-row">
-              <span>
-                <strong>{u.email}</strong>
-                <span className="muted small"> · {roleLabel(u.role)}</span>
-              </span>
-              <button type="button" className="btn-ghost small danger" disabled={!canManageUsers} onClick={() => removeUser(u.uid)}>
-                Удалить
-              </button>
-            </li>
-          ))}
-        </ul>
+
+        {userListStatus === 'loading' && (
+          <p className="muted small" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14 }}>
+            <span className="spinner inline" /> Загрузка пользователей…
+          </p>
+        )}
+
+        {users.length > 0 && (
+          <ul className="user-list">
+            {users.map((u) => (
+              <li key={u.uid} className="user-row">
+                <div className="user-info">
+                  <strong className="user-email">{u.email}</strong>
+                  {changingRoleUid === u.uid ? (
+                    <span className="role-change-row">
+                      {['courier', 'seller', 'admin'].map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          className={`role-chip${u.role === r ? ' role-chip--active' : ''}`}
+                          disabled={roleChangeBusy === u.uid}
+                          onClick={() => u.role !== r && applyRoleChange(u.uid, r)}
+                        >
+                          {roleChangeBusy === u.uid && u.role !== r
+                            ? <span className="spinner inline" style={{ width: '0.7em', height: '0.7em', borderWidth: '1.5px' }} />
+                            : roleLabel(r)}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="btn-ghost small"
+                        style={{ padding: '3px 8px', fontSize: '0.75rem' }}
+                        onClick={() => setChangingRoleUid(null)}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="role-badge-btn muted small"
+                      title="Нажмите, чтобы изменить роль"
+                      disabled={!canManageUsers}
+                      onClick={() => setChangingRoleUid(u.uid)}
+                    >
+                      {roleLabel(u.role)} ✎
+                    </button>
+                  )}
+                </div>
+                <div className="user-actions">
+                  {confirmDeleteUid === u.uid ? (
+                    <span className="confirm-row">
+                      <span className="muted small">Удалить?</span>
+                      <button
+                        type="button"
+                        className="btn-ghost small danger"
+                        disabled={deleting}
+                        onClick={() => confirmDelete(u.uid)}
+                      >
+                        {deleting ? <span className="spinner inline" /> : 'Да'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-ghost small"
+                        disabled={deleting}
+                        onClick={() => setConfirmDeleteUid(null)}
+                      >
+                        Нет
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn-ghost small danger"
+                      disabled={!canManageUsers || deleting}
+                      onClick={() => setConfirmDeleteUid(u.uid)}
+                    >
+                      Удалить
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
         <form className="new-user" onSubmit={addUser}>
           <input
             placeholder="Email пользователя"
@@ -202,12 +309,17 @@ export function SettingsPanel() {
             disabled={!canManageUsers}
             autoComplete="new-password"
           />
-          <select value={newUser.role} onChange={(e) => setNewUser((x) => ({ ...x, role: e.target.value }))} disabled={!canManageUsers}>
+          <select
+            value={newUser.role}
+            onChange={(e) => setNewUser((x) => ({ ...x, role: e.target.value }))}
+            disabled={!canManageUsers}
+          >
             <option value="courier">Курьер</option>
             <option value="seller">Продавец</option>
+            <option value="admin">Администратор</option>
           </select>
-          <button type="submit" className="btn-primary" disabled={!canManageUsers}>
-            Добавить
+          <button type="submit" className="btn-primary" disabled={!canManageUsers || !newUser.email || !newUser.password}>
+            Добавить пользователя
           </button>
         </form>
       </div>
@@ -225,16 +337,35 @@ export function SettingsPanel() {
         .users-note { color: var(--warn-text) !important; background: var(--warn-bg); padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--warn-border); }
         .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
         .field-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+        .save-btn { width: 100%; transition: background 0.3s, box-shadow 0.3s, color 0.2s; }
+        .save-btn--ok { background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%) !important; color: #0a1a0e !important; box-shadow: 0 4px 20px rgba(74,222,128,0.35) !important; }
         .grid-adj { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
         @media (min-width: 480px) { .grid-adj { grid-template-columns: repeat(3, 1fr); } }
         .adj-cell { display: flex; flex-direction: column; gap: 4px; }
         .adj-cell .prob { font-size: 0.75rem; color: var(--gold); font-weight: 500; }
         .user-list { list-style: none; margin: 0 0 16px; padding: 0; }
-        .user-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--stroke); }
+        .user-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--stroke); }
         .user-row:last-child { border-bottom: none; }
+        .user-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+        .user-email { word-break: break-all; font-size: 0.9rem; }
+        .user-actions { flex-shrink: 0; display: flex; align-items: flex-start; }
+        .role-badge-btn { background: none; border: 1px dashed var(--stroke); border-radius: 999px; padding: 3px 10px; font-size: 0.75rem; cursor: pointer; transition: border-color 0.2s, color 0.2s; text-align: left; }
+        .role-badge-btn:hover:not(:disabled) { border-color: var(--stroke-strong); color: var(--text); }
+        .role-badge-btn:disabled { opacity: 0.5; cursor: default; }
+        .role-change-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+        .role-chip { padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 500; border: 1px solid var(--stroke); background: transparent; color: var(--text-muted); cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+        .role-chip:hover:not(:disabled):not(.role-chip--active) { background: var(--gold-soft); color: var(--text); border-color: var(--stroke-strong); }
+        .role-chip--active { background: var(--gold-soft); color: var(--gold); border-color: var(--stroke-strong); font-weight: 600; cursor: default; }
+        .confirm-row { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .btn-ghost.danger { color: var(--danger); }
+        .btn-ghost.small { padding: 7px 12px; font-size: 0.8rem; }
         .new-user { display: flex; flex-direction: column; gap: 10px; }
         .err-msg { color: var(--danger); font-size: 0.9rem; margin: 12px 0 0; text-align: center; padding: 10px 12px; border-radius: var(--radius-sm); background: rgba(248, 113, 113, 0.08); border: 1px solid rgba(248, 113, 113, 0.25); }
+        @media (max-width: 400px) {
+          .user-row { flex-direction: column; align-items: stretch; }
+          .user-actions { justify-content: flex-start; }
+          .confirm-row { justify-content: flex-start; }
+        }
       `}</style>
     </div>
   );
