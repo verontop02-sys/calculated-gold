@@ -70,7 +70,11 @@ function rateBannerSubtitle(price) {
   return '';
 }
 
-const LS_QUOTE_TAB = 'cg_quote_tab';
+function quoteTabKey(uid) {
+  if (!uid) return null;
+  const safe = String(uid).replace(/[^a-zA-Z0-9-]/g, '');
+  return safe ? `cg_quote_tab__${safe}` : null;
+}
 
 export default function App() {
   const toast = useToast();
@@ -79,12 +83,22 @@ export default function App() {
   const [user, setUser] = useState(undefined);
   const [profileErr, setProfileErr] = useState(null);
   const [tab, setTab] = useState('calc');
-  const [quoteTab, setQuoteTab] = useState(() => localStorage.getItem(LS_QUOTE_TAB) || 'moex');
+  const [quoteTab, setQuoteTab] = useState('moex');
   const [price, setPrice] = useState(null);
   const [priceErr, setPriceErr] = useState(null);
   const [priceLoading, setPriceLoading] = useState(false);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const staleRefreshingRef = useRef(false);
+
+  // Вкладка котировки — на пользователя; иначе после смены аккаунта в том же браузере тянется чужой xaut/moex из React state
+  useEffect(() => {
+    if (!user?.uid) return;
+    const k = quoteTabKey(user.uid);
+    if (!k) return;
+    const saved = localStorage.getItem(k);
+    if (saved === 'moex' || saved === 'xaut') setQuoteTab(saved);
+    else setQuoteTab('moex');
+  }, [user?.uid]);
 
   const loadMe = useCallback(async () => {
     const {
@@ -93,6 +107,7 @@ export default function App() {
     if (!session?.user) {
       setUser(null);
       setProfileErr(null);
+      setQuoteTab('moex');
       return;
     }
     setProfileErr(null);
@@ -107,6 +122,7 @@ export default function App() {
           'Не удалось загрузить профиль. Проверьте Node API, миграцию Supabase (profiles, app_kv) и SUPABASE_SERVICE_ROLE_KEY на сервере.'
       );
       setUser(null);
+      setQuoteTab('moex');
     }
   }, []);
 
@@ -132,7 +148,8 @@ export default function App() {
 
   function persistQuoteTab(next) {
     setQuoteTab(next);
-    localStorage.setItem(LS_QUOTE_TAB, next);
+    const k = user?.uid ? quoteTabKey(user.uid) : null;
+    if (k) localStorage.setItem(k, next);
   }
 
   const handleRefreshPrice = useCallback(async () => {
@@ -407,7 +424,7 @@ export default function App() {
       </nav>
 
       <main className="main-content">
-        {tab === 'calc' && <Calculator formatMoney={formatMoney} price={price} />}
+        {tab === 'calc' && <Calculator formatMoney={formatMoney} price={price} userUid={user.uid} />}
         {tab === 'settings' && isUserManagerRole(user.role) && <SettingsPanel user={user} />}
       </main>
 

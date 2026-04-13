@@ -433,14 +433,33 @@ function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubPerGram,
   };
 }
 
+/**
+ * Профиль + первый «владелец» проекта.
+ * Важно: не вызывать RPC claim_first_admin со старой логикой (только role = 'admin'):
+ * если в БД только super_admin, старая функция каждый вход сбрасывала пользователя в admin.
+ * Здесь только проверка «есть ли кто-то с admin или super_admin» и обновление одной строки uid.
+ */
 async function ensureProfileAndBootstrap(userId) {
   const { data: row } = await supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
   if (!row) {
     const { error: insErr } = await supabase.from('profiles').insert({ id: userId, role: 'courier' });
     if (insErr && insErr.code !== '23505') throw insErr;
   }
-  const { error: rpcErr } = await supabase.rpc('claim_first_admin', { uid: userId });
-  if (rpcErr) console.error('[claim_first_admin]', rpcErr);
+  const { data: managers, error: mErr } = await supabase
+    .from('profiles')
+    .select('id')
+    .in('role', ['super_admin', 'admin'])
+    .limit(1);
+  if (mErr) {
+    console.error('[profiles bootstrap]', mErr);
+    return;
+  }
+  if (managers?.length) return;
+  const { error: upErr } = await supabase
+    .from('profiles')
+    .update({ role: 'super_admin', updated_at: new Date().toISOString() })
+    .eq('id', userId);
+  if (upErr) console.error('[bootstrap super_admin]', upErr);
 }
 
 async function authMiddleware(req, res, next) {

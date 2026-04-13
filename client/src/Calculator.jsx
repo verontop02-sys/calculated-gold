@@ -2,9 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
 import { calculateBuybackRange } from './calc.js';
 
-const LS_WEIGHT = 'cg_weight';
-const LS_PURITY = 'cg_purity';
 const PRESETS = ['585', '750', '999'];
+
+function calcLocalKeys(userUid) {
+  const id = userUid && String(userUid).trim() ? String(userUid).replace(/[^a-zA-Z0-9-]/g, '') : '';
+  const suffix = id || 'anon';
+  return { weight: `cg_weight__${suffix}`, purity: `cg_purity__${suffix}` };
+}
 
 function quoteRowLabel(price) {
   if (!price) return 'По курсу чистого золота';
@@ -14,18 +18,30 @@ function quoteRowLabel(price) {
   return 'По курсу ЦБ (чистое золото)';
 }
 
-export function Calculator({ formatMoney, price }) {
+export function Calculator({ formatMoney, price, userUid }) {
+  const lsKeys = useMemo(() => calcLocalKeys(userUid), [userUid]);
+
   const [settings, setSettings] = useState(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
-  const [weight, setWeight] = useState(() => localStorage.getItem(LS_WEIGHT) || '');
+  const [weight, setWeight] = useState('');
   const [weightErr, setWeightErr] = useState('');
-  const [purity, setPurity] = useState(() => localStorage.getItem(LS_PURITY) || '585');
+  const [purity, setPurity] = useState('585');
   const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
   const [justCalced, setJustCalced] = useState(false);
   const [copied, setCopied] = useState(false);
   const resultRef = useRef(null);
+
+  useEffect(() => {
+    setWeight(localStorage.getItem(lsKeys.weight) || '');
+    setPurity(localStorage.getItem(lsKeys.purity) || '585');
+    setWeightErr('');
+    setResult(null);
+    setErr('');
+    setJustCalced(false);
+    setCopied(false);
+  }, [lsKeys.weight, lsKeys.purity]);
 
   useEffect(() => {
     setSettingsLoading(true);
@@ -55,14 +71,14 @@ export function Calculator({ formatMoney, price }) {
   function handleWeightChange(e) {
     const val = e.target.value;
     setWeight(val);
-    localStorage.setItem(LS_WEIGHT, val);
+    localStorage.setItem(lsKeys.weight, val);
     setWeightErr(val === '' ? '' : validateWeight(val));
     if (result) setResult(null);
   }
 
   function applyPurity(val) {
     setPurity(val);
-    localStorage.setItem(LS_PURITY, val);
+    localStorage.setItem(lsKeys.purity, val);
     if (result) setResult(null);
   }
 
