@@ -1,14 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
+import { calculateBuybackRange } from './calc.js';
+
+const LS_WEIGHT = 'cg_weight';
+const LS_PURITY = 'cg_purity';
+const PRESETS = ['375', '585', '750'];
 
 export function Calculator({ formatMoney, price }) {
   const [settings, setSettings] = useState(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
-  const [weight, setWeight] = useState('');
-  const [purity, setPurity] = useState('585');
+  const [weight, setWeight] = useState(() => localStorage.getItem(LS_WEIGHT) || '');
+  const [weightErr, setWeightErr] = useState('');
+  const [purity, setPurity] = useState(() => localStorage.getItem(LS_PURITY) || '585');
   const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
+  const [justCalced, setJustCalced] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const resultRef = useRef(null);
 
   useEffect(() => {
     setSettingsLoading(true);
@@ -24,69 +33,180 @@ export function Calculator({ formatMoney, price }) {
     return order.map(String);
   }, [settings]);
 
-  async function runCalc() {
+  const canCalc = price?.goldRubPerGram != null && !settingsLoading;
+
+  function validateWeight(val) {
+    const v = String(val).replace(',', '.').trim();
+    if (v === '') return '';
+    const n = parseFloat(v);
+    if (!Number.isFinite(n) || n <= 0) return 'Введите положительное число';
+    if (n > 10000) return 'Слишком большое значение';
+    return '';
+  }
+
+  function handleWeightChange(e) {
+    const val = e.target.value;
+    setWeight(val);
+    localStorage.setItem(LS_WEIGHT, val);
+    setWeightErr(val === '' ? '' : validateWeight(val));
+    if (result) setResult(null);
+  }
+
+  function applyPurity(val) {
+    setPurity(val);
+    localStorage.setItem(LS_PURITY, val);
+    if (result) setResult(null);
+  }
+
+  function handlePurityChange(e) {
+    applyPurity(e.target.value);
+  }
+
+  function runCalc() {
+    const wErr = validateWeight(weight);
+    if (wErr) { setWeightErr(wErr); return; }
+    if (!canCalc || !settings) return;
+
     setErr('');
     setLoading(true);
     setResult(null);
-    try {
-      const w = parseFloat(String(weight).replace(',', '.'));
-      const p = parseInt(purity, 10);
-      const r = await api.calculate(w, p);
-      setResult(r);
-    } catch (ex) {
-      setErr(ex.body?.error || ex.message);
-    } finally {
+    setJustCalced(false);
+    setCopied(false);
+
+    const w = parseFloat(String(weight).replace(',', '.'));
+    const p = parseInt(purity, 10);
+    const r = calculateBuybackRange({
+      weightGrams: w,
+      purityPerThousand: p,
+      goldRubPerGram: price.goldRubPerGram,
+      settings,
+    });
+
+    if (!r.ok) {
+      setErr(r.error);
       setLoading(false);
+      return;
     }
+
+    setResult(r);
+    setJustCalced(true);
+    setLoading(false);
+
+    setTimeout(() => {
+      resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 60);
   }
 
-  const canCalc = price?.goldRubPerGram != null;
+  function handleKeyDown(e) {
+    if (e.key === 'Enter' && canCalc && weight) runCalc();
+  }
+
+  async function handleCopy() {
+    if (!result) return;
+    const text =
+      `Расчёт выкупа золота\n` +
+      `Вес: ${weight} г, проба ${purity}\n` +
+      `Чистого золота: ${result.fineGrams.toFixed(3)} г\n` +
+      `Ломовая (ЦБ): ${formatMoney(result.scrapRub)}\n` +
+      `Диапазон выкупа: ${formatMoney(result.lowRub)} — ${formatMoney(result.highRub)}\n` +
+      `Ориентир: ${formatMoney(result.midRub)}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // clipboard API not available (non-HTTPS / old browser)
+    }
+  }
 
   return (
     <div className="calc">
       <div className="glass calc-card">
         <h2 className="calc-heading">Расчёт выкупа</h2>
-        <p className="calc-hint muted">Укажите вес изделия и пробу. Система использует котировку ЦБ и ваши коэффициенты из настроек.</p>
+        <p className="calc-hint muted">
+          Укажите вес изделия и пробу. Система использует котировку ЦБ и ваши коэффициенты из настроек.
+        </p>
         <div className="fields">
           <label className="field">
             <span className="field-label">Вес, г</span>
-            <input inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="например 7.42" disabled={settingsLoading} />
+            <input
+              inputMode="decimal"
+              value={weight}
+              onChange={handleWeightChange}
+              onKeyDown={handleKeyDown}
+              placeholder="например 7.42"
+              disabled={settingsLoading}
+              className={weightErr ? 'input-err' : ''}
+            />
+            {weightErr && <span className="field-err">{weightErr}</span>}
           </label>
-          <label className="field">
+
+          <div className="field">
             <span className="field-label">Проба</span>
-            <select value={purity} onChange={(e) => setPurity(e.target.value)} disabled={settingsLoading}>
-              {purityOptions.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </label>
+            <div className="purity-row">
+              <div className="purity-presets">
+                {PRESETS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={`preset-btn${purity === p ? ' active' : ''}`}
+                    onClick={() => applyPurity(p)}
+                    disabled={settingsLoading}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <select
+                value={purity}
+                onChange={handlePurityChange}
+                disabled={settingsLoading}
+                className="purity-select"
+                title="Все пробы"
+              >
+                {purityOptions.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
+
         {settingsLoading && (
           <p className="hint-loading muted small">
             <span className="spinner inline" /> Загружаем коэффициенты…
           </p>
         )}
-        {!canCalc && !settingsLoading && <p className="warn-box">Курс недоступен. Дождитесь обновления или попросите администратора обновить вручную.</p>}
+
+        {!settingsLoading && !settings && (
+          <p className="warn-box">
+            Не удалось загрузить настройки. Расчёт может быть неточным.
+          </p>
+        )}
+
+        {!canCalc && !settingsLoading && price?.goldRubPerGram == null && (
+          <p className="warn-box">
+            Курс недоступен. Дождитесь обновления или попросите администратора обновить вручную.
+          </p>
+        )}
+
         {err && <p className="err">{err}</p>}
+
         <button
           type="button"
-          className="btn-primary calc-btn"
-          disabled={loading || !canCalc || settingsLoading}
+          className={`btn-primary calc-btn${canCalc && weight && !weightErr ? ' calc-btn--ready' : ''}`}
+          disabled={loading || !canCalc || settingsLoading || !weight || !!weightErr}
           onClick={runCalc}
         >
           {loading ? (
-            <>
-              <span className="spinner inline" /> Считаем…
-            </>
+            <><span className="spinner inline" /> Считаем…</>
           ) : (
             'Рассчитать'
           )}
         </button>
 
         {result && (
-          <div className="result-block">
+          <div ref={resultRef} className={`result-block${justCalced ? ' result-enter' : ''}`}>
             <div className="result-row muted small">
               <span>Чистого золота</span>
               <span className="mono-nums">{result.fineGrams.toFixed(3)} г</span>
@@ -95,6 +215,12 @@ export function Calculator({ formatMoney, price }) {
               <span>Ломовая (по ЦБ)</span>
               <span className="mono-nums">{formatMoney(result.scrapRub)}</span>
             </div>
+            {result.adjPct !== 0 && (
+              <div className="result-row muted small">
+                <span>Поправка по пробе {result.purityUsed}</span>
+                <span className="mono-nums">{result.adjPct > 0 ? '+' : ''}{result.adjPct}%</span>
+              </div>
+            )}
             <div className="result-hero">
               <span className="result-label muted">Диапазон выкупа</span>
               <p className="result-range mono-nums">
@@ -104,6 +230,13 @@ export function Calculator({ formatMoney, price }) {
               </p>
               <span className="result-mid muted small">ориентир: {formatMoney(result.midRub)}</span>
             </div>
+            <button
+              type="button"
+              className={`btn-copy${copied ? ' btn-copy--done' : ''}`}
+              onClick={handleCopy}
+            >
+              {copied ? '✓ Скопировано' : 'Скопировать результат'}
+            </button>
           </div>
         )}
       </div>
@@ -116,17 +249,72 @@ export function Calculator({ formatMoney, price }) {
         .fields { display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; }
         .field { display: flex; flex-direction: column; gap: 6px; }
         .field-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+        .field-err { font-size: 0.78rem; color: var(--danger); padding-left: 2px; }
+        .input-err { border-color: var(--danger) !important; box-shadow: 0 0 0 3px rgba(248,113,113,0.18) !important; }
+
+        .purity-row { display: flex; gap: 8px; align-items: center; }
+        .purity-presets { display: flex; gap: 6px; flex-shrink: 0; }
+        .preset-btn {
+          padding: 10px 14px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--stroke);
+          background: var(--surface);
+          color: var(--text-muted);
+          font-size: 0.9rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background 0.15s, color 0.15s, border-color 0.15s;
+          white-space: nowrap;
+        }
+        .preset-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+        .preset-btn.active { background: var(--gold-soft); border-color: var(--gold); color: var(--gold); }
+        .preset-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .purity-select { flex: 1; min-width: 0; }
+
         .hint-loading { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 0.82rem; }
         .warn-box { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); font-size: 0.82rem; padding: 10px 12px; border-radius: var(--radius-sm); margin: 0 0 12px; line-height: 1.4; }
-        .err { color: var(--danger); font-size: 0.85rem; margin: 0 0 12px; }
-        .calc-btn { width: 100%; }
+        .err { color: var(--danger); font-size: 0.85rem; margin: 0 0 12px; padding: 8px 12px; background: rgba(248,113,113,0.08); border-radius: var(--radius-sm); border: 1px solid rgba(248,113,113,0.25); }
+        .calc-btn { width: 100%; transition: transform 0.15s, box-shadow 0.15s, filter 0.15s, opacity 0.2s; }
+        .calc-btn--ready { animation: btnPulse 2.5s ease infinite; }
+        @keyframes btnPulse {
+          0%, 100% { box-shadow: 0 4px 24px var(--gold-glow); }
+          50% { box-shadow: 0 4px 32px rgba(232,197,71,0.55); }
+        }
         .result-block { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--stroke); }
-        .result-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .result-enter { animation: resultIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes resultIn {
+          from { opacity: 0; transform: translateY(10px) scale(0.98); }
+          to { opacity: 1; transform: none; }
+        }
+        .result-row { display: flex; justify-content: space-between; margin-bottom: 8px; gap: 12px; }
         .result-hero { margin-top: 16px; text-align: center; padding: 18px 14px; border-radius: var(--radius-sm); background: var(--gold-soft); border: 1px solid var(--stroke); }
         .result-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.14em; display: block; margin-bottom: 8px; }
-        .result-range { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; color: var(--gold); margin: 0 0 6px; line-height: 1.25; }
+        .result-range { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; color: var(--gold); margin: 0 0 6px; line-height: 1.25; word-break: break-word; }
         .result-range .dash { color: var(--text-muted); font-weight: 400; }
         .result-mid { display: block; }
+
+        .btn-copy {
+          display: block;
+          width: 100%;
+          margin-top: 14px;
+          padding: 11px 16px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--stroke);
+          background: transparent;
+          color: var(--text-muted);
+          font-size: 0.85rem;
+          cursor: pointer;
+          transition: border-color 0.15s, color 0.15s, background 0.15s;
+        }
+        .btn-copy:hover { border-color: var(--gold); color: var(--gold); }
+        .btn-copy--done { border-color: #4ade80; color: #4ade80; background: rgba(74,222,128,0.06); }
+
+        @media (max-width: 380px) {
+          .calc-card { padding: 18px 14px 20px; }
+          .result-range { font-size: 1.2rem; }
+          .result-range .dash { display: block; margin: 4px 0; font-size: 0.9rem; }
+          .preset-btn { padding: 10px 10px; font-size: 0.85rem; }
+        }
       `}</style>
     </div>
   );

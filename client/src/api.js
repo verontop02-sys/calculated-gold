@@ -66,6 +66,57 @@ async function request(path, options = {}) {
   return data;
 }
 
+/**
+ * Connect to the SSE price stream using fetch (supports Authorization header).
+ * Returns a cleanup function. Calls onData(priceObject) on each event,
+ * onError() when the stream drops or returns non-2xx.
+ */
+export async function connectPriceStream(onData, onError) {
+  const token = await getAccessToken();
+  const url = withBase('/price/stream');
+  const controller = new AbortController();
+
+  (async () => {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          Accept: 'text/event-stream',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        onError?.();
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) { onError?.(); break; }
+
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try { onData(JSON.parse(line.slice(6))); } catch {}
+          }
+        }
+      }
+    } catch (e) {
+      if (e?.name !== 'AbortError') onError?.();
+    }
+  })();
+
+  return () => controller.abort();
+}
+
 export const api = {
   me: () => request('/auth/me'),
   price: () => request('/price'),

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, onSessionExpired } from './api.js';
+import { api, connectPriceStream, onSessionExpired } from './api.js';
 import { supabase } from './supabase.js';
 import { useToast } from './ToastContext.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
@@ -130,8 +130,47 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     loadPrice({ silent: false });
-    const t = setInterval(() => loadPrice({ silent: true }), 60_000);
-    return () => clearInterval(t);
+
+    let close = null;
+    let retryTimer = null;
+    let pollTimer = null;
+    let sseAttempts = 0;
+
+    function startPolling() {
+      if (pollTimer) return;
+      pollTimer = setInterval(() => loadPrice({ silent: true }), 60_000);
+    }
+
+    async function connectSse() {
+      sseAttempts += 1;
+      try {
+        close = await connectPriceStream(
+          (data) => {
+            sseAttempts = 0;
+            setPrice(data);
+            setPriceErr(data.error || data.lastRefreshError || null);
+          },
+          () => {
+            // After 3 failures give up on SSE and fall back to polling
+            if (sseAttempts < 3) {
+              retryTimer = setTimeout(connectSse, 15_000);
+            } else {
+              startPolling();
+            }
+          },
+        );
+      } catch {
+        startPolling();
+      }
+    }
+
+    connectSse();
+
+    return () => {
+      close?.();
+      clearTimeout(retryTimer);
+      clearInterval(pollTimer);
+    };
   }, [user, loadPrice]);
 
   useEffect(() => {
@@ -192,7 +231,6 @@ export default function App() {
       <header className="topbar glass">
         <div className="brand">
           <span className="brand-mark">
-            <span className="brand-fallback" aria-hidden>R</span>
             <img src="/logo_reactivo1.png" alt="Reaktivo" />
           </span>
           <div>
@@ -241,7 +279,7 @@ export default function App() {
               {staleRefreshingRef.current ? <><span className="spinner inline" style={{width:'0.6em',height:'0.6em',borderWidth:'1.5px'}} /> Обновляем</> : 'Кэш'}
             </span>
           )}
-          {priceErr && !priceLoading && <span className="badge danger" title={priceErr}>Ошибка обновления</span>}
+          {priceErr && !priceLoading && !price?.goldRubPerGram && <span className="badge danger" title={priceErr}>Ошибка обновления</span>}
           {user.role === 'admin' && (
             <button
               type="button"
@@ -277,9 +315,6 @@ export default function App() {
         {tab === 'settings' && user.role === 'admin' && <SettingsPanel />}
       </main>
 
-      <footer className="footer muted small">
-        Статика: Firebase Hosting · данные и API: Supabase + Node
-      </footer>
 
       <style>{`
         .shell {
@@ -303,8 +338,7 @@ export default function App() {
         }
         .brand { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 auto; }
         .brand > div:last-child { min-width: 0; flex: 1; }
-        .brand-mark { width: 44px; height: 44px; border-radius: 12px; background: #111; box-shadow: 0 0 16px rgba(220,40,40,0.22), 0 2px 8px rgba(0,0,0,0.5); flex-shrink: 0; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; }
-        .brand-fallback { font-family: var(--font-display); font-size: 0.8rem; font-weight: 700; color: rgba(20, 12, 2, 0.9); letter-spacing: 0.03em; }
+        .brand-mark { width: 44px; height: 44px; border-radius: 12px; background: #111; box-shadow: 0 0 20px rgba(220,40,40,0.22), 0 2px 8px rgba(0,0,0,0.5); flex-shrink: 0; overflow: hidden; display: block; }
         .brand-mark img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; display: block; }
         .brand-title { font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; margin: 0; line-height: 1.15; letter-spacing: 0.02em; word-break: break-word; }
         .brand-sub { margin: 2px 0 0; font-size: 0.75rem; }

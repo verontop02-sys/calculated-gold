@@ -105,30 +105,51 @@ function formatCbrDate(d = new Date()) {
 }
 
 async function fetchCbrGoldRubPerGram() {
-  const dateReq = formatCbrDate();
-  const { data: xml } = await axios.get('https://www.cbr.ru/scripts/xml_metall.asp', {
-    params: { date_req1: dateReq, date_req2: dateReq },
-    timeout: 20000,
-    responseType: 'text',
-    headers: { 'User-Agent': 'CalculatedGold/1.0' },
-  });
+  // CBR doesn't publish quotes on weekends/holidays — try up to 4 days back
+  const MAX_DAYS_BACK = 4;
+  let lastError;
 
-  const doc = parser.parse(xml);
-  const records = doc?.Metall?.Record;
-  const list = Array.isArray(records) ? records : records ? [records] : [];
-  const gold = list.find((r) => String(r['@_Code']) === '1');
-  if (!gold) throw new Error('CBR: не найдена запись золота (Code=1)');
+  for (let daysBack = 0; daysBack <= MAX_DAYS_BACK; daysBack++) {
+    const d = new Date();
+    d.setDate(d.getDate() - daysBack);
+    const dateReq = formatCbrDate(d);
 
-  const buy = parseRussianNum(gold.Buy);
-  const sell = parseRussianNum(gold.Sell);
-  if (!buy) throw new Error('CBR: не удалось разобрать цену золота');
+    try {
+      const { data: xml } = await axios.get('https://www.cbr.ru/scripts/xml_metall.asp', {
+        params: { date_req1: dateReq, date_req2: dateReq },
+        timeout: 20000,
+        responseType: 'text',
+        headers: { 'User-Agent': 'CalculatedGold/1.0' },
+      });
 
-  return {
-    goldRubPerGram: buy,
-    sellRubPerGram: sell,
-    cbrDate: gold['@_Date'] || dateReq,
-    fetchedAt: new Date().toISOString(),
-  };
+      const doc = parser.parse(xml);
+      const records = doc?.Metall?.Record;
+      const list = Array.isArray(records) ? records : records ? [records] : [];
+      const gold = list.find((r) => String(r['@_Code']) === '1');
+      if (!gold) {
+        lastError = new Error(`CBR: нет данных за ${dateReq}`);
+        continue;
+      }
+
+      const buy = parseRussianNum(gold.Buy);
+      const sell = parseRussianNum(gold.Sell);
+      if (!buy) {
+        lastError = new Error('CBR: не удалось разобрать цену золота');
+        continue;
+      }
+
+      return {
+        goldRubPerGram: buy,
+        sellRubPerGram: sell,
+        cbrDate: gold['@_Date'] || dateReq,
+        fetchedAt: new Date().toISOString(),
+      };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error(`CBR: нет данных за последние ${MAX_DAYS_BACK + 1} дней`);
 }
 
 function ttlMs() {
@@ -277,6 +298,65 @@ async function requireAdmin(req, res, next) {
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
+// ── SSE: real-time price stream ────────────────────────────────────────────
+const sseClients = new Set();
+
+function broadcastPrice(priceData) {
+  if (sseClients.size === 0) return;
+  const msg = `data: ${JSON.stringify(priceData)}\n\n`;
+  for (const client of sseClients) {
+    try { client.write(msg); } catch { sseClients.delete(client); }
+  }
+}
+
+// Server-side periodic push every 60 s (mirrors old client polling)
+setInterval(async () => {
+  if (sseClients.size === 0) return;
+  try {
+    const existing = await getPriceCache();
+    if (!existing) return;
+    const age = Date.now() - new Date(existing.cachedAt).getTime();
+    const payload = age >= ttlMs()
+      ? await refreshPriceCache(false)
+      : { ...existing, stale: age >= ttlMs(), ageMs: age };
+    broadcastPrice(payload);
+  } catch {}
+}, 60_000);
+
+// Route lives BEFORE the blanket authMiddleware so it can handle its own auth
+app.get('/api/price/stream', asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  if (!authHeader.startsWith('Bearer ')) return res.status(401).json({ error: 'Требуется вход' });
+  const rawToken = authHeader.slice(7);
+  const { user, error } = await getUserFromAccessToken(rawToken);
+  if (error || !user?.id) return res.status(401).json({ error: 'Сессия недействительна' });
+
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering
+  res.flushHeaders();
+
+  sseClients.add(res);
+
+  // Send current price immediately on connect
+  try {
+    const p = await getPriceCache();
+    if (p) res.write(`data: ${JSON.stringify(p)}\n\n`);
+  } catch {}
+
+  // Keepalive comment every 25 s to prevent proxy timeouts
+  const hb = setInterval(() => {
+    try { res.write(': ping\n\n'); } catch {}
+  }, 25_000);
+
+  req.on('close', () => {
+    sseClients.delete(res);
+    clearInterval(hb);
+  });
+}));
+// ─────────────────────────────────────────────────────────────────────────────
+
 app.use('/api', asyncHandler(authMiddleware));
 
 app.get(
@@ -310,7 +390,9 @@ app.post(
   '/api/price/refresh',
   asyncHandler(requireAdmin),
   asyncHandler(async (_req, res) => {
-    res.json(await refreshPriceCache(true));
+    const data = await refreshPriceCache(true);
+    broadcastPrice(data);
+    res.json(data);
   })
 );
 
