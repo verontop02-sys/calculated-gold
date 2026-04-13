@@ -42,6 +42,20 @@ const supabase = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
+/** Email → полный доступ к API (если роль из profiles по какой-то причине не подтягивается). Render: PANEL_FULL_ACCESS_EMAILS=a@b.com,c@d.com */
+function panelFullAccessEmails() {
+  return (process.env.PANEL_FULL_ACCESS_EMAILS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function hasPanelFullAccessByEmail(user) {
+  const e = String(user?.email || '').trim().toLowerCase();
+  if (!e) return false;
+  return panelFullAccessEmails().includes(e);
+}
+
 async function getUserFromAccessToken(accessToken) {
   const {
     data: { user },
@@ -441,6 +455,20 @@ async function authMiddleware(req, res, next) {
     }
     req.user = user;
     await ensureProfileAndBootstrap(user.id);
+    const rawRole = await loadProfileRole(user.id);
+    const metaRole = user.app_metadata?.role ?? user.user_metadata?.role ?? null;
+    const emailBypass = hasPanelFullAccessByEmail(user);
+
+    req.profileRoleRaw = rawRole;
+    req.isSuperAdmin =
+      emailBypass ||
+      isSuperAdminRole(rawRole) ||
+      isSuperAdminRole(metaRole);
+    req.isUserManager =
+      emailBypass ||
+      isUserManagerRole(rawRole) ||
+      isUserManagerRole(metaRole) ||
+      req.isSuperAdmin;
     next();
   } catch (e) {
     if (isDev) console.warn('[auth]', e?.message || e);
@@ -448,13 +476,96 @@ async function authMiddleware(req, res, next) {
   }
 }
 
-async function requireAdmin(req, res, next) {
-  const { data: prof, error } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
-  if (error || prof?.role !== 'admin') return res.status(403).json({ error: 'Недостаточно прав' });
-  next();
+/** Единый разбор роли из БД (пробелы, регистр, невидимые символы, типичные опечатки). */
+function normalizeRole(role) {
+  let r = String(role ?? '')
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\u00a0-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+  if (r === 'super-admin' || r === 'superadmin') r = 'super_admin';
+  return r;
 }
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+/** Только латинские буквы роли — ловит «super admin», «super_admin» с мусором в строке. */
+function roleLettersOnly(role) {
+  return String(role ?? '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^a-z]/g, '');
+}
+
+/** Админ или супер: управление пользователями (создание курьеров/продавцов; супер — ещё и админов). */
+function isUserManagerRole(role) {
+  const r = normalizeRole(role);
+  return r === 'admin' || r === 'super_admin';
+}
+
+/** Супер-админ: PUT /settings и управление админами; обновление курса — у любого вошедшего (см. POST /price/refresh). */
+function isSuperAdminRole(role) {
+  if (role == null || role === '') return false;
+  const r = normalizeRole(role);
+  if (r === 'super_admin') return true;
+  return roleLettersOnly(role) === 'superadmin';
+}
+
+async function loadProfileRole(userId) {
+  let { data: prof } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
+  if (!prof) {
+    await ensureProfileAndBootstrap(userId);
+    ({ data: prof } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle());
+  }
+  return prof?.role ?? null;
+}
+
+async function requireUserManager(req, res, next) {
+  if (req.isUserManager) return next();
+  try {
+    const raw = await loadProfileRole(req.user.id);
+    const meta = req.user?.app_metadata?.role ?? req.user?.user_metadata?.role ?? null;
+    if (isUserManagerRole(raw) || isUserManagerRole(meta) || isSuperAdminRole(meta)) return next();
+    return res.status(403).json({ error: 'Недостаточно прав' });
+  } catch (e) {
+    console.warn('[requireUserManager]', req.user?.id, e?.message || e);
+    return res.status(403).json({ error: 'Недостаточно прав' });
+  }
+}
+
+async function requireSuperAdmin(req, res, next) {
+  if (req.isSuperAdmin) return next();
+  try {
+    const raw = await loadProfileRole(req.user.id);
+    const meta = req.user?.app_metadata?.role ?? req.user?.user_metadata?.role ?? null;
+    if (isSuperAdminRole(raw) || isSuperAdminRole(meta)) return next();
+    return res.status(403).json({ error: 'Недостаточно прав' });
+  } catch (e) {
+    console.warn('[requireSuperAdmin]', req.user?.id, e?.message || e);
+    return res.status(403).json({ error: 'Недостаточно прав' });
+  }
+}
+
+async function getRequesterRole(req) {
+  if (req.isSuperAdmin) return 'super_admin';
+  const raw = await loadProfileRole(req.user.id);
+  const meta = req.user?.app_metadata?.role ?? req.user?.user_metadata?.role ?? null;
+  const rProf = normalizeRole(raw);
+  const rMeta = normalizeRole(meta);
+  if (isSuperAdminRole(raw) || isSuperAdminRole(meta)) return 'super_admin';
+  if (rProf === 'admin' || rMeta === 'admin') return 'admin';
+  if (rProf === 'seller' || rMeta === 'seller') return 'seller';
+  if (rProf === 'courier' || rMeta === 'courier') return 'courier';
+  return 'courier';
+}
+
+async function getProfileRoleById(uid) {
+  const { data: prof } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
+  const r = normalizeRole(prof?.role);
+  if (r === 'admin' || r === 'super_admin' || r === 'seller' || r === 'courier') return r;
+  return 'courier';
+}
 
 // ── SSE: real-time price stream ────────────────────────────────────────────
 const sseClients = new Set();
@@ -481,47 +592,65 @@ setInterval(async () => {
   } catch {}
 }, 60_000);
 
-// Route lives BEFORE the blanket authMiddleware so it can handle its own auth
-app.get('/api/price/stream', asyncHandler(async (req, res) => {
-  const authHeader = req.headers.authorization || '';
-  if (!authHeader.startsWith('Bearer ')) return res.status(401).json({ error: 'Требуется вход' });
-  const rawToken = authHeader.slice(7);
-  const { user, error } = await getUserFromAccessToken(rawToken);
-  if (error || !user?.id) return res.status(401).json({ error: 'Сессия недействительна' });
+/**
+ * Эти три маршрута — напрямую на app (не через Router), до authMiddleware: только JWT внутри.
+ * Так POST /api/price/refresh никогда не попадает в цепочку с проверкой ролей (403).
+ */
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get(
+  '/api/price/stream',
+  asyncHandler(async (req, res) => {
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) return res.status(401).json({ error: 'Требуется вход' });
+    const rawToken = authHeader.slice(7);
+    const { user, error } = await getUserFromAccessToken(rawToken);
+    if (error || !user?.id) return res.status(401).json({ error: 'Сессия недействительна' });
 
-  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering
-  res.flushHeaders();
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
 
-  sseClients.add(res);
+    sseClients.add(res);
 
-  // Send current price immediately on connect
-  try {
-    const p = await getPriceCache();
-    if (p) res.write(`data: ${JSON.stringify(p)}\n\n`);
-  } catch {}
+    try {
+      const p = await getPriceCache();
+      if (p) res.write(`data: ${JSON.stringify(p)}\n\n`);
+    } catch {}
 
-  // Keepalive comment every 25 s to prevent proxy timeouts
-  const hb = setInterval(() => {
-    try { res.write(': ping\n\n'); } catch {}
-  }, 25_000);
+    const hb = setInterval(() => {
+      try { res.write(': ping\n\n'); } catch {}
+    }, 25_000);
 
-  req.on('close', () => {
-    sseClients.delete(res);
-    clearInterval(hb);
-  });
-}));
-// ─────────────────────────────────────────────────────────────────────────────
+    req.on('close', () => {
+      sseClients.delete(res);
+      clearInterval(hb);
+    });
+  })
+);
+app.post(
+  '/api/price/refresh',
+  asyncHandler(async (req, res) => {
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) return res.status(401).json({ error: 'Требуется вход' });
+    const token = authHeader.slice(7);
+    const { user, error } = await getUserFromAccessToken(token);
+    if (error || !user?.id) return res.status(401).json({ error: 'Сессия недействительна' });
+    await ensureProfileAndBootstrap(user.id);
+    await refreshXautPriceCache(true);
+    const data = await refreshPriceCache(true);
+    broadcastPrice(data);
+    res.json(data);
+  })
+);
 
 app.use('/api', asyncHandler(authMiddleware));
 
 app.get(
   '/api/auth/me',
   asyncHandler(async (req, res) => {
-    const { data: prof } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
-    const role = prof?.role || 'courier';
+    const role = await getRequesterRole(req);
     res.json({ user: { uid: req.user.id, email: req.user.email, role } });
   })
 );
@@ -574,17 +703,6 @@ app.get(
 );
 
 app.post(
-  '/api/price/refresh',
-  asyncHandler(requireAdmin),
-  asyncHandler(async (_req, res) => {
-    await refreshXautPriceCache(true);
-    const data = await refreshPriceCache(true);
-    broadcastPrice(data);
-    res.json(data);
-  })
-);
-
-app.post(
   '/api/calculate',
   asyncHandler(async (req, res) => {
     const { weightGrams, purityPerThousand } = req.body || {};
@@ -613,7 +731,7 @@ app.get('/api/settings', asyncHandler(async (_req, res) => res.json(await getSet
 
 app.put(
   '/api/settings',
-  asyncHandler(requireAdmin),
+  asyncHandler(requireSuperAdmin),
   asyncHandler(async (req, res) => {
     const body = req.body || {};
     const allowed = ['buybackPercentOfScrap', 'rangeHalfWidthPercent', 'purityAdjustments', 'purityOrder'];
@@ -625,7 +743,7 @@ app.put(
 
 app.get(
   '/api/users',
-  asyncHandler(requireAdmin),
+  asyncHandler(requireUserManager),
   asyncHandler(async (_req, res) => {
     const { data: listData, error: listErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
     if (listErr) throw listErr;
@@ -646,12 +764,18 @@ app.get(
 
 app.post(
   '/api/users',
-  asyncHandler(requireAdmin),
+  asyncHandler(requireUserManager),
   asyncHandler(async (req, res) => {
     const { email, password, role } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'Email и пароль обязательны' });
-    const VALID_ROLES = ['courier', 'seller', 'admin'];
-    const dbRole = VALID_ROLES.includes(String(role || '').toLowerCase()) ? String(role).toLowerCase() : 'courier';
+    const me = await getRequesterRole(req);
+    const ALL = ['courier', 'seller', 'admin', 'super_admin'];
+    const requested = String(role || 'courier').toLowerCase();
+    if (!ALL.includes(requested)) return res.status(400).json({ error: 'Недопустимая роль' });
+    if (!req.isSuperAdmin && !isSuperAdminRole(me) && (requested === 'admin' || requested === 'super_admin')) {
+      return res.status(403).json({ error: 'Только супер-администратор может создавать администраторов' });
+    }
+    const dbRole = requested;
     const { data: created, error: cErr } = await supabase.auth.admin.createUser({
       email: String(email).trim(),
       password: String(password),
@@ -675,15 +799,23 @@ app.post(
 
 app.patch(
   '/api/users/:uid/role',
-  asyncHandler(requireAdmin),
+  asyncHandler(requireUserManager),
   asyncHandler(async (req, res) => {
     const uid = req.params.uid;
     const { role } = req.body || {};
-    const VALID_ROLES = ['courier', 'seller', 'admin'];
-    if (!VALID_ROLES.includes(String(role || '').toLowerCase())) {
-      return res.status(400).json({ error: 'Недопустимая роль. Доступно: courier, seller, admin' });
+    const me = await getRequesterRole(req);
+    const targetRole = await getProfileRoleById(uid);
+    const ALL = ['courier', 'seller', 'admin', 'super_admin'];
+    const dbRole = String(role || '').toLowerCase();
+    if (!ALL.includes(dbRole)) {
+      return res.status(400).json({ error: 'Недопустимая роль' });
     }
-    const dbRole = String(role).toLowerCase();
+    if (!req.isSuperAdmin && !isSuperAdminRole(me) && (targetRole === 'admin' || targetRole === 'super_admin')) {
+      return res.status(403).json({ error: 'Только супер-администратор может менять роли администраторов' });
+    }
+    if (!req.isSuperAdmin && !isSuperAdminRole(me) && (dbRole === 'admin' || dbRole === 'super_admin')) {
+      return res.status(403).json({ error: 'Только супер-администратор может назначать администраторов' });
+    }
     const { error } = await supabase.from('profiles').upsert({ id: uid, role: dbRole }, { onConflict: 'id' });
     if (error) throw error;
     res.json({ ok: true, uid, role: dbRole });
@@ -692,10 +824,15 @@ app.patch(
 
 app.delete(
   '/api/users/:uid',
-  asyncHandler(requireAdmin),
+  asyncHandler(requireUserManager),
   asyncHandler(async (req, res) => {
     const uid = req.params.uid;
     if (uid === req.user.id) return res.status(400).json({ error: 'Нельзя удалить себя' });
+    const me = await getRequesterRole(req);
+    const targetRole = await getProfileRoleById(uid);
+    if (!req.isSuperAdmin && !isSuperAdminRole(me) && (targetRole === 'admin' || targetRole === 'super_admin')) {
+      return res.status(403).json({ error: 'Только супер-администратор может удалять администраторов' });
+    }
     const { error: dErr } = await supabase.auth.admin.deleteUser(uid);
     if (dErr) throw dErr;
     res.json({ ok: true });

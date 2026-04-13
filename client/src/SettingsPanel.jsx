@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
 import { useToast } from './ToastContext.jsx';
-import { roleLabel } from './roles.js';
+import { isAdminOrSuperProfile, isSuperAdminRole, roleLabel } from './roles.js';
 
-export function SettingsPanel() {
+const ROLES_STAFF_FULL = ['courier', 'seller', 'admin', 'super_admin'];
+const ROLES_FIELD_ONLY = ['courier', 'seller'];
+
+export function SettingsPanel({ user }) {
   const toast = useToast();
+  const isSuper = isSuperAdminRole(user?.role);
+  const rolesForPicker = isSuper ? ROLES_STAFF_FULL : ROLES_FIELD_ONLY;
   const [settings, setSettings] = useState(null);
   const [users, setUsers] = useState([]);
   const [usersNote, setUsersNote] = useState('');
@@ -24,17 +29,23 @@ export function SettingsPanel() {
 
   const canManageUsers = userListStatus === 'ok';
 
+  function canManageRow(u) {
+    return isSuper || !isAdminOrSuperProfile(u.role);
+  }
+
   const load = useCallback(async () => {
     setUsersNote('');
     setErr('');
-    try {
-      const s = await api.settings();
-      setSettings(s);
-    } catch (e) {
-      setErr(e?.message || 'Не удалось загрузить настройки');
-      setSettings(null);
-      setUserListStatus('error');
-      return;
+    if (isSuper) {
+      try {
+        const s = await api.settings();
+        setSettings(s);
+      } catch (e) {
+        setErr(e?.message || 'Не удалось загрузить настройки');
+        setSettings(null);
+        setUserListStatus('error');
+        return;
+      }
     }
     setUserListStatus('loading');
     try {
@@ -48,7 +59,7 @@ export function SettingsPanel() {
         'Список пользователей недоступен: API не отвечает или нет прав. Проверьте, что Node API доступен и в Supabase выполнена миграция.'
       );
     }
-  }, []);
+  }, [isSuper]);
 
   useEffect(() => {
     load().catch((e) => setErr(e.message));
@@ -71,6 +82,7 @@ export function SettingsPanel() {
   }
 
   async function save(section) {
+    if (!isSuper || !settings) return;
     setErr('');
     setSaving(true);
     setSavedSection(null);
@@ -150,7 +162,7 @@ export function SettingsPanel() {
     }
   }
 
-  if (!settings) {
+  if (isSuper && !settings) {
     return (
       <div className="settings settings-boot glass">
         {err ? (
@@ -168,90 +180,115 @@ export function SettingsPanel() {
     );
   }
 
-  const probs = (settings.purityOrder || []).map(String);
+  if (!isSuper && userListStatus === 'loading') {
+    return (
+      <div className="settings settings-boot glass">
+        <div className="spinner" />
+        <p className="muted">Загрузка…</p>
+      </div>
+    );
+  }
+
+  const probs = isSuper && settings ? (settings.purityOrder || []).map(String) : [];
 
   return (
     <div className="settings">
-      {/* Политика выкупа */}
-      <div className="glass block">
-        <h2 className="block-title">Политика выкупа</h2>
-        <p className="muted small block-desc">
-          Процент от стоимости чистого золота по курсу в верхней панели. Коридор — симметричный разброс вокруг ориентира.
-        </p>
-        <label className="field">
-          <span className="field-label">Выкуп, % от биржевой стоимости</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
-            value={buybackStr}
-            onChange={(e) => { setSavedSection(null); setBuybackStr(e.target.value); }}
-            onBlur={() => {
-              const n = parseNum(buybackStr, 0);
-              setBuybackStr(String(n));
-              setSettings((s) => ({ ...s, buybackPercentOfScrap: Math.min(100, Math.max(0, n)) }));
-            }}
-          />
-        </label>
-        <label className="field">
-          <span className="field-label">Полуширина коридора, %</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
-            value={rangeStr}
-            onChange={(e) => { setSavedSection(null); setRangeStr(e.target.value); }}
-            onBlur={() => {
-              const n = parseNum(rangeStr, 0);
-              setRangeStr(String(n));
-              setSettings((s) => ({ ...s, rangeHalfWidthPercent: Math.min(50, Math.max(0, n)) }));
-            }}
-          />
-        </label>
-        <button type="button" className={`btn-primary save-btn${savedSection === 'policy' ? ' save-btn--ok' : ''}`} disabled={saving} onClick={() => save('policy')}>
-          {saving ? <><span className="spinner inline" /> Сохранение…</> : savedSection === 'policy' ? '✓ Сохранено' : 'Сохранить политику'}
-        </button>
-      </div>
-
-      {/* Поправки по пробам */}
-      <div className="glass block">
-        <h2 className="block-title">Поправки по пробам, %</h2>
-        <p className="muted small block-desc">Дополнительный множитель к сумме: +2 означает +2% к расчёту для этой пробы.</p>
-        <div className="grid-adj">
-          {probs.map((p) => (
-            <label key={p} className="adj-cell">
-              <span className="prob">{p}</span>
+      {isSuper && settings && (
+        <>
+          <div className="glass block">
+            <h2 className="block-title">Политика выкупа</h2>
+            <p className="muted small block-desc">
+              Процент от стоимости чистого золота по курсу в верхней панели. Коридор — симметричный разброс вокруг ориентира.
+            </p>
+            <label className="field">
+              <span className="field-label">Выкуп, % от биржевой стоимости</span>
               <input
                 type="text"
                 inputMode="decimal"
                 autoComplete="off"
-                value={adjStr?.[p] ?? String(settings.purityAdjustments[p] ?? 0)}
-                onChange={(e) => {
-                  setSavedSection(null);
-                  setAdjStr((prev) => ({ ...(prev || {}), [p]: e.target.value }));
-                }}
+                value={buybackStr}
+                onChange={(e) => { setSavedSection(null); setBuybackStr(e.target.value); }}
                 onBlur={() => {
-                  const n = parseNum(adjStr?.[p], 0);
-                  setAdjStr((prev) => ({ ...(prev || {}), [p]: String(n) }));
-                  setSettings((s) => ({
-                    ...s,
-                    purityAdjustments: { ...s.purityAdjustments, [p]: n },
-                  }));
+                  const n = parseNum(buybackStr, 0);
+                  setBuybackStr(String(n));
+                  setSettings((s) => ({ ...s, buybackPercentOfScrap: Math.min(100, Math.max(0, n)) }));
                 }}
               />
             </label>
-          ))}
-        </div>
-        <button type="button" className={`btn-primary save-btn${savedSection === 'adj' ? ' save-btn--ok' : ''}`} style={{ marginTop: 14 }} disabled={saving} onClick={() => save('adj')}>
-          {saving ? <><span className="spinner inline" /> Сохранение…</> : savedSection === 'adj' ? '✓ Сохранено' : 'Сохранить пробы'}
-        </button>
-      </div>
+            <label className="field">
+              <span className="field-label">Полуширина коридора, %</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={rangeStr}
+                onChange={(e) => { setSavedSection(null); setRangeStr(e.target.value); }}
+                onBlur={() => {
+                  const n = parseNum(rangeStr, 0);
+                  setRangeStr(String(n));
+                  setSettings((s) => ({ ...s, rangeHalfWidthPercent: Math.min(50, Math.max(0, n)) }));
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className={`btn-primary save-btn${savedSection === 'policy' ? ' save-btn--ok' : ''}`}
+              disabled={saving}
+              onClick={() => save('policy')}
+            >
+              {saving ? <><span className="spinner inline" /> Сохранение…</> : savedSection === 'policy' ? '✓ Сохранено' : 'Сохранить политику'}
+            </button>
+          </div>
+
+          <div className="glass block">
+            <h2 className="block-title">Поправки по пробам, %</h2>
+            <p className="muted small block-desc">Дополнительный множитель к сумме: +2 означает +2% к расчёту для этой пробы.</p>
+            <div className="grid-adj">
+              {probs.map((p) => (
+                <label key={p} className="adj-cell">
+                  <span className="prob">{p}</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={adjStr?.[p] ?? String(settings.purityAdjustments[p] ?? 0)}
+                    onChange={(e) => {
+                      setSavedSection(null);
+                      setAdjStr((prev) => ({ ...(prev || {}), [p]: e.target.value }));
+                    }}
+                    onBlur={() => {
+                      const n = parseNum(adjStr?.[p], 0);
+                      setAdjStr((prev) => ({ ...(prev || {}), [p]: String(n) }));
+                      setSettings((s) => ({
+                        ...s,
+                        purityAdjustments: { ...s.purityAdjustments, [p]: n },
+                      }));
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+            <button type="button" className={`btn-primary save-btn${savedSection === 'adj' ? ' save-btn--ok' : ''}`} style={{ marginTop: 14 }} disabled={saving} onClick={() => save('adj')}>
+              {saving ? <><span className="spinner inline" /> Сохранение…</> : savedSection === 'adj' ? '✓ Сохранено' : 'Сохранить пробы'}
+            </button>
+          </div>
+        </>
+      )}
 
       {/* Доступы */}
       <div className="glass block">
         <h2 className="block-title">Доступы</h2>
         <p className="muted small block-desc">
-          Администратор создаёт логины. <strong>Продавец</strong> и <strong>курьер</strong> видят только калькулятор и не могут добавлять пользователей.
+          {isSuper ? (
+            <>
+              <strong>Супер-администратор</strong> — полный доступ: политика выкупа, пробы, любые роли пользователей (обновление курса доступно всем вошедшим).{' '}
+            </>
+          ) : (
+            <>
+              <strong>Администратор</strong> — как курьер в панели (калькулятор и курс, в том числе «Обновить сейчас»), плюс только этот блок: создание курьеров и продавцов. Политика выкупа и пробы — у супер-администратора.{' '}
+            </>
+          )}
+          <strong>Продавец</strong> и <strong>курьер</strong> видят только калькулятор.
         </p>
         {usersNote && <p className="users-note muted small block-desc">{usersNote}</p>}
 
@@ -269,7 +306,7 @@ export function SettingsPanel() {
                   <strong className="user-email">{u.email}</strong>
                   {changingRoleUid === u.uid ? (
                     <span className="role-change-row">
-                      {['courier', 'seller', 'admin'].map((r) => (
+                      {rolesForPicker.map((r) => (
                         <button
                           key={r}
                           type="button"
@@ -291,7 +328,7 @@ export function SettingsPanel() {
                         ✕
                       </button>
                     </span>
-                  ) : (
+                  ) : canManageRow(u) ? (
                     <button
                       type="button"
                       className="role-badge-btn muted small"
@@ -301,39 +338,45 @@ export function SettingsPanel() {
                     >
                       {roleLabel(u.role)} ✎
                     </button>
+                  ) : (
+                    <span className="muted small" style={{ padding: '3px 0' }} title="Изменение только у супер-администратора">
+                      {roleLabel(u.role)}
+                    </span>
                   )}
                 </div>
                 <div className="user-actions">
-                  {confirmDeleteUid === u.uid ? (
-                    <span className="confirm-row">
-                      <span className="muted small">Удалить?</span>
+                  {canManageRow(u) ? (
+                    confirmDeleteUid === u.uid ? (
+                      <span className="confirm-row">
+                        <span className="muted small">Удалить?</span>
+                        <button
+                          type="button"
+                          className="btn-ghost small danger"
+                          disabled={deleting}
+                          onClick={() => confirmDelete(u.uid)}
+                        >
+                          {deleting ? <span className="spinner inline" /> : 'Да'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-ghost small"
+                          disabled={deleting}
+                          onClick={() => setConfirmDeleteUid(null)}
+                        >
+                          Нет
+                        </button>
+                      </span>
+                    ) : (
                       <button
                         type="button"
                         className="btn-ghost small danger"
-                        disabled={deleting}
-                        onClick={() => confirmDelete(u.uid)}
+                        disabled={!canManageUsers || deleting}
+                        onClick={() => setConfirmDeleteUid(u.uid)}
                       >
-                        {deleting ? <span className="spinner inline" /> : 'Да'}
+                        Удалить
                       </button>
-                      <button
-                        type="button"
-                        className="btn-ghost small"
-                        disabled={deleting}
-                        onClick={() => setConfirmDeleteUid(null)}
-                      >
-                        Нет
-                      </button>
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn-ghost small danger"
-                      disabled={!canManageUsers || deleting}
-                      onClick={() => setConfirmDeleteUid(u.uid)}
-                    >
-                      Удалить
-                    </button>
-                  )}
+                    )
+                  ) : null}
                 </div>
               </li>
             ))}
@@ -357,13 +400,15 @@ export function SettingsPanel() {
             autoComplete="new-password"
           />
           <select
-            value={newUser.role}
+            value={rolesForPicker.includes(newUser.role) ? newUser.role : rolesForPicker[0]}
             onChange={(e) => setNewUser((x) => ({ ...x, role: e.target.value }))}
             disabled={!canManageUsers}
           >
-            <option value="courier">Курьер</option>
-            <option value="seller">Продавец</option>
-            <option value="admin">Администратор</option>
+            {rolesForPicker.map((r) => (
+              <option key={r} value={r}>
+                {roleLabel(r)}
+              </option>
+            ))}
           </select>
           <button type="submit" className="btn-primary" disabled={!canManageUsers || !newUser.email || !newUser.password}>
             Добавить пользователя

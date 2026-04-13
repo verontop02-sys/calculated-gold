@@ -219,7 +219,8 @@ api.get('/price', async (_req, res) => {
   });
 });
 
-api.post('/price/refresh', requireAdmin, async (_req, res) => {
+// После authMiddleware — любой вошедший (не только RTDB admins/*; совместимо с Supabase-ролями при общем API)
+api.post('/price/refresh', async (_req, res) => {
   const data = await refreshPriceCache(true);
   res.json(data);
 });

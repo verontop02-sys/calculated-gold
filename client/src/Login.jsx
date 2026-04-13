@@ -42,10 +42,12 @@ export function Login({ onSuccess }) {
       <div className="login-card glass">
         <div className="login-brand">
           <span className="login-mark">
-            <img src="/logo_reactivo1.png" alt="REAKTIVO" />
+            <img src="/logo_reactivo1.png" alt="REAKTIVO PRO" />
           </span>
           <div>
-            <h1 className="login-title">REAKTIVO</h1>
+            <h1 className="login-title">
+              REAKTIVO <span className="login-title-pro">PRO</span>
+            </h1>
             <p className="login-sub muted">Вход для сотрудников</p>
           </div>
         </div>
@@ -84,7 +86,31 @@ export function Login({ onSuccess }) {
         .login-brand > div:last-child { min-width: 0; }
         .login-mark { width: 72px; height: 72px; border-radius: 18px; background: #fff; border: 1px solid var(--stroke); box-shadow: 0 2px 10px rgba(0,0,0,0.08); display: inline-flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
         .login-mark img { width: 100%; height: 100%; object-fit: contain; object-position: center; padding: 6px; box-sizing: border-box; display: block; }
-        .login-title { font-family: var(--font-display); font-size: clamp(1.35rem, 5vw, 1.75rem); font-weight: 600; margin: 0; letter-spacing: 0.06em; line-height: 1.15; word-break: break-word; text-transform: uppercase; }
+        .login-title {
+          font-family: var(--font-display);
+          font-size: clamp(1.35rem, 5vw, 1.75rem);
+          font-weight: 600;
+          margin: 0;
+          letter-spacing: 0.06em;
+          line-height: 1.2;
+          word-break: break-word;
+          text-transform: uppercase;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.35em;
+        }
+        .login-title-pro {
+          font-size: 0.62em;
+          font-weight: 700;
+          letter-spacing: 0.14em;
+          padding: 0.2em 0.45em 0.22em;
+          border-radius: 6px;
+          background: var(--gold-soft);
+          border: 1px solid var(--stroke-strong);
+          color: var(--gold);
+          line-height: 1;
+        }
         .login-sub { margin: 4px 0 0; font-size: 0.85rem; }
         .login-form { display: flex; flex-direction: column; gap: 16px; }
         .field { display: flex; flex-direction: column; gap: 6px; }

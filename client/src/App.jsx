@@ -6,6 +6,7 @@ import { ThemeToggle } from './ThemeToggle.jsx';
 import { Login } from './Login.jsx';
 import { Calculator } from './Calculator.jsx';
 import { SettingsPanel } from './SettingsPanel.jsx';
+import { isSuperAdminRole, isUserManagerRole } from './roles.js';
 
 function formatMoney(n) {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -135,7 +136,7 @@ export default function App() {
   }
 
   const handleRefreshPrice = useCallback(async () => {
-    if (!user || user.role !== 'admin') return;
+    if (!user) return;
     setRefreshBusy(true);
     setPriceErr(null);
     try {
@@ -234,13 +235,14 @@ export default function App() {
 
   useEffect(() => {
     if (quoteTab !== 'moex') return;
+    if (!user) return;
     if (!price?.stale || !price?.goldRubPerGram || staleRefreshingRef.current) return;
     staleRefreshingRef.current = true;
     api.refreshPrice()
       .then(() => loadPrice({ silent: true }))
       .catch(() => {})
       .finally(() => { staleRefreshingRef.current = false; });
-  }, [quoteTab, price?.stale, price?.goldRubPerGram, loadPrice]);
+  }, [quoteTab, price?.stale, price?.goldRubPerGram, loadPrice, user]);
 
   if (!authReady) {
     return (
@@ -291,10 +293,12 @@ export default function App() {
       <header className="topbar glass">
         <div className="brand">
           <span className="brand-mark">
-            <img src="/logo_reactivo1.png" alt="REAKTIVO" />
+            <img src="/logo_reactivo1.png" alt="REAKTIVO PRO" />
           </span>
           <div>
-            <h1 className="brand-title">REAKTIVO</h1>
+            <h1 className="brand-title">
+              REAKTIVO <span className="brand-title-pro">PRO</span>
+            </h1>
             <p className="brand-sub muted">Закрытая панель оценки</p>
           </div>
         </div>
@@ -315,6 +319,7 @@ export default function App() {
             aria-selected={quoteTab === 'moex'}
             className={quoteTab === 'moex' ? 'quote-tab active' : 'quote-tab'}
             onClick={() => persistQuoteTab('moex')}
+            title="Переключить на котировку Мосбиржи (GLDRUBF)"
           >
             Мосбиржа
           </button>
@@ -324,6 +329,7 @@ export default function App() {
             aria-selected={quoteTab === 'xaut'}
             className={quoteTab === 'xaut' ? 'quote-tab active' : 'quote-tab'}
             onClick={() => persistQuoteTab('xaut')}
+            title="Переключить на XAUT в долларах (через курс ЦБ)"
           >
             XAUT USD
           </button>
@@ -358,19 +364,30 @@ export default function App() {
             </span>
           )}
           {priceErr && !priceLoading && !price?.goldRubPerGram && <span className="badge danger" title={priceErr}>Ошибка обновления</span>}
-          {user.role === 'admin' && (
+          {user && (
             <button
               type="button"
-              className="btn-ghost small"
+              className="rate-refresh-btn"
               disabled={refreshBusy || priceLoading}
               onClick={handleRefreshPrice}
+              title="Запросить свежий курс с биржи"
             >
               {refreshBusy ? (
                 <>
                   <span className="spinner inline" /> Обновление…
                 </>
               ) : (
-                'Обновить сейчас'
+                <>
+                  <span className="rate-refresh-btn__icon" aria-hidden>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                      <path d="M3 3v5h5" />
+                      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                      <path d="M16 21h5v-5" />
+                    </svg>
+                  </span>
+                  Обновить сейчас
+                </>
               )}
             </button>
           )}
@@ -382,16 +399,16 @@ export default function App() {
         <button type="button" role="tab" aria-selected={tab === 'calc'} className={tab === 'calc' ? 'tab active' : 'tab'} onClick={() => setTab('calc')}>
           Калькулятор
         </button>
-        {user.role === 'admin' && (
+        {isUserManagerRole(user.role) && (
           <button type="button" role="tab" aria-selected={tab === 'settings'} className={tab === 'settings' ? 'tab active' : 'tab'} onClick={() => setTab('settings')}>
-            Настройки и доступы
+            {isSuperAdminRole(user.role) ? 'Настройки и доступы' : 'Пользователи'}
           </button>
         )}
       </nav>
 
       <main className="main-content">
         {tab === 'calc' && <Calculator formatMoney={formatMoney} price={price} />}
-        {tab === 'settings' && user.role === 'admin' && <SettingsPanel />}
+        {tab === 'settings' && isUserManagerRole(user.role) && <SettingsPanel user={user} />}
       </main>
 
 
@@ -419,7 +436,31 @@ export default function App() {
         .brand > div:last-child { min-width: 0; flex: 1; }
         .brand-mark { width: 56px; height: 56px; border-radius: 14px; background: #fff; border: 1px solid var(--stroke); box-shadow: 0 2px 12px rgba(0,0,0,0.12); flex-shrink: 0; overflow: hidden; display: block; }
         .brand-mark img { width: 100%; height: 100%; object-fit: contain; object-position: center; padding: 6px; box-sizing: border-box; display: block; }
-        .brand-title { font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; margin: 0; line-height: 1.15; letter-spacing: 0.06em; word-break: break-word; text-transform: uppercase; }
+        .brand-title {
+          font-family: var(--font-display);
+          font-size: 1.35rem;
+          font-weight: 600;
+          margin: 0;
+          line-height: 1.2;
+          letter-spacing: 0.06em;
+          word-break: break-word;
+          text-transform: uppercase;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.35em;
+        }
+        .brand-title-pro {
+          font-size: 0.62em;
+          font-weight: 700;
+          letter-spacing: 0.14em;
+          padding: 0.2em 0.45em 0.22em;
+          border-radius: 6px;
+          background: var(--gold-soft);
+          border: 1px solid var(--stroke-strong);
+          color: var(--gold);
+          line-height: 1;
+        }
         .brand-sub { margin: 2px 0 0; font-size: 0.75rem; }
         .topbar-right {
           display: flex;
@@ -442,21 +483,50 @@ export default function App() {
           white-space: nowrap;
         }
         .rate-banner { padding: 16px 18px; display: flex; flex-wrap: wrap; flex-direction: column; align-items: stretch; gap: 10px; }
-        .quote-tabs { display: flex; gap: 8px; width: 100%; }
+        .quote-tabs {
+          display: flex;
+          gap: 6px;
+          width: 100%;
+          padding: 5px;
+          border-radius: 14px;
+          background: var(--input-bg);
+          border: 1px solid var(--stroke);
+          box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+        }
         .quote-tab {
           flex: 1;
           min-width: 0;
-          padding: 9px 12px;
-          border-radius: 12px;
+          padding: 10px 12px;
+          border-radius: 10px;
           border: 1px solid var(--stroke);
-          background: transparent;
+          background: var(--bg-panel-solid);
           color: var(--text-muted);
           font-size: 0.82rem;
-          font-weight: 500;
+          font-weight: 600;
+          letter-spacing: 0.02em;
           cursor: pointer;
-          transition: background 0.15s, color 0.15s, border-color 0.15s;
+          transition: background 0.18s, color 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.12s;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
         }
-        .quote-tab.active { background: var(--gold-soft); color: var(--gold); border-color: var(--stroke-strong); }
+        .quote-tab:hover:not(.active) {
+          border-color: var(--stroke-strong);
+          color: var(--text);
+          background: var(--bg-elevated);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        .quote-tab:active {
+          transform: scale(0.98);
+        }
+        .quote-tab:focus-visible {
+          outline: 2px solid var(--gold);
+          outline-offset: 2px;
+        }
+        .quote-tab.active {
+          background: var(--gold-soft);
+          color: var(--gold);
+          border-color: var(--stroke-strong);
+          box-shadow: 0 2px 14px var(--gold-glow), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+        }
         .rate-banner-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; width: 100%; }
         .rate-main { min-width: 0; flex: 1 1 200px; }
         .rate-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; display: block; margin-bottom: 4px; }
@@ -491,6 +561,46 @@ export default function App() {
         .small { font-size: 0.78rem; }
         .cache-age { opacity: 0.7; }
         .rate-banner.is-stale .rate-value { opacity: 0.75; }
+        .rate-refresh-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          padding: 9px 16px;
+          border-radius: 999px;
+          border: 1px solid var(--stroke-strong);
+          background: var(--gold-soft);
+          color: var(--gold);
+          font-size: 0.8rem;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+          cursor: pointer;
+          transition: background 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.12s, color 0.15s;
+          white-space: nowrap;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .rate-refresh-btn__icon {
+          display: flex;
+          flex-shrink: 0;
+          opacity: 0.92;
+        }
+        .rate-refresh-btn:hover:not(:disabled) {
+          border-color: var(--gold);
+          box-shadow: 0 2px 14px var(--gold-glow);
+          color: var(--gold);
+        }
+        .rate-refresh-btn:active:not(:disabled) {
+          transform: scale(0.97);
+        }
+        .rate-refresh-btn:focus-visible {
+          outline: 2px solid var(--gold);
+          outline-offset: 2px;
+        }
+        .rate-refresh-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          box-shadow: none;
+        }
         .btn-ghost.small { padding: 8px 14px; font-size: 0.82rem; }
 
         @media (max-width: 480px) {
