@@ -4,7 +4,14 @@ import { calculateBuybackRange } from './calc.js';
 
 const LS_WEIGHT = 'cg_weight';
 const LS_PURITY = 'cg_purity';
-const PRESETS = ['375', '585', '750'];
+const PRESETS = ['585', '750', '999'];
+
+function quoteRowLabel(price) {
+  if (!price) return 'По курсу чистого золота';
+  if (price.source === 'moex') return 'По курсу Мосбиржи (чистое золото)';
+  if (price.fallbackFrom === 'moex') return 'По курсу ЦБ, резерв (чистое золото)';
+  return 'По курсу ЦБ (чистое золото)';
+}
 
 export function Calculator({ formatMoney, price }) {
   const [settings, setSettings] = useState(null);
@@ -107,7 +114,7 @@ export function Calculator({ formatMoney, price }) {
       `Расчёт выкупа золота\n` +
       `Вес: ${weight} г, проба ${purity}\n` +
       `Чистого золота: ${result.fineGrams.toFixed(3)} г\n` +
-      `Ломовая (ЦБ): ${formatMoney(result.scrapRub)}\n` +
+      `${quoteRowLabel(price)}: ${formatMoney(result.scrapRub)}\n` +
       `Диапазон выкупа: ${formatMoney(result.lowRub)} — ${formatMoney(result.highRub)}\n` +
       `Ориентир: ${formatMoney(result.midRub)}`;
     try {
@@ -124,7 +131,7 @@ export function Calculator({ formatMoney, price }) {
       <div className="glass calc-card">
         <h2 className="calc-heading">Расчёт выкупа</h2>
         <p className="calc-hint muted">
-          Укажите вес изделия и пробу. Система использует котировку ЦБ и ваши коэффициенты из настроек.
+          Укажите вес изделия и пробу. Курс чистого золота в верхней панели, коэффициенты в настройках.
         </p>
         <div className="fields">
           <label className="field">
@@ -212,7 +219,7 @@ export function Calculator({ formatMoney, price }) {
               <span className="mono-nums">{result.fineGrams.toFixed(3)} г</span>
             </div>
             <div className="result-row muted small">
-              <span>Ломовая (по ЦБ)</span>
+              <span>{quoteRowLabel(price)}</span>
               <span className="mono-nums">{formatMoney(result.scrapRub)}</span>
             </div>
             {result.adjPct !== 0 && (

@@ -1,6 +1,7 @@
 # Blueprint: Render → New → Blueprint → подключить репозиторий.
 # Секреты в Dashboard сервиса: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (legacy eyJ…),
 # CORS_ORIGIN=https://gold-panel.web.app,https://gold-panel.firebaseapp.com
+# Опционально: PRICE_SOURCE=auto (Мосбиржа GLDRUBF, резерв ЦБ), moex, cbr
 services:
   - type: web
     name: gold-calculated-api

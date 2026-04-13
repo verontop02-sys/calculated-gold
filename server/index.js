@@ -104,6 +104,69 @@ function formatCbrDate(d = new Date()) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+/** ISS MOEX: фьючерс GLDRUBF, цена в руб/г чистого золота, обновляется в торговую сессию */
+const MOEX_GOLD_ISS_URL =
+  process.env.MOEX_GOLD_ISS_URL ||
+  'https://iss.moex.com/iss/engines/futures/markets/forts/securities/GLDRUBF.json';
+
+/**
+ * PRICE_SOURCE: auto | moex | cbr
+ * auto — сначала Мосбиржа, при ошибке официальный курс ЦБ
+ */
+function priceSourceMode() {
+  return (process.env.PRICE_SOURCE || 'auto').toLowerCase().trim();
+}
+
+async function fetchMoexGoldRubPerGram() {
+  const { data } = await axios.get(MOEX_GOLD_ISS_URL, {
+    params: { 'iss.meta': 'off' },
+    timeout: 20000,
+    headers: { 'User-Agent': 'CalculatedGold/1.0' },
+    validateStatus: (s) => s === 200,
+  });
+
+  const cols = data?.marketdata?.columns;
+  const rowArr = data?.marketdata?.data?.[0];
+  if (!cols?.length || !rowArr) throw new Error('MOEX: нет данных marketdata');
+
+  const row = Object.fromEntries(cols.map((c, i) => [c, rowArr[i]]));
+  const last = typeof row.LAST === 'number' ? row.LAST : parseFloat(String(row.LAST).replace(',', '.'));
+  if (!Number.isFinite(last) || last <= 0) throw new Error('MOEX: нет последней цены (LAST)');
+
+  return {
+    goldRubPerGram: last,
+    sellRubPerGram: null,
+    cbrDate: null,
+    moexSecurity: 'GLDRUBF',
+    moexTradeDate: row.TRADEDATE || null,
+    moexSysTime: row.SYSTIME || null,
+    source: 'moex',
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+async function fetchGoldPrice() {
+  const mode = priceSourceMode();
+  if (mode === 'cbr') {
+    const c = await fetchCbrGoldRubPerGram();
+    return { ...c, source: 'cbr', fallbackFrom: null };
+  }
+  if (mode === 'moex') {
+    return await fetchMoexGoldRubPerGram();
+  }
+  try {
+    return await fetchMoexGoldRubPerGram();
+  } catch (err) {
+    const c = await fetchCbrGoldRubPerGram();
+    return {
+      ...c,
+      source: 'cbr',
+      fallbackFrom: 'moex',
+      fallbackReason: err?.message || String(err),
+    };
+  }
+}
+
 async function fetchCbrGoldRubPerGram() {
   // CBR doesn't publish quotes on weekends/holidays — try up to 4 days back
   const MAX_DAYS_BACK = 4;
@@ -183,8 +246,13 @@ async function refreshPriceCache(force = false) {
   }
 
   try {
-    const fresh = await fetchCbrGoldRubPerGram();
-    const payload = { ...fresh, source: 'cbr', cachedAt: new Date().toISOString(), error: null };
+    const fresh = await fetchGoldPrice();
+    const payload = {
+      ...fresh,
+      cachedAt: new Date().toISOString(),
+      error: null,
+      lastRefreshError: null,
+    };
     await setPriceCache(payload);
     return { ...payload, stale: false, ageMs: 0 };
   } catch (err) {
@@ -198,7 +266,7 @@ async function refreshPriceCache(force = false) {
       goldRubPerGram: null,
       sellRubPerGram: null,
       cbrDate: null,
-      source: 'cbr',
+      source: priceSourceMode() === 'moex' ? 'moex' : 'cbr',
       cachedAt: new Date().toISOString(),
       error: message,
     };
@@ -378,6 +446,10 @@ app.get(
       goldRubPerGram: data?.goldRubPerGram ?? null,
       sellRubPerGram: data?.sellRubPerGram ?? null,
       cbrDate: data?.cbrDate ?? null,
+      moexTradeDate: data?.moexTradeDate ?? null,
+      moexSysTime: data?.moexSysTime ?? null,
+      moexSecurity: data?.moexSecurity ?? null,
+      fallbackFrom: data?.fallbackFrom ?? null,
       cachedAt: data?.cachedAt ?? null,
       stale: ageMs > ttlMs(),
       source: data?.source ?? 'cbr',

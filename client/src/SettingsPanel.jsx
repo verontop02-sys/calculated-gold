@@ -17,6 +17,10 @@ export function SettingsPanel() {
   const [deleting, setDeleting] = useState(false);
   const [changingRoleUid, setChangingRoleUid] = useState(null);
   const [roleChangeBusy, setRoleChangeBusy] = useState(null);
+  /** String drafts so users can clear fields and type new numbers (parseFloat('')||0 was snapping to 0). */
+  const [buybackStr, setBuybackStr] = useState('');
+  const [rangeStr, setRangeStr] = useState('');
+  const [adjStr, setAdjStr] = useState(null);
 
   const canManageUsers = userListStatus === 'ok';
 
@@ -50,15 +54,37 @@ export function SettingsPanel() {
     load().catch((e) => setErr(e.message));
   }, [load]);
 
+  useEffect(() => {
+    if (!settings) return;
+    setBuybackStr(String(settings.buybackPercentOfScrap ?? ''));
+    setRangeStr(String(settings.rangeHalfWidthPercent ?? ''));
+    const o = {};
+    for (const p of (settings.purityOrder || []).map(String)) {
+      o[p] = String(settings.purityAdjustments[p] ?? 0);
+    }
+    setAdjStr(o);
+  }, [settings]);
+
+  function parseNum(raw, fallback = 0) {
+    const n = parseFloat(String(raw ?? '').trim().replace(',', '.'));
+    return Number.isFinite(n) ? n : fallback;
+  }
+
   async function save(section) {
     setErr('');
     setSaving(true);
     setSavedSection(null);
     try {
+      const probsKeys = (settings.purityOrder || []).map(String);
+      const purityAdjustments = { ...settings.purityAdjustments };
+      for (const p of probsKeys) {
+        const raw = adjStr?.[p];
+        purityAdjustments[p] = parseNum(raw, 0);
+      }
       const patch = {
-        buybackPercentOfScrap: settings.buybackPercentOfScrap,
-        rangeHalfWidthPercent: settings.rangeHalfWidthPercent,
-        purityAdjustments: settings.purityAdjustments,
+        buybackPercentOfScrap: parseNum(buybackStr, 0),
+        rangeHalfWidthPercent: parseNum(rangeStr, 0),
+        purityAdjustments,
       };
       const next = await api.saveSettings(patch);
       setSettings(next);
@@ -71,14 +97,6 @@ export function SettingsPanel() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function setAdj(prob, val) {
-    const n = val === '' ? 0 : parseFloat(val);
-    setSettings((s) => ({
-      ...s,
-      purityAdjustments: { ...s.purityAdjustments, [prob]: Number.isFinite(n) ? n : 0 },
-    }));
   }
 
   async function addUser(e) {
@@ -157,21 +175,37 @@ export function SettingsPanel() {
       {/* Политика выкупа */}
       <div className="glass block">
         <h2 className="block-title">Политика выкупа</h2>
-        <p className="muted small block-desc">Процент от расчётной ломовой стоимости. Коридор — симметричный разброс вокруг ориентира.</p>
+        <p className="muted small block-desc">
+          Процент от стоимости чистого золота по курсу в верхней панели. Коридор — симметричный разброс вокруг ориентира.
+        </p>
         <label className="field">
-          <span className="field-label">Выкуп, % от ломовой</span>
+          <span className="field-label">Выкуп, % от биржевой стоимости</span>
           <input
-            type="number" min={0} max={100} step={0.5}
-            value={settings.buybackPercentOfScrap}
-            onChange={(e) => { setSavedSection(null); setSettings((s) => ({ ...s, buybackPercentOfScrap: parseFloat(e.target.value) || 0 })); }}
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            value={buybackStr}
+            onChange={(e) => { setSavedSection(null); setBuybackStr(e.target.value); }}
+            onBlur={() => {
+              const n = parseNum(buybackStr, 0);
+              setBuybackStr(String(n));
+              setSettings((s) => ({ ...s, buybackPercentOfScrap: Math.min(100, Math.max(0, n)) }));
+            }}
           />
         </label>
         <label className="field">
           <span className="field-label">Полуширина коридора, %</span>
           <input
-            type="number" min={0} max={50} step={0.5}
-            value={settings.rangeHalfWidthPercent}
-            onChange={(e) => { setSavedSection(null); setSettings((s) => ({ ...s, rangeHalfWidthPercent: parseFloat(e.target.value) || 0 })); }}
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            value={rangeStr}
+            onChange={(e) => { setSavedSection(null); setRangeStr(e.target.value); }}
+            onBlur={() => {
+              const n = parseNum(rangeStr, 0);
+              setRangeStr(String(n));
+              setSettings((s) => ({ ...s, rangeHalfWidthPercent: Math.min(50, Math.max(0, n)) }));
+            }}
           />
         </label>
         <button type="button" className={`btn-primary save-btn${savedSection === 'policy' ? ' save-btn--ok' : ''}`} disabled={saving} onClick={() => save('policy')}>
@@ -188,9 +222,22 @@ export function SettingsPanel() {
             <label key={p} className="adj-cell">
               <span className="prob">{p}</span>
               <input
-                type="number" step={0.1}
-                value={settings.purityAdjustments[p] ?? 0}
-                onChange={(e) => { setSavedSection(null); setAdj(p, e.target.value); }}
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={adjStr?.[p] ?? String(settings.purityAdjustments[p] ?? 0)}
+                onChange={(e) => {
+                  setSavedSection(null);
+                  setAdjStr((prev) => ({ ...(prev || {}), [p]: e.target.value }));
+                }}
+                onBlur={() => {
+                  const n = parseNum(adjStr?.[p], 0);
+                  setAdjStr((prev) => ({ ...(prev || {}), [p]: String(n) }));
+                  setSettings((s) => ({
+                    ...s,
+                    purityAdjustments: { ...s.purityAdjustments, [p]: n },
+                  }));
+                }}
               />
             </label>
           ))}

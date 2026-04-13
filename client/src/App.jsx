@@ -27,6 +27,39 @@ function formatAge(isoStr) {
   return `${hr} ч назад`;
 }
 
+function formatRuDateFromIso(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return '';
+  const [y, m, d] = String(iso).split('-');
+  return `${d}.${m}.${y}`;
+}
+
+function rateBannerTitle(price) {
+  if (!price?.goldRubPerGram) return 'Курс чистого золота';
+  if (price.source === 'moex') return 'Мосбиржа, фьючерс GLDRUBF';
+  if (price.fallbackFrom === 'moex') return 'ЦБ РФ, резерв';
+  return 'ЦБ РФ, чистое золото';
+}
+
+function rateBannerSubtitle(price) {
+  if (!price) return '';
+  if (price.source === 'moex') {
+    const d = formatRuDateFromIso(price.moexTradeDate);
+    const t =
+      price.moexSysTime && String(price.moexSysTime).includes(' ')
+        ? String(price.moexSysTime).slice(11, 19)
+        : '';
+    if (d && t) return `Сессия ${d} · ${t} МСК`;
+    if (price.cachedAt) return `Обновлено ${formatAge(price.cachedAt)}`;
+    return d ? `Сессия ${d}` : '';
+  }
+  if (price.cbrDate) {
+    const age = price.cachedAt ? ` · ${formatAge(price.cachedAt)}` : '';
+    return `Дата ЦБ: ${price.cbrDate}${age}`;
+  }
+  if (price.cachedAt) return formatAge(price.cachedAt);
+  return '';
+}
+
 export default function App() {
   const toast = useToast();
   const [authReady, setAuthReady] = useState(false);
@@ -250,7 +283,7 @@ export default function App() {
 
       <section className={`rate-banner glass${priceLoading ? ' is-loading' : ''}${price?.stale && !priceLoading ? ' is-stale' : ''}`}>
         <div className="rate-main">
-          <span className="rate-label muted">Котировка ЦБ, чистое золото</span>
+          <span className="rate-label muted">{rateBannerTitle(price)}</span>
           <p className="rate-value mono-nums">
             {priceLoading ? (
               <>
@@ -264,12 +297,9 @@ export default function App() {
               </>
             )}
           </p>
-          {!priceLoading && price?.cbrDate && (
+          {!priceLoading && price?.goldRubPerGram != null && rateBannerSubtitle(price) && (
             <span className="muted small">
-              Дата ЦБ: {price.cbrDate}
-              {price?.cachedAt && (
-                <span className="cache-age"> · {formatAge(price.cachedAt)}</span>
-              )}
+              {rateBannerSubtitle(price)}
             </span>
           )}
           {priceLoading && <span className="muted small">Получаем курс…</span>}
