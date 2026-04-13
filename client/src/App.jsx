@@ -35,6 +35,7 @@ function formatRuDateFromIso(iso) {
 
 function rateBannerTitle(price) {
   if (!price?.goldRubPerGram) return 'Курс чистого золота';
+  if (price.source === 'xaut') return 'XAUT (Tether Gold), USD → ₽';
   if (price.source === 'moex') return 'Мосбиржа, фьючерс GLDRUBF';
   if (price.fallbackFrom === 'moex') return 'ЦБ РФ, резерв';
   return 'ЦБ РФ, чистое золото';
@@ -42,6 +43,14 @@ function rateBannerTitle(price) {
 
 function rateBannerSubtitle(price) {
   if (!price) return '';
+  if (price.source === 'xaut') {
+    const usd = price.xautUsdPerOz != null ? Math.round(price.xautUsdPerOz) : '';
+    const rub = price.cbrUsdRub != null ? String(price.cbrUsdRub).replace('.', ',') : '';
+    const d = price.cbrDate || '';
+    if (usd && rub && d) return `~${usd} USD/oz · ЦБ ${rub} ₽/$ · ${d}`;
+    if (price.cachedAt) return `Обновлено ${formatAge(price.cachedAt)}`;
+    return '';
+  }
   if (price.source === 'moex') {
     const d = formatRuDateFromIso(price.moexTradeDate);
     const t =
@@ -60,6 +69,8 @@ function rateBannerSubtitle(price) {
   return '';
 }
 
+const LS_QUOTE_TAB = 'cg_quote_tab';
+
 export default function App() {
   const toast = useToast();
   const [authReady, setAuthReady] = useState(false);
@@ -67,6 +78,7 @@ export default function App() {
   const [user, setUser] = useState(undefined);
   const [profileErr, setProfileErr] = useState(null);
   const [tab, setTab] = useState('calc');
+  const [quoteTab, setQuoteTab] = useState(() => localStorage.getItem(LS_QUOTE_TAB) || 'moex');
   const [price, setPrice] = useState(null);
   const [priceErr, setPriceErr] = useState(null);
   const [priceLoading, setPriceLoading] = useState(false);
@@ -103,7 +115,7 @@ export default function App() {
       if (!sessionUser || user == null) return;
       if (!silent) setPriceLoading(true);
       try {
-        const p = await api.price();
+        const p = await api.price({ quote: quoteTab === 'xaut' ? 'xaut' : 'moex' });
         setPrice(p);
         setPriceErr(p.error || null);
       } catch (e) {
@@ -114,8 +126,13 @@ export default function App() {
         if (!silent) setPriceLoading(false);
       }
     },
-    [sessionUser, user, toast],
+    [sessionUser, user, toast, quoteTab],
   );
+
+  function persistQuoteTab(next) {
+    setQuoteTab(next);
+    localStorage.setItem(LS_QUOTE_TAB, next);
+  }
 
   const handleRefreshPrice = useCallback(async () => {
     if (!user || user.role !== 'admin') return;
@@ -163,6 +180,10 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     loadPrice({ silent: false });
+  }, [user, quoteTab, loadPrice]);
+
+  useEffect(() => {
+    if (!user || quoteTab !== 'moex') return;
 
     let close = null;
     let retryTimer = null;
@@ -184,8 +205,6 @@ export default function App() {
             setPriceErr(data.error || data.lastRefreshError || null);
           },
           (status) => {
-            // 401 = auth issue, no point retrying with same token → polling
-            // After 3 failures → also fall back to polling
             if (status === 401 || sseAttempts >= 3) {
               startPolling();
             } else {
@@ -205,16 +224,23 @@ export default function App() {
       clearTimeout(retryTimer);
       clearInterval(pollTimer);
     };
-  }, [user, loadPrice]);
+  }, [user, quoteTab, loadPrice]);
 
   useEffect(() => {
+    if (!user || quoteTab !== 'xaut') return;
+    const pollTimer = setInterval(() => loadPrice({ silent: true }), 90_000);
+    return () => clearInterval(pollTimer);
+  }, [user, quoteTab, loadPrice]);
+
+  useEffect(() => {
+    if (quoteTab !== 'moex') return;
     if (!price?.stale || !price?.goldRubPerGram || staleRefreshingRef.current) return;
     staleRefreshingRef.current = true;
     api.refreshPrice()
       .then(() => loadPrice({ silent: true }))
       .catch(() => {})
       .finally(() => { staleRefreshingRef.current = false; });
-  }, [price?.stale, price?.goldRubPerGram, loadPrice]);
+  }, [quoteTab, price?.stale, price?.goldRubPerGram, loadPrice]);
 
   if (!authReady) {
     return (
@@ -265,10 +291,10 @@ export default function App() {
       <header className="topbar glass">
         <div className="brand">
           <span className="brand-mark">
-            <img src="/logo_reactivo1.png" alt="Reaktivo" />
+            <img src="/logo_reactivo1.png" alt="REAKTIVO" />
           </span>
           <div>
-            <h1 className="brand-title">Reaktivo</h1>
+            <h1 className="brand-title">REAKTIVO</h1>
             <p className="brand-sub muted">Закрытая панель оценки</p>
           </div>
         </div>
@@ -282,6 +308,27 @@ export default function App() {
       </header>
 
       <section className={`rate-banner glass${priceLoading ? ' is-loading' : ''}${price?.stale && !priceLoading ? ' is-stale' : ''}`}>
+        <div className="quote-tabs" role="tablist" aria-label="Источник котировки">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={quoteTab === 'moex'}
+            className={quoteTab === 'moex' ? 'quote-tab active' : 'quote-tab'}
+            onClick={() => persistQuoteTab('moex')}
+          >
+            Мосбиржа
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={quoteTab === 'xaut'}
+            className={quoteTab === 'xaut' ? 'quote-tab active' : 'quote-tab'}
+            onClick={() => persistQuoteTab('xaut')}
+          >
+            XAUT USD
+          </button>
+        </div>
+        <div className="rate-banner-row">
         <div className="rate-main">
           <span className="rate-label muted">{rateBannerTitle(price)}</span>
           <p className="rate-value mono-nums">
@@ -328,6 +375,7 @@ export default function App() {
             </button>
           )}
         </div>
+        </div>
       </section>
 
       <nav className="tabs glass" role="tablist">
@@ -369,9 +417,9 @@ export default function App() {
         }
         .brand { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 auto; }
         .brand > div:last-child { min-width: 0; flex: 1; }
-        .brand-mark { width: 44px; height: 44px; border-radius: 12px; background: #111; box-shadow: 0 0 20px rgba(220,40,40,0.22), 0 2px 8px rgba(0,0,0,0.5); flex-shrink: 0; overflow: hidden; display: block; }
-        .brand-mark img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; display: block; }
-        .brand-title { font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; margin: 0; line-height: 1.15; letter-spacing: 0.02em; word-break: break-word; }
+        .brand-mark { width: 56px; height: 56px; border-radius: 14px; background: #fff; border: 1px solid var(--stroke); box-shadow: 0 2px 12px rgba(0,0,0,0.12); flex-shrink: 0; overflow: hidden; display: block; }
+        .brand-mark img { width: 100%; height: 100%; object-fit: contain; object-position: center; padding: 6px; box-sizing: border-box; display: block; }
+        .brand-title { font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; margin: 0; line-height: 1.15; letter-spacing: 0.06em; word-break: break-word; text-transform: uppercase; }
         .brand-sub { margin: 2px 0 0; font-size: 0.75rem; }
         .topbar-right {
           display: flex;
@@ -393,7 +441,23 @@ export default function App() {
           text-overflow: ellipsis;
           white-space: nowrap;
         }
-        .rate-banner { padding: 16px 18px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+        .rate-banner { padding: 16px 18px; display: flex; flex-wrap: wrap; flex-direction: column; align-items: stretch; gap: 10px; }
+        .quote-tabs { display: flex; gap: 8px; width: 100%; }
+        .quote-tab {
+          flex: 1;
+          min-width: 0;
+          padding: 9px 12px;
+          border-radius: 12px;
+          border: 1px solid var(--stroke);
+          background: transparent;
+          color: var(--text-muted);
+          font-size: 0.82rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .quote-tab.active { background: var(--gold-soft); color: var(--gold); border-color: var(--stroke-strong); }
+        .rate-banner-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; width: 100%; }
         .rate-main { min-width: 0; flex: 1 1 200px; }
         .rate-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; display: block; margin-bottom: 4px; }
         .rate-value { font-family: var(--font-display); font-size: 2rem; font-weight: 600; margin: 0; color: var(--gold); text-shadow: 0 0 40px var(--gold-glow); min-height: 2.4rem; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }

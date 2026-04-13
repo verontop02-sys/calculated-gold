@@ -167,6 +167,57 @@ async function fetchGoldPrice() {
   }
 }
 
+const TROY_OZ_GRAMS = 31.1034768;
+const COINGECKO_XAUT_URL =
+  process.env.COINGECKO_XAUT_URL ||
+  'https://api.coingecko.com/api/v3/simple/price?ids=tether-gold&vs_currencies=usd';
+
+/** Курс USD к рублю по ежедневному XML ЦБ */
+async function fetchCbrUsdRub() {
+  const { data: xml } = await axios.get('https://www.cbr.ru/scripts/XML_daily.asp', {
+    timeout: 20000,
+    responseType: 'text',
+    headers: { 'User-Agent': 'CalculatedGold/1.0' },
+  });
+  const doc = parser.parse(xml);
+  const cursDate = doc?.ValCurs?.['@_Date'] || doc?.ValCurs?.Date || null;
+  const vals = doc?.ValCurs?.Valute;
+  const list = Array.isArray(vals) ? vals : vals ? [vals] : [];
+  const usd = list.find((v) => v.CharCode === 'USD');
+  if (!usd) throw new Error('ЦБ: нет курса USD');
+  const rub = parseRussianNum(usd.VunitRate || usd.Value);
+  if (!rub || !Number.isFinite(rub)) throw new Error('ЦБ: не удалось разобрать USD');
+  return { usdRub: rub, cbrDate: cursDate };
+}
+
+/** Tether Gold XAUT: цена токена в USD за тройскую унцию (1 XAUT = 1 oz) */
+async function fetchXautUsdPerOz() {
+  const { data } = await axios.get(COINGECKO_XAUT_URL, {
+    timeout: 20000,
+    headers: { 'User-Agent': 'CalculatedGold/1.0' },
+    validateStatus: (s) => s === 200,
+  });
+  const raw = data?.['tether-gold']?.usd;
+  const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(',', '.'));
+  if (!Number.isFinite(n) || n <= 0) throw new Error('CoinGecko: нет цены tether-gold (XAUT)');
+  return n;
+}
+
+async function fetchXautGoldRubPerGram() {
+  const [usdPerOz, { usdRub, cbrDate }] = await Promise.all([fetchXautUsdPerOz(), fetchCbrUsdRub()]);
+  const usdPerGram = usdPerOz / TROY_OZ_GRAMS;
+  const goldRubPerGram = usdPerGram * usdRub;
+  return {
+    goldRubPerGram,
+    sellRubPerGram: null,
+    cbrDate,
+    xautUsdPerOz: usdPerOz,
+    cbrUsdRub: usdRub,
+    source: 'xaut',
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
 async function fetchCbrGoldRubPerGram() {
   // CBR doesn't publish quotes on weekends/holidays — try up to 4 days back
   const MAX_DAYS_BACK = 4;
@@ -271,6 +322,45 @@ async function refreshPriceCache(force = false) {
       error: message,
     };
     await setPriceCache(fallback);
+    return { ...fallback, stale: true };
+  }
+}
+
+const KV_XAUT = 'gold_price_xaut';
+
+async function refreshXautPriceCache(force = false) {
+  const existing = await getKv(KV_XAUT);
+  if (!force && existing?.cachedAt) {
+    const age = Date.now() - new Date(existing.cachedAt).getTime();
+    if (age < ttlMs()) return { ...existing, stale: false, ageMs: age };
+  }
+
+  try {
+    const fresh = await fetchXautGoldRubPerGram();
+    const payload = {
+      ...fresh,
+      cachedAt: new Date().toISOString(),
+      error: null,
+      lastRefreshError: null,
+    };
+    await setKv(KV_XAUT, payload);
+    return { ...payload, stale: false, ageMs: 0 };
+  } catch (err) {
+    const message = err?.message || 'Ошибка загрузки XAUT';
+    if (existing) {
+      const merged = { ...existing, lastRefreshError: message, lastRefreshAttemptAt: new Date().toISOString() };
+      await setKv(KV_XAUT, merged);
+      return { ...merged, stale: true, error: message };
+    }
+    const fallback = {
+      goldRubPerGram: null,
+      sellRubPerGram: null,
+      cbrDate: null,
+      source: 'xaut',
+      cachedAt: new Date().toISOString(),
+      error: message,
+    };
+    await setKv(KV_XAUT, fallback);
     return { ...fallback, stale: true };
   }
 }
@@ -438,7 +528,31 @@ app.get(
 
 app.get(
   '/api/price',
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    const quote = String(req.query.quote || 'moex').toLowerCase();
+
+    if (quote === 'xaut') {
+      let data = await getKv(KV_XAUT);
+      if (!data?.goldRubPerGram) data = await refreshXautPriceCache(false);
+      const ageMs = data?.cachedAt ? Date.now() - new Date(data.cachedAt).getTime() : Number.MAX_SAFE_INTEGER;
+      return res.json({
+        goldRubPerGram: data?.goldRubPerGram ?? null,
+        sellRubPerGram: data?.sellRubPerGram ?? null,
+        cbrDate: data?.cbrDate ?? null,
+        xautUsdPerOz: data?.xautUsdPerOz ?? null,
+        cbrUsdRub: data?.cbrUsdRub ?? null,
+        moexTradeDate: null,
+        moexSysTime: null,
+        moexSecurity: null,
+        fallbackFrom: null,
+        cachedAt: data?.cachedAt ?? null,
+        stale: ageMs > ttlMs(),
+        source: 'xaut',
+        quote: 'xaut',
+        error: data?.error || data?.lastRefreshError || null,
+      });
+    }
+
     let data = await getPriceCache();
     if (!data?.goldRubPerGram) data = await refreshPriceCache(false);
     const ageMs = data?.cachedAt ? Date.now() - new Date(data.cachedAt).getTime() : Number.MAX_SAFE_INTEGER;
@@ -453,6 +567,7 @@ app.get(
       cachedAt: data?.cachedAt ?? null,
       stale: ageMs > ttlMs(),
       source: data?.source ?? 'cbr',
+      quote: 'moex',
       error: data?.error || data?.lastRefreshError || null,
     });
   })
@@ -462,6 +577,7 @@ app.post(
   '/api/price/refresh',
   asyncHandler(requireAdmin),
   asyncHandler(async (_req, res) => {
+    await refreshXautPriceCache(true);
     const data = await refreshPriceCache(true);
     broadcastPrice(data);
     res.json(data);
@@ -472,8 +588,15 @@ app.post(
   '/api/calculate',
   asyncHandler(async (req, res) => {
     const { weightGrams, purityPerThousand } = req.body || {};
-    let cache = await getPriceCache();
-    if (!cache?.goldRubPerGram) cache = await refreshPriceCache(false);
+    const quote = String(req.body?.quote || 'moex').toLowerCase();
+    let cache;
+    if (quote === 'xaut') {
+      cache = await getKv(KV_XAUT);
+      if (!cache?.goldRubPerGram) cache = await refreshXautPriceCache(false);
+    } else {
+      cache = await getPriceCache();
+      if (!cache?.goldRubPerGram) cache = await refreshPriceCache(false);
+    }
     const settings = await getSettings();
     const result = calculateBuybackRange({
       weightGrams,

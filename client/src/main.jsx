@@ -4,6 +4,7 @@ import './index.css';
 import App from './App.jsx';
 import { ToastProvider } from './ToastContext.jsx';
 import { initThemeFromStorage } from './theme.js';
+import { recoverAuthIfNeeded } from './supabase.js';
 
 initThemeFromStorage();
 
@@ -18,10 +19,14 @@ if (import.meta.env.DEV) {
   };
 }
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <ToastProvider>
-      <App />
-    </ToastProvider>
-  </StrictMode>,
-);
+void recoverAuthIfNeeded()
+  .catch(() => {})
+  .finally(() => {
+    createRoot(document.getElementById('root')).render(
+      <StrictMode>
+        <ToastProvider>
+          <App />
+        </ToastProvider>
+      </StrictMode>,
+    );
+  });

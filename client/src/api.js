@@ -126,12 +126,20 @@ export async function connectPriceStream(onData, onError) {
 
 export const api = {
   me: () => request('/auth/me'),
-  price: () => request('/price'),
+  /** quote: moex | xaut (Мосбиржа / Tether Gold XAUT в USD → ₽ через ЦБ) */
+  price: (opts = {}) => {
+    const q = opts.quote === 'xaut' ? '?quote=xaut' : '';
+    return request(`/price${q}`);
+  },
   refreshPrice: () => request('/price/refresh', { method: 'POST' }),
-  calculate: (weightGrams, purityPerThousand) =>
+  calculate: (weightGrams, purityPerThousand, opts = {}) =>
     request('/calculate', {
       method: 'POST',
-      body: JSON.stringify({ weightGrams, purityPerThousand }),
+      body: JSON.stringify({
+        weightGrams,
+        purityPerThousand,
+        ...(opts.quote ? { quote: opts.quote } : {}),
+      }),
     }),
   settings: () => request('/settings'),
   saveSettings: (body) => request('/settings', { method: 'PUT', body: JSON.stringify(body) }),

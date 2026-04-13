@@ -42,10 +42,10 @@ export function Login({ onSuccess }) {
       <div className="login-card glass">
         <div className="login-brand">
           <span className="login-mark">
-            <img src="/logo_reactivo1.png" alt="Reaktivo" />
+            <img src="/logo_reactivo1.png" alt="REAKTIVO" />
           </span>
           <div>
-            <h1 className="login-title">Reaktivo</h1>
+            <h1 className="login-title">REAKTIVO</h1>
             <p className="login-sub muted">Вход для сотрудников</p>
           </div>
         </div>
@@ -82,9 +82,9 @@ export function Login({ onSuccess }) {
         .login-card { width: 100%; max-width: 400px; padding: 32px 28px 28px; }
         .login-brand { display: flex; gap: 14px; align-items: center; margin-bottom: 28px; min-width: 0; }
         .login-brand > div:last-child { min-width: 0; }
-        .login-mark { width: 60px; height: 60px; border-radius: 16px; background: #111; box-shadow: 0 0 28px rgba(220,40,40,0.25), 0 2px 12px rgba(0,0,0,0.5); display: inline-flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
-        .login-mark img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; display: block; }
-        .login-title { font-family: var(--font-display); font-size: clamp(1.35rem, 5vw, 1.75rem); font-weight: 600; margin: 0; letter-spacing: 0.02em; line-height: 1.15; word-break: break-word; }
+        .login-mark { width: 72px; height: 72px; border-radius: 18px; background: #fff; border: 1px solid var(--stroke); box-shadow: 0 2px 10px rgba(0,0,0,0.08); display: inline-flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
+        .login-mark img { width: 100%; height: 100%; object-fit: contain; object-position: center; padding: 6px; box-sizing: border-box; display: block; }
+        .login-title { font-family: var(--font-display); font-size: clamp(1.35rem, 5vw, 1.75rem); font-weight: 600; margin: 0; letter-spacing: 0.06em; line-height: 1.15; word-break: break-word; text-transform: uppercase; }
         .login-sub { margin: 4px 0 0; font-size: 0.85rem; }
         .login-form { display: flex; flex-direction: column; gap: 16px; }
         .field { display: flex; flex-direction: column; gap: 6px; }

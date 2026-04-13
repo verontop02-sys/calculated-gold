@@ -8,6 +8,7 @@ const PRESETS = ['585', '750', '999'];
 
 function quoteRowLabel(price) {
   if (!price) return 'По курсу чистого золота';
+  if (price.source === 'xaut') return 'По курсу XAUT (USD→₽, ЦБ), чистое золото';
   if (price.source === 'moex') return 'По курсу Мосбиржи (чистое золото)';
   if (price.fallbackFrom === 'moex') return 'По курсу ЦБ, резерв (чистое золото)';
   return 'По курсу ЦБ (чистое золото)';
