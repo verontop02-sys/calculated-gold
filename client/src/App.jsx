@@ -150,12 +150,13 @@ export default function App() {
             setPrice(data);
             setPriceErr(data.error || data.lastRefreshError || null);
           },
-          () => {
-            // After 3 failures give up on SSE and fall back to polling
-            if (sseAttempts < 3) {
-              retryTimer = setTimeout(connectSse, 15_000);
-            } else {
+          (status) => {
+            // 401 = auth issue, no point retrying with same token → polling
+            // After 3 failures → also fall back to polling
+            if (status === 401 || sseAttempts >= 3) {
               startPolling();
+            } else {
+              retryTimer = setTimeout(connectSse, 15_000);
             }
           },
         );

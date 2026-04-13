@@ -73,6 +73,12 @@ async function request(path, options = {}) {
  */
 export async function connectPriceStream(onData, onError) {
   const token = await getAccessToken();
+  if (!token) {
+    // No session — don't make the request at all
+    onError?.();
+    return () => {};
+  }
+
   const url = withBase('/price/stream');
   const controller = new AbortController();
 
@@ -81,13 +87,14 @@ export async function connectPriceStream(onData, onError) {
       const res = await fetch(url, {
         headers: {
           Accept: 'text/event-stream',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
         signal: controller.signal,
       });
 
       if (!res.ok) {
-        onError?.();
+        // Pass status so caller can decide whether to retry
+        onError?.(res.status);
         return;
       }
 
@@ -110,7 +117,7 @@ export async function connectPriceStream(onData, onError) {
         }
       }
     } catch (e) {
-      if (e?.name !== 'AbortError') onError?.();
+      if (e?.name !== 'AbortError') onError?.(0);
     }
   })();
 
