@@ -5,6 +5,7 @@ import { useToast } from './ToastContext.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
 import { Login } from './Login.jsx';
 import { Calculator } from './Calculator.jsx';
+import { ContractReceipt } from './ContractReceipt.jsx';
 import { SettingsPanel } from './SettingsPanel.jsx';
 import { isSuperAdminRole, isUserManagerRole } from './roles.js';
 
@@ -83,6 +84,8 @@ export default function App() {
   const [user, setUser] = useState(undefined);
   const [profileErr, setProfileErr] = useState(null);
   const [tab, setTab] = useState('calc');
+  const [contractPrefill, setContractPrefill] = useState(null);
+  const [contractMounted, setContractMounted] = useState(false);
   const [quoteTab, setQuoteTab] = useState('moex');
   const [price, setPrice] = useState(null);
   const [priceErr, setPriceErr] = useState(null);
@@ -159,6 +162,8 @@ export default function App() {
     try {
       await api.refreshPrice();
       await loadPrice({ silent: true });
+      // После ручного обновления не показываем «Кэш»: GET может ещё вернуть stale из-за TTL/задержки чтения из БД
+      setPrice((prev) => (prev ? { ...prev, stale: false } : prev));
       toast('Курс обновлён', 'success');
     } catch (e) {
       const msg = e?.message || String(e);
@@ -172,9 +177,11 @@ export default function App() {
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSessionUser(session?.user ?? null);
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setAuthReady(true);
+      // TOKEN_REFRESHED fires when tab returns to focus; avoid treating it as profile change.
+      if (event === 'TOKEN_REFRESHED') return;
+      setSessionUser(session?.user ?? null);
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSessionUser(session?.user ?? null);
@@ -193,7 +200,7 @@ export default function App() {
   useEffect(() => {
     if (!authReady) return;
     loadMe();
-  }, [authReady, sessionUser, loadMe]);
+  }, [authReady, sessionUser?.id, loadMe]);
 
   useEffect(() => {
     if (!user) return;
@@ -257,6 +264,9 @@ export default function App() {
     staleRefreshingRef.current = true;
     api.refreshPrice()
       .then(() => loadPrice({ silent: true }))
+      .then(() => {
+        setPrice((prev) => (prev ? { ...prev, stale: false } : prev));
+      })
       .catch(() => {})
       .finally(() => { staleRefreshingRef.current = false; });
   }, [quoteTab, price?.stale, price?.goldRubPerGram, loadPrice, user]);
@@ -306,7 +316,7 @@ export default function App() {
   }
 
   return (
-    <div className="shell">
+    <div className={`shell${tab === 'contract' ? ' shell--wide' : ''}`}>
       <header className="topbar glass">
         <div className="brand">
           <span className="brand-mark">
@@ -416,6 +426,18 @@ export default function App() {
         <button type="button" role="tab" aria-selected={tab === 'calc'} className={tab === 'calc' ? 'tab active' : 'tab'} onClick={() => setTab('calc')}>
           Калькулятор
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'contract'}
+          className={tab === 'contract' ? 'tab active' : 'tab'}
+          onClick={() => {
+            setContractMounted(true);
+            setTab('contract');
+          }}
+        >
+          Договор
+        </button>
         {isUserManagerRole(user.role) && (
           <button type="button" role="tab" aria-selected={tab === 'settings'} className={tab === 'settings' ? 'tab active' : 'tab'} onClick={() => setTab('settings')}>
             {isSuperAdminRole(user.role) ? 'Настройки и доступы' : 'Пользователи'}
@@ -424,7 +446,28 @@ export default function App() {
       </nav>
 
       <main className="main-content">
-        {tab === 'calc' && <Calculator formatMoney={formatMoney} price={price} userUid={user.uid} />}
+        <div hidden={tab !== 'calc'}>
+          <Calculator
+            formatMoney={formatMoney}
+            price={price}
+            userUid={user.uid}
+            onGoToContract={(payload) => {
+              setContractMounted(true);
+              setContractPrefill(payload);
+              setTab('contract');
+            }}
+          />
+        </div>
+        {contractMounted && (
+          <div hidden={tab !== 'contract'}>
+            <ContractReceipt
+              formatMoney={formatMoney}
+              prefill={contractPrefill}
+              onConsumedPrefill={() => setContractPrefill(null)}
+              toast={toast}
+            />
+          </div>
+        )}
         {tab === 'settings' && isUserManagerRole(user.role) && <SettingsPanel user={user} />}
       </main>
 
@@ -440,6 +483,7 @@ export default function App() {
           gap: 14px;
           width: 100%;
         }
+        .shell.shell--wide { max-width: 820px; }
         .load-card { margin-top: 30vh; padding: 28px; text-align: center; position: relative; overflow: hidden; }
         .topbar {
           display: flex;

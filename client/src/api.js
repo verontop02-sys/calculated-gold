@@ -66,6 +66,46 @@ async function request(path, options = {}) {
   return data;
 }
 
+async function requestBlob(path, options = {}) {
+  const token = await getAccessToken();
+  const res = await fetch(withBase(path), {
+    method: options.method || 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+    body: options.body != null ? JSON.stringify(options.body) : undefined,
+  });
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  if (!res.ok) {
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+    }
+    if (ct.includes('application/json')) {
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {}
+      const err = new Error(data?.error || `HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    const err = new Error(`HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  if (!ct.includes('pdf')) {
+    let msg = 'Ожидался PDF';
+    try {
+      const j = await res.json();
+      if (j?.error) msg = j.error;
+    } catch {}
+    throw new Error(msg);
+  }
+  return res.blob();
+}
+
 /**
  * Connect to the SSE price stream using fetch (supports Authorization header).
  * Returns a cleanup function. Calls onData(priceObject) on each event,
@@ -148,4 +188,8 @@ export const api = {
     request('/users', { method: 'POST', body: JSON.stringify({ email, password, role }) }),
   deleteUser: (uid) => request(`/users/${uid}`, { method: 'DELETE' }),
   changeRole: (uid, role) => request(`/users/${uid}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  scrapCustomersSearch: (q) =>
+    request(`/scrap-customers/search?q=${encodeURIComponent(q)}`),
+  saveScrapCustomer: (body) => request('/scrap-customers', { method: 'POST', body: JSON.stringify(body) }),
+  scrapContractPdf: (body) => requestBlob('/scrap-contract/pdf', { method: 'POST', body }),
 };

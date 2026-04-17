@@ -189,7 +189,17 @@ export function SettingsPanel({ user }) {
     );
   }
 
-  const probs = isSuper && settings ? (settings.purityOrder || []).map(String) : [];
+  const probs = isSuper && settings
+    ? (() => {
+        const nums = [...new Set((settings.purityOrder || []).map((p) => Number(p)).filter((p) => Number.isFinite(p)))];
+        if (!nums.includes(900)) {
+          const idx875 = nums.indexOf(875);
+          if (idx875 >= 0) nums.splice(idx875 + 1, 0, 900);
+          else nums.push(900);
+        }
+        return nums.map(String);
+      })()
+    : [];
 
   return (
     <div className="settings">

@@ -18,7 +18,7 @@ function quoteRowLabel(price) {
   return 'По курсу ЦБ (чистое золото)';
 }
 
-export function Calculator({ formatMoney, price, userUid }) {
+export function Calculator({ formatMoney, price, userUid, onGoToContract }) {
   const lsKeys = useMemo(() => calcLocalKeys(userUid), [userUid]);
 
   const [settings, setSettings] = useState(null);
@@ -53,8 +53,14 @@ export function Calculator({ formatMoney, price, userUid }) {
   }, []);
 
   const purityOptions = useMemo(() => {
-    const order = settings?.purityOrder || [375, 500, 583, 585, 750, 875, 916, 958, 999];
-    return order.map(String);
+    const order = settings?.purityOrder || [375, 500, 583, 585, 750, 875, 900, 916, 958, 999];
+    const nums = [...new Set(order.map((p) => Number(p)).filter((p) => Number.isFinite(p)))];
+    if (!nums.includes(900)) {
+      const idx875 = nums.indexOf(875);
+      if (idx875 >= 0) nums.splice(idx875 + 1, 0, 900);
+      else nums.push(900);
+    }
+    return nums.map(String);
   }, [settings]);
 
   const canCalc = price?.goldRubPerGram != null && !settingsLoading;
@@ -254,13 +260,33 @@ export function Calculator({ formatMoney, price, userUid }) {
               </p>
               <span className="result-mid muted small">ориентир: {formatMoney(result.midRub)}</span>
             </div>
-            <button
-              type="button"
-              className={`btn-copy${copied ? ' btn-copy--done' : ''}`}
-              onClick={handleCopy}
-            >
-              {copied ? '✓ Скопировано' : 'Скопировать результат'}
-            </button>
+            <div className="result-actions">
+              <button
+                type="button"
+                className={`btn-copy${copied ? ' btn-copy--done' : ''}`}
+                onClick={handleCopy}
+              >
+                {copied ? '✓ Скопировано' : 'Скопировать результат'}
+              </button>
+              {onGoToContract && (
+                <button
+                  type="button"
+                  className="btn-contract"
+                  onClick={() => {
+                    const w = parseFloat(String(weight).replace(',', '.'));
+                    onGoToContract({
+                      totalRub: Math.round(result.midRub),
+                      weightGrams: Number.isFinite(w) ? w : null,
+                      purity: parseInt(purity, 10),
+                      fineGrams: result.fineGrams,
+                      itemName: 'Лом ювелирных изделий',
+                    });
+                  }}
+                >
+                  Договор-квитанция
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -317,10 +343,15 @@ export function Calculator({ formatMoney, price, userUid }) {
         .result-range .dash { color: var(--text-muted); font-weight: 400; }
         .result-mid { display: block; }
 
+        .result-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          margin-top: 14px;
+        }
         .btn-copy {
           display: block;
           width: 100%;
-          margin-top: 14px;
           padding: 11px 16px;
           border-radius: var(--radius-sm);
           border: 1px solid var(--stroke);
@@ -332,6 +363,23 @@ export function Calculator({ formatMoney, price, userUid }) {
         }
         .btn-copy:hover { border-color: var(--gold); color: var(--gold); }
         .btn-copy--done { border-color: #4ade80; color: #4ade80; background: rgba(74,222,128,0.06); }
+        .btn-contract {
+          display: block;
+          width: 100%;
+          padding: 12px 16px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--gold);
+          background: linear-gradient(180deg, var(--gold-soft), rgba(232,197,71,0.12));
+          color: var(--gold);
+          font-size: 0.9rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.12s, box-shadow 0.15s;
+        }
+        .btn-contract:hover {
+          box-shadow: 0 4px 20px var(--gold-glow);
+        }
+        .btn-contract:active { transform: scale(0.99); }
 
         @media (max-width: 380px) {
           .calc-card { padding: 18px 14px 20px; }

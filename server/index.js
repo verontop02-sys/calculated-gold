@@ -6,6 +6,7 @@ import cors from 'cors';
 import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
+import { buildScrapContractPdfBuffer } from './scrapContractPdf.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // npm run dev из корня монорепо: cwd ≠ server/, иначе dotenv не видит server/.env
@@ -101,8 +102,8 @@ app.use(express.json({ limit: '100kb' }));
 const DEFAULT_SETTINGS = {
   buybackPercentOfScrap: 92,
   rangeHalfWidthPercent: 2,
-  purityAdjustments: { 375: 0, 500: 0, 583: 0, 585: 0, 750: 0, 875: 0, 916: 0, 958: 0, 999: 0 },
-  purityOrder: [375, 500, 583, 585, 750, 875, 916, 958, 999],
+  purityAdjustments: { 375: 0, 500: 0, 583: 0, 585: 0, 750: 0, 875: 0, 900: 0, 916: 0, 958: 0, 999: 0 },
+  purityOrder: [375, 500, 583, 585, 750, 875, 900, 916, 958, 999],
 };
 
 function parseRussianNum(v) {
@@ -385,10 +386,21 @@ async function getSettings() {
     await setKv('settings', DEFAULT_SETTINGS);
     return DEFAULT_SETTINGS;
   }
+  const rawOrder = Array.isArray(value.purityOrder) ? value.purityOrder : DEFAULT_SETTINGS.purityOrder;
+  const orderNums = rawOrder
+    .map((p) => Number(p))
+    .filter((p) => Number.isFinite(p));
+  const uniqueOrder = [...new Set(orderNums)];
+  if (!uniqueOrder.includes(900)) {
+    const idx875 = uniqueOrder.indexOf(875);
+    if (idx875 >= 0) uniqueOrder.splice(idx875 + 1, 0, 900);
+    else uniqueOrder.push(900);
+  }
   return {
     ...DEFAULT_SETTINGS,
     ...value,
     purityAdjustments: { ...DEFAULT_SETTINGS.purityAdjustments, ...(value.purityAdjustments || {}) },
+    purityOrder: uniqueOrder,
   };
 }
 
@@ -743,6 +755,116 @@ app.post(
     });
     if (!result.ok) return res.status(400).json(result);
     res.json(result);
+  })
+);
+
+app.get(
+  '/api/scrap-customers/search',
+  asyncHandler(async (req, res) => {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return res.json({ customers: [] });
+    const esc = q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+    const pattern = `%${esc}%`;
+    const sel = 'id, full_name, phone, passport_line, address, updated_at';
+    const { data: byName, error: e1 } = await supabase
+      .from('scrap_customers')
+      .select(sel)
+      .ilike('full_name', pattern)
+      .order('updated_at', { ascending: false })
+      .limit(20);
+    if (e1) throw e1;
+    const { data: byPhone, error: e2 } = await supabase
+      .from('scrap_customers')
+      .select(sel)
+      .ilike('phone', pattern)
+      .order('updated_at', { ascending: false })
+      .limit(20);
+    if (e2) throw e2;
+    const map = new Map();
+    for (const r of [...(byName || []), ...(byPhone || [])]) {
+      if (r?.id) map.set(r.id, r);
+    }
+    const merged = [...map.values()].sort(
+      (a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
+    );
+    res.json({ customers: merged.slice(0, 20) });
+  })
+);
+
+app.post(
+  '/api/scrap-customers',
+  asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    const full_name = String(body.full_name || '').trim();
+    if (!full_name) return res.status(400).json({ error: 'Укажите ФИО' });
+    const phone = String(body.phone || '').trim() || null;
+    const passport_line = String(body.passport_line || '').trim() || null;
+    const address = String(body.address || '').trim() || null;
+    const id = body.id ? String(body.id) : null;
+    const now = new Date().toISOString();
+
+    if (id) {
+      const { data, error } = await supabase
+        .from('scrap_customers')
+        .update({ full_name, phone, passport_line, address, updated_at: now })
+        .eq('id', id)
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return res.status(404).json({ error: 'Клиент не найден' });
+      return res.json({ customer: data });
+    }
+
+    if (phone) {
+      const { data: ex } = await supabase.from('scrap_customers').select('id').eq('phone', phone).maybeSingle();
+      if (ex?.id) {
+        const { data, error } = await supabase
+          .from('scrap_customers')
+          .update({ full_name, phone, passport_line, address, updated_at: now })
+          .eq('id', ex.id)
+          .select()
+          .maybeSingle();
+        if (error) throw error;
+        return res.json({ customer: data });
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('scrap_customers')
+      .insert({ full_name, phone, passport_line, address, updated_at: now })
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    res.json({ customer: data });
+  })
+);
+
+app.post(
+  '/api/scrap-contract/pdf',
+  asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    const sellerName = String(body.sellerName || '').trim();
+    if (!sellerName) return res.status(400).json({ error: 'Укажите ФИО продавца' });
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    let total = body.totalRub != null ? Math.round(Number(body.totalRub)) : NaN;
+    if (!Number.isFinite(total)) {
+      total = 0;
+      for (const r of rows) {
+        const raw = r?.priceRub;
+        const p =
+          typeof raw === 'number'
+            ? raw
+            : parseFloat(String(raw ?? '').replace(/\s/g, '').replace(',', '.'));
+        if (Number.isFinite(p)) total += Math.round(p);
+      }
+    }
+    if (!Number.isFinite(total) || total <= 0) {
+      return res.status(400).json({ error: 'Укажите итоговую сумму или стоимость по строкам' });
+    }
+    const buf = await buildScrapContractPdfBuffer({ ...body, totalRub: total });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="dogovor-kvitanciya.pdf"');
+    res.send(buf);
   })
 );
 

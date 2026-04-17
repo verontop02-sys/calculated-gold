@@ -7,11 +7,15 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "@supabase/supabase-js": "^2.49.1",
     "axios": "^1.9.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "fast-xml-parser": "^4.5.1"
+    "fast-xml-parser": "^4.5.1",
+    "n2words": "^4.0.0",
+    "pdf-lib": "^1.17.1",
+    "pdfmake": "^0.3.7"
   }
 }
