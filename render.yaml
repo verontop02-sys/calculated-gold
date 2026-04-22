@@ -1,19 +1,17 @@
-# Blueprint: Render → New → Blueprint → подключить репозиторий.
+# Render → Blueprint: один Web Service: Node отдаёт и /api, и фронт из client/dist
+# (иначе /api/* на static-only даёт 404 и тело HTML — в браузере «сервер вернул не-JSON»).
 #
-# Build Command на сервисе должен быть ТОЛЬКО: npm install
-# (не добавляй npm run build — фронт собирается для Firebase локально; иначе падает vite/rollup на Linux.)
-#
-# Секреты в Dashboard: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (legacy eyJ…),
-# CORS_ORIGIN=https://gold-panel.web.app,https://gold-panel.firebaseapp.com
-# Опционально: PANEL_FULL_ACCESS_EMAILS=you@gmail.com — полный доступ, если роль в profiles не читается
-# Опционально: PRICE_SOURCE=auto (Мосбиржа GLDRUBF, резерв ЦБ), moex, cbr
+# Build: корень monorepo — сначала зависимости, потом Vite (client/dist).
+# Секреты: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (legacy eyJ…)
+# CORS: если тот же домен для UI и API — CORS обычно не нужен; иначе добавьте origin: CORS_ORIGIN=https://<ваш-сайт>.onrender.com
+# PANEL_FULL_ACCESS_EMAILS, PRICE_SOURCE — по желанию
 services:
   - type: web
     name: gold-calculated-api
     runtime: node
     plan: free
     region: frankfurt
-    buildCommand: npm install
+    buildCommand: npm install && npm run build
     startCommand: npm run start -w server
     healthCheckPath: /api/health
     envVars:

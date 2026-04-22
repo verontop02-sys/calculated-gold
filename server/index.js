@@ -1,3 +1,4 @@
+import { existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -42,6 +43,66 @@ if (!serviceKey.startsWith('eyJ')) {
 const supabase = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+
+function normalizeScrapPhoneDigits(v) {
+  const digits = String(v || '').replace(/\D/g, '');
+  if (digits.length === 11 && (digits.startsWith('7') || digits.startsWith('8'))) {
+    return digits.slice(1);
+  }
+  if (digits.length === 10) return digits;
+  return '';
+}
+
+function parseCellNumber(v) {
+  if (v == null) return null;
+  const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+async function resolveCustomerIdByPhone(phone) {
+  const n = normalizeScrapPhoneDigits(phone);
+  if (!n) return null;
+  const { data, error } = await supabase.from('scrap_customers').select('id, phone');
+  if (error) return null;
+  for (const row of data || []) {
+    if (row?.id && normalizeScrapPhoneDigits(row.phone) === n) return row.id;
+  }
+  return null;
+}
+
+async function recordScrapDealFromPdf({ req, body, totalRub }) {
+  const userId = req.user?.id || null;
+  const customerRaw = body?.customerId;
+  let customerId =
+    customerRaw && /^[0-9a-f-]{36}$/i.test(String(customerRaw)) ? String(customerRaw) : null;
+  const phone = String(body?.phone || '').trim() || null;
+  const phoneNorm = normalizeScrapPhoneDigits(phone) || null;
+  if (!customerId && phone) {
+    const resolved = await resolveCustomerIdByPhone(phone);
+    if (resolved) customerId = resolved;
+  }
+  const rows = Array.isArray(body?.rows) ? body.rows : [];
+  const r0 = rows[0] || {};
+  const probeStr = String(r0?.probe || '').replace(/\D/g, '');
+  const firstProbe = probeStr ? parseInt(probeStr, 10) : null;
+  const firstWg = parseCellNumber(r0?.weightGross);
+  const firstWn = parseCellNumber(r0?.weightNet);
+  const { error } = await supabase.from('scrap_deals').insert({
+    customer_id: customerId,
+    operator_id: userId,
+    contract_no: String(body?.contractNo || '').trim() || null,
+    total_rub: totalRub,
+    seller_name: String(body?.sellerName || '').trim() || null,
+    phone,
+    phone_normalized: phoneNorm,
+    rows,
+    first_probe: Number.isFinite(firstProbe) ? firstProbe : null,
+    first_weight_gross: firstWg,
+    first_weight_net: firstWn,
+    appraiser_name: String(body?.appraiserName || '').trim() || null,
+  });
+  if (error) throw error;
+}
 
 /** Email → полный доступ к API (если роль из profiles по какой-то причине не подтягивается). Render: PANEL_FULL_ACCESS_EMAILS=a@b.com,c@d.com */
 function panelFullAccessEmails() {
@@ -791,6 +852,295 @@ app.get(
   })
 );
 
+const SCRAP_CUST_LIST_SEL = 'id, full_name, phone, passport_line, address, created_at, updated_at';
+
+app.get(
+  '/api/scrap-customers',
+  asyncHandler(async (req, res) => {
+    const q = String(req.query.q || '').trim();
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
+    const offset = Math.max(0, parseInt(String(req.query.offset || '0'), 10) || 0);
+    if (q.length >= 1) {
+      const esc = q.replace(/%/g, '\\%').replace(/_/g, '\\_');
+      const p = `%${esc}%`;
+      const { data: byName, error: e1 } = await supabase
+        .from('scrap_customers')
+        .select(SCRAP_CUST_LIST_SEL)
+        .ilike('full_name', p)
+        .order('updated_at', { ascending: false })
+        .range(0, 1999);
+      if (e1) throw e1;
+      const { data: byPhone, error: e2 } = await supabase
+        .from('scrap_customers')
+        .select(SCRAP_CUST_LIST_SEL)
+        .ilike('phone', p)
+        .order('updated_at', { ascending: false })
+        .range(0, 1999);
+      if (e2) throw e2;
+      const map = new Map();
+      for (const r of [...(byName || []), ...(byPhone || [])]) {
+        if (r?.id) map.set(r.id, r);
+      }
+      const merged = [...map.values()].sort(
+        (a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
+      );
+      return res.json({ customers: merged.slice(offset, offset + limit), total: merged.length });
+    }
+    const { data, count, error } = await supabase
+      .from('scrap_customers')
+      .select(SCRAP_CUST_LIST_SEL, { count: 'exact' })
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error) throw error;
+    res.json({ customers: data || [], total: count ?? 0 });
+  })
+);
+
+app.get(
+  '/api/scrap-deals',
+  asyncHandler(async (req, res) => {
+    const customerId = String(req.query.customerId || '').trim();
+    const phone = String(req.query.phone || '').trim();
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '40'), 10) || 40));
+    const offset = Math.max(0, parseInt(String(req.query.offset || '0'), 10) || 0);
+    const sel =
+      'id, customer_id, contract_no, total_rub, seller_name, phone, first_probe, first_weight_gross, first_weight_net, created_at, rows';
+    if (phone && !customerId) {
+      const n = normalizeScrapPhoneDigits(phone);
+      if (!n) return res.json({ deals: [], total: 0 });
+      const { data, error, count } = await supabase
+        .from('scrap_deals')
+        .select(sel, { count: 'exact' })
+        .eq('phone_normalized', n)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+      if (error) throw error;
+      return res.json({ deals: data || [], total: count ?? 0 });
+    }
+    if (customerId) {
+      const { data: byCid, error: e1 } = await supabase
+        .from('scrap_deals')
+        .select(sel)
+        .eq('customer_id', customerId)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (e1) throw e1;
+      const { data: cust } = await supabase
+        .from('scrap_customers')
+        .select('phone')
+        .eq('id', customerId)
+        .maybeSingle();
+      const n = cust?.phone ? normalizeScrapPhoneDigits(cust.phone) : '';
+      let orphan = [];
+      if (n) {
+        const { data: byPhone, error: e2 } = await supabase
+          .from('scrap_deals')
+          .select(sel)
+          .is('customer_id', null)
+          .eq('phone_normalized', n)
+          .order('created_at', { ascending: false })
+          .limit(500);
+        if (e2) throw e2;
+        orphan = byPhone || [];
+      }
+      const map = new Map();
+      for (const r of [...(byCid || []), ...orphan]) {
+        if (r?.id) map.set(r.id, r);
+      }
+      const merged = [...map.values()].sort(
+        (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
+      );
+      return res.json({ deals: merged.slice(offset, offset + limit), total: merged.length });
+    }
+    if (!phone && !customerId) {
+      return res.status(400).json({ error: 'Укажите customerId или phone' });
+    }
+    return res.json({ deals: [], total: 0 });
+  })
+);
+
+app.get(
+  '/api/scrap-deals/:id/pdf',
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    if (!/^[0-9a-f-]{36}$/i.test(id)) {
+      return res.status(400).json({ error: 'Некорректный id' });
+    }
+    const { data: deal, error: dErr } = await supabase
+      .from('scrap_deals')
+      .select(
+        'id, customer_id, contract_no, total_rub, seller_name, phone, rows, appraiser_name'
+      )
+      .eq('id', id)
+      .maybeSingle();
+    if (dErr) throw dErr;
+    if (!deal) return res.status(404).json({ error: 'Сделка не найдена' });
+
+    let passportLine = '—';
+    let address = '—';
+    let sellerName = (deal.seller_name && String(deal.seller_name).trim()) || '—';
+    if (deal.customer_id) {
+      const { data: cu } = await supabase
+        .from('scrap_customers')
+        .select('full_name, passport_line, address, phone')
+        .eq('id', deal.customer_id)
+        .maybeSingle();
+      if (cu) {
+        if (cu.full_name) sellerName = String(cu.full_name).trim();
+        passportLine = (cu.passport_line && String(cu.passport_line).trim()) || '—';
+        address = (cu.address && String(cu.address).trim()) || '—';
+      }
+    }
+
+    const rows = Array.isArray(deal.rows) ? deal.rows : [];
+    const buf = await buildScrapContractPdfBuffer({
+      contractNo: deal.contract_no || '',
+      sellerName,
+      passportLine,
+      address,
+      phone: deal.phone || '',
+      appraiserName: deal.appraiser_name != null && String(deal.appraiser_name).trim() !== '' ? deal.appraiser_name : '________________',
+      rows,
+      totalRub: deal.total_rub,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="dogovor-${id.slice(0, 8)}.pdf"`);
+    res.send(buf);
+  })
+);
+
+app.get(
+  '/api/analytics/summary',
+  asyncHandler(async (req, res) => {
+    const fromD = String(req.query.from || '').trim();
+    const toD = String(req.query.to || '').trim();
+    const now = new Date();
+    const toDefault = toD || now.toISOString().slice(0, 10);
+    const fromDefault = fromD || new Date(now.getTime() - 30 * 864e5).toISOString().slice(0, 10);
+    const fromIso = new Date(`${fromDefault}T00:00:00.000Z`).toISOString();
+    const toIso = new Date(`${toDefault}T23:59:59.999Z`).toISOString();
+
+    const { data: rows, error } = await supabase
+      .from('scrap_deals')
+      .select(
+        'id, total_rub, first_probe, first_weight_gross, first_weight_net, created_at, customer_id, phone_normalized, seller_name'
+      )
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    const list = rows || [];
+    const sumRub = list.reduce((s, r) => s + (Number(r.total_rub) || 0), 0);
+    const countDeals = list.length;
+    const idSet = new Set();
+    for (const r of list) {
+      if (r.customer_id) idSet.add(`c:${r.customer_id}`);
+      else if (r.phone_normalized) idSet.add(`p:${r.phone_normalized}`);
+    }
+    const uniqueCustomers = idSet.size;
+    const weightGross = list.reduce(
+      (s, r) => s + (Number.isFinite(r.first_weight_gross) ? Number(r.first_weight_gross) : 0),
+      0
+    );
+    const weightNet = list.reduce(
+      (s, r) => s + (Number.isFinite(r.first_weight_net) ? Number(r.first_weight_net) : 0),
+      0
+    );
+    const byDayMap = new Map();
+    for (const r of list) {
+      const d = r.created_at ? String(r.created_at).slice(0, 10) : '';
+      if (!d) continue;
+      if (!byDayMap.has(d)) {
+        byDayMap.set(d, { day: d, count: 0, sumRub: 0, weightGross: 0, weightNet: 0 });
+      }
+      const b = byDayMap.get(d);
+      b.count += 1;
+      b.sumRub += Number(r.total_rub) || 0;
+      b.weightGross += Number.isFinite(r.first_weight_gross) ? Number(r.first_weight_gross) : 0;
+      b.weightNet += Number.isFinite(r.first_weight_net) ? Number(r.first_weight_net) : 0;
+    }
+    const byDay = [...byDayMap.values()].sort((a, b) => a.day.localeCompare(b.day));
+    const mondayIso = (iso) => {
+      const t = new Date(`${String(iso).slice(0, 10)}T12:00:00Z`);
+      if (Number.isNaN(t.getTime())) return '';
+      const dow = t.getUTCDay();
+      const add = dow === 0 ? -6 : 1 - dow;
+      t.setUTCDate(t.getUTCDate() + add);
+      return t.toISOString().slice(0, 10);
+    };
+    const byWeekMap = new Map();
+    const byMonthMap = new Map();
+    for (const r of list) {
+      const d = r.created_at ? String(r.created_at).slice(0, 10) : '';
+      if (!d) continue;
+      const wk = mondayIso(d);
+      if (wk) {
+        if (!byWeekMap.has(wk)) {
+          byWeekMap.set(wk, { key: wk, count: 0, sumRub: 0, weightGross: 0, weightNet: 0 });
+        }
+        const bw = byWeekMap.get(wk);
+        bw.count += 1;
+        bw.sumRub += Number(r.total_rub) || 0;
+        bw.weightGross += Number.isFinite(r.first_weight_gross) ? Number(r.first_weight_gross) : 0;
+        bw.weightNet += Number.isFinite(r.first_weight_net) ? Number(r.first_weight_net) : 0;
+      }
+      const mo = d.slice(0, 7);
+      if (mo) {
+        if (!byMonthMap.has(mo)) {
+          byMonthMap.set(mo, { key: mo, count: 0, sumRub: 0, weightGross: 0, weightNet: 0 });
+        }
+        const bm = byMonthMap.get(mo);
+        bm.count += 1;
+        bm.sumRub += Number(r.total_rub) || 0;
+        bm.weightGross += Number.isFinite(r.first_weight_gross) ? Number(r.first_weight_gross) : 0;
+        bm.weightNet += Number.isFinite(r.first_weight_net) ? Number(r.first_weight_net) : 0;
+      }
+    }
+    const byWeek = [...byWeekMap.values()].sort((a, b) => a.key.localeCompare(b.key));
+    const byMonth = [...byMonthMap.values()].sort((a, b) => a.key.localeCompare(b.key));
+    const probeMap = new Map();
+    for (const r of list) {
+      const p = r.first_probe != null ? Math.round(Number(r.first_probe)) : 0;
+      if (!p) continue;
+      if (!probeMap.has(p)) probeMap.set(p, { probe: p, count: 0, sumRub: 0 });
+      const x = probeMap.get(p);
+      x.count += 1;
+      x.sumRub += Number(r.total_rub) || 0;
+    }
+    const byProbe = [...probeMap.values()].sort((a, b) => a.probe - b.probe);
+    res.json({
+      period: { from: fromDefault, to: toDefault },
+      totals: {
+        deals: countDeals,
+        sumRub,
+        uniqueCustomers,
+        firstRowWeightGrossSum: weightGross,
+        firstRowWeightNetSum: weightNet,
+      },
+      byDay,
+      byWeek,
+      byMonth,
+      byProbe,
+    });
+  })
+);
+
+app.delete(
+  '/api/scrap-customers/:id',
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    if (!/^[0-9a-f-]{36}$/i.test(id)) {
+      return res.status(400).json({ error: 'Некорректный id' });
+    }
+    const { data: ex, error: fErr } = await supabase.from('scrap_customers').select('id').eq('id', id).maybeSingle();
+    if (fErr) throw fErr;
+    if (!ex) return res.status(404).json({ error: 'Клиент не найден' });
+    const { error: dErr } = await supabase.from('scrap_customers').delete().eq('id', id);
+    if (dErr) throw dErr;
+    res.json({ ok: true, id });
+  })
+);
+
 app.post(
   '/api/scrap-customers',
   asyncHandler(async (req, res) => {
@@ -862,6 +1212,11 @@ app.post(
       return res.status(400).json({ error: 'Укажите итоговую сумму или стоимость по строкам' });
     }
     const buf = await buildScrapContractPdfBuffer({ ...body, totalRub: total });
+    try {
+      await recordScrapDealFromPdf({ req, body, totalRub: total });
+    } catch (e) {
+      console.error('[scrap_deals insert]', e?.message || e);
+    }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="dogovor-kvitanciya.pdf"');
     res.send(buf);
@@ -980,6 +1335,25 @@ app.delete(
   })
 );
 
+// Production: один Web Service (Render) отдаёт /api + SPA из client/dist — /api с того же домена без VITE_API_BASE.
+if (!isDev) {
+  const clientDist = path.join(__dirname, '..', 'client', 'dist');
+  if (existsSync(path.join(clientDist, 'index.html'))) {
+    app.use(express.static(clientDist, { index: false }));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: 'Не найдено' });
+      }
+      if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+      res.sendFile(path.join(clientDist, 'index.html'), (e) => e && next(e));
+    });
+  } else {
+    console.warn(
+      `[Calculated Gold] client/dist нет: ${clientDist} — в production: npm run build в корне, иначе задайте VITE_API_BASE.`
+    );
+  }
+}
+
 app.use((err, _req, res, _next) => {
   const mapped = mapSupabaseAuthAdminError(err);
   if (mapped) {
@@ -987,7 +1361,7 @@ app.use((err, _req, res, _next) => {
   }
   console.error('[API ERROR]', err?.stack || err);
   res.status(500).json({
-    error: isDev ? `Внутренняя ошибка сервера: ${err?.message || 'unknown'}` : 'Внутренняя ошибка сервера',
+    error: isDev ? `Внутренняя ошибка сервиса: ${err?.message || 'unknown'}` : 'Внутренняя ошибка сервиса',
   });
 });
 

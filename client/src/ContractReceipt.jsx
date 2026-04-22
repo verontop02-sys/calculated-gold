@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
-
-function todayIso() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+import { ScrapCustomerDirectory } from './ScrapCustomerDirectory.jsx';
 
 function emptyRow() {
   return {
@@ -40,7 +36,6 @@ function sumRows(rows) {
 
 export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast }) {
   const [contractNo, setContractNo] = useState('');
-  const [contractDate, setContractDate] = useState(todayIso);
   const [sellerName, setSellerName] = useState('');
   const [phone, setPhone] = useState('');
   const [passportLine, setPassportLine] = useState('');
@@ -59,6 +54,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
 
   const [pdfBusy, setPdfBusy] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
+  const [baseOpen, setBaseOpen] = useState(false);
 
   const rowTotal = useMemo(() => sumRows(rows), [rows]);
 
@@ -250,10 +246,11 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     try {
       const blob = await api.scrapContractPdf({
         contractNo: contractNo.trim(),
-        contractDate,
+        customerId: customerId || undefined,
         sellerName: fn,
         passportLine: passportLine.trim(),
         address: address.trim(),
+        phone: phone.trim(),
         appraiserName: appraiserName.trim(),
         rows: rows.map((r) => ({
           itemName: r.itemName.trim(),
@@ -285,6 +282,16 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
 
   return (
     <div className="contract-page">
+      <ScrapCustomerDirectory
+        open={baseOpen}
+        onClose={() => setBaseOpen(false)}
+        formatMoney={formatMoney}
+        onPick={fillCustomer}
+        onCustomerDeleted={(id) => {
+          if (id && id === customerId) setCustomerId(null);
+        }}
+        toast={toast}
+      />
       <div className="glass contract-hero">
         <h2 className="contract-title">Договор-квитанция</h2>
         <p className="muted contract-lead">
@@ -293,7 +300,12 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       </div>
 
       <div className="glass contract-card" ref={searchBoxRef}>
-        <h3 className="contract-h3">Поиск клиента</h3>
+        <div className="contract-search-header">
+          <h3 className="contract-h3">Поиск клиента</h3>
+          <button type="button" className="btn-ghost small" onClick={() => setBaseOpen(true)}>
+            База
+          </button>
+        </div>
         <p className="muted small contract-hint">По фамилии, имени или телефону — подставятся паспорт и адрес из базы.</p>
         <div className="contract-search-wrap">
           <input
@@ -322,14 +334,22 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
 
       <div className="glass contract-card">
         <h3 className="contract-h3">Реквизиты договора</h3>
-        <div className="contract-grid">
+        <p className="muted small" style={{ margin: '0 0 10px' }}>
+          Дата в печатной форме вручную. Номер — только цифры.
+        </p>
+        <div className="contract-grid contract-grid-one">
           <label className="field">
-            <span className="field-label">Номер договора</span>
-            <input value={contractNo} onChange={(e) => setContractNo(e.target.value)} placeholder="например 142" />
-          </label>
-          <label className="field">
-            <span className="field-label">Дата</span>
-            <input type="date" value={contractDate} onChange={(e) => setContractDate(e.target.value)} />
+            <span className="field-label">Номер договора (только цифры)</span>
+            <input
+              inputMode="numeric"
+              pattern="[0-9]*"
+              className="mono-nums"
+              value={contractNo}
+              onChange={(e) => {
+                setContractNo(String(e.target.value).replace(/\D/g, ''));
+              }}
+              placeholder="например 142"
+            />
           </label>
         </div>
       </div>
@@ -357,6 +377,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           <label className="field contract-span-2">
             <span className="field-label">Адрес регистрации</span>
             <textarea
+              className="contract-address-text"
               rows={3}
               value={address}
               onChange={(e) => setAddress(e.target.value)}
@@ -489,6 +510,8 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         .contract-card { padding: 18px 16px; }
         .contract-h3 { font-size: 0.95rem; font-weight: 600; margin: 0 0 10px; }
         .contract-hint { margin: 0 0 12px; line-height: 1.4; }
+        .contract-search-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+        .contract-search-header .contract-h3 { margin: 0; }
         .contract-search-wrap { position: relative; }
         .contract-search-input { width: 100%; }
         .contract-search-busy { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; }
@@ -511,6 +534,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           grid-template-columns: 1fr 1fr;
           gap: 12px;
         }
+        .contract-grid-one { grid-template-columns: 1fr; }
         @media (max-width: 520px) {
           .contract-grid { grid-template-columns: 1fr; }
         }
@@ -526,12 +550,14 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           .contract-seller-grid { grid-template-columns: 1fr; }
           .contract-span-2 { grid-column: 1; }
         }
-        .contract-fields textarea {
+        .contract-fields textarea,
+        .contract-address-text {
           resize: vertical;
           min-height: 72px;
           font-family: inherit;
           line-height: 1.45;
         }
+        .contract-address-text { font-size: 0.78rem; }
         .contract-save-btn { margin-top: 14px; width: 100%; }
         .contract-table-head {
           display: flex;
@@ -614,19 +640,6 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         .contract-total-value { font-size: 1.15rem; font-weight: 700; color: var(--gold); }
         .contract-actions { padding-bottom: 8px; }
         .contract-pdf-btn { width: 100%; padding: 14px 16px; font-size: 0.95rem; }
-        .btn-secondary {
-          border-radius: var(--radius-sm);
-          border: 1px solid var(--stroke);
-          background: var(--surface);
-          color: var(--text);
-          font-weight: 600;
-          font-size: 0.88rem;
-          padding: 11px 14px;
-          cursor: pointer;
-          transition: border-color 0.15s, background 0.15s;
-        }
-        .btn-secondary:hover:not(:disabled) { border-color: var(--gold); background: var(--gold-soft); }
-        .btn-secondary:disabled { opacity: 0.55; cursor: not-allowed; }
       `}</style>
     </div>
   );

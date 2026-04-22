@@ -6,6 +6,8 @@ import { ThemeToggle } from './ThemeToggle.jsx';
 import { Login } from './Login.jsx';
 import { Calculator } from './Calculator.jsx';
 import { ContractReceipt } from './ContractReceipt.jsx';
+import { Analytics } from './Analytics.jsx';
+import { Clients } from './Clients.jsx';
 import { SettingsPanel } from './SettingsPanel.jsx';
 import { isSuperAdminRole, isUserManagerRole } from './roles.js';
 
@@ -83,7 +85,7 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState(null);
   const [user, setUser] = useState(undefined);
   const [profileErr, setProfileErr] = useState(null);
-  const [tab, setTab] = useState('calc');
+  const [tab, setTab] = useState('calc'); // calc | contract | clients | analytics | settings
   const [contractPrefill, setContractPrefill] = useState(null);
   const [contractMounted, setContractMounted] = useState(false);
   const [quoteTab, setQuoteTab] = useState('moex');
@@ -316,7 +318,11 @@ export default function App() {
   }
 
   return (
-    <div className={`shell${tab === 'contract' ? ' shell--wide' : ''}`}>
+    <div
+      className={`shell${
+        tab === 'contract' || tab === 'analytics' || tab === 'clients' ? ' shell--wide' : ''
+      }`}
+    >
       <header className="topbar glass">
         <div className="brand">
           <span className="brand-mark">
@@ -438,6 +444,18 @@ export default function App() {
         >
           Договор
         </button>
+        <button type="button" role="tab" aria-selected={tab === 'clients'} className={tab === 'clients' ? 'tab active' : 'tab'} onClick={() => setTab('clients')}>
+          Клиенты
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'analytics'}
+          className={tab === 'analytics' ? 'tab active' : 'tab'}
+          onClick={() => setTab('analytics')}
+        >
+          Аналитика
+        </button>
         {isUserManagerRole(user.role) && (
           <button type="button" role="tab" aria-selected={tab === 'settings'} className={tab === 'settings' ? 'tab active' : 'tab'} onClick={() => setTab('settings')}>
             {isSuperAdminRole(user.role) ? 'Настройки и доступы' : 'Пользователи'}
@@ -468,6 +486,8 @@ export default function App() {
             />
           </div>
         )}
+        {tab === 'clients' && <Clients formatMoney={formatMoney} toast={toast} />}
+        {tab === 'analytics' && <Analytics formatMoney={formatMoney} />}
         {tab === 'settings' && isUserManagerRole(user.role) && <SettingsPanel user={user} />}
       </main>
 
@@ -599,9 +619,9 @@ export default function App() {
         .badge { font-size: 0.7rem; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.06em; }
         .badge.warn { background: rgba(250, 204, 21, 0.15); color: #facc15; border: 1px solid rgba(250, 204, 21, 0.35); }
         .badge.danger { background: rgba(248, 113, 113, 0.12); color: var(--danger); border: 1px solid rgba(248, 113, 113, 0.35); }
-        .tabs { display: flex; padding: 6px; gap: 6px; }
+        .tabs { display: flex; flex-wrap: wrap; padding: 6px; gap: 6px; }
         .tab {
-          flex: 1;
+          flex: 1 1 22%;
           min-width: 0;
           padding: 11px 10px;
           border-radius: 12px;

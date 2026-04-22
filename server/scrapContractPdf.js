@@ -31,22 +31,6 @@ export function rublesInWords(intRub) {
   return capitalizeRu(`${words} ${rub}`);
 }
 
-function formatRuDate(isoOrDisplay) {
-  const s = String(isoOrDisplay || '').trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    const [y, m, d] = s.split('-');
-    return `${d}.${m}.${y}`;
-  }
-  return s || '—';
-}
-
-function formatRuDayMonth(isoOrDisplay) {
-  const full = formatRuDate(isoOrDisplay);
-  const m = full.match(/^(\d{2})\.(\d{2})\.\d{4}$/);
-  if (m) return `${m[1]}.${m[2]}`;
-  return full;
-}
-
 function formatCellRu(v) {
   const s = String(v ?? '').trim();
   if (!s) return '—';
@@ -116,7 +100,6 @@ export async function buildScrapContractPdfBuffer(body) {
   const page = pdfDoc.getPages()[0];
 
   const contractNo = String(body.contractNo || '').trim() || '—';
-  const contractDate = formatRuDayMonth(body.contractDate);
   const sellerName = String(body.sellerName || '').trim() || '—';
   const passportLine = String(body.passportLine || '').trim() || '—';
   const address = String(body.address || '').trim() || '—';

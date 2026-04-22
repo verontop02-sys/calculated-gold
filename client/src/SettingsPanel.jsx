@@ -100,6 +100,7 @@ export function SettingsPanel({ user }) {
       };
       const next = await api.saveSettings(patch);
       setSettings(next);
+      window.dispatchEvent(new CustomEvent('cg:settings-saved', { detail: { settings: next } }));
       setSavedSection(section);
       toast('Настройки сохранены', 'success');
       setTimeout(() => setSavedSection(null), 2500);

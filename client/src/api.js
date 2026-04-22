@@ -68,13 +68,11 @@ async function request(path, options = {}) {
 
 async function requestBlob(path, options = {}) {
   const token = await getAccessToken();
+  const h = { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) };
+  if (options.body != null) h['Content-Type'] = 'application/json';
   const res = await fetch(withBase(path), {
     method: options.method || 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
+    headers: h,
     body: options.body != null ? JSON.stringify(options.body) : undefined,
   });
   const ct = (res.headers.get('content-type') || '').toLowerCase();
@@ -191,5 +189,33 @@ export const api = {
   scrapCustomersSearch: (q) =>
     request(`/scrap-customers/search?q=${encodeURIComponent(q)}`),
   saveScrapCustomer: (body) => request('/scrap-customers', { method: 'POST', body: JSON.stringify(body) }),
+  deleteScrapCustomer: (id) => request(`/scrap-customers/${id}`, { method: 'DELETE' }),
   scrapContractPdf: (body) => requestBlob('/scrap-contract/pdf', { method: 'POST', body }),
+  /** Полный список клиентов (панель «База»). q — поиск, limit/offset — пагинация. */
+  scrapCustomersList: (params = {}) => {
+    const q = new URLSearchParams();
+    if (params.q) q.set('q', String(params.q));
+    if (params.limit != null) q.set('limit', String(params.limit));
+    if (params.offset != null) q.set('offset', String(params.offset));
+    const s = q.toString();
+    return request(`/scrap-customers${s ? `?${s}` : ''}`);
+  },
+  /** Сделки по clientId (uuid) ИЛИ телефону. */
+  scrapDeals: (params = {}) => {
+    const q = new URLSearchParams();
+    if (params.customerId) q.set('customerId', params.customerId);
+    if (params.phone) q.set('phone', params.phone);
+    if (params.limit != null) q.set('limit', String(params.limit));
+    if (params.offset != null) q.set('offset', String(params.offset));
+    return request(`/scrap-deals?${q.toString()}`);
+  },
+  /** PDF договора по id сохранённой сделки. */
+  scrapDealPdf: (id) => requestBlob(`/scrap-deals/${encodeURIComponent(String(id))}/pdf`, { method: 'GET' }),
+  /** Сводка для вкладки «Аналитика» (Y-M-D). */
+  analyticsSummary: (from, to) => {
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    return request(`/analytics/summary?${q.toString()}`);
+  },
 };

@@ -1,0 +1,372 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { api } from './api.js';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Line,
+  LineChart,
+} from 'recharts';
+
+function toIso(d) {
+  if (!d) return '';
+  const t = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(t.getTime())) return '';
+  return t.toISOString().slice(0, 10);
+}
+
+function addDays(iso, days) {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function addMonths(iso, m) {
+  const d = new Date(`${String(iso).slice(0, 10)}T12:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + m);
+  return d.toISOString().slice(0, 10);
+}
+
+function weekLabel(key) {
+  if (!key) return '';
+  const [y, mo, d] = String(key).split('-');
+  if (!d) return key;
+  return `${d}.${mo}`;
+}
+
+function monthLabel(key) {
+  if (!key || String(key).length < 7) return key;
+  const [y, m] = String(key).split('-');
+  return `${m}.${y}`;
+}
+
+export function Analytics({ formatMoney }) {
+  const today = toIso(new Date());
+  const [to, setTo] = useState(today);
+  const [from, setFrom] = useState(() => addDays(today, -30));
+  const [group, setGroup] = useState('day');
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [data, setData] = useState(null);
+
+  const load = useCallback(async () => {
+    setErr('');
+    setLoading(true);
+    try {
+      const d = await api.analyticsSummary(from, to);
+      setData(d);
+    } catch (e) {
+      setErr(e?.message || 'Не удалось загрузить');
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [from, to]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  function applyPreset(preset) {
+    const t = toIso(new Date());
+    if (preset === '7d') {
+      setTo(t);
+      setFrom(addDays(t, -7));
+    } else if (preset === '30d') {
+      setTo(t);
+      setFrom(addDays(t, -30));
+    } else if (preset === '90d') {
+      setTo(t);
+      setFrom(addDays(t, -90));
+    } else if (preset === 'ytd') {
+      const y = new Date();
+      setTo(t);
+      setFrom(`${y.getFullYear()}-01-01`);
+    } else if (preset === 'month') {
+      setTo(t);
+      setFrom(addMonths(t, -1));
+    }
+  }
+
+  const t = data?.totals;
+  const byProbe = useMemo(
+    () =>
+      (data?.byProbe || []).map((x) => ({
+        ...x,
+        label: `${x.probe} пр.`,
+      })),
+    [data]
+  );
+
+  const { moneySeries, weightLabelKey } = useMemo(() => {
+    const d = data;
+    if (!d) {
+      return { moneySeries: [], weightLabelKey: 'day' };
+    }
+    if (group === 'day') {
+      return {
+        moneySeries: (d.byDay || []).map((x) => ({
+          ...x,
+          x: x.day?.slice(5) || x.day,
+        })),
+        weightLabelKey: 'day',
+      };
+    }
+    if (group === 'week') {
+      return {
+        moneySeries: (d.byWeek || []).map((x) => ({
+          sumRub: x.sumRub,
+          weightGross: x.weightGross,
+          weightNet: x.weightNet,
+          count: x.count,
+          x: weekLabel(x.key),
+        })),
+        weightLabelKey: 'week',
+      };
+    }
+    return {
+      moneySeries: (d.byMonth || []).map((x) => ({
+        sumRub: x.sumRub,
+        weightGross: x.weightGross,
+        weightNet: x.weightNet,
+        count: x.count,
+        x: monthLabel(x.key),
+      })),
+      weightLabelKey: 'month',
+    };
+  }, [data, group]);
+
+  return (
+    <div className="analytics-page">
+      <div className="glass analytics-hero">
+        <h2 className="analytics-title">Аналитика</h2>
+        <p className="muted analytics-lead">
+          Данные по сформированным договорам (кнопка «Скачать PDF»). Можно смотреть динамику по дням, по неделям
+          (с понедельника) и по календарным месяцам.
+        </p>
+        <div className="analytics-presets">
+          <span className="muted small">Период:</span>
+          <button type="button" className="an-pill" onClick={() => applyPreset('7d')}>
+            7 дн
+          </button>
+          <button type="button" className="an-pill" onClick={() => applyPreset('30d')}>
+            30 дн
+          </button>
+          <button type="button" className="an-pill" onClick={() => applyPreset('90d')}>
+            90 дн
+          </button>
+          <button type="button" className="an-pill" onClick={() => applyPreset('ytd')}>
+            С 1 янв.
+          </button>
+          <button type="button" className="an-pill" onClick={() => applyPreset('month')}>
+            1 мес назад
+          </button>
+        </div>
+        <div className="analytics-filters">
+          <label className="field field-inline">
+            <span className="field-label">С</span>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label className="field field-inline">
+            <span className="field-label">По</span>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </label>
+          <div className="an-group-btns" role="group" aria-label="Агрегация графиков">
+            {[
+              { id: 'day', t: 'Дни' },
+              { id: 'week', t: 'Недели' },
+              { id: 'month', t: 'Месяцы' },
+            ].map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                className={`an-group-btn${group === b.id ? ' active' : ''}`}
+                onClick={() => setGroup(b.id)}
+              >
+                {b.t}
+              </button>
+            ))}
+          </div>
+          <button type="button" className="btn-ghost" onClick={load} disabled={loading}>
+            {loading ? '…' : 'Обновить'}
+          </button>
+        </div>
+      </div>
+
+      {err && <div className="glass analytics-err">{err}</div>}
+
+      {t && !loading && (
+        <div className="analytics-kpi-grid">
+          <div className="glass analytics-kpi">
+            <span className="analytics-kpi-label">Сделок</span>
+            <span className="analytics-kpi-value mono-nums">{t.deals}</span>
+          </div>
+          <div className="glass analytics-kpi">
+            <span className="analytics-kpi-label">Сумма, ₽</span>
+            <span className="analytics-kpi-value mono-nums">{formatMoney(t.sumRub)}</span>
+          </div>
+          <div className="glass analytics-kpi">
+            <span className="analytics-kpi-label">Клиентов (уник.)</span>
+            <span className="analytics-kpi-value mono-nums">{t.uniqueCustomers}</span>
+          </div>
+          <div className="glass analytics-kpi">
+            <span className="analytics-kpi-label">Вес (1-я стр.), г</span>
+            <span className="analytics-kpi-value mono-nums small-digits">
+              {t.firstRowWeightGrossSum != null ? t.firstRowWeightGrossSum.toFixed(2) : '—'} /{' '}
+              {t.firstRowWeightNetSum != null ? t.firstRowWeightNetSum.toFixed(3) : '—'}
+            </span>
+            <span className="analytics-kpi-hint muted">общ. / чист.</span>
+          </div>
+        </div>
+      )}
+
+      {byProbe.length > 0 && !loading && (
+        <div className="glass analytics-chart-card">
+          <h3 className="analytics-h3">Сделок по пробе (1-я позиция)</h3>
+          <div className="analytics-chart-h">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={byProbe} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--stroke, #333)" />
+                <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.[0]) return null;
+                    const p = payload[0].payload;
+                    return (
+                      <div className="an-tt">
+                        {p.label}: сделок {p.count}
+                        {p.sumRub != null && ` · ${formatMoney(p.sumRub)}`}
+                      </div>
+                    );
+                  }}
+                />
+                <Bar dataKey="count" name="Сделок" fill="var(--gold, #b8860b)" radius={[4, 4, 0, 0]} maxBarSize={48} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {moneySeries.length > 0 && !loading && (
+        <div className="glass analytics-chart-card">
+          <h3 className="analytics-h3">Денежный поток ({weightLabelKey === 'day' ? 'по дням' : weightLabelKey === 'week' ? 'по неделям' : 'по месяцам'})</h3>
+          <div className="analytics-chart-h">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={moneySeries} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--stroke, #333)" />
+                <XAxis dataKey="x" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v) => (v != null ? formatMoney(v) : '')} />
+                <Line
+                  type="monotone"
+                  dataKey="sumRub"
+                  name="₽"
+                  stroke="var(--gold, #b8860b)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {moneySeries.length > 0 && !loading && (
+        <div className="glass analytics-chart-card">
+          <h3 className="analytics-h3">Вес, г (1-я строка в сделке) — динамика</h3>
+          <div className="analytics-chart-h an-chart-tall">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={moneySeries} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--stroke, #333)" />
+                <XAxis dataKey="x" tick={{ fontSize: 10 }} />
+                <YAxis yAxisId="g" tick={{ fontSize: 10 }} allowDecimals />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const p = payload[0]?.payload;
+                    if (!p) return null;
+                    return (
+                      <div className="an-tt">
+                        {p.weightGross != null && `Вес общ.: ${Number(p.weightGross).toFixed(2)} г `}
+                        {p.weightNet != null && `· чист.: ${Number(p.weightNet).toFixed(3)} г`}
+                      </div>
+                    );
+                  }}
+                />
+                <Line
+                  yAxisId="g"
+                  type="monotone"
+                  dataKey="weightGross"
+                  name="Общий, г"
+                  stroke="#6ee7b7"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  yAxisId="g"
+                  type="monotone"
+                  dataKey="weightNet"
+                  name="Чист., г"
+                  stroke="#a78bfa"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {!loading && t?.deals === 0 && !err && (
+        <p className="muted analytics-empty">
+          За период нет сделок. Скачайте договор-квитанцию (PDF) — тогда сделка попадёт в отчёт.
+        </p>
+      )}
+
+      {loading && (
+        <div className="glass analytics-load">
+          <div className="spinner" />
+          <span className="muted">Считаем…</span>
+        </div>
+      )}
+
+      <style>{`
+        .analytics-page { display: flex; flex-direction: column; gap: 14px; }
+        .analytics-hero { padding: 20px 18px; }
+        .analytics-title { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; margin: 0 0 6px; }
+        .analytics-lead { margin: 0 0 10px; font-size: 0.86rem; line-height: 1.45; max-width: 44rem; }
+        .analytics-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .an-pill { border: 1px solid var(--stroke); background: var(--input-bg); color: var(--text); font-size: 0.75rem; padding: 5px 10px; border-radius: 999px; cursor: pointer; font-weight: 600; }
+        .an-pill:hover { border-color: var(--gold); color: var(--gold); }
+        .analytics-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+        .field.field-inline { display: flex; flex-direction: column; gap: 4px; }
+        .field.field-inline .field-label { font-size: 0.7rem; }
+        .field.field-inline input { min-width: 9rem; }
+        .an-group-btns { display: flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--input-bg); border: 1px solid var(--stroke); }
+        .an-group-btn { border: none; background: transparent; color: var(--text-muted); font-size: 0.76rem; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .an-group-btn.active { background: var(--gold-soft); color: var(--gold); }
+        .analytics-err { padding: 12px 16px; color: var(--danger); font-size: 0.9rem; }
+        .analytics-kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        @media (min-width: 560px) { .analytics-kpi-grid { grid-template-columns: repeat(4, 1fr); } }
+        .analytics-kpi { padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+        .analytics-kpi-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+        .analytics-kpi-value { font-size: 1.1rem; font-weight: 700; color: var(--gold); }
+        .small-digits { font-size: 0.95rem; }
+        .analytics-kpi-hint { font-size: 0.72rem; }
+        .analytics-chart-card { padding: 16px; }
+        .analytics-h3 { font-size: 0.95rem; font-weight: 600; margin: 0 0 10px; }
+        .analytics-chart-h { width: 100%; height: 220px; }
+        .an-chart-tall { height: 240px; }
+        .analytics-load { display: flex; align-items: center; gap: 10px; padding: 20px; justify-content: center; }
+        .analytics-empty { margin: 0; text-align: center; padding: 8px; font-size: 0.9rem; }
+        .an-tt { background: var(--bg-elevated); border: 1px solid var(--stroke); border-radius: 8px; padding: 6px 10px; font-size: 0.8rem; }
+      `}</style>
+    </div>
+  );
+}

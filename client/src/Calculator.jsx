@@ -52,6 +52,21 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract }) {
       .finally(() => setSettingsLoading(false));
   }, []);
 
+  useEffect(() => {
+    function onSettingsSaved(e) {
+      if (e?.detail?.settings) {
+        setSettings(e.detail.settings);
+        return;
+      }
+      api
+        .settings()
+        .then(setSettings)
+        .catch(() => setSettings(null));
+    }
+    window.addEventListener('cg:settings-saved', onSettingsSaved);
+    return () => window.removeEventListener('cg:settings-saved', onSettingsSaved);
+  }, []);
+
   const purityOptions = useMemo(() => {
     const order = settings?.purityOrder || [375, 500, 583, 585, 750, 875, 900, 916, 958, 999];
     const nums = [...new Set(order.map((p) => Number(p)).filter((p) => Number.isFinite(p)))];
