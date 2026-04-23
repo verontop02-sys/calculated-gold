@@ -969,7 +969,7 @@ app.get(
     const { data: deal, error: dErr } = await supabase
       .from('scrap_deals')
       .select(
-        'id, customer_id, contract_no, total_rub, seller_name, phone, rows, appraiser_name'
+        'id, customer_id, contract_no, total_rub, seller_name, phone, rows, appraiser_name, created_at'
       )
       .eq('id', id)
       .maybeSingle();
@@ -993,6 +993,14 @@ app.get(
     }
 
     const rows = Array.isArray(deal.rows) ? deal.rows : [];
+    const issueFromDeal = deal.created_at
+      ? new Date(deal.created_at).toLocaleDateString('ru-RU', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          timeZone: 'Europe/Moscow',
+        })
+      : '';
     const buf = await buildScrapContractPdfBuffer({
       contractNo: deal.contract_no || '',
       sellerName,
@@ -1002,6 +1010,7 @@ app.get(
       appraiserName: deal.appraiser_name != null && String(deal.appraiser_name).trim() !== '' ? deal.appraiser_name : '________________',
       rows,
       totalRub: deal.total_rub,
+      issueDate: issueFromDeal,
     });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="dogovor-${id.slice(0, 8)}.pdf"`);
@@ -1023,7 +1032,7 @@ app.get(
     const { data: rows, error } = await supabase
       .from('scrap_deals')
       .select(
-        'id, total_rub, first_probe, first_weight_gross, first_weight_net, created_at, customer_id, phone_normalized, seller_name'
+        'id, total_rub, first_probe, first_weight_gross, first_weight_net, created_at, customer_id, phone_normalized, seller_name, operator_id'
       )
       .gte('created_at', fromIso)
       .lte('created_at', toIso)
@@ -1108,6 +1117,35 @@ app.get(
       x.sumRub += Number(r.total_rub) || 0;
     }
     const byProbe = [...probeMap.values()].sort((a, b) => a.probe - b.probe);
+
+    const byOpMap = new Map();
+    for (const r of list) {
+      const k = r.operator_id || '';
+      if (!byOpMap.has(k)) {
+        byOpMap.set(k, { operatorId: r.operator_id || null, deals: 0, sumRub: 0 });
+      }
+      const o = byOpMap.get(k);
+      o.deals += 1;
+      o.sumRub += Number(r.total_rub) || 0;
+    }
+    let emailById = new Map();
+    try {
+      const { data: listData, error: luErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+      if (!luErr && listData?.users) {
+        emailById = new Map(listData.users.map((u) => [u.id, u.email || '']));
+      }
+    } catch (e) {
+      console.warn('[analytics listUsers]', e?.message || e);
+    }
+    const byOperator = [...byOpMap.entries()]
+      .map(([k, v]) => ({
+        operatorId: v.operatorId,
+        email: v.operatorId ? emailById.get(v.operatorId) || '—' : 'без учётки',
+        deals: v.deals,
+        sumRub: v.sumRub,
+      }))
+      .sort((a, b) => b.sumRub - a.sumRub);
+
     res.json({
       period: { from: fromDefault, to: toDefault },
       totals: {
@@ -1121,6 +1159,7 @@ app.get(
       byWeek,
       byMonth,
       byProbe,
+      byOperator,
     });
   })
 );

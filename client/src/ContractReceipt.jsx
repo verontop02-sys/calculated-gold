@@ -244,6 +244,18 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     }
     setPdfBusy(true);
     try {
+      const issueDate = (() => {
+        try {
+          return new Date().toLocaleDateString('ru-RU', {
+            timeZone: 'Europe/Moscow',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          });
+        } catch {
+          return new Date().toLocaleDateString('ru-RU');
+        }
+      })();
       const blob = await api.scrapContractPdf({
         contractNo: contractNo.trim(),
         customerId: customerId || undefined,
@@ -252,6 +264,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         address: address.trim(),
         phone: phone.trim(),
         appraiserName: appraiserName.trim(),
+        issueDate,
         rows: rows.map((r) => ({
           itemName: r.itemName.trim(),
           metal: r.metal.trim(),
@@ -557,7 +570,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           font-family: inherit;
           line-height: 1.45;
         }
-        .contract-address-text { font-size: 0.78rem; }
+        .contract-address-text { font-size: 0.9rem; }
         .contract-save-btn { margin-top: 14px; width: 100%; }
         .contract-table-head {
           display: flex;

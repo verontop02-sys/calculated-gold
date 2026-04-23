@@ -146,8 +146,8 @@ export function Analytics({ formatMoney }) {
       <div className="glass analytics-hero">
         <h2 className="analytics-title">Аналитика</h2>
         <p className="muted analytics-lead">
-          Данные по сформированным договорам (кнопка «Скачать PDF»). Можно смотреть динамику по дням, по неделям
-          (с понедельника) и по календарным месяцам.
+          Учёт только сделок, по которым ушёл PDF из раздела «Договор» (тот, кто скачал, пишется в сделку как
+          сотрудник). Графики по пробе и весу берут первую из трёх строк на договоре.
         </p>
         <div className="analytics-presets">
           <span className="muted small">Период:</span>
@@ -215,19 +215,54 @@ export function Analytics({ formatMoney }) {
             <span className="analytics-kpi-value mono-nums">{t.uniqueCustomers}</span>
           </div>
           <div className="glass analytics-kpi">
-            <span className="analytics-kpi-label">Вес (1-я стр.), г</span>
+            <span className="analytics-kpi-label">Вес 1-й строки, г</span>
             <span className="analytics-kpi-value mono-nums small-digits">
               {t.firstRowWeightGrossSum != null ? t.firstRowWeightGrossSum.toFixed(2) : '—'} /{' '}
               {t.firstRowWeightNetSum != null ? t.firstRowWeightNetSum.toFixed(3) : '—'}
             </span>
-            <span className="analytics-kpi-hint muted">общ. / чист.</span>
+            <span className="analytics-kpi-hint muted">лом / чист., сумма за период</span>
           </div>
+        </div>
+      )}
+
+      {t && !loading && t.deals > 0 && (
+        <div className="glass analytics-op-card">
+          <h3 className="analytics-h3">Сотрудники</h3>
+          <p className="muted small an-h3-sub">В строке — e-mail того, кто скачал PDF по сделке. Без входа: «без учётки».</p>
+          {Array.isArray(data?.byOperator) && data.byOperator.length > 0 ? (
+            <div className="analytics-op-table-wrap">
+              <table className="analytics-op-table">
+                <thead>
+                  <tr>
+                    <th>Учётная запись</th>
+                    <th className="mono-nums">Сделок</th>
+                    <th className="mono-nums">Сумма, ₽</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.byOperator.map((row) => (
+                    <tr key={row.operatorId == null ? 'none' : String(row.operatorId)}>
+                      <td>{row.email || '—'}</td>
+                      <td className="mono-nums">{row.deals}</td>
+                      <td className="mono-nums">{formatMoney(row.sumRub)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="muted small" style={{ margin: '8px 0 0' }}>
+              Таблицу сотрудников сейчас не показать: на сервере ещё старая логика. Выкатите последний бэк и
+              фронт, потом снова «Обновить» на этой странице.
+            </p>
+          )}
         </div>
       )}
 
       {byProbe.length > 0 && !loading && (
         <div className="glass analytics-chart-card">
-          <h3 className="analytics-h3">Сделок по пробе (1-я позиция)</h3>
+          <h3 className="analytics-h3">Сделок по пробе</h3>
+          <p className="muted small an-h3-sub">По первой строке таблицы в договоре (лом, до трёх позиций).</p>
           <div className="analytics-chart-h">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={byProbe} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -279,7 +314,8 @@ export function Analytics({ formatMoney }) {
 
       {moneySeries.length > 0 && !loading && (
         <div className="glass analytics-chart-card">
-          <h3 className="analytics-h3">Вес, г (1-я строка в сделке) — динамика</h3>
+          <h3 className="analytics-h3">Вес, г — динамика (первая строка договора)</h3>
+          <p className="muted small an-h3-sub">Зелёная линия: общий вес, сиреневая: чистая масса, по дням/неделям/месяцам.</p>
           <div className="analytics-chart-h an-chart-tall">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={moneySeries} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
@@ -325,7 +361,7 @@ export function Analytics({ formatMoney }) {
 
       {!loading && t?.deals === 0 && !err && (
         <p className="muted analytics-empty">
-          За период нет сделок. Скачайте договор-квитанцию (PDF) — тогда сделка попадёт в отчёт.
+          За период нет сделок. Скачайте PDF в «Договоре» — сделка тогда запишется и попадёт сюда.
         </p>
       )}
 
@@ -337,7 +373,7 @@ export function Analytics({ formatMoney }) {
       )}
 
       <style>{`
-        .analytics-page { display: flex; flex-direction: column; gap: 14px; }
+        .analytics-page { display: flex; flex-direction: column; gap: 14px; min-width: 0; max-width: 100%; overflow-x: hidden; }
         .analytics-hero { padding: 20px 18px; }
         .analytics-title { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; margin: 0 0 6px; }
         .analytics-lead { margin: 0 0 10px; font-size: 0.86rem; line-height: 1.45; max-width: 44rem; }
@@ -359,9 +395,19 @@ export function Analytics({ formatMoney }) {
         .analytics-kpi-value { font-size: 1.1rem; font-weight: 700; color: var(--gold); }
         .small-digits { font-size: 0.95rem; }
         .analytics-kpi-hint { font-size: 0.72rem; }
+        .an-h3-sub { margin: 0 0 10px; line-height: 1.4; }
+        .analytics-op-card { padding: 16px; min-width: 0; }
+        .analytics-op-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 0; }
+        .analytics-op-table { width: 100%; min-width: 280px; border-collapse: collapse; font-size: 0.86rem; }
+        .analytics-op-table th,
+        .analytics-op-table td {
+          text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--stroke, rgba(255,255,255,0.08));
+        }
+        .analytics-op-table th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+        .analytics-op-table tr:last-child td { border-bottom: none; }
         .analytics-chart-card { padding: 16px; }
-        .analytics-h3 { font-size: 0.95rem; font-weight: 600; margin: 0 0 10px; }
-        .analytics-chart-h { width: 100%; height: 220px; }
+        .analytics-h3 { font-size: 0.95rem; font-weight: 600; margin: 0 0 4px; }
+        .analytics-chart-h { width: 100%; min-width: 0; height: 220px; }
         .an-chart-tall { height: 240px; }
         .analytics-load { display: flex; align-items: center; gap: 10px; padding: 20px; justify-content: center; }
         .analytics-empty { margin: 0; text-align: center; padding: 8px; font-size: 0.9rem; }

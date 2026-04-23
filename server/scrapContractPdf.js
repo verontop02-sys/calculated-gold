@@ -115,10 +115,13 @@ export async function buildScrapContractPdfBuffer(body) {
   if (totalRub == null) totalRub = sum;
   totalRub = Math.round(totalRub || 0);
   const amountWords = String(body.amountWords || '').trim() || rublesInWords(totalRub) || '—';
+  const issueDate =
+    String(body.issueDate || '').trim() ||
+    new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Moscow' });
 
-  // Шапка договора (underline at yFromTop≈164)
+  // Шапка: номер и дата (МСК, если issueDate не передан)
   drawTop(page, contractNo, 218, 162, { size: 11, font: regularFont, maxWidth: 60 });
-  // Дата не выводится — заполняется вручную на распечатанном экземпляре
+  drawTop(page, `от ${issueDate}`, 320, 162, { size: 10, font: regularFont, maxWidth: 120 });
 
   // Данные продавца (lines at yFromTop: 479.8, 508.3, 534.6 — baseline 6pt above each)
   drawTop(page, sellerName, 118, 474, { size: 10, font: regularFont, maxWidth: 430 });
