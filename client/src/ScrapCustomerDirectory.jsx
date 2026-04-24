@@ -27,6 +27,7 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
   const [edit, setEdit] = useState(emptyEdit);
   const [saveBusy, setSaveBusy] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [deletingDealId, setDeletingDealId] = useState(null);
 
   const load = useCallback(
     async (fromOffset) => {
@@ -166,6 +167,29 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
       toast?.(e?.message || 'Не удалось удалить', 'error');
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function removeDeal(c, d) {
+    if (!d?.id) return;
+    if (!window.confirm('Удалить эту сделку из учёта? Восстановить нельзя.')) return;
+    setDeletingDealId(d.id);
+    try {
+      await api.deleteScrapDeal(d.id);
+      setDealsById((prev) => {
+        const h = prev[c.id];
+        if (!h?.deals) return prev;
+        const nextDeals = h.deals.filter((x) => x.id !== d.id);
+        return {
+          ...prev,
+          [c.id]: { ...h, deals: nextDeals, total: nextDeals.length },
+        };
+      });
+      toast?.('Сделка удалена', 'success');
+    } catch (e) {
+      toast?.(e?.message || 'Не удалось удалить', 'error');
+    } finally {
+      setDeletingDealId(null);
     }
   }
 
@@ -316,6 +340,15 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
                           <span className="mono-nums sc-dir-deal-d">{formatDealsDate(d.created_at)}</span>
                           <span className="sc-dir-deal-s">{formatMoney(d.total_rub)}</span>
                           <span className="mono-nums sc-dir-deal-p">{d.first_probe != null ? `${d.first_probe} пр` : '—'}</span>
+                          <button
+                            type="button"
+                            className="btn-ghost small sc-dir-deal-x"
+                            title="Удалить сделку"
+                            onClick={() => removeDeal(c, d)}
+                            disabled={deletingDealId === d.id}
+                          >
+                            {deletingDealId === d.id ? '…' : '×'}
+                          </button>
                           {d.contract_no && <span className="sc-dir-deal-no">дог. №{d.contract_no}</span>}
                         </div>
                       ))}
@@ -376,7 +409,9 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
         .sc-dir-edit-btns { display: flex; gap: 8px; margin-top: 4px; }
         .sc-dir-save { flex: 1; border-radius: 10px; }
         .sc-dir-hist { padding: 0 12px 12px; border-top: 1px solid var(--stroke); }
-        .sc-dir-deal { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; font-size: 0.8rem; padding: 6px 0; border-bottom: 1px solid var(--stroke); }
+        .sc-dir-deal { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; font-size: 0.8rem; padding: 6px 0; border-bottom: 1px solid var(--stroke); }
+        .sc-dir-deal-x { min-width: 32px; padding: 2px 6px; color: #f87171; border-color: rgba(248,113,113,0.35) !important; }
+        .sc-dir-deal-x:hover { color: #ef4444 !important; }
         .sc-dir-deal:last-child { border-bottom: none; }
         .err-text { color: var(--danger); }
         .sc-dir-deal-s { color: var(--gold); font-weight: 600; }

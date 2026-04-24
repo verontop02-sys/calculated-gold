@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api } from './api.js';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -12,6 +11,16 @@ import {
   Line,
   LineChart,
 } from 'recharts';
+import { api } from './api.js';
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function toIso(d) {
   if (!d) return '';
@@ -45,7 +54,7 @@ function monthLabel(key) {
   return `${m}.${y}`;
 }
 
-export function Analytics({ formatMoney }) {
+export function Analytics({ formatMoney, toast }) {
   const today = toIso(new Date());
   const [to, setTo] = useState(today);
   const [from, setFrom] = useState(() => addDays(today, -30));
@@ -53,6 +62,14 @@ export function Analytics({ formatMoney }) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [data, setData] = useState(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  /** Какие блоки попасть в PDF (тот же период дат и агрегация «дни/недели/месяцы» сверху). */
+  const [pdfSec, setPdfSec] = useState({
+    summary: true,
+    operators: true,
+    probe: true,
+    series: true,
+  });
 
   const load = useCallback(async () => {
     setErr('');
@@ -102,6 +119,36 @@ export function Analytics({ formatMoney }) {
       })),
     [data]
   );
+
+  function setPdfCheck(id, on) {
+    setPdfSec((prev) => {
+      const next = { ...prev, [id]: on };
+      if (!Object.values(next).some(Boolean)) return prev;
+      return next;
+    });
+  }
+
+  async function exportPdf() {
+    const keys = Object.entries(pdfSec)
+      .filter(([, on]) => on)
+      .map(([k]) => k);
+    if (keys.length === 0) {
+      toast?.('Отметьте хотя бы один раздел в PDF', 'error');
+      return;
+    }
+    setPdfBusy(true);
+    try {
+      const blob = await api.analyticsSummaryPdf(from, to, group, keys);
+      const pf = String(from || '').replace(/[^\d-]/g, '') || 'from';
+      const pt = String(to || '').replace(/[^\d-]/g, '') || 'to';
+      downloadBlob(blob, `analitika-${pf}_${pt}.pdf`);
+      toast?.('PDF скачан', 'success');
+    } catch (e) {
+      toast?.(e?.message || 'Не удалось сформировать PDF', 'error');
+    } finally {
+      setPdfBusy(false);
+    }
+  }
 
   const { moneySeries, weightLabelKey } = useMemo(() => {
     const d = data;
@@ -195,6 +242,52 @@ export function Analytics({ formatMoney }) {
           <button type="button" className="btn-ghost" onClick={load} disabled={loading}>
             {loading ? '…' : 'Обновить'}
           </button>
+        </div>
+        <div className="glass an-pdf-row" role="group" aria-label="Состав PDF-отчёта">
+          <div className="an-pdf-row-top">
+            <span className="an-pdf-title">PDF-отчёт</span>
+            <p className="an-pdf-hint muted small">
+              Период и агрегация (дни/недели/месяцы) — как в фильтрах. В PDF: титул, графики (деньги, вес, пробы) и
+              сводные таблицы, как в полном «дашборде».
+            </p>
+          </div>
+          <div className="an-pdf-controls">
+            {[
+              { id: 'summary', label: 'Сводка (KPI)' },
+              { id: 'operators', label: 'Сотрудники' },
+              { id: 'probe', label: 'Сделок по пробе' },
+              { id: 'series', label: 'Динамика (сумма и вес)' },
+            ].map((x) => (
+              <label key={x.id} className="an-pdf-cb">
+                <input
+                  type="checkbox"
+                  checked={!!pdfSec[x.id]}
+                  onChange={(e) => setPdfCheck(x.id, e.target.checked)}
+                />
+                {x.label}
+              </label>
+            ))}
+            <div className="an-pdf-actions">
+              <button
+                type="button"
+                className="btn-ghost small"
+                onClick={() =>
+                  setPdfSec({ summary: true, operators: true, probe: true, series: true })
+                }
+              >
+                Всё
+              </button>
+              <button
+                type="button"
+                className="btn-secondary an-pdf-download"
+                onClick={exportPdf}
+                disabled={loading || pdfBusy}
+                title="Скачать PDF с выбранными разделами"
+              >
+                {pdfBusy ? '…' : 'Скачать PDF'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -387,6 +480,17 @@ export function Analytics({ formatMoney }) {
         .an-group-btns { display: flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--input-bg); border: 1px solid var(--stroke); }
         .an-group-btn { border: none; background: transparent; color: var(--text-muted); font-size: 0.76rem; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-weight: 600; }
         .an-group-btn.active { background: var(--gold-soft); color: var(--gold); }
+        .an-pdf-row { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+        .an-pdf-row-top { min-width: 0; }
+        .an-pdf-title { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+        .an-pdf-hint { margin: 0; line-height: 1.4; }
+        .an-pdf-controls {
+          display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+        }
+        .an-pdf-cb { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; cursor: pointer; }
+        .an-pdf-cb input { width: 16px; height: 16px; accent-color: var(--gold, #b8860b); }
+        .an-pdf-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+        .an-pdf-download { font-weight: 600; }
         .analytics-err { padding: 12px 16px; color: var(--danger); font-size: 0.9rem; }
         .analytics-kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
         @media (min-width: 560px) { .analytics-kpi-grid { grid-template-columns: repeat(4, 1fr); } }

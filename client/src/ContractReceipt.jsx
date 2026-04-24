@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
+import { mergeSettings, calculateBuybackRange } from './calc.js';
 import { ScrapCustomerDirectory } from './ScrapCustomerDirectory.jsx';
 
 function emptyRow() {
@@ -34,7 +35,24 @@ function sumRows(rows) {
   return s;
 }
 
-export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast }) {
+function isGoldScrapMetal(metal) {
+  const t = String(metal || '').trim().toLowerCase();
+  if (!t) return true;
+  if (/(серебр|паллад|платин|палладий)/.test(t)) return false;
+  return true;
+}
+
+function parsePurityThousand(probe) {
+  const d = String(probe || '').replace(/\D/g, '');
+  if (!d) return 0;
+  return parseInt(d.slice(0, 4), 10) || 0;
+}
+
+function parseGrossG(v) {
+  return parseFloat(String(v || '').replace(/\s/g, '').replace(',', '.')) || 0;
+}
+
+export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast, price }) {
   const [contractNo, setContractNo] = useState('');
   const [sellerName, setSellerName] = useState('');
   const [phone, setPhone] = useState('');
@@ -55,8 +73,78 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   const [pdfBusy, setPdfBusy] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [baseOpen, setBaseOpen] = useState(false);
+  const [settings, setSettings] = useState(null);
+  const rowCalcTimers = useRef({});
+  const firstCalcRef = useRef(false);
 
   const rowTotal = useMemo(() => sumRows(rows), [rows]);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .settings()
+      .then((s) => {
+        if (alive) setSettings(mergeSettings(s));
+      })
+      .catch(() => {
+        if (alive) setSettings(mergeSettings(null));
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const applyCalcToRow = useCallback(
+    (i) => {
+      if (!settings || !price?.goldRubPerGram) return;
+      setRows((prev) => {
+        const row = prev[i];
+        if (!row) return prev;
+        if (!isGoldScrapMetal(row.metal)) return prev;
+        const w = parseGrossG(row.weightGross);
+        const purity = parsePurityThousand(row.probe);
+        if (w <= 0 || purity <= 0) return prev;
+        const r = calculateBuybackRange({
+          weightGrams: w,
+          purityPerThousand: purity,
+          goldRubPerGram: price.goldRubPerGram,
+          settings,
+        });
+        if (!r.ok) return prev;
+        const pr = String(Math.round(r.midRub));
+        const wn = r.fineGrams.toFixed(3).replace('.', ',');
+        if (row.priceRub === pr && String(row.weightNet) === wn) return prev;
+        return prev.map((x, j) => (j === i ? { ...x, priceRub: pr, weightNet: wn } : x));
+      });
+    },
+    [settings, price]
+  );
+
+  const scheduleRowCalc = useCallback(
+    (i) => {
+      if (rowCalcTimers.current[i]) clearTimeout(rowCalcTimers.current[i]);
+      rowCalcTimers.current[i] = setTimeout(() => {
+        rowCalcTimers.current[i] = null;
+        applyCalcToRow(i);
+      }, 400);
+    },
+    [applyCalcToRow]
+  );
+
+  useEffect(() => {
+    if (!settings || !price?.goldRubPerGram || firstCalcRef.current) return;
+    firstCalcRef.current = true;
+    for (let k = 0; k < 12; k++) {
+      setTimeout(() => applyCalcToRow(k), 90 * k);
+    }
+  }, [settings, price, applyCalcToRow]);
+
+  function patchRowAndMaybeCalc(i, patch) {
+    setRows((prev) => prev.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+    if (patch && ('probe' in patch || 'weightGross' in patch || 'metal' in patch)) {
+      scheduleRowCalc(i);
+    }
+  }
 
   useEffect(() => {
     if (!prefill) return;
@@ -196,6 +284,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         };
       });
     });
+    setTimeout(() => scheduleRowCalc(i), 200);
     toast?.('Подставлены металл и проба из позиции 1', 'success');
   }
 
@@ -205,6 +294,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       const copy = { ...row };
       return [...prev.slice(0, i + 1), copy, ...prev.slice(i + 1)];
     });
+    setTimeout(() => scheduleRowCalc(i + 1), 200);
     toast?.('Строка скопирована', 'success');
   }
 
@@ -408,8 +498,9 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           <div>
             <h3 className="contract-h3">Позиции (лом)</h3>
             <p className="muted small contract-pos-hint">
-              Каждая позиция — отдельный блок: наименование на всю ширину, ниже три колонки (металл, проба и веса/цена).
-              Из калькулятора подставляется только <strong>позиция 1</strong>; для остальных можно нажать «Как в 1-й».
+              Каждая позиция — отдельный блок. Для <strong>золота</strong> после ввода пробы и общего веса подставляются чистая масса и
+              ориентир «стоимости» по тому же курсу и настройкам, что в калькуляторе. Серебро и другое вручную. Из калькулятора в договор
+              уходит одна <strong>позиция 1</strong>; в остальных — «Как в 1-й» или ввод.
             </p>
           </div>
           <button type="button" className="btn-ghost small" onClick={addRow}>
@@ -452,7 +543,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
               <div className="contract-row-two">
                 <label className="field">
                   <span className="field-label">Металл</span>
-                  <input value={r.metal} onChange={(e) => updateRow(i, { metal: e.target.value })} />
+                  <input value={r.metal} onChange={(e) => patchRowAndMaybeCalc(i, { metal: e.target.value })} />
                 </label>
                 <label className="field">
                   <span className="field-label">Проба</span>
@@ -460,7 +551,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
                     className="mono-nums"
                     inputMode="numeric"
                     value={r.probe}
-                    onChange={(e) => updateRow(i, { probe: e.target.value })}
+                    onChange={(e) => patchRowAndMaybeCalc(i, { probe: e.target.value })}
                   />
                 </label>
               </div>
@@ -471,7 +562,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
                     className="mono-nums"
                     inputMode="decimal"
                     value={r.weightGross}
-                    onChange={(e) => updateRow(i, { weightGross: e.target.value })}
+                    onChange={(e) => patchRowAndMaybeCalc(i, { weightGross: e.target.value })}
                   />
                 </label>
                 <label className="field">

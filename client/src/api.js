@@ -20,21 +20,58 @@ function withBase(path) {
   return `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+const JSON_TIMEOUT_MS = 95_000;
+const BLOB_TIMEOUT_MS = 180_000;
+
 async function getAccessToken() {
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
 }
 
+/** Снимает сон с Render и проверяет, что /api на своём origin отвечает, без сессии не нужен. */
+export async function pingApiHealth(opts = {}) {
+  const t = opts.timeout != null ? opts.timeout : 95_000;
+  const c = new AbortController();
+  const to = setTimeout(() => c.abort(), t);
+  try {
+    const r = await fetch(withBase('/health'), { method: 'GET', signal: c.signal });
+    return r.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(to);
+  }
+}
+
 async function request(path, options = {}) {
+  const { timeout = JSON_TIMEOUT_MS, ...fetchOpts } = options;
+  const c = new AbortController();
+  const to = setTimeout(() => c.abort(), timeout);
   const token = await getAccessToken();
-  const res = await fetch(withBase(path), {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
+  let res;
+  try {
+    const hdrs = { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(fetchOpts.headers || {}) };
+    if (fetchOpts.body != null && !hdrs['Content-Type'] && !hdrs['content-type']) {
+      hdrs['Content-Type'] = 'application/json';
+    }
+    res = await fetch(withBase(path), {
+      ...fetchOpts,
+      signal: c.signal,
+      headers: hdrs,
+    });
+  } catch (e) {
+    clearTimeout(to);
+    if (e?.name === 'AbortError') {
+      const err = new Error(
+        'API не ответил в срок. На бесплатном хосте первый запрос после паузы может занять до 1–2 минут, откройте панель ещё раз.'
+      );
+      err.code = 'API_TIMEOUT';
+      throw err;
+    }
+    throw e;
+  } finally {
+    clearTimeout(to);
+  }
 
   const contentType = (res.headers.get('content-type') || '').toLowerCase();
   if (!contentType.includes('application/json')) {
@@ -67,14 +104,31 @@ async function request(path, options = {}) {
 }
 
 async function requestBlob(path, options = {}) {
+  const { timeout = BLOB_TIMEOUT_MS, ...opt } = options;
+  const c = new AbortController();
+  const to = setTimeout(() => c.abort(), timeout);
   const token = await getAccessToken();
-  const h = { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) };
-  if (options.body != null) h['Content-Type'] = 'application/json';
-  const res = await fetch(withBase(path), {
-    method: options.method || 'GET',
-    headers: h,
-    body: options.body != null ? JSON.stringify(options.body) : undefined,
-  });
+  const h = { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(opt.headers || {}) };
+  if (opt.body != null) h['Content-Type'] = 'application/json';
+  let res;
+  try {
+    res = await fetch(withBase(path), {
+      method: opt.method || 'GET',
+      headers: h,
+      body: opt.body != null ? JSON.stringify(opt.body) : undefined,
+      signal: c.signal,
+    });
+  } catch (e) {
+    clearTimeout(to);
+    if (e?.name === 'AbortError') {
+      const err = new Error('Скачивание PDF: сервер слишком долго не отвечал. Повторите, на бесплатном плане первый запуск может тянуться.');
+      err.code = 'API_TIMEOUT';
+      throw err;
+    }
+    throw e;
+  } finally {
+    clearTimeout(to);
+  }
   const ct = (res.headers.get('content-type') || '').toLowerCase();
   if (!res.ok) {
     if (res.status === 401) {
@@ -211,11 +265,23 @@ export const api = {
   },
   /** PDF договора по id сохранённой сделки. */
   scrapDealPdf: (id) => requestBlob(`/scrap-deals/${encodeURIComponent(String(id))}/pdf`, { method: 'GET' }),
+  deleteScrapDeal: (id) => request(`/scrap-deals/${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
   /** Сводка для вкладки «Аналитика» (Y-M-D). */
   analyticsSummary: (from, to) => {
     const q = new URLSearchParams();
     if (from) q.set('from', from);
     if (to) q.set('to', to);
     return request(`/analytics/summary?${q.toString()}`);
+  },
+  /**
+   * PDF-отчёт аналитики. sections — список ключей: summary, operators, probe, series (пусто/все = полный отчёт).
+   */
+  analyticsSummaryPdf: (from, to, group, sections) => {
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    if (group) q.set('group', group);
+    if (Array.isArray(sections) && sections.length > 0) q.set('sections', sections.join(','));
+    return requestBlob(`/analytics/summary.pdf?${q.toString()}`, { method: 'GET' });
   },
 };

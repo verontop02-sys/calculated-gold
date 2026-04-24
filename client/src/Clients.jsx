@@ -48,6 +48,7 @@ export function Clients({ formatMoney, toast }) {
   const [deals, setDeals] = useState(null);
   const [dealsBusy, setDealsBusy] = useState(false);
   const [pdfBusyId, setPdfBusyId] = useState(null);
+  const [deletingDealId, setDeletingDealId] = useState(null);
 
   const loadList = useCallback(
     async (fromOffset) => {
@@ -131,6 +132,27 @@ export function Clients({ formatMoney, toast }) {
     }
   }
 
+  async function onDeleteDeal(d) {
+    if (!d?.id) return;
+    if (
+      !window.confirm(
+        'Удалить эту запись о сделке из учёта? Восстановить её нельзя.'
+      )
+    ) {
+      return;
+    }
+    setDeletingDealId(d.id);
+    try {
+      await api.deleteScrapDeal(d.id);
+      setDeals((prev) => (prev || []).filter((x) => x.id !== d.id));
+      toast?.('Сделка удалена', 'success');
+    } catch (e) {
+      toast?.(e?.message || 'Не удалось удалить', 'error');
+    } finally {
+      setDeletingDealId(null);
+    }
+  }
+
   return (
     <div className="clients-root glass">
       <div className="clients-head">
@@ -210,6 +232,7 @@ export function Clients({ formatMoney, toast }) {
                           <th>Позиция</th>
                           <th>Статус</th>
                           <th>PDF</th>
+                          <th> </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -232,6 +255,17 @@ export function Clients({ formatMoney, toast }) {
                                 disabled={pdfBusyId === d.id}
                               >
                                 {pdfBusyId === d.id ? '…' : 'Скачать'}
+                              </button>
+                            </td>
+                            <td className="clients-deal-del-wrap">
+                              <button
+                                type="button"
+                                className="btn-ghost small clients-deal-del"
+                                onClick={() => onDeleteDeal(d)}
+                                disabled={deletingDealId === d.id}
+                                title="Удалить сделку из учёта"
+                              >
+                                {deletingDealId === d.id ? '…' : 'Уд.'}
                               </button>
                             </td>
                           </tr>
@@ -264,14 +298,24 @@ export function Clients({ formatMoney, toast }) {
                           <span className="badge ok" title="Договор в системе">
                             в базе
                           </span>
-                          <button
-                            type="button"
-                            className="btn-ghost small clients-pdf"
-                            onClick={() => onDownloadPdf(d)}
-                            disabled={pdfBusyId === d.id}
-                          >
-                            {pdfBusyId === d.id ? '…' : 'Скачать PDF'}
-                          </button>
+                          <div className="clients-deal-item-btns">
+                            <button
+                              type="button"
+                              className="btn-ghost small clients-pdf"
+                              onClick={() => onDownloadPdf(d)}
+                              disabled={pdfBusyId === d.id}
+                            >
+                              {pdfBusyId === d.id ? '…' : 'Скачать PDF'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-ghost small clients-deal-del"
+                              onClick={() => onDeleteDeal(d)}
+                              disabled={deletingDealId === d.id}
+                            >
+                              {deletingDealId === d.id ? '…' : 'Удалить'}
+                            </button>
+                          </div>
                         </div>
                       </li>
                     ))}
@@ -379,6 +423,10 @@ export function Clients({ formatMoney, toast }) {
           border-radius: 10px;
           border: 1px solid var(--border, rgba(255,255,255,0.1));
         }
+        .clients-deal-item-btns { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .clients-deal-del { color: #f87171; border-color: rgba(248,113,113,0.35) !important; }
+        .clients-deal-del:hover { color: #ef4444 !important; }
+        .clients-deal-del-wrap { width: 2.75rem; }
         .clients-deals {
           width: 100%;
           min-width: 600px;

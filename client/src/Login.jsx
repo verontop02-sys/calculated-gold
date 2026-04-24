@@ -6,10 +6,12 @@ function mapLoginError(ex) {
   const msg = String(ex?.message || '');
   if (/invalid login credentials|invalid_credentials/i.test(msg)) return 'Неверный email или пароль';
   if (/email not confirmed/i.test(msg)) return 'Подтвердите email в письме от Supabase';
+  if (/over_request_rate|rate limit|too many requests|429|security purposes/i.test(msg + String(ex?.status || '')))
+    return 'Слишком много попыток. Подождите пару минут и попробуйте снова.';
   return msg || 'Ошибка входа';
 }
 
-export function Login({ onSuccess }) {
+export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
@@ -26,7 +28,8 @@ export function Login({ onSuccess }) {
       });
       if (error) throw error;
       if (!data.session?.access_token) throw new Error('Сессия не создана, попробуйте ещё раз');
-      await onSuccess();
+      // Не ждать loadMe(): иначе кнопка «Вход…» крутится, пока отвечает API на Render. Профиль
+      // догружается в App после смены сессии.
     } catch (ex) {
       setErr(mapLoginError(ex));
     } finally {

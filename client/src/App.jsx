@@ -94,6 +94,7 @@ export default function App() {
   const [priceLoading, setPriceLoading] = useState(false);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const staleRefreshingRef = useRef(false);
+  const [profileSlow, setProfileSlow] = useState(false);
 
   // Вкладка котировки — на пользователя; иначе после смены аккаунта в том же браузере тянется чужой xaut/moex из React state
   useEffect(() => {
@@ -205,6 +206,16 @@ export default function App() {
   }, [authReady, sessionUser?.id, loadMe]);
 
   useEffect(() => {
+    if (!sessionUser || user !== undefined || profileErr) {
+      setProfileSlow(false);
+      return;
+    }
+    setProfileSlow(false);
+    const t = setTimeout(() => setProfileSlow(true), 12_000);
+    return () => clearTimeout(t);
+  }, [sessionUser, user, profileErr]);
+
+  useEffect(() => {
     if (!user) return;
     loadPrice({ silent: false });
   }, [user, quoteTab, loadPrice]);
@@ -289,7 +300,13 @@ export default function App() {
       <div className="shell">
         <div className="glass load-card">
           <div className="spinner" style={{ margin: '0 auto 16px' }} />
-          <p className="muted">Загрузка профиля…</p>
+          <p className="muted">Загрузка профиля с сервера…</p>
+          {profileSlow && (
+            <p className="muted small" style={{ margin: '14px auto 0', lineHeight: 1.5, maxWidth: '22rem' }}>
+              Сервис на бесплатном плане мог «уснуть», первый заход тогда 1–2 минуты, дальше быстрее. Вечное
+              кручение, обновите страницу. Кэш в браузере с этим чаще не связан.
+            </p>
+          )}
         </div>
       </div>
     );
@@ -314,7 +331,7 @@ export default function App() {
   }
 
   if (!sessionUser || !user) {
-    return <Login onSuccess={loadMe} />;
+    return <Login />;
   }
 
   return (
@@ -483,11 +500,12 @@ export default function App() {
               prefill={contractPrefill}
               onConsumedPrefill={() => setContractPrefill(null)}
               toast={toast}
+              price={price}
             />
           </div>
         )}
         {tab === 'clients' && <Clients formatMoney={formatMoney} toast={toast} />}
-        {tab === 'analytics' && <Analytics formatMoney={formatMoney} />}
+        {tab === 'analytics' && <Analytics formatMoney={formatMoney} toast={toast} />}
         {tab === 'settings' && isUserManagerRole(user.role) && <SettingsPanel user={user} />}
       </main>
 
