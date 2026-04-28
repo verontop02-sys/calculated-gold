@@ -284,4 +284,19 @@ export const api = {
     if (Array.isArray(sections) && sections.length > 0) q.set('sections', sections.join(','));
     return requestBlob(`/analytics/summary.pdf?${q.toString()}`, { method: 'GET' });
   },
+  /** KPI команды: период Y-M-D; operatorIds — только для руководителя, узкий фильтр (uuid через запятую в query). */
+  teamPerformance: (from, to, operatorIds) => {
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    if (Array.isArray(operatorIds) && operatorIds.length > 0) q.set('operators', operatorIds.join(','));
+    return request(`/team-performance?${q.toString()}`);
+  },
+  teamPerformancePdf: (from, to, operatorIds) => {
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    if (Array.isArray(operatorIds) && operatorIds.length > 0) q.set('operators', operatorIds.join(','));
+    return requestBlob(`/team-performance.pdf?${q.toString()}`, { method: 'GET' });
+  },
 };

@@ -7,6 +7,7 @@ import { Login } from './Login.jsx';
 import { Calculator } from './Calculator.jsx';
 import { ContractReceipt } from './ContractReceipt.jsx';
 import { Analytics } from './Analytics.jsx';
+import { TeamPerformance } from './TeamPerformance.jsx';
 import { Clients } from './Clients.jsx';
 import { SettingsPanel } from './SettingsPanel.jsx';
 import { isSuperAdminRole, isUserManagerRole } from './roles.js';
@@ -85,7 +86,7 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState(null);
   const [user, setUser] = useState(undefined);
   const [profileErr, setProfileErr] = useState(null);
-  const [tab, setTab] = useState('calc'); // calc | contract | clients | analytics | settings
+  const [tab, setTab] = useState('calc'); // calc | contract | clients | analytics | team | settings
   const [contractPrefill, setContractPrefill] = useState(null);
   const [contractMounted, setContractMounted] = useState(false);
   const [quoteTab, setQuoteTab] = useState('moex');
@@ -337,8 +338,8 @@ export default function App() {
   return (
     <div
       className={`shell${
-        tab === 'contract' || tab === 'analytics' || tab === 'clients' ? ' shell--wide' : ''
-      }`}
+        tab === 'contract' || tab === 'analytics' || tab === 'team' || tab === 'clients' ? ' shell--wide' : ''
+      }${tab === 'team' ? ' shell--team-kpi' : ''}`}
     >
       <header className="topbar glass">
         <div className="brand">
@@ -473,6 +474,15 @@ export default function App() {
         >
           Аналитика
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'team'}
+          className={tab === 'team' ? 'tab active' : 'tab'}
+          onClick={() => setTab('team')}
+        >
+          Команда и KPI
+        </button>
         {isUserManagerRole(user.role) && (
           <button type="button" role="tab" aria-selected={tab === 'settings'} className={tab === 'settings' ? 'tab active' : 'tab'} onClick={() => setTab('settings')}>
             {isSuperAdminRole(user.role) ? 'Настройки и доступы' : 'Пользователи'}
@@ -506,6 +516,9 @@ export default function App() {
         )}
         {tab === 'clients' && <Clients formatMoney={formatMoney} toast={toast} />}
         {tab === 'analytics' && <Analytics formatMoney={formatMoney} toast={toast} />}
+        {tab === 'team' && user && (
+          <TeamPerformance formatMoney={formatMoney} toast={toast} user={user} />
+        )}
         {tab === 'settings' && isUserManagerRole(user.role) && <SettingsPanel user={user} />}
       </main>
 
@@ -522,6 +535,7 @@ export default function App() {
           width: 100%;
         }
         .shell.shell--wide { max-width: 820px; }
+        .shell.shell--wide.shell--team-kpi { max-width: 960px; }
         .load-card { margin-top: 30vh; padding: 28px; text-align: center; position: relative; overflow: hidden; }
         .topbar {
           display: flex;

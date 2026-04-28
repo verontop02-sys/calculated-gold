@@ -10,6 +10,8 @@ import { XMLParser } from 'fast-xml-parser';
 import { buildScrapContractPdfBuffer } from './scrapContractPdf.js';
 import { computeAnalyticsSummaryData } from './analyticsSummaryData.js';
 import { buildAnalyticsReportPdfBuffer } from './analyticsReportPdf.js';
+import { computeTeamPerformanceData } from './teamPerformanceData.js';
+import { buildTeamPerformancePdfBuffer } from './teamPerformancePdf.js';
 import { firstFilledContractRow } from './scrapDealFirstRow.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -662,6 +664,23 @@ async function getProfileRoleById(uid) {
   return 'courier';
 }
 
+async function teamPerformanceOptsFromRequest(req) {
+  const role = await getRequesterRole(req);
+  const emailBypass = hasPanelFullAccessByEmail(req.user);
+  const isMgr = emailBypass || isUserManagerRole(role);
+  const operatorsQ = String(req.query.operators || '').trim();
+  const operatorFilterIds = operatorsQ
+    ? operatorsQ.split(/[,+]/).map((s) => s.trim()).filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+    : null;
+  return {
+    fromD: String(req.query.from || '').trim(),
+    toD: String(req.query.to || '').trim(),
+    viewerIsManager: isMgr,
+    viewerUserId: req.user.id,
+    operatorFilterIds: isMgr ? operatorFilterIds : null,
+  };
+}
+
 // ── SSE: real-time price stream ────────────────────────────────────────────
 const sseClients = new Set();
 
@@ -1069,6 +1088,32 @@ app.get(
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
     res.send(buf);
+  })
+);
+
+app.get(
+  '/api/team-performance',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    const opts = await teamPerformanceOptsFromRequest(req);
+    const data = await computeTeamPerformanceData(supabase, opts);
+    res.json(data);
+  })
+);
+
+app.get(
+  '/api/team-performance.pdf',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    const opts = await teamPerformanceOptsFromRequest(req);
+    const data = await computeTeamPerformanceData(supabase, opts);
+    const buf = await buildTeamPerformancePdfBuffer(data);
+    const p = data.period || {};
+    const safe = (s) => String(s || 'x').replace(/[^\d-]/g, '') || 'period';
+    const fname = `komanda-kpi-${safe(p.from)}_${safe(p.to)}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
+    res.send(Buffer.from(buf));
   })
 );
 
