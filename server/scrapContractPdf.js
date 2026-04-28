@@ -84,6 +84,32 @@ function withMinRows(rows) {
   return r;
 }
 
+/**
+ * В шаблоне Reaktivo.pdf год уже напечатан. В overlay — только «ДД.ММ.» (без года).
+ * Любой разделитель между частями даты (\D+), иначе regex с [./] не ловил строку.
+ * После overlay на форме может стоять ещё «2026» — год из строки убираем полностью.
+ */
+function issueDateOnForm(issueDateStr) {
+  const s0 = String(issueDateStr || '');
+  let s = s0.replace(/\u00a0/g, ' ').replace(/\s*г\.?\s*$/i, '').trim();
+  if (!s) return '';
+  let m = s.match(/(\d{1,2})\D+(\d{1,2})\D+(\d{2,4})/);
+  if (m) return `${m[1].padStart(2, '0')}.${m[2].padStart(2, '0')}.`;
+  m = s.match(/(\d{4})\D+(\d{2})\D+(\d{2})/);
+  if (m) return `${m[3]}.${m[2]}.`;
+  s = s.replace(/\b20\d{2}\b/g, '').replace(/\.{2,}/g, '.').trim();
+  return s;
+}
+
+/** Убираем любые 4-значные года из текста даты у шапки (защита от «28.04.20262026»). */
+function stripYearsFromOverlayFragment(t) {
+  return String(t || '')
+    .replace(/\b20\d{2}\b/g, '')
+    .replace(/\.{2,}/g, '.')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function drawTop(page, text, x, yFromTop, options = {}) {
   const { size = 10, font, maxWidth, lineHeight, color } = options;
   const y = page.getHeight() - yFromTop;
@@ -118,10 +144,11 @@ export async function buildScrapContractPdfBuffer(body) {
   const issueDate =
     String(body.issueDate || '').trim() ||
     new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Moscow' });
+  const issueLine = stripYearsFromOverlayFragment(issueDateOnForm(issueDate));
 
-  // Шапка: номер и дата (МСК, если issueDate не передан)
+  // Шапка: номер и дата (год в шаблоне формы; в overlay только «от ДД.ММ.» без 20xx)
   drawTop(page, contractNo, 218, 162, { size: 11, font: regularFont, maxWidth: 60 });
-  drawTop(page, `от ${issueDate}`, 320, 162, { size: 10, font: regularFont, maxWidth: 120 });
+  drawTop(page, stripYearsFromOverlayFragment(`от ${issueLine}`), 320, 162, { size: 10, font: regularFont, maxWidth: 120 });
 
   // Данные продавца (lines at yFromTop: 479.8, 508.3, 534.6 — baseline 6pt above each)
   drawTop(page, sellerName, 118, 474, { size: 10, font: regularFont, maxWidth: 430 });

@@ -54,6 +54,20 @@ function monthLabel(key) {
   return `${m}.${y}`;
 }
 
+function numish(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  const n = parseFloat(String(v).trim().replace(/\s/g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatProbeWeightGrossNet(x) {
+  if (!x) return '— / —';
+  const g = numish(x.weightGrossSum);
+  const n = numish(x.weightNetSum);
+  return `${g != null ? g.toFixed(2) : '—'} / ${n != null ? n.toFixed(3) : '—'}`;
+}
+
 export function Analytics({ formatMoney, toast }) {
   const today = toIso(new Date());
   const [to, setTo] = useState(today);
@@ -115,6 +129,8 @@ export function Analytics({ formatMoney, toast }) {
     () =>
       (data?.byProbe || []).map((x) => ({
         ...x,
+        weightGrossSum: x.weightGrossSum ?? x.weight_gross_sum,
+        weightNetSum: x.weightNetSum ?? x.weight_net_sum,
         label: `${x.probe} пр.`,
       })),
     [data]
@@ -355,7 +371,7 @@ export function Analytics({ formatMoney, toast }) {
       {byProbe.length > 0 && !loading && (
         <div className="glass analytics-chart-card">
           <h3 className="analytics-h3">Сделок по пробе</h3>
-          <p className="muted small an-h3-sub">По первой строке таблицы в договоре (лом, до трёх позиций).</p>
+          <p className="muted small an-h3-sub">По первой строке таблицы в договоре (лом, до трёх позиций). Сделок, вес, сумма по пробе.</p>
           <div className="analytics-chart-h">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={byProbe} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -368,7 +384,7 @@ export function Analytics({ formatMoney, toast }) {
                     const p = payload[0].payload;
                     return (
                       <div className="an-tt">
-                        {p.label}: сделок {p.count}
+                        {p.label}: сделок {p.count} · вес, г: {formatProbeWeightGrossNet(p)}
                         {p.sumRub != null && ` · ${formatMoney(p.sumRub)}`}
                       </div>
                     );
@@ -377,6 +393,28 @@ export function Analytics({ formatMoney, toast }) {
                 <Bar dataKey="count" name="Сделок" fill="var(--gold, #b8860b)" radius={[4, 4, 0, 0]} maxBarSize={48} />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+          <div className="analytics-probe-table-wrap" role="region" aria-label="Сводка по пробам">
+            <table className="analytics-probe-tbl">
+              <thead>
+                <tr>
+                  <th>Проба</th>
+                  <th className="mono-nums">Сделок</th>
+                  <th className="mono-nums">Вес, г (лом / чист.)</th>
+                  <th className="mono-nums">Сумма, ₽</th>
+                </tr>
+              </thead>
+              <tbody>
+                {byProbe.map((r) => (
+                  <tr key={r.probe}>
+                    <td>{r.probe} пр.</td>
+                    <td className="mono-nums">{r.count}</td>
+                    <td className="mono-nums small-digits">{formatProbeWeightGrossNet(r)}</td>
+                    <td className="mono-nums">{r.sumRub != null ? formatMoney(r.sumRub) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -509,6 +547,14 @@ export function Analytics({ formatMoney, toast }) {
         }
         .analytics-op-table th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
         .analytics-op-table tr:last-child td { border-bottom: none; }
+        .analytics-probe-table-wrap { margin-top: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 0; }
+        .analytics-probe-tbl { width: 100%; min-width: 320px; border-collapse: collapse; font-size: 0.82rem; }
+        .analytics-probe-tbl th,
+        .analytics-probe-tbl td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--stroke, rgba(255,255,255,0.08)); }
+        .analytics-probe-tbl th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+        .analytics-probe-tbl th.mono-nums,
+        .analytics-probe-tbl td.mono-nums { text-align: right; }
+        .analytics-probe-tbl tr:last-child td { border-bottom: none; }
         .analytics-chart-card { padding: 16px; }
         .analytics-h3 { font-size: 0.95rem; font-weight: 600; margin: 0 0 4px; }
         .analytics-chart-h { width: 100%; min-width: 0; height: 220px; }

@@ -10,6 +10,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { buildScrapContractPdfBuffer } from './scrapContractPdf.js';
 import { computeAnalyticsSummaryData } from './analyticsSummaryData.js';
 import { buildAnalyticsReportPdfBuffer } from './analyticsReportPdf.js';
+import { firstFilledContractRow } from './scrapDealFirstRow.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // npm run dev из корня монорепо: cwd ≠ server/, иначе dotenv не видит server/.env
@@ -84,11 +85,11 @@ async function recordScrapDealFromPdf({ req, body, totalRub }) {
     if (resolved) customerId = resolved;
   }
   const rows = Array.isArray(body?.rows) ? body.rows : [];
-  const r0 = rows[0] || {};
+  const r0 = firstFilledContractRow(rows) || {};
   const probeStr = String(r0?.probe || '').replace(/\D/g, '');
   const firstProbe = probeStr ? parseInt(probeStr, 10) : null;
-  const firstWg = parseCellNumber(r0?.weightGross);
-  const firstWn = parseCellNumber(r0?.weightNet);
+  const firstWg = parseCellNumber(r0?.weightGross ?? r0?.weight_gross);
+  const firstWn = parseCellNumber(r0?.weightNet ?? r0?.weight_net);
   const { error } = await supabase.from('scrap_deals').insert({
     customer_id: customerId,
     operator_id: userId,
@@ -906,7 +907,7 @@ app.get(
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '40'), 10) || 40));
     const offset = Math.max(0, parseInt(String(req.query.offset || '0'), 10) || 0);
     const sel =
-      'id, customer_id, contract_no, total_rub, seller_name, phone, first_probe, first_weight_gross, first_weight_net, created_at, rows';
+      'id, customer_id, contract_no, total_rub, seller_name, phone, first_probe, first_weight_gross, first_weight_net, created_at, "rows"';
     if (phone && !customerId) {
       const n = normalizeScrapPhoneDigits(phone);
       if (!n) return res.json({ deals: [], total: 0 });
@@ -971,7 +972,7 @@ app.get(
     const { data: deal, error: dErr } = await supabase
       .from('scrap_deals')
       .select(
-        'id, customer_id, contract_no, total_rub, seller_name, phone, rows, appraiser_name, created_at'
+        'id, customer_id, contract_no, total_rub, seller_name, phone, "rows", appraiser_name, created_at'
       )
       .eq('id', id)
       .maybeSingle();
@@ -1043,6 +1044,7 @@ app.delete(
 app.get(
   '/api/analytics/summary',
   asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     const fromD = String(req.query.from || '').trim();
     const toD = String(req.query.to || '').trim();
     const data = await computeAnalyticsSummaryData(supabase, fromD, toD);
@@ -1053,6 +1055,7 @@ app.get(
 app.get(
   '/api/analytics/summary.pdf',
   asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     const fromD = String(req.query.from || '').trim();
     const toD = String(req.query.to || '').trim();
     const g = String(req.query.group || 'day').toLowerCase();

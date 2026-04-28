@@ -256,16 +256,28 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
     if (s.probe && byProbe.length > 0) {
       content.push(
         { text: 'СДЕЛОК ПО ПРОБЕ (ПЕРВАЯ СТРОКА В ДОГОВОРЕ)', style: 'sectionHead', margin: [0, 6, 0, 2] },
-        { text: 'Сколько сделок, где 1-я из трёх позиций имеет эту пробу.', style: 'sectionDesc', margin: [0, 0, 0, 6] }
+        {
+          text: 'Сколько сделок, суммарный вес 1-й позиции (лом / чист., г) и стоимость сделок по этой пробе в периоде.',
+          style: 'sectionDesc',
+          margin: [0, 0, 0, 6],
+        }
       );
       if (images.gBar) {
         content.push({ image: 'gBar', width: CHART_W, alignment: 'center', margin: [0, 0, 0, 8] });
       }
+      const probeW = (r) => {
+        const gN = Number(r?.weightGrossSum);
+        const nN = Number(r?.weightNetSum);
+        const g = Number.isFinite(gN) ? fmtNum(gN, 2) : '—';
+        const n = Number.isFinite(nN) ? fmtNum(nN, 3) : '—';
+        return { text: `${g} / ${n}`, fontSize: 7.5, alignment: 'right' };
+      };
       const pbBody = [
-        [th('Проба'), th('Сделок', { alignment: 'right' }), th('Сумма, ₽', { alignment: 'right' })],
+        [th('Проба'), th('Сделок', { alignment: 'right' }), th('Вес, г (лом/чист.)', { alignment: 'right' }), th('Сумма, ₽', { alignment: 'right' })],
         ...byProbe.map((r) => [
           { text: `${r.probe} пр.`, fontSize: 8 },
           { text: String(r.count), fontSize: 8, alignment: 'right' },
+          probeW(r),
           { text: fmtRub(r.sumRub), fontSize: 8, alignment: 'right' },
         ]),
       ];
@@ -275,7 +287,7 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
         margin: [0, 4, 0, 4],
       });
       content.push({
-        table: { widths: ['*', 46, 80], body: pbBody },
+        table: { widths: [42, 34, 68, 72], body: pbBody },
         layout: { fillColor: (i) => (i > 0 && i % 2 ? '#faf7f0' : null), hLineColor: () => '#e0dcd4' },
         margin: [0, 0, 0, 18],
       });
