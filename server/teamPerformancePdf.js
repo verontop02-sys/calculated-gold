@@ -37,6 +37,21 @@ const fmtDateRu = (iso) => {
 
 const th = (text, opt = {}) => ({ text, fillColor: '#e8e4dd', bold: true, fontSize: 7.5, color: '#2a2420', ...opt });
 
+function weekSumDeltaCell(prev, cur) {
+  if (!prev) return { text: '—', fontSize: 7.5, alignment: 'right', color: '#6b655a' };
+  const c = Number(cur?.sumRub) || 0;
+  const p = Number(prev?.sumRub) || 0;
+  if (p <= 0) {
+    return { text: c > 0 ? 'нов.' : '—', fontSize: 7.5, alignment: 'right', color: '#6b655a' };
+  }
+  const pct = Math.round(((c - p) / p) * 1000) / 10;
+  const sign = pct > 0 ? '+' : '';
+  let color = '#1c1917';
+  if (pct > 0.5) color = '#166534';
+  else if (pct < -0.5) color = '#b45309';
+  return { text: `${sign}${pct}%`, fontSize: 7.5, alignment: 'right', color };
+}
+
 /**
  * @param {Awaited<ReturnType<import('./teamPerformanceData.js').computeTeamPerformanceData>>} data
  */
@@ -148,19 +163,35 @@ export async function buildTeamPerformancePdfBuffer(data) {
 
     if (weeks.length > 0) {
       const wBody = [
-        [th('Неделя с'), th('Сделок', { alignment: 'right' }), th('Сумма', { alignment: 'right' }), th('Вес лом', { alignment: 'right' }), th('Вес чист.', { alignment: 'right' })],
-        ...weeks.map((w) => [
-          { text: fmtDateRu(w.weekStart), fontSize: 8 },
-          { text: String(w.deals), fontSize: 8, alignment: 'right' },
-          { text: fmtRub(w.sumRub), fontSize: 8, alignment: 'right' },
-          { text: fmtNum(w.weightGrossSum, 2), fontSize: 8, alignment: 'right' },
-          { text: fmtNum(w.weightNetSum, 3), fontSize: 8, alignment: 'right' },
-        ]),
+        [
+          th('Неделя с'),
+          th('Сделок', { alignment: 'right' }),
+          th('Сумма', { alignment: 'right' }),
+          th('к пред.', { alignment: 'right', fontSize: 6.8 }),
+          th('Лом, г', { alignment: 'right' }),
+          th('Чист., г', { alignment: 'right' }),
+        ],
+        ...weeks.map((w, i) => {
+          const prev = i > 0 ? weeks[i - 1] : null;
+          return [
+            { text: fmtDateRu(w.weekStart), fontSize: 8 },
+            { text: String(w.deals), fontSize: 8, alignment: 'right' },
+            { text: fmtRub(w.sumRub), fontSize: 8, alignment: 'right' },
+            weekSumDeltaCell(prev, w),
+            { text: fmtNum(w.weightGrossSum, 2), fontSize: 8, alignment: 'right' },
+            { text: fmtNum(w.weightNetSum, 3), fontSize: 8, alignment: 'right' },
+          ];
+        }),
       ];
       content.push(
-        { text: 'ПО НЕДЕЛЯМ (ISO)', style: 'sectionHead', margin: [0, 4, 0, 4] },
+        { text: 'ПО НЕДЕЛЯМ (ISO, ПН — НАЧАЛО НЕДЕЛИ)', style: 'sectionHead', margin: [0, 4, 0, 2] },
         {
-          table: { widths: [56, 34, 56, 46, 46], body: wBody },
+          text: 'Колонка «к пред.» — изменение оборота к предыдущей полной неделе в отчёте (%).',
+          style: 'hint',
+          margin: [0, 0, 0, 4],
+        },
+        {
+          table: { widths: [50, 28, 52, 38, 40, 40], body: wBody },
           layout: {
             fillColor: (i) => (i > 0 && i % 2 ? '#faf7f0' : null),
             hLineColor: () => '#e0dcd4',

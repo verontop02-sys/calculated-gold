@@ -115,7 +115,26 @@ function b64Png(buf) {
   return `data:image/png;base64,${buf.toString('base64')}`;
 }
 
-const CHART_W = 502;
+const CHART_W = 458;
+
+const pdfTableLayoutKpi = {
+  paddingLeft: () => 8,
+  paddingRight: () => 8,
+  paddingTop: () => 5,
+  paddingBottom: () => 5,
+  hLineColor: () => '#dcd6cc',
+  vLineColor: () => '#dcd6cc',
+};
+
+const pdfTableLayoutData = {
+  paddingLeft: () => 8,
+  paddingRight: () => 8,
+  paddingTop: () => 5,
+  paddingBottom: () => 5,
+  hLineColor: () => '#dcd6cc',
+  vLineColor: () => '#dcd6cc',
+  fillColor: (i) => (i > 0 && i % 2 ? '#faf7f0' : null),
+};
 
 const th = (text, opt = {}) => ({ text, fillColor: '#e8e4dd', bold: true, fontSize: 7.5, color: '#2a2420', ...opt });
 
@@ -145,10 +164,15 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
   const series = timeSeriesForGroup(data, g);
   const agg = groupLabelRu(g);
 
-  const bufBar = s.probe && byProbe.length > 0 ? await renderBarChartPng({ rows: byProbe }) : null;
+  const bufBar =
+    s.probe && byProbe.length > 0
+      ? await renderBarChartPng({ rows: byProbe, width: 660, height: 210 })
+      : null;
   const bufMoney =
     s.series && series.length > 0
       ? await renderLineChartPng({
+          width: 660,
+          height: 210,
           labels: series.map((r) => r.x),
           values: series.map((r) => (Number.isFinite(r.sumRub) ? r.sumRub : 0)),
           caption: `Денежный поток, ₽ (по ${agg})`,
@@ -160,6 +184,8 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
   const bufW =
     s.series && series.length > 0
       ? await renderDualLineChartPng({
+          width: 660,
+          height: 210,
           labels: series.map((r) => r.x),
           a: series.map((r) => (r.weightGross != null ? Number(r.weightGross) : 0)),
           b: series.map((r) => (r.weightNet != null ? Number(r.weightNet) : 0)),
@@ -184,17 +210,17 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
       { text: 'Calculated Gold  ·  скупка лома (по сделкам с PDF в «Договоре»)', style: 'brandLine', margin: [0, 0, 0, 2] },
       { text: `сформировано: ${nowStr}`, style: 'muted' },
     ],
-    margin: [0, 0, 0, 12],
+    margin: [0, 0, 0, 8],
   });
   content.push({
     text:
       'Сделка создаётся при скачивании договора. Сотрудник — e-mail, кто скачал PDF. По пробе, весу — первая строка таблицы (до 3 позиций).',
     style: 'hint',
-    margin: [0, 0, 0, 10],
+    margin: [0, 0, 0, 6],
   });
 
   if (!t || t.deals === 0) {
-    content.push({ text: 'За выбранный период нет сделок.', style: 'body', pageBreak: 'after' });
+    content.push({ text: 'За выбранный период нет сделок.', style: 'body' });
   } else {
     if (s.summary) {
       const wg = t.firstRowWeightGrossSum != null ? fmtNum(t.firstRowWeightGrossSum, 2) : '—';
@@ -214,25 +240,67 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
           widths: ['*', 120, '*', 120],
           body: [cardRow(...kpiBody[0]), cardRow(...kpiBody[1])],
         },
-        layout: {
-          paddingLeft: () => 8,
-          paddingRight: () => 8,
-          paddingTop: () => 6,
-          paddingBottom: () => 6,
-          hLineColor: () => '#dcd6cc',
-          vLineColor: () => '#dcd6cc',
-        },
-        margin: [0, 0, 0, 14],
+        layout: pdfTableLayoutKpi,
+        margin: [0, 0, 0, 10],
       });
     }
-    content.push({ text: '', pageBreak: 'after' });
   }
 
   if (t && t.deals > 0) {
+    /* Сначала динамика (графики), затем сотрудники и пробы — плотнее по страницам, без принудительного разрыва после KPI */
+    if (s.series && series.length > 0) {
+      content.push(
+        { text: 'ДИНАМИКА ПО ПЕРИОДУ (АГРЕГАЦИЯ ПО ' + groupLabelRu(g).toUpperCase() + ')', style: 'sectionHead', margin: [0, 0, 0, 2] },
+        {
+          text: 'График сумм и веса (1-я строка договора) по выбранной группировке — как на экране «Аналитика».',
+          style: 'sectionDesc',
+          margin: [0, 0, 0, 6],
+        }
+      );
+      if (images.gMon) {
+        content.push({ text: 'Денежный поток', style: 'chartName', margin: [0, 0, 0, 2] });
+        content.push({ image: 'gMon', width: CHART_W, alignment: 'center', margin: [0, 0, 0, 4] });
+        const sumP = series.reduce((a, r) => a + (Number(r.sumRub) || 0), 0);
+        const avgD = (sumP / (series.length || 1)) || 0;
+        content.push({
+          text: `Итого за период: ${fmtRub(t.sumRub)}. Ср. сделка: ${fmtRub(t.deals ? t.sumRub / t.deals : 0)}. Ср. по сегментам: ${fmtRub(avgD)} (${agg}).`,
+          style: 'sectionDesc',
+          margin: [0, 0, 0, 8],
+        });
+      }
+      if (images.gWet) {
+        content.push({ text: 'Вес (первая строка)', style: 'chartName', margin: [0, 2, 0, 2] });
+        content.push({ image: 'gWet', width: CHART_W, alignment: 'center', margin: [0, 0, 0, 4] });
+        const wg0 = t.firstRowWeightGrossSum != null ? Number(t.firstRowWeightGrossSum) : 0;
+        const wn0 = t.firstRowWeightNetSum != null ? Number(t.firstRowWeightNetSum) : 0;
+        content.push({
+          text: `Суммарно за период (1-я позиция): бр. ${fmtNum(wg0, 2)} г, чист. ${fmtNum(wn0, 3)} г.`,
+          style: 'sectionDesc',
+          margin: [0, 0, 0, 6],
+        });
+      }
+      content.push({ text: 'Свод по сегментам', style: 'tableCaption', margin: [0, 2, 0, 3] });
+      const tsBody = [
+        [th('Период'), th('Сделок', { alignment: 'right' }), th('Сумма, ₽', { alignment: 'right' }), th('Бр., г', { alignment: 'right' }), th('Чист., г', { alignment: 'right' })],
+        ...series.map((r) => [
+          { text: r.x, fontSize: 8, color: '#1c1917' },
+          { text: String(r.count), fontSize: 8, alignment: 'right' },
+          { text: fmtRub(r.sumRub), fontSize: 8, alignment: 'right' },
+          { text: r.weightGross != null ? fmtNum(r.weightGross, 2) : '—', fontSize: 8, alignment: 'right' },
+          { text: r.weightNet != null ? fmtNum(r.weightNet, 3) : '—', fontSize: 8, alignment: 'right' },
+        ]),
+      ];
+      content.push({
+        table: { widths: [48, 32, 58, 40, 44], body: tsBody },
+        layout: pdfTableLayoutData,
+        margin: [0, 0, 0, 10],
+      });
+    }
+
     if (s.operators && byOp.length > 0) {
       content.push(
-        { text: 'СОТРУДНИКИ (КТО СКАЧАЛ PDF ПО СДЕЛКЕ)', style: 'sectionHead', margin: [0, 0, 0, 2] },
-        { text: 'E-mail в строке. Без сделки в учёт: «без учётки».', style: 'sectionDesc', margin: [0, 0, 0, 6] }
+        { text: 'СОТРУДНИКИ (КТО СКАЧАЛ PDF ПО СДЕЛКЕ)', style: 'sectionHead', margin: [0, 4, 0, 2] },
+        { text: 'E-mail в строке. Без сделки в учёт: «без учётки».', style: 'sectionDesc', margin: [0, 0, 0, 5] }
       );
       const opBody = [
         [th('Учёт / e-mail'), th('Сделок', { alignment: 'right' }), th('Сумма', { alignment: 'right' })],
@@ -244,100 +312,42 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
       ];
       content.push({
         table: { widths: ['*', 46, 80], body: opBody },
-        layout: {
-          fillColor: (i) => (i > 0 && i % 2 ? '#faf7f0' : null),
-          hLineColor: () => '#e0dcd4',
-          vLineColor: () => '#e0dcd4',
-        },
-        margin: [0, 0, 0, 18],
+        layout: pdfTableLayoutData,
+        margin: [0, 0, 0, 10],
       });
     }
 
     if (s.probe && byProbe.length > 0) {
       content.push(
-        { text: 'СДЕЛОК ПО ПРОБЕ (ПЕРВАЯ СТРОКА В ДОГОВОРЕ)', style: 'sectionHead', margin: [0, 6, 0, 2] },
+        { text: 'СДЕЛОК ПО ПРОБЕ (ПЕРВАЯ СТРОКА В ДОГОВОРЕ)', style: 'sectionHead', margin: [0, 4, 0, 2] },
         {
           text: 'Сколько сделок, суммарный вес 1-й позиции (лом / чист., г) и стоимость сделок по этой пробе в периоде.',
           style: 'sectionDesc',
-          margin: [0, 0, 0, 6],
+          margin: [0, 0, 0, 5],
         }
       );
       if (images.gBar) {
-        content.push({ image: 'gBar', width: CHART_W, alignment: 'center', margin: [0, 0, 0, 8] });
+        content.push({ image: 'gBar', width: CHART_W, alignment: 'center', margin: [0, 0, 0, 6] });
       }
       const probeW = (r) => {
         const gN = Number(r?.weightGrossSum);
         const nN = Number(r?.weightNetSum);
         const g = Number.isFinite(gN) ? fmtNum(gN, 2) : '—';
         const n = Number.isFinite(nN) ? fmtNum(nN, 3) : '—';
-        return { text: `${g} / ${n}`, fontSize: 7.5, alignment: 'right' };
+        return { text: `${g} / ${n}`, fontSize: 8, alignment: 'right' };
       };
       const pbBody = [
         [th('Проба'), th('Сделок', { alignment: 'right' }), th('Вес, г (лом/чист.)', { alignment: 'right' }), th('Сумма, ₽', { alignment: 'right' })],
         ...byProbe.map((r) => [
-          { text: `${r.probe} пр.`, fontSize: 8 },
+          { text: `${r.probe} пр.`, fontSize: 8, color: '#1c1917' },
           { text: String(r.count), fontSize: 8, alignment: 'right' },
           probeW(r),
           { text: fmtRub(r.sumRub), fontSize: 8, alignment: 'right' },
         ]),
       ];
       content.push({
-        text: 'Таблица',
-        style: 'tableCaption',
-        margin: [0, 4, 0, 4],
-      });
-      content.push({
         table: { widths: [42, 34, 68, 72], body: pbBody },
-        layout: { fillColor: (i) => (i > 0 && i % 2 ? '#faf7f0' : null), hLineColor: () => '#e0dcd4' },
-        margin: [0, 0, 0, 18],
-      });
-    }
-
-    if (s.series && series.length > 0) {
-      content.push(
-        { text: 'ДИНАМИКА ПО ПЕРИОДУ (КАК НА ЭКРАНЕ, АГРЕГАЦИЯ ПО ' + groupLabelRu(g).toUpperCase() + ')', style: 'sectionHead', margin: [0, 6, 0, 2] },
-        {
-          text: 'График сумм за интервал, затем вес лома (зел.) и чист. массы (фиолет.) в граммах, если данные в договоре.',
-          style: 'sectionDesc',
-          margin: [0, 0, 0, 8],
-        }
-      );
-      if (images.gMon) {
-        content.push({ text: 'Денежный поток', style: 'chartName', margin: [0, 0, 0, 2] });
-        content.push({ image: 'gMon', width: CHART_W, alignment: 'center', margin: [0, 0, 0, 4] });
-        const sumP = series.reduce((a, r) => a + (Number(r.sumRub) || 0), 0);
-        const avgD = (sumP / (series.length || 1)) || 0;
-        content.push({
-          text: `Итого за период: ${fmtRub(t.sumRub)}. Ср. сделка: ${fmtRub(t.deals ? t.sumRub / t.deals : 0)}. Ср. ден. потока по сегментам: ${fmtRub(avgD)} (среднее ${agg} на графике).`,
-          style: 'sectionDesc',
-          margin: [0, 0, 0, 12],
-        });
-      }
-      if (images.gWet) {
-        content.push({ text: 'Вес (первая строка)', style: 'chartName', margin: [0, 4, 0, 2] });
-        content.push({ image: 'gWet', width: CHART_W, alignment: 'center', margin: [0, 0, 0, 4] });
-        const wg0 = t.firstRowWeightGrossSum != null ? Number(t.firstRowWeightGrossSum) : 0;
-        const wn0 = t.firstRowWeightNetSum != null ? Number(t.firstRowWeightNetSum) : 0;
-        content.push({
-          text: `Суммарно за период (1-я позиция): бр. ${fmtNum(wg0, 2)} г, чист. ${fmtNum(wn0, 3)} г.`,
-          style: 'sectionDesc',
-          margin: [0, 0, 0, 8],
-        });
-      }
-      content.push({ text: 'Сводные данные по сегментам (таблица)', style: 'tableCaption', margin: [0, 2, 0, 4] });
-      const tsBody = [
-        [th('Период', { fontSize: 6.5 }), th('Сделок', { alignment: 'right' }), th('Сумма, ₽', { alignment: 'right' }), th('Бр., г', { alignment: 'right' }), th('Чист., г', { alignment: 'right' })],
-        ...series.map((r) => [
-          { text: r.x, fontSize: 6.5 },
-          { text: String(r.count), fontSize: 6.5, alignment: 'right' },
-          { text: fmtRub(r.sumRub), fontSize: 6.5, alignment: 'right' },
-          { text: r.weightGross != null ? fmtNum(r.weightGross, 2) : '—', fontSize: 6.5, alignment: 'right' },
-          { text: r.weightNet != null ? fmtNum(r.weightNet, 3) : '—', fontSize: 6.5, alignment: 'right' },
-        ]),
-      ];
-      content.push({
-        table: { widths: [44, 28, 50, 38, 40], body: tsBody },
-        layout: { fillColor: (i) => (i > 0 && i % 2 ? '#faf7f0' : null), hLineColor: () => '#e0dcd4' },
+        layout: pdfTableLayoutData,
         margin: [0, 0, 0, 6],
       });
     }
@@ -345,7 +355,7 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
 
   const docDefinition = {
     pageSize: 'A4',
-    pageMargins: [40, 40, 40, 50],
+    pageMargins: [34, 34, 34, 44],
     defaultStyle: { font: 'Roboto', fontSize: 8.5, color: '#1c1917' },
     styles: {
       reportTitle: { fontSize: 18, bold: true, color: '#0f0d0a', characterSpacing: 0.2 },
@@ -362,7 +372,7 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
       tableCaption: { fontSize: 7, bold: true, color: '#5c5348' },
     },
     footer: (cur, tot) => ({
-      margin: [40, 4, 40, 0],
+      margin: [34, 4, 34, 0],
       columns: [
         { text: 'Calculated Gold · аналитика', color: '#9a9288', fontSize: 6.5 },
         { text: `стр. ${cur} / ${tot}`, alignment: 'right', color: '#9a9288', fontSize: 6.5 },

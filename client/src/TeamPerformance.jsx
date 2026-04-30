@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  Cell,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts';
 import { api } from './api.js';
-import { isUserManagerRole } from './roles.js';
+import { isUserManagerRole, roleLabel } from './roles.js';
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -48,6 +59,29 @@ function rankBadge(rank) {
   if (rank === 2) return '🥈';
   if (rank === 3) return '🥉';
   return String(rank);
+}
+
+const WEEK_BAR = {
+  up: '#3d9a6a',
+  down: '#c96a4a',
+  neu: '#b8860b',
+};
+
+function WeekDeltaCell({ deltaPct }) {
+  if (deltaPct == null) return <span className="muted">—</span>;
+  const sign = deltaPct > 0 ? '+' : '';
+  const cls =
+    deltaPct > 0.5
+      ? 'team-week-delta team-week-delta--up'
+      : deltaPct < -0.5
+        ? 'team-week-delta team-week-delta--down'
+        : 'team-week-delta team-week-delta--flat';
+  return (
+    <span className={`mono-nums ${cls}`}>
+      {sign}
+      {deltaPct}%
+    </span>
+  );
 }
 
 export function TeamPerformance({ formatMoney, toast, user }) {
@@ -173,6 +207,37 @@ export function TeamPerformance({ formatMoney, toast, user }) {
       .map(([day, sumRub]) => ({ x: day.slice(5), sumRub, day }));
   }, [data]);
 
+  const weekSeries = useMemo(() => {
+    const w = data?.byWeek;
+    if (!Array.isArray(w) || w.length === 0) return [];
+    return w.map((row, i) => {
+      const prev = i > 0 ? w[i - 1] : null;
+      const cur = Number(row.sumRub) || 0;
+      const prevSum = prev ? Number(prev.sumRub) || 0 : null;
+      let deltaPct = null;
+      let barTone = 'neu';
+      if (prev) {
+        if (prevSum > 0) {
+          deltaPct = Math.round(((cur - prevSum) / prevSum) * 1000) / 10;
+          if (deltaPct > 0.5) barTone = 'up';
+          else if (deltaPct < -0.5) barTone = 'down';
+        } else if (cur > 0) {
+          barTone = 'up';
+        }
+      }
+      return {
+        label: fmtRuDate(row.weekStart),
+        sumRub: cur,
+        deals: row.deals,
+        deltaPct,
+        barTone,
+        weekStart: row.weekStart,
+        weightGrossSum: row.weightGrossSum,
+        weightNetSum: row.weightNetSum,
+      };
+    });
+  }, [data?.byWeek]);
+
   const hasRows = data?.operators && data.operators.length > 0;
 
   return (
@@ -222,8 +287,10 @@ export function TeamPerformance({ formatMoney, toast, user }) {
                 <span className="team-chip team-chip-low">Ниже порога — базовая зона</span>
               </div>
               <p className="muted small team-rules-note">
-                Пороги задаются на сервере (переменные TEAM_PERF_HIGH_SUM_RUB и TEAM_PERF_MID_SUM_RUB). Автоматических
-                начислений нет — только наглядность.
+                Подсветка строк — не «KPI плана», а пороги для цвета на экране: переменные окружения на сервере{' '}
+                <span className="team-env-name">TEAM_PERF_HIGH_SUM_RUB</span> и{' '}
+                <span className="team-env-name">TEAM_PERF_MID_SUM_RUB</span> (в т.ч. Render → Environment). После
+                смены значений перезапустите бэкенд. Автоначислений нет.
               </p>
             </div>
           )}
@@ -273,22 +340,31 @@ export function TeamPerformance({ formatMoney, toast, user }) {
         {isManager && (
           <div className="glass team-filter-block">
             <div className="team-filter-head">
-              <span className="field-label">Фильтр сотрудников</span>
+              <span className="team-filter-title">Фильтр сотрудников</span>
               <button type="button" className="btn-ghost small" onClick={clearOperatorFilter}>
                 Показать всех
               </button>
             </div>
             {staffErr && <p className="muted small">{staffErr}</p>}
             {!staffErr && staff.length > 0 && (
-              <div className="team-filter-grid">
+              <ul className="team-filter-list">
                 {staff.map((u) => (
-                  <label key={u.uid} className="team-filter-item">
-                    <input type="checkbox" checked={selectedIds.has(u.uid)} onChange={() => toggleOperator(u.uid)} />
-                    <span className="team-filter-email">{u.email}</span>
-                    <span className="muted small">{u.role}</span>
-                  </label>
+                  <li key={u.uid}>
+                    <label className="team-filter-row">
+                      <input
+                        type="checkbox"
+                        className="team-filter-cb"
+                        checked={selectedIds.has(u.uid)}
+                        onChange={() => toggleOperator(u.uid)}
+                      />
+                      <span className="team-filter-text">
+                        <span className="team-filter-email">{u.email}</span>
+                        <span className="team-filter-role">{roleLabel(u.role)}</span>
+                      </span>
+                    </label>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
             <p className="muted small team-filter-hint">
               Не отмечайте никого — в отчёт попадают все. Отметьте конкретных людей, чтобы смотреть только их вклад.
@@ -418,27 +494,68 @@ export function TeamPerformance({ formatMoney, toast, user }) {
         </section>
       )}
 
-      {Array.isArray(data?.byWeek) && data.byWeek.length > 0 && !loading && (
-        <section className="glass analytics-chart-card">
+      {weekSeries.length > 0 && !loading && (
+        <section className="glass analytics-chart-card team-week-section">
           <h3 className="analytics-h3">Сводка по неделям</h3>
-          <p className="muted small an-h3-sub">Неделя от понедельника (ISO). Удобно смотреть «смены» по объёму.</p>
+          <p className="muted small an-h3-sub">
+            Неделя с понедельника (ISO). Столбцы — оборот за неделю; цвет к предыдущей неделе в этом отчёте (зелёный
+            выше, оранжевый ниже). В таблице — те же цифры и % к пред. неделе.
+          </p>
+          <div className="team-week-chart-h">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={weekSeries}
+                margin={{ top: 8, right: 8, left: 4, bottom: weekSeries.length > 6 ? 20 : 6 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--stroke, #333)" opacity={0.5} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 10 }}
+                  interval={0}
+                  angle={weekSeries.length > 6 ? -22 : 0}
+                  textAnchor={weekSeries.length > 6 ? 'end' : 'middle'}
+                  height={weekSeries.length > 6 ? 52 : 30}
+                />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${Math.round(v / 1000)}k`)} />
+                <Tooltip
+                  labelFormatter={(label) => `Неделя с ${label}`}
+                  formatter={(value, _name, item) => {
+                    const pl = item?.payload;
+                    if (!pl) return formatMoney(value);
+                    const d = pl.deltaPct;
+                    const tail = d == null ? '' : ` · к пред.: ${d > 0 ? '+' : ''}${d}%`;
+                    return [`${formatMoney(value)}${tail}`, 'Оборот'];
+                  }}
+                />
+                <Bar dataKey="sumRub" name="Оборот" radius={[4, 4, 0, 0]}>
+                  {weekSeries.map((entry, i) => (
+                    <Cell key={entry.weekStart || i} fill={WEEK_BAR[entry.barTone] || WEEK_BAR.neu} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
           <div className="analytics-op-table-wrap">
-            <table className="analytics-op-table">
+            <table className="analytics-op-table team-week-table">
               <thead>
                 <tr>
                   <th>Неделя с</th>
                   <th className="mono-nums">Сделок</th>
                   <th className="mono-nums">Оборот</th>
+                  <th className="mono-nums">к пред.</th>
                   <th className="mono-nums">Лом, г</th>
                   <th className="mono-nums">Чист., г</th>
                 </tr>
               </thead>
               <tbody>
-                {data.byWeek.map((w) => (
+                {weekSeries.map((w) => (
                   <tr key={w.weekStart}>
-                    <td>{fmtRuDate(w.weekStart)}</td>
+                    <td>{w.label}</td>
                     <td className="mono-nums">{w.deals}</td>
                     <td className="mono-nums">{formatMoney(w.sumRub)}</td>
+                    <td className="mono-nums">
+                      <WeekDeltaCell deltaPct={w.deltaPct} />
+                    </td>
                     <td className="mono-nums">{(w.weightGrossSum ?? 0).toFixed(2)}</td>
                     <td className="mono-nums">{(w.weightNetSum ?? 0).toFixed(3)}</td>
                   </tr>
@@ -542,16 +659,227 @@ export function TeamPerformance({ formatMoney, toast, user }) {
         .team-chip-low { opacity: 0.85; color: var(--text-muted); }
         .team-toolbar { flex-wrap: wrap; align-items: center; gap: 10px; }
         .team-btn-pdf { font-weight: 600; }
+        /* Пресеты и поля дат — стили применяются здесь, чтобы вкладка работала без Analytics */
+        .team-page .analytics-presets {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+        .team-page .an-pill {
+          border: 1px solid var(--stroke);
+          background: var(--input-bg);
+          color: var(--text);
+          font-size: 0.75rem;
+          padding: 5px 10px;
+          border-radius: 999px;
+          cursor: pointer;
+          font-weight: 600;
+        }
+        .team-page .an-pill:hover {
+          border-color: var(--gold);
+          color: var(--gold);
+        }
+        .team-page .analytics-filters {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: flex-end;
+          gap: 10px;
+        }
+        .team-page .field.field-inline {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .team-page .field.field-inline .field-label {
+          font-size: 0.7rem;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--text-muted);
+        }
+        .team-page .field.field-inline input {
+          min-width: 9rem;
+        }
         .team-filter-block {
           padding: 14px 16px;
           border-radius: 12px;
           margin-top: 4px;
         }
         .team-filter-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-        .team-filter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
-        .team-filter-item { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; cursor: pointer; }
-        .team-filter-email { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        .team-filter-title {
+          font-size: 0.78rem;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          color: var(--text-muted);
+        }
+        .team-filter-list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          max-height: min(52vh, 420px);
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .team-filter-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          width: 100%;
+          margin: 0;
+          padding: 10px 12px;
+          border-radius: 10px;
+          border: 1px solid var(--stroke, rgba(255,255,255,0.08));
+          background: var(--input-bg, rgba(255,255,255,0.03));
+          cursor: pointer;
+          box-sizing: border-box;
+        }
+        .team-filter-row:hover {
+          border-color: rgba(184, 134, 11, 0.35);
+          background: rgba(184, 134, 11, 0.06);
+        }
+        .team-filter-cb {
+          flex-shrink: 0;
+          width: 18px;
+          height: 18px;
+          margin: 2px 0 0;
+          accent-color: var(--gold, #b8860b);
+          cursor: pointer;
+        }
+        .team-filter-cb:focus {
+          outline: none;
+        }
+        .team-filter-cb:focus-visible {
+          outline: 2px solid var(--gold, #b8860b);
+          outline-offset: 2px;
+        }
+        .team-filter-text {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          text-align: left;
+        }
+        .team-filter-email {
+          font-size: 0.86rem;
+          font-weight: 600;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: var(--text, #e7e2da);
+        }
+        .team-filter-role {
+          font-size: 0.72rem;
+          color: var(--text-muted);
+          line-height: 1.3;
+        }
         .team-filter-hint { margin: 12px 0 0; line-height: 1.4; }
+        /* Таблицы и график на этой вкладке */
+        .team-page .analytics-op-table-wrap {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          min-width: 0;
+        }
+        .team-page .analytics-op-table {
+          width: 100%;
+          min-width: 520px;
+          border-collapse: collapse;
+          font-size: 0.86rem;
+        }
+        .team-page .analytics-op-table th,
+        .team-page .analytics-op-table td {
+          text-align: left;
+          padding: 8px 10px;
+          border-bottom: 1px solid var(--stroke, rgba(255,255,255,0.08));
+        }
+        .team-page .analytics-op-table th {
+          font-size: 0.75rem;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          color: var(--text-muted);
+        }
+        .team-page .analytics-op-table tr:last-child td {
+          border-bottom: none;
+        }
+        .team-page .team-table th.mono-nums,
+        .team-page .team-table td.mono-nums {
+          text-align: right;
+        }
+        .team-page .team-table th:first-child,
+        .team-page .team-table td:first-child {
+          text-align: center;
+        }
+        .team-page .team-table td:first-child.mono-nums {
+          text-align: center;
+        }
+        .team-page .team-table th:nth-child(2),
+        .team-page .team-table td:nth-child(2) {
+          text-align: left;
+        }
+        .team-page .analytics-chart-card {
+          padding: 16px;
+        }
+        .team-page .analytics-h3 {
+          font-size: 0.95rem;
+          font-weight: 600;
+          margin: 0 0 4px;
+        }
+        .team-page .an-h3-sub {
+          margin: 0 0 10px;
+          line-height: 1.4;
+        }
+        .team-page .analytics-chart-h {
+          width: 100%;
+          min-width: 0;
+          height: 220px;
+        }
+        @media (max-width: 640px) {
+          .team-page .team-hero {
+            padding: 14px 12px 12px;
+          }
+          .team-page .team-hero-top {
+            flex-direction: column;
+          }
+          .team-page .team-mode-badge {
+            align-self: flex-start;
+          }
+          .team-page .analytics-filters.team-toolbar {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .team-page .analytics-filters.team-toolbar .btn-ghost,
+          .team-page .analytics-filters.team-toolbar .btn-secondary {
+            width: 100%;
+          }
+          .team-page .field.field-inline input {
+            width: 100%;
+            min-width: 0;
+          }
+          .team-page .team-kpi-grid {
+            grid-template-columns: 1fr;
+          }
+          .team-page .team-filter-list {
+            max-height: min(60vh, 360px);
+          }
+          .team-page .team-filter-email {
+            white-space: normal;
+            word-break: break-word;
+          }
+          .team-page .analytics-op-table {
+            font-size: 0.78rem;
+          }
+          .team-page .analytics-op-table th,
+          .team-page .analytics-op-table td {
+            padding: 7px 8px;
+          }
+          .team-page .analytics-chart-h {
+            height: 200px;
+          }
+        }
         .team-period-line { margin: 0 0 4px; text-align: center; }
         .team-kpi-section { margin-top: 4px; }
         .team-section-title {
@@ -620,6 +948,22 @@ export function TeamPerformance({ formatMoney, toast, user }) {
         .team-tier-high { font-weight: 600; color: var(--gold, #e8c547); }
         .team-tier-mid { font-weight: 600; color: var(--text, #e7e2da); }
         .team-tier-low { color: var(--text-muted, #a8a29e); }
+        .team-env-name {
+          font-family: ui-monospace, 'Cascadia Code', monospace;
+          font-size: 0.72rem;
+          color: var(--gold, #d4a20d);
+        }
+        .team-week-chart-h {
+          width: 100%;
+          min-width: 0;
+          height: 200px;
+          margin-bottom: 4px;
+        }
+        .team-week-delta { font-weight: 600; }
+        .team-week-delta--up { color: #6ee7a8; }
+        .team-week-delta--down { color: #f0a8a8; }
+        .team-week-delta--flat { color: var(--text-muted); }
+        .team-page .team-week-table { min-width: 560px; }
       `}</style>
     </div>
   );

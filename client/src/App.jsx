@@ -80,6 +80,18 @@ function quoteTabKey(uid) {
   return safe ? `cg_quote_tab__${safe}` : null;
 }
 
+function clearCalculatorLocalForUid(uid) {
+  if (!uid) return;
+  const safe = String(uid).replace(/[^a-zA-Z0-9-]/g, '');
+  if (!safe) return;
+  try {
+    localStorage.removeItem(`cg_weight__${safe}`);
+    localStorage.removeItem(`cg_purity__${safe}`);
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function App() {
   const toast = useToast();
   const [authReady, setAuthReady] = useState(false);
@@ -95,6 +107,7 @@ export default function App() {
   const [priceLoading, setPriceLoading] = useState(false);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const staleRefreshingRef = useRef(false);
+  const lastSignedInUidRef = useRef(null);
   const [profileSlow, setProfileSlow] = useState(false);
 
   // Вкладка котировки — на пользователя; иначе после смены аккаунта в том же браузере тянется чужой xaut/moex из React state
@@ -185,6 +198,10 @@ export default function App() {
       setAuthReady(true);
       // TOKEN_REFRESHED fires when tab returns to focus; avoid treating it as profile change.
       if (event === 'TOKEN_REFRESHED') return;
+      if (event === 'SIGNED_OUT') {
+        clearCalculatorLocalForUid(lastSignedInUidRef.current);
+        lastSignedInUidRef.current = null;
+      }
       setSessionUser(session?.user ?? null);
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -200,6 +217,10 @@ export default function App() {
       unsub();
     };
   }, [toast]);
+
+  useEffect(() => {
+    if (user?.uid) lastSignedInUidRef.current = user.uid;
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!authReady) return;

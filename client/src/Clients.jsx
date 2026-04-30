@@ -3,14 +3,15 @@ import { api } from './api.js';
 
 const PAGE = 80;
 
-function dealDate(iso) {
+/** Короткая дата для списка сделок. */
+function dealDateCompact(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleString('ru-RU', {
     day: '2-digit',
     month: '2-digit',
-    year: 'numeric',
+    year: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -20,13 +21,13 @@ function shortProbeWeight(d) {
   const p = d?.first_probe != null ? d.first_probe : null;
   const w = d?.first_weight_gross != null || d?.first_weight_net != null;
   const parts = [];
-  if (p != null) parts.push(`${p} пр`);
+  if (p != null) parts.push(`${p}п`);
   if (w) {
     const a = d.first_weight_gross != null ? `${d.first_weight_gross}` : '';
     const b = d.first_weight_net != null ? `${d.first_weight_net}` : '';
-    if (a || b) parts.push(a && b ? `${a}/${b} г` : `${a || b} г`);
+    if (a || b) parts.push(a && b ? `${a}/${b}г` : `${a || b}г`);
   }
-  return parts.length ? parts.join(' · ') : '—';
+  return parts.length ? parts.join(' ') : '—';
 }
 
 function downloadBlob(blob, filename) {
@@ -221,106 +222,51 @@ export function Clients({ formatMoney, toast }) {
                 <p className="muted small">Пока нет сделок по этой карточке</p>
               )}
               {deals && deals.length > 0 && (
-                <>
-                  <div className="clients-deals-table-wrap clients-deals--table" role="region" aria-label="Таблица сделок">
-                    <table className="clients-deals">
-                      <thead>
-                        <tr>
-                          <th>Дата</th>
-                          <th>№</th>
-                          <th>Сумма</th>
-                          <th>Позиция</th>
-                          <th>Статус</th>
-                          <th>PDF</th>
-                          <th> </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {deals.map((d) => (
-                          <tr key={d.id}>
-                            <td className="mono-nums clients-deal-cell-date">{dealDate(d.created_at)}</td>
-                            <td>{d.contract_no || '—'}</td>
-                            <td className="mono-nums">{d.total_rub != null ? formatMoney(d.total_rub) : '—'}</td>
-                            <td className="small clients-deal-cell-pos">{shortProbeWeight(d)}</td>
-                            <td>
-                              <span className="badge ok" title="Договор в системе">
-                                в базе
-                              </span>
-                            </td>
-                            <td>
-                              <button
-                                type="button"
-                                className="btn-ghost small clients-pdf"
-                                onClick={() => onDownloadPdf(d)}
-                                disabled={pdfBusyId === d.id}
-                              >
-                                {pdfBusyId === d.id ? '…' : 'Скачать'}
-                              </button>
-                            </td>
-                            <td className="clients-deal-del-wrap">
-                              <button
-                                type="button"
-                                className="btn-ghost small clients-deal-del"
-                                onClick={() => onDeleteDeal(d)}
-                                disabled={deletingDealId === d.id}
-                                title="Удалить сделку из учёта"
-                              >
-                                {deletingDealId === d.id ? '…' : 'Уд.'}
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <ul className="clients-deal-cards" aria-label="Список сделок">
-                    {deals.map((d) => (
-                      <li key={d.id} className="clients-deal-item">
-                        <div className="clients-deal-item-row">
-                          <span className="muted">Дата</span>
-                          <span className="mono-nums clients-deal-item-v">{dealDate(d.created_at)}</span>
-                        </div>
-                        <div className="clients-deal-item-row">
-                          <span className="muted">Дог. №</span>
-                          <span className="clients-deal-item-v">{d.contract_no || '—'}</span>
-                        </div>
-                        <div className="clients-deal-item-row">
-                          <span className="muted">Сумма</span>
-                          <span className="mono-nums clients-deal-item-v">
-                            {d.total_rub != null ? formatMoney(d.total_rub) : '—'}
+                <ul className="clients-deal-list" aria-label="Сделки по клиенту">
+                  {deals.map((d) => (
+                    <li key={d.id} className="clients-deal-block">
+                      <div className="clients-deal-info">
+                        <div className="clients-deal-line1">
+                          <span className="mono-nums clients-deal-date">{dealDateCompact(d.created_at)}</span>
+                          <span className="clients-deal-sep muted" aria-hidden>
+                            ·
                           </span>
-                        </div>
-                        <div className="clients-deal-item-row">
-                          <span className="muted">Позиция</span>
-                          <span className="clients-deal-item-v clients-deal-item-pos">{shortProbeWeight(d)}</span>
-                        </div>
-                        <div className="clients-deal-item-foot">
-                          <span className="badge ok" title="Договор в системе">
+                          <span className="muted small">
+                            дог. № <span className="clients-deal-no">{d.contract_no || '—'}</span>
+                          </span>
+                          <span className="badge ok clients-deal-badge" title="Договор в системе">
                             в базе
                           </span>
-                          <div className="clients-deal-item-btns">
-                            <button
-                              type="button"
-                              className="btn-ghost small clients-pdf"
-                              onClick={() => onDownloadPdf(d)}
-                              disabled={pdfBusyId === d.id}
-                            >
-                              {pdfBusyId === d.id ? '…' : 'Скачать PDF'}
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-ghost small clients-deal-del"
-                              onClick={() => onDeleteDeal(d)}
-                              disabled={deletingDealId === d.id}
-                            >
-                              {deletingDealId === d.id ? '…' : 'Удалить'}
-                            </button>
-                          </div>
                         </div>
-                      </li>
-                    ))}
-                  </ul>
-                </>
+                        <div className="clients-deal-line2">
+                          <span className="mono-nums clients-deal-sum">
+                            {d.total_rub != null ? formatMoney(d.total_rub) : '—'}
+                          </span>
+                          <span className="muted small clients-deal-probe">{shortProbeWeight(d)}</span>
+                        </div>
+                      </div>
+                      <div className="clients-deal-actions">
+                        <button
+                          type="button"
+                          className="btn-ghost small clients-pdf"
+                          onClick={() => onDownloadPdf(d)}
+                          disabled={pdfBusyId === d.id}
+                        >
+                          {pdfBusyId === d.id ? '…' : 'Скачать PDF'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-ghost small clients-deal-del"
+                          onClick={() => onDeleteDeal(d)}
+                          disabled={deletingDealId === d.id}
+                          title="Удалить сделку из учёта"
+                        >
+                          {deletingDealId === d.id ? '…' : 'Удалить'}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
             </>
           )}
@@ -360,16 +306,22 @@ export function Clients({ formatMoney, toast }) {
         }
         .clients-grid {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-          gap: 18px;
+          grid-template-columns: minmax(200px, 0.42fr) minmax(0, 1fr);
+          gap: 16px 20px;
           align-items: start;
           min-width: 0;
           max-width: 100%;
+        }
+        @media (min-width: 1100px) {
+          .clients-grid {
+            grid-template-columns: minmax(220px, 0.36fr) minmax(0, 1fr);
+          }
         }
         .clients-col,
         .clients-detail {
           min-width: 0;
           max-width: 100%;
+          overflow-x: hidden;
         }
         @media (max-width: 720px) {
           .clients-grid { grid-template-columns: 1fr; }
@@ -399,94 +351,123 @@ export function Clients({ formatMoney, toast }) {
           background: rgba(255,255,255,0.04);
         }
         .clients-row--active {
-          border-color: var(--border, rgba(255,255,255,0.2));
-          background: rgba(255,255,255,0.06);
+          border-color: rgba(184, 134, 11, 0.45);
+          background: rgba(184, 134, 11, 0.08);
+          box-shadow: inset 3px 0 0 var(--gold, #b8860b);
         }
         .clients-row-name { font-weight: 500; }
         .clients-more { width: 100%; margin-top: 10px; }
         .clients-placeholder { margin: 24px 0; }
         .clients-d-name { margin: 0 0 8px; font-size: 1.05rem; }
+        .clients-card {
+          padding: 12px 14px;
+          border-radius: 12px;
+          border: 1px solid var(--border, rgba(255,255,255,0.12));
+          background: var(--input-bg, rgba(0,0,0,0.12));
+          margin-bottom: 4px;
+        }
         .clients-d-line, .clients-d-addr { margin: 0 0 6px; font-size: 0.9rem; line-height: 1.45; word-break: break-word; }
+        .clients-d-line .muted,
+        .clients-d-addr .muted {
+          min-width: 4.5rem;
+          display: inline-block;
+          opacity: 0.95;
+        }
         .clients-d-addr { margin-top: 8px; }
         .clients-deals-head {
           display: flex;
           justify-content: space-between;
-          margin: 16px 0 8px;
+          align-items: baseline;
+          margin: 14px 0 10px;
         }
-        .clients-deals-table-wrap {
-          width: 100%;
-          max-width: 100%;
-          min-width: 0;
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-          overscroll-behavior-x: contain;
-          border-radius: 10px;
-          border: 1px solid var(--border, rgba(255,255,255,0.1));
-        }
-        .clients-deal-item-btns { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-        .clients-deal-del { color: #f87171; border-color: rgba(248,113,113,0.35) !important; }
-        .clients-deal-del:hover { color: #ef4444 !important; }
-        .clients-deal-del-wrap { width: 2.75rem; }
-        .clients-deals {
-          width: 100%;
-          min-width: 600px;
-          border-collapse: collapse;
-          font-size: 0.85rem;
-        }
-        .clients-deals th,
-        .clients-deals td {
-          padding: 8px 10px;
-          text-align: left;
-          border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
-          vertical-align: top;
-        }
-        .clients-deal-cell-date { max-width: 8.5rem; }
-        .clients-deal-cell-pos { white-space: normal; word-break: break-word; }
-        .clients-deals th { font-weight: 600; white-space: nowrap; }
-        .clients-deals tr:last-child td { border-bottom: none; }
-        .clients-pdf { padding: 4px 8px; font-size: 0.8rem; }
-        .clients-deal-cards {
+        .clients-deal-list {
           list-style: none;
           margin: 0;
           padding: 0;
-          display: none;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .clients-deal-item {
-          border: 1px solid var(--border, rgba(255,255,255,0.12));
-          border-radius: 12px;
-          padding: 12px 14px;
-          background: var(--input-bg, rgba(0,0,0,0.15));
-        }
-        .clients-deal-item-row {
           display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
+          flex-direction: column;
           gap: 10px;
-          font-size: 0.86rem;
-          line-height: 1.4;
-          padding: 4px 0;
-          border-bottom: 1px solid var(--border, rgba(255,255,255,0.06));
+          max-height: min(56vh, 560px);
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding-right: 2px;
         }
-        .clients-deal-item-row:last-of-type { border-bottom: none; }
-        .clients-deal-item-v { text-align: right; min-width: 0; max-width: 64%; word-break: break-word; }
-        .clients-deal-item-pos { text-align: right; }
-        .clients-deal-item-foot {
+        .clients-deal-block {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px 14px;
+          padding: 12px 14px;
+          border-radius: 12px;
+          border: 1px solid var(--border, rgba(255,255,255,0.12));
+          background: var(--input-bg, rgba(0,0,0,0.12));
+        }
+        .clients-deal-info {
+          flex: 1 1 220px;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .clients-deal-line1 {
           display: flex;
           flex-wrap: wrap;
           align-items: center;
-          justify-content: space-between;
+          gap: 8px 10px;
+          font-size: 0.82rem;
+          line-height: 1.35;
+        }
+        .clients-deal-date { font-size: 0.84rem; }
+        .clients-deal-sep { user-select: none; }
+        .clients-deal-no { font-weight: 500; color: var(--text, inherit); }
+        .clients-deal-badge { flex-shrink: 0; }
+        .clients-deal-line2 {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 8px 14px;
+        }
+        .clients-deal-sum {
+          font-size: 1rem;
+          font-weight: 700;
+          color: var(--gold, #e8c547);
+          letter-spacing: 0.02em;
+        }
+        .clients-deal-probe {
+          flex: 1;
+          min-width: 0;
+          word-break: break-word;
+          line-height: 1.35;
+        }
+        .clients-deal-actions {
+          flex: 0 0 auto;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: flex-end;
           gap: 8px;
-          margin-top: 10px;
-          padding-top: 2px;
         }
-        @media (max-width: 640px) {
-          .clients-deals--table { display: none; }
-          .clients-deal-cards { display: flex; }
+        .clients-deal-del {
+          color: #f87171;
+          border-color: rgba(248,113,113,0.35) !important;
         }
-        @media (min-width: 641px) {
-          .clients-deal-cards { display: none !important; }
+        .clients-deal-del:hover {
+          color: #ef4444 !important;
+        }
+        .clients-pdf {
+          padding: 6px 10px;
+          font-size: 0.8rem;
+        }
+        @media (max-width: 520px) {
+          .clients-deal-actions {
+            width: 100%;
+            justify-content: stretch;
+          }
+          .clients-deal-actions .btn-ghost {
+            flex: 1;
+            min-width: 0;
+          }
         }
         .badge.ok {
           display: inline-block;

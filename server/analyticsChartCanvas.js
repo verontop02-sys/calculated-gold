@@ -337,11 +337,11 @@ export async function renderDualLineChartPng(p = {}) {
 /**
  * @param {Array<{probe:number, count: number, sumRub?: number}>} rows
  */
-export async function renderBarChartPng({ rows = [], cap = 'Сделок по пробе (1-я позиция)' } = {}) {
+export async function renderBarChartPng({ rows = [], cap = 'Сделок по пробе (1-я позиция)', width = 640, height = 220 } = {}) {
   ensureFonts();
   if (!rows.length) return Buffer.alloc(0);
-  const w = 920;
-  const h = 280;
+  const w = width;
+  const h = height;
   const pl = 50;
   const pr = 22;
   const pt = 44;

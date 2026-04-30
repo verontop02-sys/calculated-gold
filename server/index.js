@@ -58,6 +58,21 @@ function normalizeScrapPhoneDigits(v) {
   return '';
 }
 
+/** Единый вид в БД для РФ-номера и поле для точного поиска. */
+function scrapCustomerPhonePayload(phoneRaw) {
+  const raw = phoneRaw != null && String(phoneRaw).trim() ? String(phoneRaw).trim() : null;
+  if (!raw) return { phone: null, phone_normalized: null };
+  const n = normalizeScrapPhoneDigits(raw);
+  if (n.length === 10) return { phone: `+7${n}`, phone_normalized: n };
+  return { phone: raw, phone_normalized: null };
+}
+
+function sortCustomersByNameRu(rows) {
+  return [...rows].sort((a, b) =>
+    String(a.full_name || '').localeCompare(String(b.full_name || ''), 'ru', { sensitivity: 'base' })
+  );
+}
+
 function parseCellNumber(v) {
   if (v == null) return null;
   const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.'));
@@ -67,8 +82,14 @@ function parseCellNumber(v) {
 async function resolveCustomerIdByPhone(phone) {
   const n = normalizeScrapPhoneDigits(phone);
   if (!n) return null;
-  const { data, error } = await supabase.from('scrap_customers').select('id, phone');
-  if (error) return null;
+  const { data: hit, error } = await supabase
+    .from('scrap_customers')
+    .select('id')
+    .eq('phone_normalized', n)
+    .maybeSingle();
+  if (!error && hit?.id) return hit.id;
+  const { data, error: e2 } = await supabase.from('scrap_customers').select('id, phone');
+  if (e2) return null;
   for (const row of data || []) {
     if (row?.id && normalizeScrapPhoneDigits(row.phone) === n) return row.id;
   }
@@ -849,28 +870,49 @@ app.get(
     const esc = q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
     const pattern = `%${esc}%`;
     const sel = 'id, full_name, phone, passport_line, address, updated_at';
+    const phoneDig = normalizeScrapPhoneDigits(q);
+
     const { data: byName, error: e1 } = await supabase
       .from('scrap_customers')
       .select(sel)
       .ilike('full_name', pattern)
-      .order('updated_at', { ascending: false })
-      .limit(20);
+      .limit(40);
     if (e1) throw e1;
-    const { data: byPhone, error: e2 } = await supabase
-      .from('scrap_customers')
-      .select(sel)
-      .ilike('phone', pattern)
-      .order('updated_at', { ascending: false })
-      .limit(20);
-    if (e2) throw e2;
+
+    let byPhone = [];
+    if (phoneDig.length === 10) {
+      const { data: byNorm, error: e2 } = await supabase
+        .from('scrap_customers')
+        .select(sel)
+        .eq('phone_normalized', phoneDig)
+        .limit(20);
+      if (e2) throw e2;
+      byPhone = byNorm || [];
+      if (byPhone.length === 0) {
+        const { data: fallback, error: e3 } = await supabase
+          .from('scrap_customers')
+          .select(sel)
+          .ilike('phone', `%${phoneDig}%`)
+          .limit(20);
+        if (e3) throw e3;
+        byPhone = fallback || [];
+      }
+    } else {
+      const { data: byIl, error: e4 } = await supabase
+        .from('scrap_customers')
+        .select(sel)
+        .ilike('phone', pattern)
+        .limit(20);
+      if (e4) throw e4;
+      byPhone = byIl || [];
+    }
+
     const map = new Map();
-    for (const r of [...(byName || []), ...(byPhone || [])]) {
+    for (const r of [...(byName || []), ...byPhone]) {
       if (r?.id) map.set(r.id, r);
     }
-    const merged = [...map.values()].sort(
-      (a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
-    );
-    res.json({ customers: merged.slice(0, 20) });
+    const merged = sortCustomersByNameRu([...map.values()]).slice(0, 20);
+    res.json({ customers: merged });
   })
 );
 
@@ -885,33 +927,54 @@ app.get(
     if (q.length >= 1) {
       const esc = q.replace(/%/g, '\\%').replace(/_/g, '\\_');
       const p = `%${esc}%`;
+      const phoneDig = normalizeScrapPhoneDigits(q);
+
       const { data: byName, error: e1 } = await supabase
         .from('scrap_customers')
         .select(SCRAP_CUST_LIST_SEL)
         .ilike('full_name', p)
-        .order('updated_at', { ascending: false })
         .range(0, 1999);
       if (e1) throw e1;
-      const { data: byPhone, error: e2 } = await supabase
-        .from('scrap_customers')
-        .select(SCRAP_CUST_LIST_SEL)
-        .ilike('phone', p)
-        .order('updated_at', { ascending: false })
-        .range(0, 1999);
-      if (e2) throw e2;
+
+      let byPhone = [];
+      if (phoneDig.length === 10) {
+        const { data: byNorm, error: e2 } = await supabase
+          .from('scrap_customers')
+          .select(SCRAP_CUST_LIST_SEL)
+          .eq('phone_normalized', phoneDig)
+          .range(0, 999);
+        if (e2) throw e2;
+        byPhone = byNorm || [];
+        if (byPhone.length === 0) {
+          const { data: fb, error: e3 } = await supabase
+            .from('scrap_customers')
+            .select(SCRAP_CUST_LIST_SEL)
+            .ilike('phone', `%${phoneDig}%`)
+            .range(0, 1999);
+          if (e3) throw e3;
+          byPhone = fb || [];
+        }
+      } else {
+        const { data: byIl, error: e4 } = await supabase
+          .from('scrap_customers')
+          .select(SCRAP_CUST_LIST_SEL)
+          .ilike('phone', p)
+          .range(0, 1999);
+        if (e4) throw e4;
+        byPhone = byIl || [];
+      }
+
       const map = new Map();
-      for (const r of [...(byName || []), ...(byPhone || [])]) {
+      for (const r of [...(byName || []), ...byPhone]) {
         if (r?.id) map.set(r.id, r);
       }
-      const merged = [...map.values()].sort(
-        (a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
-      );
+      const merged = sortCustomersByNameRu([...map.values()]);
       return res.json({ customers: merged.slice(offset, offset + limit), total: merged.length });
     }
     const { data, count, error } = await supabase
       .from('scrap_customers')
       .select(SCRAP_CUST_LIST_SEL, { count: 'exact' })
-      .order('updated_at', { ascending: false })
+      .order('full_name', { ascending: true })
       .range(offset, offset + limit - 1);
     if (error) throw error;
     res.json({ customers: data || [], total: count ?? 0 });
@@ -1139,7 +1202,7 @@ app.post(
     const body = req.body || {};
     const full_name = String(body.full_name || '').trim();
     if (!full_name) return res.status(400).json({ error: 'Укажите ФИО' });
-    const phone = String(body.phone || '').trim() || null;
+    const { phone, phone_normalized } = scrapCustomerPhonePayload(body.phone);
     const passport_line = String(body.passport_line || '').trim() || null;
     const address = String(body.address || '').trim() || null;
     const id = body.id ? String(body.id) : null;
@@ -1148,7 +1211,7 @@ app.post(
     if (id) {
       const { data, error } = await supabase
         .from('scrap_customers')
-        .update({ full_name, phone, passport_line, address, updated_at: now })
+        .update({ full_name, phone, phone_normalized, passport_line, address, updated_at: now })
         .eq('id', id)
         .select()
         .maybeSingle();
@@ -1157,23 +1220,33 @@ app.post(
       return res.json({ customer: data });
     }
 
-    if (phone) {
-      const { data: ex } = await supabase.from('scrap_customers').select('id').eq('phone', phone).maybeSingle();
-      if (ex?.id) {
-        const { data, error } = await supabase
-          .from('scrap_customers')
-          .update({ full_name, phone, passport_line, address, updated_at: now })
-          .eq('id', ex.id)
-          .select()
-          .maybeSingle();
-        if (error) throw error;
-        return res.json({ customer: data });
-      }
+    let duplicateId = null;
+    if (phone_normalized) {
+      const { data: exN } = await supabase
+        .from('scrap_customers')
+        .select('id')
+        .eq('phone_normalized', phone_normalized)
+        .maybeSingle();
+      duplicateId = exN?.id || null;
+    }
+    if (!duplicateId && phone) {
+      const { data: exP } = await supabase.from('scrap_customers').select('id').eq('phone', phone).maybeSingle();
+      duplicateId = exP?.id || null;
+    }
+    if (duplicateId) {
+      const { data, error } = await supabase
+        .from('scrap_customers')
+        .update({ full_name, phone, phone_normalized, passport_line, address, updated_at: now })
+        .eq('id', duplicateId)
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      return res.json({ customer: data });
     }
 
     const { data, error } = await supabase
       .from('scrap_customers')
-      .insert({ full_name, phone, passport_line, address, updated_at: now })
+      .insert({ full_name, phone, phone_normalized, passport_line, address, updated_at: now })
       .select()
       .maybeSingle();
     if (error) throw error;
