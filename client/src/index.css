@@ -433,3 +433,41 @@ select:focus {
 .theme-toggle:active .theme-toggle-thumb.is-dark {
   transform: translateX(22px) scale(0.94);
 }
+
+/* Splash / profile loading (до монтирования основного layout в App.jsx) */
+.load-card {
+  margin-top: 30vh;
+  padding: 28px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.load-card__title {
+  font-weight: 600;
+  font-size: 1.05rem;
+  margin: 0 0 8px;
+  color: var(--text);
+}
+.load-card__hint {
+  margin: 0 auto;
+  max-width: 22rem;
+  line-height: 1.45;
+  min-height: 2.8em;
+}
+.load-card__patient {
+  margin: 16px auto 0;
+  max-width: 22rem;
+  line-height: 1.5;
+  opacity: 0.92;
+}
+.load-card--profile {
+  max-width: 26rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+.load-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}

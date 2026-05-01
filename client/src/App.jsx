@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, connectPriceStream, onSessionExpired } from './api.js';
+import { api, connectPriceStream, onSessionExpired, pingApiHealth, isTransientProfileLoadError } from './api.js';
 import { supabase } from './supabase.js';
 import { useToast } from './ToastContext.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
@@ -80,6 +80,25 @@ function quoteTabKey(uid) {
   return safe ? `cg_quote_tab__${safe}` : null;
 }
 
+const PROFILE_LOAD_HINTS = [
+  'Подключаемся к серверу…',
+  'Проверяем доступ и права в панели…',
+  'Загружаем ваш профиль…',
+];
+
+function profileErrorMessage(e) {
+  if (e?.code === 'API_TIMEOUT') {
+    return 'Сервер долго не отвечает. Проверьте интернет и нажмите «Повторить» или обновите страницу.';
+  }
+  if (isTransientProfileLoadError(e)) {
+    return 'Не удалось связаться с сервером. Нажмите «Повторить».';
+  }
+  return (
+    e?.message ||
+    'Не удалось загрузить профиль. Проверьте Node API, миграцию Supabase (profiles, app_kv) и SUPABASE_SERVICE_ROLE_KEY на сервере.'
+  );
+}
+
 function clearCalculatorLocalForUid(uid) {
   if (!uid) return;
   const safe = String(uid).replace(/[^a-zA-Z0-9-]/g, '');
@@ -108,7 +127,8 @@ export default function App() {
   const [refreshBusy, setRefreshBusy] = useState(false);
   const staleRefreshingRef = useRef(false);
   const lastSignedInUidRef = useRef(null);
-  const [profileSlow, setProfileSlow] = useState(false);
+  const [profileHintIdx, setProfileHintIdx] = useState(0);
+  const [profilePatientNote, setProfilePatientNote] = useState(false);
 
   // Вкладка котировки — на пользователя; иначе после смены аккаунта в том же браузере тянется чужой xaut/moex из React state
   useEffect(() => {
@@ -132,18 +152,32 @@ export default function App() {
     }
     setProfileErr(null);
     setUser(undefined);
-    try {
-      const { user: u } = await api.me();
-      setUser(u ?? null);
-    } catch (e) {
-      console.error(e);
-      setProfileErr(
-        e?.message ||
-          'Не удалось загрузить профиль. Проверьте Node API, миграцию Supabase (profiles, app_kv) и SUPABASE_SERVICE_ROLE_KEY на сервере.'
-      );
-      setUser(null);
-      setQuoteTab('moex');
+    void pingApiHealth({ timeout: 30_000 }).catch(() => {});
+    const maxAttempts = 3;
+    let lastErr;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        if (attempt > 0) {
+          await new Promise((r) => setTimeout(r, 2000 + attempt * 1500));
+        }
+        const { user: u } = await api.me();
+        setUser(u ?? null);
+        return;
+      } catch (e) {
+        lastErr = e;
+        console.error(e);
+        const transient = isTransientProfileLoadError(e);
+        if (!transient || attempt === maxAttempts - 1) {
+          setProfileErr(profileErrorMessage(e));
+          setUser(null);
+          setQuoteTab('moex');
+          return;
+        }
+      }
     }
+    setProfileErr(profileErrorMessage(lastErr));
+    setUser(null);
+    setQuoteTab('moex');
   }, []);
 
   const loadPrice = useCallback(
@@ -228,14 +262,24 @@ export default function App() {
   }, [authReady, sessionUser?.id, loadMe]);
 
   useEffect(() => {
+    if (!sessionUser || user !== undefined || profileErr) return undefined;
+    setProfileHintIdx(0);
+    let i = 0;
+    const id = setInterval(() => {
+      i = (i + 1) % PROFILE_LOAD_HINTS.length;
+      setProfileHintIdx(i);
+    }, 4500);
+    return () => clearInterval(id);
+  }, [sessionUser?.id, user, profileErr]);
+
+  useEffect(() => {
     if (!sessionUser || user !== undefined || profileErr) {
-      setProfileSlow(false);
-      return;
+      setProfilePatientNote(false);
+      return undefined;
     }
-    setProfileSlow(false);
-    const t = setTimeout(() => setProfileSlow(true), 12_000);
+    const t = setTimeout(() => setProfilePatientNote(true), 18_000);
     return () => clearTimeout(t);
-  }, [sessionUser, user, profileErr]);
+  }, [sessionUser?.id, user, profileErr]);
 
   useEffect(() => {
     if (!user) return;
@@ -320,13 +364,15 @@ export default function App() {
   if (sessionUser && user === undefined && !profileErr) {
     return (
       <div className="shell">
-        <div className="glass load-card">
+        <div className="glass load-card load-card--profile">
           <div className="spinner" style={{ margin: '0 auto 16px' }} />
-          <p className="muted">Загрузка профиля с сервера…</p>
-          {profileSlow && (
-            <p className="muted small" style={{ margin: '14px auto 0', lineHeight: 1.5, maxWidth: '22rem' }}>
-              Сервис на бесплатном плане мог «уснуть», первый заход тогда 1–2 минуты, дальше быстрее. Вечное
-              кручение, обновите страницу. Кэш в браузере с этим чаще не связан.
+          <p className="load-card__title">Загрузка панели</p>
+          <p className="muted load-card__hint" key={profileHintIdx}>
+            {PROFILE_LOAD_HINTS[profileHintIdx]}
+          </p>
+          {profilePatientNote && (
+            <p className="muted small load-card__patient">
+              После долгой паузы первый вход может занять до двух минут — не закрывайте вкладку, идёт проверка доступа.
             </p>
           )}
         </div>
@@ -337,17 +383,19 @@ export default function App() {
   if (sessionUser && profileErr) {
     return (
       <div className="shell">
-        <div className="glass load-card" style={{ maxWidth: 420 }}>
-          <p className="err-text" style={{ marginBottom: 16, lineHeight: 1.5 }}>
+        <div className="glass load-card load-card--profile-err" style={{ maxWidth: 440 }}>
+          <p className="err-text" style={{ marginBottom: 18, lineHeight: 1.55 }}>
             {profileErr}
           </p>
-          <button type="button" className="btn-primary" onClick={() => supabase.auth.signOut()}>
-            Выйти и войти снова
-          </button>
+          <div className="load-card__actions">
+            <button type="button" className="btn-primary" onClick={() => loadMe()}>
+              Повторить
+            </button>
+            <button type="button" className="btn-ghost" onClick={() => supabase.auth.signOut()}>
+              Выйти
+            </button>
+          </div>
         </div>
-        <style>{`
-          .err-text { color: var(--danger); font-size: 0.95rem; }
-        `}</style>
       </div>
     );
   }
@@ -557,7 +605,6 @@ export default function App() {
         }
         .shell.shell--wide { max-width: 820px; }
         .shell.shell--wide.shell--team-kpi { max-width: 960px; }
-        .load-card { margin-top: 30vh; padding: 28px; text-align: center; position: relative; overflow: hidden; }
         .topbar {
           display: flex;
           align-items: flex-start;

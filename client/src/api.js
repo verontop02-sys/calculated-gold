@@ -15,6 +15,19 @@ export function onSessionExpired(fn) {
   return () => window.removeEventListener(AUTH_EXPIRED_EVENT, fn);
 }
 
+/** Ошибки, при которых имеет смысл тихо повторить запрос к API (сон хоста, сеть, 5xx). */
+export function isTransientProfileLoadError(e) {
+  if (!e) return false;
+  const st = e.status;
+  if (st === 401 || st === 403) return false;
+  if (st >= 500 && st <= 599) return true;
+  if (e.code === 'API_TIMEOUT') return true;
+  if (e.name === 'TypeError') return true;
+  const m = String(e.message || '');
+  if (/failed to fetch|load failed|networkerror|сеть/i.test(m)) return true;
+  return false;
+}
+
 function withBase(path) {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   return `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
@@ -62,9 +75,7 @@ async function request(path, options = {}) {
   } catch (e) {
     clearTimeout(to);
     if (e?.name === 'AbortError') {
-      const err = new Error(
-        'API не ответил в срок. На бесплатном хосте первый запрос после паузы может занять до 1–2 минут, откройте панель ещё раз.'
-      );
+      const err = new Error('Сервер не ответил за отведённое время. Попробуйте ещё раз через несколько секунд.');
       err.code = 'API_TIMEOUT';
       throw err;
     }
@@ -121,7 +132,7 @@ async function requestBlob(path, options = {}) {
   } catch (e) {
     clearTimeout(to);
     if (e?.name === 'AbortError') {
-      const err = new Error('Скачивание PDF: сервер слишком долго не отвечал. Повторите, на бесплатном плане первый запуск может тянуться.');
+      const err = new Error('Скачивание PDF: сервер слишком долго не отвечал. Повторите запрос.');
       err.code = 'API_TIMEOUT';
       throw err;
     }
