@@ -780,15 +780,22 @@ export function TeamPerformance({ formatMoney, toast, user }) {
         .team-filter-hint { margin: 12px 0 0; line-height: 1.4; }
         /* Таблицы и график на этой вкладке */
         .team-page .analytics-op-table-wrap {
+          width: 100%;
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
           min-width: 0;
         }
         .team-page .analytics-op-table {
           width: 100%;
-          min-width: 520px;
+          max-width: 100%;
+          table-layout: fixed;
           border-collapse: collapse;
           font-size: 0.86rem;
+        }
+        .team-page .analytics-op-table.team-table td:nth-child(2),
+        .team-page .analytics-op-table.team-table th:nth-child(2) {
+          word-break: break-word;
+          overflow-wrap: anywhere;
         }
         .team-page .analytics-op-table th,
         .team-page .analytics-op-table td {
@@ -870,6 +877,8 @@ export function TeamPerformance({ formatMoney, toast, user }) {
             word-break: break-word;
           }
           .team-page .analytics-op-table {
+            table-layout: auto;
+            min-width: 520px;
             font-size: 0.78rem;
           }
           .team-page .analytics-op-table th,
@@ -963,7 +972,12 @@ export function TeamPerformance({ formatMoney, toast, user }) {
         .team-week-delta--up { color: #6ee7a8; }
         .team-week-delta--down { color: #f0a8a8; }
         .team-week-delta--flat { color: var(--text-muted); }
-        .team-page .team-week-table { min-width: 560px; }
+        .team-page .team-week-table td:first-child,
+        .team-page .team-week-table th:first-child {
+          word-break: break-word;
+          overflow-wrap: anywhere;
+        }
+        .team-page .team-week-table { min-width: 0; }
       `}</style>
     </div>
   );
