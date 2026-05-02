@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from './supabase.js';
+import { pingApiHealth } from './api.js';
 import { ThemeToggle } from './ThemeToggle.jsx';
 
 function mapLoginError(ex) {
@@ -17,10 +18,15 @@ export function Login() {
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    void pingApiHealth({ timeout: 90_000 }).catch(() => {});
+  }, []);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setErr('');
     setLoading(true);
+    void pingApiHealth({ timeout: 90_000 }).catch(() => {});
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),

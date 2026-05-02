@@ -468,7 +468,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
         </section>
       )}
 
-      {chartSeries.length > 0 && !loading && (
+      {chartSeries.length > 0 && totals && (
         <section className="glass analytics-chart-card team-chart-card">
           <h3 className="analytics-h3">Динамика оборота по дням</h3>
           <p className="muted small an-h3-sub">Сумма в ₽ по календарным дням в рамках фильтра.</p>
@@ -494,7 +494,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
         </section>
       )}
 
-      {weekSeries.length > 0 && !loading && (
+      {weekSeries.length > 0 && totals && (
         <section className="glass analytics-chart-card team-week-section">
           <h3 className="analytics-h3">Сводка по неделям</h3>
           <p className="muted small an-h3-sub">
@@ -567,7 +567,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
       )}
 
       <style>{`
-        .team-page { display: flex; flex-direction: column; gap: 16px; padding-bottom: 24px; }
+        .team-page { display: flex; flex-direction: column; gap: 16px; padding-bottom: 24px; min-width: 0; }
         .team-hero {
           padding: 18px 18px 16px;
           border-radius: 16px;

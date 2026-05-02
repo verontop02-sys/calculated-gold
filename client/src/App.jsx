@@ -158,7 +158,7 @@ export default function App() {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         if (attempt > 0) {
-          await new Promise((r) => setTimeout(r, 2000 + attempt * 1500));
+          await new Promise((r) => setTimeout(r, 1000 + attempt * 1000));
         }
         const { user: u } = await api.me();
         setUser(u ?? null);
@@ -277,7 +277,7 @@ export default function App() {
       setProfilePatientNote(false);
       return undefined;
     }
-    const t = setTimeout(() => setProfilePatientNote(true), 18_000);
+    const t = setTimeout(() => setProfilePatientNote(true), 28_000);
     return () => clearTimeout(t);
   }, [sessionUser?.id, user, profileErr]);
 
@@ -372,7 +372,7 @@ export default function App() {
           </p>
           {profilePatientNote && (
             <p className="muted small load-card__patient">
-              После долгой паузы первый вход может занять до двух минут — не закрывайте вкладку, идёт проверка доступа.
+              После долгой паузы первый вход иногда до двух минут — оставьте вкладку открытой.
             </p>
           )}
         </div>
