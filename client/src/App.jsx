@@ -580,6 +580,7 @@ export default function App() {
               onConsumedPrefill={() => setContractPrefill(null)}
               toast={toast}
               price={price}
+              user={user}
             />
           </div>
         )}

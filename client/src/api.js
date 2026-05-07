@@ -227,6 +227,25 @@ export async function connectPriceStream(onData, onError) {
   return () => controller.abort();
 }
 
+/** Публичная страница подтверждения (без JWT). */
+export async function publicFieldDealSessionGet(token) {
+  const r = await fetch(withBase(`/public/field-deal-session/${encodeURIComponent(token)}`));
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+  return j;
+}
+
+export async function publicFieldDealSessionVerify(token, code) {
+  const r = await fetch(withBase(`/public/field-deal-session/${encodeURIComponent(token)}/verify`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+  return j;
+}
+
 export const api = {
   me: () => request('/auth/me'),
   /** quote: moex | xaut (Мосбиржа / Tether Gold XAUT в USD → ₽ через ЦБ) */
@@ -310,4 +329,16 @@ export const api = {
     if (Array.isArray(operatorIds) && operatorIds.length > 0) q.set('operators', operatorIds.join(','));
     return requestBlob(`/team-performance.pdf?${q.toString()}`, { method: 'GET' });
   },
+  /** Полевая сделка: СМС + ссылка клиенту (тело как у scrapContractPdf + phone + опционально courierId для руководителя). */
+  fieldDealSessionCreate: (body) =>
+    request('/field-deal-sessions', { method: 'POST', body: JSON.stringify(body) }),
+  fieldDealSessions: (opts = {}) => {
+    const q = new URLSearchParams();
+    if (opts.limit != null) q.set('limit', String(opts.limit));
+    if (opts.offset != null) q.set('offset', String(opts.offset));
+    const s = q.toString();
+    return request(`/field-deal-sessions${s ? `?${s}` : ''}`);
+  },
+  fieldDealSessionCancel: (id) =>
+    request(`/field-deal-sessions/${encodeURIComponent(String(id))}/cancel`, { method: 'POST' }),
 };

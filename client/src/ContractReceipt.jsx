@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
 import { mergeSettings, calculateBuybackRange } from './calc.js';
 import { ScrapCustomerDirectory } from './ScrapCustomerDirectory.jsx';
+import { isUserManagerRole } from './roles.js';
 
 function emptyRow() {
   return {
@@ -35,6 +36,42 @@ function sumRows(rows) {
   return s;
 }
 
+function buildContractPayloadForSession({
+  contractNo,
+  customerId,
+  sellerName,
+  passportLine,
+  address,
+  phone,
+  appraiserName,
+  rows,
+  totalRub,
+  courierId,
+}) {
+  const base = {
+    contractNo: String(contractNo || '').trim(),
+    customerId: customerId || undefined,
+    sellerName: String(sellerName || '').trim(),
+    passportLine: String(passportLine || '').trim(),
+    address: String(address || '').trim(),
+    phone: String(phone || '').trim(),
+    appraiserName: String(appraiserName || '').trim(),
+    rows: rows.map((r) => ({
+      itemName: r.itemName.trim(),
+      metal: r.metal.trim(),
+      probe: r.probe.trim(),
+      weightGross: r.weightGross.trim(),
+      weightNet: r.weightNet.trim(),
+      priceRub: parseRowPrice(r.priceRub),
+    })),
+    totalRub,
+  };
+  if (courierId && /^[0-9a-f-]{36}$/i.test(String(courierId))) {
+    return { ...base, courierId: String(courierId) };
+  }
+  return base;
+}
+
 function isGoldScrapMetal(metal) {
   const t = String(metal || '').trim().toLowerCase();
   if (!t) return true;
@@ -52,7 +89,7 @@ function parseGrossG(v) {
   return parseFloat(String(v || '').replace(/\s/g, '').replace(',', '.')) || 0;
 }
 
-export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast, price }) {
+export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast, price, user }) {
   const [contractNo, setContractNo] = useState('');
   const [sellerName, setSellerName] = useState('');
   const [phone, setPhone] = useState('');
@@ -71,6 +108,12 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   const phoneAutofillTimer = useRef(null);
 
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsBusy, setSmsBusy] = useState(false);
+  const [smsLink, setSmsLink] = useState('');
+  const [smsDev, setSmsDev] = useState('');
+  const [fieldStaff, setFieldStaff] = useState([]);
+  const [fieldCourierUid, setFieldCourierUid] = useState('');
   const [saveBusy, setSaveBusy] = useState(false);
   const [baseOpen, setBaseOpen] = useState(false);
   const [settings, setSettings] = useState(null);
@@ -383,6 +426,65 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     }
   }
 
+  useEffect(() => {
+    if (!isUserManagerRole(user?.role)) return;
+    let alive = true;
+    api
+      .users()
+      .then((list) => {
+        if (!alive) return;
+        const arr = Array.isArray(list) ? list : [];
+        setFieldStaff(
+          arr.filter((u) => ['courier', 'seller'].includes(String(u?.role || '').toLowerCase()))
+        );
+      })
+      .catch(() => setFieldStaff([]));
+    return () => {
+      alive = false;
+    };
+  }, [user?.role]);
+
+  async function sendSmsSession() {
+    const fn = sellerName.trim();
+    if (!fn) {
+      toast?.('Укажите ФИО продавца', 'error');
+      return;
+    }
+    if (!rowTotal || rowTotal <= 0) {
+      toast?.('Укажите стоимость хотя бы в одной строке', 'error');
+      return;
+    }
+    const digs = normalizePhoneDigits(phone);
+    if (digs.length !== 10) {
+      toast?.('Укажите телефон клиента (РФ, 10 цифр) для СМС', 'error');
+      return;
+    }
+    setSmsBusy(true);
+    try {
+      const body = buildContractPayloadForSession({
+        contractNo,
+        customerId,
+        sellerName,
+        passportLine,
+        address,
+        phone,
+        appraiserName,
+        rows,
+        totalRub: rowTotal,
+        courierId: isUserManagerRole(user?.role) ? fieldCourierUid : undefined,
+      });
+      const r = await api.fieldDealSessionCreate(body);
+      setSmsLink(r.confirmUrl || '');
+      setSmsDev(r.devCodePreview || '');
+      setSmsOpen(true);
+      toast?.('Ссылка создана, СМС отправлена (или см. лог сервера в режиме заглушки)', 'success');
+    } catch (e) {
+      toast?.(e?.message || 'Не удалось отправить', 'error');
+    } finally {
+      setSmsBusy(false);
+    }
+  }
+
   return (
     <div className="contract-page">
       <ScrapCustomerDirectory
@@ -600,11 +702,72 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         </label>
       </div>
 
+      {isUserManagerRole(user?.role) && fieldStaff.length > 0 && (
+        <div className="glass contract-card">
+          <label className="field">
+            <span className="field-label">Сделку после СМС учитывать за сотрудника</span>
+            <select
+              className="contract-sms-select"
+              value={fieldCourierUid}
+              onChange={(e) => setFieldCourierUid(e.target.value)}
+            >
+              <option value="">— кто отправил ссылку (текущий пользователь) —</option>
+              {fieldStaff.map((u) => (
+                <option key={u.uid} value={u.uid}>
+                  {u.email} ({u.role})
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="muted small" style={{ marginTop: 8 }}>
+            Если не выбрано, в аналитике и KPI оператором будет тот, кто создал сессию подтверждения.
+          </p>
+        </div>
+      )}
+
       <div className="contract-actions">
-        <button type="button" className="btn-primary contract-pdf-btn" disabled={pdfBusy} onClick={handlePdf}>
+        <button type="button" className="btn-primary contract-pdf-btn" disabled={pdfBusy || smsBusy} onClick={handlePdf}>
           {pdfBusy ? 'Формируем PDF…' : 'Скачать PDF'}
         </button>
+        <button
+          type="button"
+          className="btn-secondary contract-sms-btn"
+          disabled={pdfBusy || smsBusy}
+          onClick={sendSmsSession}
+          title="Клиент откроет ссылку на телефоне и введёт код из СМС. Сделка попадёт в учёт после подтверждения."
+        >
+          {smsBusy ? 'Отправка…' : 'Ссылка + СМС клиенту'}
+        </button>
       </div>
+
+      {smsOpen && (
+        <div className="contract-sms-overlay" role="dialog" aria-modal="true" aria-label="Ссылка для клиента">
+          <div className="glass contract-sms-modal">
+            <h3 className="contract-h3">Ссылка для подтверждения</h3>
+            <p className="muted small">Отправьте клиенту эту ссылку (или откройте на его телефоне). После ввода кода сделка зафиксируется в системе.</p>
+            <textarea className="contract-sms-link mono-nums" readOnly rows={3} value={smsLink} />
+            <div className="contract-sms-actions">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  if (smsLink) navigator.clipboard?.writeText(smsLink).then(() => toast?.('Скопировано', 'success')).catch(() => {});
+                }}
+              >
+                Копировать ссылку
+              </button>
+              <button type="button" className="btn-ghost" onClick={() => setSmsOpen(false)}>
+                Закрыть
+              </button>
+            </div>
+            {smsDev && (
+              <p className="muted small" style={{ marginTop: 12 }}>
+                Тест: код <span className="mono-nums">{smsDev}</span> (только при FIELD_DEAL_RETURN_CODE=1 на сервере)
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       <style>{`
         .contract-page { display: flex; flex-direction: column; gap: 14px; animation: fadeIn 0.35s ease; }
@@ -742,8 +905,56 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           border-top: 1px solid var(--stroke);
         }
         .contract-total-value { font-size: 1.15rem; font-weight: 700; color: var(--gold); }
-        .contract-actions { padding-bottom: 8px; }
-        .contract-pdf-btn { width: 100%; padding: 14px 16px; font-size: 0.95rem; }
+        .contract-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          padding-bottom: 8px;
+        }
+        .contract-pdf-btn,
+        .contract-sms-btn {
+          flex: 1 1 200px;
+          min-width: 0;
+          padding: 14px 16px;
+          font-size: 0.95rem;
+        }
+        .contract-sms-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 80;
+          background: rgba(0, 0, 0, 0.55);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
+        }
+        .contract-sms-modal {
+          width: 100%;
+          max-width: 420px;
+          padding: 20px 18px 22px;
+          border-radius: 16px;
+        }
+        .contract-sms-link {
+          width: 100%;
+          margin-top: 12px;
+          padding: 10px 12px;
+          font-size: 0.78rem;
+          border-radius: 10px;
+          border: 1px solid var(--stroke);
+          background: var(--input-bg);
+          color: var(--text);
+          resize: vertical;
+        }
+        .contract-sms-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 14px;
+        }
+        .contract-sms-select {
+          width: 100%;
+          margin-top: 4px;
+        }
       `}</style>
     </div>
   );

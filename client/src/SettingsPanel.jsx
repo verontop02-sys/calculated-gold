@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
 import { useToast } from './ToastContext.jsx';
-import { isAdminOrSuperProfile, isSuperAdminRole, roleLabel } from './roles.js';
+import { isAdminOrSuperProfile, isSuperAdminRole, isUserManagerRole, roleLabel } from './roles.js';
 
 const ROLES_STAFF_FULL = ['courier', 'seller', 'admin', 'super_admin'];
 const ROLES_FIELD_ONLY = ['courier', 'seller'];
@@ -26,8 +26,30 @@ export function SettingsPanel({ user }) {
   const [buybackStr, setBuybackStr] = useState('');
   const [rangeStr, setRangeStr] = useState('');
   const [adjStr, setAdjStr] = useState(null);
+  const [fieldLog, setFieldLog] = useState(null);
+  const [fieldLogErr, setFieldLogErr] = useState('');
 
   const canManageUsers = userListStatus === 'ok';
+
+  useEffect(() => {
+    if (!isUserManagerRole(user?.role)) return;
+    let alive = true;
+    api
+      .fieldDealSessions({ limit: 35 })
+      .then((d) => {
+        if (!alive) return;
+        setFieldLog(d);
+        setFieldLogErr('');
+      })
+      .catch((e) => {
+        if (!alive) return;
+        setFieldLog(null);
+        setFieldLogErr(e?.message || 'Не удалось загрузить журнал');
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user?.role]);
 
   function canManageRow(u) {
     return isSuper || !isAdminOrSuperProfile(u.role);
@@ -427,6 +449,69 @@ export function SettingsPanel({ user }) {
         </form>
       </div>
 
+      {isUserManagerRole(user?.role) && (
+        <div className="glass block">
+          <h2 className="block-title">Подтверждения по СМС (поле)</h2>
+          <p className="muted small block-desc">
+            Сессии со ссылкой для клиента: после ввода кода сделка попадает в «Сделки» и аналитику. Отменить можно только
+            ожидающую сессию.
+          </p>
+          {fieldLogErr && <p className="muted small">{fieldLogErr}</p>}
+          {fieldLog?.rows?.length > 0 && (
+            <div className="fd-log-wrap">
+              <table className="fd-log-table">
+                <thead>
+                  <tr>
+                    <th>Создано</th>
+                    <th>Статус</th>
+                    <th>Сумма ₽</th>
+                    <th>Кто отправил</th>
+                    <th>Сделка</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {fieldLog.rows.map((r) => (
+                    <tr key={r.id}>
+                      <td className="mono-nums">{new Date(r.created_at).toLocaleString('ru-RU')}</td>
+                      <td>{r.status}</td>
+                      <td className="mono-nums">{r.total_rub}</td>
+                      <td>{r.creator_email || '—'}</td>
+                      <td className="mono-nums">{r.scrap_deal_id ? `${String(r.scrap_deal_id).slice(0, 8)}…` : '—'}</td>
+                      <td>
+                        {r.status === 'pending' ? (
+                          <button
+                            type="button"
+                            className="btn-ghost small"
+                            onClick={async () => {
+                              try {
+                                await api.fieldDealSessionCancel(r.id);
+                                toast?.('Сессия отменена', 'success');
+                                const d = await api.fieldDealSessions({ limit: 35 });
+                                setFieldLog(d);
+                              } catch (e) {
+                                toast?.(e?.message || 'Не удалось отменить', 'error');
+                              }
+                            }}
+                          >
+                            Отменить
+                          </button>
+                        ) : (
+                          ''
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {fieldLog && (!fieldLog.rows || fieldLog.rows.length === 0) && !fieldLogErr && (
+            <p className="muted small">Пока нет сессий.</p>
+          )}
+        </div>
+      )}
+
       {err && <p className="err-msg">{err}</p>}
 
       <style>{`
@@ -463,6 +548,11 @@ export function SettingsPanel({ user }) {
         .btn-ghost.danger { color: var(--danger); }
         .btn-ghost.small { padding: 7px 12px; font-size: 0.8rem; }
         .new-user { display: flex; flex-direction: column; gap: 10px; }
+        .fd-log-wrap { overflow-x: auto; margin-top: 8px; }
+        .fd-log-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .fd-log-table th,
+        .fd-log-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--stroke); }
+        .fd-log-table th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
         .err-msg { color: var(--danger); font-size: 0.9rem; margin: 12px 0 0; text-align: center; padding: 10px 12px; border-radius: var(--radius-sm); background: rgba(248, 113, 113, 0.08); border: 1px solid rgba(248, 113, 113, 0.25); }
         @media (max-width: 400px) {
           .user-row { flex-direction: column; align-items: stretch; }

@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.jsx';
+import { FieldDealConfirm } from './FieldDealConfirm.jsx';
 import { ToastProvider } from './ToastContext.jsx';
 import { initThemeFromStorage } from './theme.js';
 import { recoverAuthIfNeeded } from './supabase.js';
@@ -22,11 +23,22 @@ if (import.meta.env.DEV) {
 void recoverAuthIfNeeded()
   .catch(() => {})
   .finally(() => {
-    createRoot(document.getElementById('root')).render(
+    const el = document.getElementById('root');
+    const path = typeof window !== 'undefined' ? window.location.pathname || '' : '';
+    const m = path.match(/^\/podtverzhdenie\/([^/]+)\/?$/);
+    const token = m?.[1] ? decodeURIComponent(m[1]) : '';
+    const tree = token ? (
+      <StrictMode>
+        <ToastProvider>
+          <FieldDealConfirm token={token} />
+        </ToastProvider>
+      </StrictMode>
+    ) : (
       <StrictMode>
         <ToastProvider>
           <App />
         </ToastProvider>
-      </StrictMode>,
+      </StrictMode>
     );
+    createRoot(el).render(tree);
   });

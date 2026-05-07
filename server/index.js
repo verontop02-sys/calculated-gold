@@ -12,7 +12,14 @@ import { computeAnalyticsSummaryData } from './analyticsSummaryData.js';
 import { buildAnalyticsReportPdfBuffer } from './analyticsReportPdf.js';
 import { computeTeamPerformanceData } from './teamPerformanceData.js';
 import { buildTeamPerformancePdfBuffer } from './teamPerformancePdf.js';
-import { firstFilledContractRow } from './scrapDealFirstRow.js';
+import {
+  insertScrapDealRow,
+  createFieldDealSession,
+  getPublicFieldDealSession,
+  verifyFieldDealSession,
+  listFieldDealSessionsForManager,
+  cancelFieldDealSession,
+} from './fieldDealSession.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // npm run dev из корня монорепо: cwd ≠ server/, иначе dotenv не видит server/.env
@@ -73,12 +80,6 @@ function sortCustomersByNameRu(rows) {
   );
 }
 
-function parseCellNumber(v) {
-  if (v == null) return null;
-  const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.'));
-  return Number.isFinite(n) ? n : null;
-}
-
 async function resolveCustomerIdByPhone(phone) {
   const n = normalizeScrapPhoneDigits(phone);
   if (!n) return null;
@@ -97,37 +98,7 @@ async function resolveCustomerIdByPhone(phone) {
 }
 
 async function recordScrapDealFromPdf({ req, body, totalRub }) {
-  const userId = req.user?.id || null;
-  const customerRaw = body?.customerId;
-  let customerId =
-    customerRaw && /^[0-9a-f-]{36}$/i.test(String(customerRaw)) ? String(customerRaw) : null;
-  const phone = String(body?.phone || '').trim() || null;
-  const phoneNorm = normalizeScrapPhoneDigits(phone) || null;
-  if (!customerId && phone) {
-    const resolved = await resolveCustomerIdByPhone(phone);
-    if (resolved) customerId = resolved;
-  }
-  const rows = Array.isArray(body?.rows) ? body.rows : [];
-  const r0 = firstFilledContractRow(rows) || {};
-  const probeStr = String(r0?.probe || '').replace(/\D/g, '');
-  const firstProbe = probeStr ? parseInt(probeStr, 10) : null;
-  const firstWg = parseCellNumber(r0?.weightGross ?? r0?.weight_gross);
-  const firstWn = parseCellNumber(r0?.weightNet ?? r0?.weight_net);
-  const { error } = await supabase.from('scrap_deals').insert({
-    customer_id: customerId,
-    operator_id: userId,
-    contract_no: String(body?.contractNo || '').trim() || null,
-    total_rub: totalRub,
-    seller_name: String(body?.sellerName || '').trim() || null,
-    phone,
-    phone_normalized: phoneNorm,
-    rows,
-    first_probe: Number.isFinite(firstProbe) ? firstProbe : null,
-    first_weight_gross: firstWg,
-    first_weight_net: firstWn,
-    appraiser_name: String(body?.appraiserName || '').trim() || null,
-  });
-  if (error) throw error;
+  await insertScrapDealRow(supabase, { operatorUserId: req.user?.id || null, body, totalRub });
 }
 
 /** Email → полный доступ к API (если роль из profiles по какой-то причине не подтягивается). Render: PANEL_FULL_ACCESS_EMAILS=a@b.com,c@d.com */
@@ -732,6 +703,42 @@ setInterval(async () => {
  * Так POST /api/price/refresh никогда не попадает в цепочку с проверкой ролей (403).
  */
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+function clientIp(req) {
+  const xf = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  if (xf) return xf.slice(0, 45);
+  return String(req.socket?.remoteAddress || '').slice(0, 45) || null;
+}
+
+app.get(
+  '/api/public/field-deal-session/:token',
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await getPublicFieldDealSession(supabase, req.params.token);
+      res.json(out);
+    } catch (e) {
+      const st = e.status || 500;
+      res.status(st).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.post(
+  '/api/public/field-deal-session/:token/verify',
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await verifyFieldDealSession(supabase, {
+        token: req.params.token,
+        code: req.body?.code,
+        clientIp: clientIp(req),
+      });
+      res.json(out);
+    } catch (e) {
+      const st = e.status || 500;
+      res.status(st).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
 app.get(
   '/api/price/stream',
   asyncHandler(async (req, res) => {
@@ -787,6 +794,43 @@ app.get(
   asyncHandler(async (req, res) => {
     const role = await getRequesterRole(req);
     res.json({ user: { uid: req.user.id, email: req.user.email, role } });
+  })
+);
+
+app.post(
+  '/api/field-deal-sessions',
+  asyncHandler(async (req, res) => {
+    const role = await getRequesterRole(req);
+    const out = await createFieldDealSession(supabase, { reqUser: req.user, requesterRole: role, body: req.body || {} });
+    const origin = corsOrigins[0] || 'http://localhost:5173';
+    const base = process.env.PUBLIC_APP_ORIGIN || origin;
+    const link = `${String(base).replace(/\/$/, '')}/podtverzhdenie/${encodeURIComponent(out.publicToken)}`;
+    res.json({ ...out, confirmUrl: link });
+  })
+);
+
+app.get(
+  '/api/field-deal-sessions',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    const limit = parseInt(String(req.query.limit || '40'), 10) || 40;
+    const offset = parseInt(String(req.query.offset || '0'), 10) || 0;
+    const data = await listFieldDealSessionsForManager(supabase, { limit, offset });
+    res.json(data);
+  })
+);
+
+app.post(
+  '/api/field-deal-sessions/:id/cancel',
+  asyncHandler(async (req, res) => {
+    const role = await getRequesterRole(req);
+    const isMgr = req.isUserManager || isUserManagerRole(role);
+    const out = await cancelFieldDealSession(supabase, {
+      sessionId: req.params.id,
+      reqUser: req.user,
+      isManager: isMgr,
+    });
+    res.json(out);
   })
 );
 
