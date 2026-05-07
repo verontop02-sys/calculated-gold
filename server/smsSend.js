@@ -1,6 +1,7 @@
 /**
  * Отправка СМС для полевого подтверждения сделки.
  * SMSRU_API_ID — https://sms.ru (параметр api_id в .env).
+ * SMSRU_FROM — опционально: согласованное имя отправителя (латиница, до 11 символов).
  * Иначе stub: лог в консоль (dev) / server logs (prod).
  */
 
@@ -19,6 +20,8 @@ export async function sendDealConfirmationSms({ to, text }) {
     u.searchParams.set('api_id', apiId);
     u.searchParams.set('to', to.replace(/\D/g, ''));
     u.searchParams.set('msg', text);
+    const from = (process.env.SMSRU_FROM || '').trim();
+    if (from) u.searchParams.set('from', from);
     const { data } = await axios.get(u.toString(), { timeout: 20_000 });
     if (data?.status !== 'OK' && data?.status_code !== 100) {
       const err = new Error(data?.status_text || data?.error || 'SMS provider error');
