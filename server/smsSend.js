@@ -11,6 +11,17 @@ function maskPhone(p) {
   return `***${d.slice(-4)}`;
 }
 
+function enrichSmsError(err, providerData) {
+  const msg = String(err?.message || '').toLowerCase();
+  const statusText = String(providerData?.status_text || '').toLowerCase();
+  const text = `${msg} ${statusText}`;
+  if (/не хватает средств|insufficient|balance/.test(text)) {
+    err.status = 402;
+    err.publicMessage = 'СМС временно недоступна: недостаточно средств у провайдера. Обратитесь к администратору.';
+  }
+  return err;
+}
+
 export async function sendDealConfirmationSms({ to, text }) {
   const apiId = (process.env.SMSRU_API_ID || '').trim();
   if (apiId) {
@@ -26,7 +37,7 @@ export async function sendDealConfirmationSms({ to, text }) {
     if (data?.status !== 'OK' && data?.status_code !== 100) {
       const err = new Error(data?.status_text || data?.error || 'SMS provider error');
       err.smsDebug = data;
-      throw err;
+      throw enrichSmsError(err, data);
     }
     return { ok: true, provider: 'sms.ru' };
   }

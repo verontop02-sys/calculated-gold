@@ -1468,10 +1468,13 @@ app.use((err, _req, res, _next) => {
   if (mapped) {
     return res.status(mapped.status).json({ error: mapped.message });
   }
+  const status = Number.isInteger(err?.status) ? err.status : 500;
+  const safeStatus = status >= 400 && status < 600 ? status : 500;
+  const publicMessage =
+    err?.publicMessage ||
+    (safeStatus >= 500 ? (isDev ? `Внутренняя ошибка сервиса: ${err?.message || 'unknown'}` : 'Внутренняя ошибка сервиса') : err?.message || 'Ошибка');
   console.error('[API ERROR]', err?.stack || err);
-  res.status(500).json({
-    error: isDev ? `Внутренняя ошибка сервиса: ${err?.message || 'unknown'}` : 'Внутренняя ошибка сервиса',
-  });
+  res.status(safeStatus).json({ error: publicMessage });
 });
 
 const server = app.listen(PORT, '0.0.0.0', () => {
