@@ -123,7 +123,11 @@ export function GoldIndex({ formatMoney, toast }) {
   useEffect(() => {
     if (!mapRef.current) return;
     if (!mapInstRef.current) {
-      const m = L.map(mapRef.current, { scrollWheelZoom: true }).setView([61.5, 105], 3);
+      const m = L.map(mapRef.current, {
+        scrollWheelZoom: true,
+        tap: false,
+        tapTolerance: 15,
+      }).setView([61.5, 105], 3);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap',
         maxZoom: 18,
@@ -1099,7 +1103,9 @@ export function GoldIndex({ formatMoney, toast }) {
         .gold-index__map {
           width: 100%; height: min(420px, 55vh); border-radius: 14px; overflow: hidden;
           border: 1px solid var(--stroke); margin-bottom: 14px; z-index: 0;
+          touch-action: pan-x pan-y;
         }
+        .gold-index__map .leaflet-container { touch-action: pan-x pan-y; }
         .gold-index__chart { margin-bottom: 14px; }
 
         /* ── toolbar ───────────────────────────────────── */
