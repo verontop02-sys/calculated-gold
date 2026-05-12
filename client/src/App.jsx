@@ -10,6 +10,7 @@ import { Analytics } from './Analytics.jsx';
 import { TeamPerformance } from './TeamPerformance.jsx';
 import { Clients } from './Clients.jsx';
 import { SettingsPanel } from './SettingsPanel.jsx';
+import { GoldIndex } from './GoldIndex.jsx';
 import { isSuperAdminRole, isUserManagerRole } from './roles.js';
 
 function formatMoney(n) {
@@ -117,7 +118,7 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState(null);
   const [user, setUser] = useState(undefined);
   const [profileErr, setProfileErr] = useState(null);
-  const [tab, setTab] = useState('calc'); // calc | contract | clients | analytics | team | settings
+  const [tab, setTab] = useState('calc'); // calc | contract | clients | analytics | team | gold-index | settings
   const [contractPrefill, setContractPrefill] = useState(null);
   const [contractMounted, setContractMounted] = useState(false);
   const [quoteTab, setQuoteTab] = useState('moex');
@@ -407,7 +408,9 @@ export default function App() {
   return (
     <div
       className={`shell${
-        tab === 'contract' || tab === 'analytics' || tab === 'team' || tab === 'clients' ? ' shell--wide' : ''
+        tab === 'contract' || tab === 'analytics' || tab === 'team' || tab === 'clients' || tab === 'gold-index'
+          ? ' shell--wide'
+          : ''
       }${tab === 'team' ? ' shell--team-kpi' : ''}`}
     >
       <header className="topbar glass">
@@ -552,6 +555,17 @@ export default function App() {
         >
           Команда и KPI
         </button>
+        {isSuperAdminRole(user.role) && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'gold-index'}
+            className={tab === 'gold-index' ? 'tab active' : 'tab'}
+            onClick={() => setTab('gold-index')}
+          >
+            Индекс золота
+          </button>
+        )}
         {isUserManagerRole(user.role) && (
           <button type="button" role="tab" aria-selected={tab === 'settings'} className={tab === 'settings' ? 'tab active' : 'tab'} onClick={() => setTab('settings')}>
             {isSuperAdminRole(user.role) ? 'Настройки и доступы' : 'Пользователи'}
@@ -588,6 +602,9 @@ export default function App() {
         {tab === 'analytics' && <Analytics formatMoney={formatMoney} toast={toast} />}
         {tab === 'team' && user && (
           <TeamPerformance formatMoney={formatMoney} toast={toast} user={user} />
+        )}
+        {tab === 'gold-index' && isSuperAdminRole(user.role) && (
+          <GoldIndex formatMoney={formatMoney} toast={toast} />
         )}
         {tab === 'settings' && isUserManagerRole(user.role) && <SettingsPanel user={user} />}
       </main>

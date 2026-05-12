@@ -352,4 +352,21 @@ export const api = {
   },
   fieldDealSessionCancel: (id) =>
     request(`/field-deal-sessions/${encodeURIComponent(String(id))}/cancel`, { method: 'POST' }),
+  /** Индекс золота (только super_admin на сервере). */
+  goldIndexOverview: () => request('/gold-index/overview'),
+  goldIndexReportPdf: () => requestBlob('/gold-index/report.pdf', { method: 'GET' }),
+  goldIndexCreateCity: (body) => request('/gold-index/cities', { method: 'POST', body: JSON.stringify(body) }),
+  goldIndexUpdateCity: (id, body) =>
+    request(`/gold-index/cities/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  goldIndexDeleteCity: (id) =>
+    request(`/gold-index/cities/${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
+  goldIndexCreateCompetitor: (cityId, body) =>
+    request(`/gold-index/cities/${encodeURIComponent(String(cityId))}/competitors`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  goldIndexUpdateCompetitor: (id, body) =>
+    request(`/gold-index/competitors/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  goldIndexDeleteCompetitor: (id) =>
+    request(`/gold-index/competitors/${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
 };

@@ -21,6 +21,16 @@ import {
   listFieldDealSessionsForManager,
   cancelFieldDealSession,
 } from './fieldDealSession.js';
+import {
+  buildGoldIndexOverview,
+  createGoldIndexCity,
+  updateGoldIndexCity,
+  deleteGoldIndexCity,
+  createGoldIndexCompetitor,
+  updateGoldIndexCompetitor,
+  deleteGoldIndexCompetitor,
+} from './goldIndex.js';
+import { buildGoldIndexReportPdfBuffer } from './goldIndexPdf.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // npm run dev из корня монорепо: cwd ≠ server/, иначе dotenv не видит server/.env
@@ -853,6 +863,92 @@ app.post(
       isManager: isMgr,
     });
     res.json(out);
+  })
+);
+
+app.get(
+  '/api/gold-index/overview',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (_req, res) => {
+    const data = await buildGoldIndexOverview(supabase);
+    res.json(data);
+  })
+);
+
+app.get(
+  '/api/gold-index/report.pdf',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (_req, res) => {
+    const overview = await buildGoldIndexOverview(supabase);
+    const buf = buildGoldIndexReportPdfBuffer(overview);
+    const out = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="gold-index.pdf"');
+    res.send(out);
+  })
+);
+
+app.post(
+  '/api/gold-index/cities',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (req, res) => {
+    const id = await createGoldIndexCity(supabase, req.body || {}, req.user.id);
+    res.json({ id });
+  })
+);
+
+app.patch(
+  '/api/gold-index/cities/:id',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Некорректный id' });
+    await updateGoldIndexCity(supabase, id, req.body || {});
+    res.json({ ok: true });
+  })
+);
+
+app.delete(
+  '/api/gold-index/cities/:id',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Некорректный id' });
+    await deleteGoldIndexCity(supabase, id);
+    res.json({ ok: true });
+  })
+);
+
+app.post(
+  '/api/gold-index/cities/:cityId/competitors',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (req, res) => {
+    const cityId = String(req.params.cityId || '').trim();
+    if (!/^[0-9a-f-]{36}$/i.test(cityId)) return res.status(400).json({ error: 'Некорректный id города' });
+    const id = await createGoldIndexCompetitor(supabase, cityId, req.body || {});
+    res.json({ id });
+  })
+);
+
+app.patch(
+  '/api/gold-index/competitors/:id',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Некорректный id' });
+    await updateGoldIndexCompetitor(supabase, id, req.body || {});
+    res.json({ ok: true });
+  })
+);
+
+app.delete(
+  '/api/gold-index/competitors/:id',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Некорректный id' });
+    await deleteGoldIndexCompetitor(supabase, id);
+    res.json({ ok: true });
   })
 );
 
