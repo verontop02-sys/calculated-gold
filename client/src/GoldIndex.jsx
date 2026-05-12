@@ -504,29 +504,30 @@ export function GoldIndex({ formatMoney, toast }) {
           </p>
         </div>
         <div className="gold-index__actions">
-          <button type="button" className="btn-ghost" disabled={pdfBusy || loading || refreshing} onClick={() => load()}>
-            Обновить
+          <button type="button" className="btn-ghost gi-btn-refresh" disabled={pdfBusy || loading || refreshing} onClick={() => load()}>
+            ↻ Обновить
           </button>
-          <input
-            type="date"
-            className="input"
-            value={pdfFrom}
-            onChange={(e) => setPdfFrom(e.target.value)}
-            title="Период истории: от"
-          />
-          <input
-            type="date"
-            className="input"
-            value={pdfTo}
-            onChange={(e) => setPdfTo(e.target.value)}
-            title="Период истории: до"
-          />
-          <button type="button" className="btn-ghost" disabled={excelBusy || loading || refreshing} onClick={handleExcel}>
-            {excelBusy ? 'Excel…' : 'Скачать Excel'}
-          </button>
-          <button type="button" className="btn-primary" disabled={pdfBusy || loading || refreshing} onClick={handlePdf}>
-            {pdfBusy ? 'PDF…' : 'Скачать PDF'}
-          </button>
+          <div className="gi-export-block">
+            <span className="gi-export-label">Период отчёта</span>
+            <div className="gi-export-dates">
+              <label className="gi-date-field">
+                <span>с</span>
+                <input type="date" className="input" value={pdfFrom} onChange={(e) => setPdfFrom(e.target.value)} />
+              </label>
+              <label className="gi-date-field">
+                <span>по</span>
+                <input type="date" className="input" value={pdfTo} onChange={(e) => setPdfTo(e.target.value)} />
+              </label>
+            </div>
+            <div className="gi-export-btns">
+              <button type="button" className="btn-ghost" disabled={excelBusy || loading || refreshing} onClick={handleExcel}>
+                {excelBusy ? '…' : '↓ Excel'}
+              </button>
+              <button type="button" className="btn-primary" disabled={pdfBusy || loading || refreshing} onClick={handlePdf}>
+                {pdfBusy ? '…' : '↓ PDF'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -601,23 +602,22 @@ export function GoldIndex({ formatMoney, toast }) {
 
           <div className="gold-index__toolbar">
             <button type="button" className="btn-primary" onClick={() => setShowCityForm((v) => !v)}>
-              {showCityForm ? 'Скрыть форму' : '+ Город'}
+              {showCityForm ? '✕ Скрыть' : '+ Добавить город'}
             </button>
-            <select className="input" value={regionFilter} onChange={(e) => setRegionFilter(e.target.value)}>
-              <option value="">Все регионы</option>
-              {regionOptions.map((r) => (
-                <option key={r.code} value={r.code}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-            <input
-              className="input"
-              value={cityQuery}
-              onChange={(e) => setCityQuery(e.target.value)}
-              placeholder="Поиск: город, регион, улица"
-              style={{ minWidth: 240 }}
-            />
+            <div className="gi-filters">
+              <select className="input" value={regionFilter} onChange={(e) => setRegionFilter(e.target.value)}>
+                <option value="">Все регионы</option>
+                {regionOptions.map((r) => (
+                  <option key={r.code} value={r.code}>{r.name}</option>
+                ))}
+              </select>
+              <input
+                className="input"
+                value={cityQuery}
+                onChange={(e) => setCityQuery(e.target.value)}
+                placeholder="🔍 Поиск города, улицы…"
+              />
+            </div>
           </div>
 
           {showCityForm && (
@@ -923,169 +923,135 @@ export function GoldIndex({ formatMoney, toast }) {
                       Удалить город
                     </button>
 
-                    <table className="gold-index__table">
-                      <thead>
-                        <tr>
-                          <th>Компания</th>
-                          <th>Индекс</th>
-                          <th>Пробы ₽/г</th>
-                          <th />
-                        </tr>
-                      </thead>
-                      <tbody>
+                    {(c.competitors || []).length === 0 ? (
+                      <p className="muted small" style={{ marginTop: 10 }}>Конкурентов пока нет — добавьте ниже.</p>
+                    ) : (
+                      <div className="gi-comp-list">
                         {(c.competitors || []).map((co) => (
-                          <tr key={co.id}>
-                            <td>
-                              {editingCompetitorId === co.id ? (
-                                <input
-                                  className="input"
-                                  value={editCompetitorDraft?.company_name || ''}
-                                  onChange={(e) =>
-                                    setEditCompetitorDraft((d) => ({ ...(d || {}), company_name: e.target.value }))
-                                  }
-                                />
-                              ) : (
-                                co.companyName
-                              )}
-                            </td>
-                            <td className="mono-nums">{fmtRatio(co.ratioAvg)}</td>
-                            <td className="small">
-                              {editingCompetitorId === co.id
-                                ? [
-                                    <input
-                                      key="measured_at"
-                                      className="input"
-                                      type="date"
-                                      style={{ width: 170, marginBottom: 6 }}
-                                      value={editCompetitorDraft?.measured_at || ''}
-                                      onChange={(e) =>
-                                        setEditCompetitorDraft((d) => ({ ...(d || {}), measured_at: e.target.value }))
-                                      }
-                                    />,
-                                    ...probeFieldsForCity(c.id).probes.map((pb) => (
-                                      <span key={pb} style={{ display: 'inline-block', marginRight: 8, marginBottom: 6 }}>
-                                        <span className="muted small">{pb}: </span>
-                                        <input
-                                          className="input mono-nums"
-                                          style={{ width: 90 }}
-                                          value={editCompetitorDraft?.probes?.[pb] ?? ''}
-                                          onChange={(e) =>
-                                            setEditCompetitorDraft((d) => ({
-                                              ...(d || {}),
-                                              probes: { ...(d?.probes || {}), [pb]: e.target.value },
-                                            }))
-                                          }
-                                        />
+                          <div key={co.id} className={`gi-comp-card${editingCompetitorId === co.id ? ' gi-comp-card--editing' : ''}`}>
+                            {editingCompetitorId === co.id ? (
+                              <>
+                                <div className="gi-comp-edit-row">
+                                  <label className="field" style={{ flex: 1 }}>
+                                    <span className="field-label">Компания</span>
+                                    <input className="input" value={editCompetitorDraft?.company_name || ''}
+                                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), company_name: e.target.value }))} />
+                                  </label>
+                                  <label className="field">
+                                    <span className="field-label">Дата замера</span>
+                                    <input className="input" type="date" value={editCompetitorDraft?.measured_at || ''}
+                                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), measured_at: e.target.value }))} />
+                                  </label>
+                                </div>
+                                <div className="gold-index__probe-grid" style={{ marginTop: 8 }}>
+                                  {probeFieldsForCity(c.id).probes.map((pb) => (
+                                    <label key={pb} className="field">
+                                      <span className="field-label">{pb} ₽/г</span>
+                                      <input className="input mono-nums" inputMode="decimal" placeholder="0"
+                                        value={editCompetitorDraft?.probes?.[pb] ?? ''}
+                                        onChange={(e) => setEditCompetitorDraft((d) => ({
+                                          ...(d || {}), probes: { ...(d?.probes || {}), [pb]: e.target.value },
+                                        }))} />
+                                    </label>
+                                  ))}
+                                </div>
+                                <div className="gi-comp-actions">
+                                  <button type="button" className="btn-primary" style={{ fontSize: '0.8rem', padding: '6px 14px' }} onClick={() => saveCompetitor(c.id, co.id)}>Сохранить</button>
+                                  <button type="button" className="btn-ghost small" onClick={cancelEditCompetitor}>Отмена</button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="gi-comp-header">
+                                  <div>
+                                    <span className="gi-comp-name">{co.companyName}</span>
+                                    {co.measuredAt && <span className="gi-comp-date muted small"> · {co.measuredAt}</span>}
+                                  </div>
+                                  <span className={`gi-comp-ratio gi-ratio--${co.colorKey || 'neutral'}`}>{fmtRatio(co.ratioAvg)}</span>
+                                </div>
+                                {Object.keys(co.probes || {}).length > 0 && (
+                                  <div className="gi-probe-chips">
+                                    {Object.entries(co.probes || {}).map(([k, v]) => (
+                                      <span key={k} className="gi-probe-chip">
+                                        <span className="gi-probe-label">{k}</span>
+                                        <span className="gi-probe-val">{formatMoney(typeof v === 'number' ? v : Number(v))}</span>
                                       </span>
-                                    )),
-                                  ]
-                                : Object.entries(co.probes || {})
-                                    .map(([k, v]) => `${k}: ${formatMoney(typeof v === 'number' ? v : Number(v))}`)
-                                    .join(' · ') || '—'}
-                            </td>
-                            <td>
-                              {editingCompetitorId === co.id ? (
-                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                  <button type="button" className="btn-ghost small" onClick={() => saveCompetitor(c.id, co.id)}>
-                                    Сохранить
-                                  </button>
-                                  <button type="button" className="btn-ghost small" onClick={cancelEditCompetitor}>
-                                    Отмена
-                                  </button>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="gi-comp-actions">
+                                  <button type="button" className="btn-ghost small" onClick={() => startEditCompetitor(co)}>✎ Изменить</button>
+                                  <button type="button" className="btn-ghost small danger" onClick={() => deleteCompetitor(c.id, co.id)}>Удалить</button>
                                 </div>
-                              ) : (
-                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                  <button type="button" className="btn-ghost small" onClick={() => startEditCompetitor(co)}>
-                                    Править
-                                  </button>
-                                  <button type="button" className="btn-ghost small" onClick={() => deleteCompetitor(c.id, co.id)}>
-                                    Удалить
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
+                              </>
+                            )}
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
+                      </div>
+                    )}
 
-                    <div className="gold-index__add-comp">
-                      <p className="muted small">Новый конкурент</p>
-                      <div className="gold-index__grid">
-                        <label className="field">
+                    <div className="gi-section-divider">
+                      <span className="gi-section-title">+ Новый конкурент</span>
+                    </div>
+                    <div className="gi-new-comp">
+                      <div className="gi-comp-edit-row">
+                        <label className="field" style={{ flex: 1 }}>
                           <span className="field-label">Компания</span>
-                          <input
-                            className="input"
-                            value={compDraftByCity[c.id]?.company_name || ''}
-                            onChange={(e) => setCompDraft(c.id, { company_name: e.target.value })}
-                          />
+                          <input className="input" placeholder="Название" value={compDraftByCity[c.id]?.company_name || ''}
+                            onChange={(e) => setCompDraft(c.id, { company_name: e.target.value })} />
                         </label>
                         <label className="field">
                           <span className="field-label">Дата замера</span>
-                          <input
-                            className="input"
-                            type="date"
-                            value={compDraftByCity[c.id]?.measured_at || ''}
-                            onChange={(e) => setCompDraft(c.id, { measured_at: e.target.value })}
-                          />
+                          <input className="input" type="date" value={compDraftByCity[c.id]?.measured_at || ''}
+                            onChange={(e) => setCompDraft(c.id, { measured_at: e.target.value })} />
                         </label>
                       </div>
                       <div className="gold-index__probe-grid">
                         {probeFieldsForCity(c.id).probes.map((pb) => (
                           <label key={pb} className="field">
-                            <span className="field-label">{pb}</span>
-                            <input
-                              className="input mono-nums"
-                              inputMode="decimal"
-                              placeholder="₽/г"
+                            <span className="field-label">{pb} ₽/г</span>
+                            <input className="input mono-nums" inputMode="decimal" placeholder="0"
                               value={compDraftByCity[c.id]?.probes?.[pb] ?? ''}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setCompDraft(c.id, {
-                                  probes: { ...(compDraftByCity[c.id]?.probes || {}), [pb]: v },
-                                });
-                              }}
-                            />
+                              onChange={(e) => setCompDraft(c.id, { probes: { ...(compDraftByCity[c.id]?.probes || {}), [pb]: e.target.value } })} />
                           </label>
                         ))}
                       </div>
-                      <button type="button" className="btn-primary" onClick={() => submitCompetitor(c.id)}>
+                      <button type="button" className="btn-primary" style={{ marginTop: 8 }} onClick={() => submitCompetitor(c.id)}>
                         Добавить конкурента
                       </button>
                     </div>
-                    <div className="gold-index__add-comp">
-                      <p className="muted small">История изменений</p>
-                      {historyBusyByCity[c.id] ? (
-                        <p className="muted small">Загрузка…</p>
-                      ) : (historyByCity[c.id] || []).length === 0 ? (
-                        <p className="muted small">Пока пусто</p>
-                      ) : (
-                        <table className="gold-index__table">
-                          <thead>
-                            <tr>
-                              <th>Когда</th>
-                              <th>Сущность</th>
-                              <th>Действие</th>
-                              <th>Кто изменил</th>
-                            </tr>
-                          </thead>
-                          <tbody>
+                    <details className="gi-history-details">
+                      <summary className="gi-section-divider" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        <span className="gi-section-title">История изменений</span>
+                        <span className="muted small" style={{ marginLeft: 8 }}>
+                          {historyBusyByCity[c.id] ? '…' : `${(historyByCity[c.id] || []).length} записей`}
+                        </span>
+                      </summary>
+                      <div style={{ marginTop: 8 }}>
+                        {historyBusyByCity[c.id] ? (
+                          <p className="muted small">Загрузка…</p>
+                        ) : (historyByCity[c.id] || []).length === 0 ? (
+                          <p className="muted small">Изменений пока нет.</p>
+                        ) : (
+                          <div className="gi-history-list">
                             {(historyByCity[c.id] || []).map((h) => (
-                              <tr key={h.id}>
-                                <td className="small">{formatHistoryDate(h.created_at)}</td>
-                                <td className="small">{h.entity_type === 'city' ? 'Город' : 'Конкурент'}</td>
-                                <td className="small">{historyActionLabel(h.action)}</td>
-                                <td className="small">
-                                  {[(h.changed_by_name || '').trim(), (h.changed_by_email || '').trim()]
-                                    .filter(Boolean)
-                                    .join(' · ') || 'Система'}
-                                </td>
-                              </tr>
+                              <div key={h.id} className="gi-history-row">
+                                <span className={`gi-history-badge gi-history-badge--${h.action || 'update'}`}>
+                                  {historyActionLabel(h.action)}
+                                </span>
+                                <span className="gi-history-entity muted small">
+                                  {h.entity_type === 'city' ? 'Город' : 'Конкурент'}
+                                </span>
+                                <span className="gi-history-who">
+                                  {[(h.changed_by_name || '').trim(), (h.changed_by_email || '').trim()].filter(Boolean).join(' · ') || 'Система'}
+                                </span>
+                                <span className="gi-history-when muted small">{formatHistoryDate(h.created_at)}</span>
+                              </div>
                             ))}
-                          </tbody>
-                        </table>
-                      )}
-                    </div>
+                          </div>
+                        )}
+                      </div>
+                    </details>
                   </div>
                 )}
               </div>
@@ -1095,41 +1061,155 @@ export function GoldIndex({ formatMoney, toast }) {
       )}
 
       <style>{`
-        .gold-index { padding: 18px 16px 22px; border-radius: 16px; margin-bottom: 16px; }
-        .gold-index__head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-        .gold-index__title { margin: 0; font-size: 1.15rem; font-family: var(--font-display); }
-        .gold-index__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-        .gold-index__meta {
-          display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: 0.82rem; margin-bottom: 12px;
+        /* ── layout ────────────────────────────────────── */
+        .gold-index { padding: clamp(12px,3vw,24px) clamp(12px,3vw,24px) 28px; border-radius: 16px; margin-bottom: 16px; }
+
+        /* ── header ────────────────────────────────────── */
+        .gold-index__head {
+          display: flex; flex-wrap: wrap; align-items: flex-start;
+          justify-content: space-between; gap: 12px; margin-bottom: 16px;
         }
-        .gold-index__legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
-        .gold-index__leg-item { font-size: 0.75rem; display: inline-flex; align-items: center; gap: 6px; }
-        .gold-index__leg-item i { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
+        .gold-index__title { margin: 0; font-size: clamp(1rem,3vw,1.2rem); font-family: var(--font-display); }
+
+        /* export block */
+        .gold-index__actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+        .gi-btn-refresh { white-space: nowrap; }
+        .gi-export-block {
+          display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px;
+          background: var(--input-bg); border: 1px solid var(--stroke);
+          border-radius: 12px; padding: 8px 12px;
+        }
+        .gi-export-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; width: 100%; margin-bottom: 2px; }
+        .gi-export-dates { display: flex; flex-wrap: wrap; gap: 6px; }
+        .gi-date-field { display: flex; align-items: center; gap: 5px; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+        .gi-date-field input { width: min(140px,42vw); }
+        .gi-export-btns { display: flex; gap: 6px; margin-left: auto; }
+
+        /* ── meta / legend ─────────────────────────────── */
+        .gold-index__meta {
+          display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.82rem; margin-bottom: 12px;
+          background: var(--input-bg); border: 1px solid var(--stroke); border-radius: 10px;
+          padding: 10px 14px;
+        }
+        .gold-index__legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 10px; }
+        .gold-index__leg-item { font-size: 0.75rem; display: inline-flex; align-items: center; gap: 5px; }
+        .gold-index__leg-item i { width: 10px; height: 10px; border-radius: 999px; flex-shrink: 0; display: inline-block; }
+
+        /* ── map ───────────────────────────────────────── */
         .gold-index__map {
           width: 100%; height: min(420px, 55vh); border-radius: 14px; overflow: hidden;
           border: 1px solid var(--stroke); margin-bottom: 14px; z-index: 0;
         }
         .gold-index__chart { margin-bottom: 14px; }
-        .gold-index__toolbar { margin-bottom: 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-        .gold-index__form { margin-bottom: 16px; padding: 12px; border-radius: 12px; border: 1px solid var(--stroke); background: var(--input-bg); }
-        .gold-index__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
-        .gold-index__probe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin: 10px 0; }
+
+        /* ── toolbar ───────────────────────────────────── */
+        .gold-index__toolbar {
+          margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+        }
+        .gi-filters { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+        .gi-filters .input { flex: 1; min-width: min(180px,100%); }
+
+        /* ── add-city form ──────────────────────────────── */
+        .gold-index__form {
+          margin-bottom: 16px; padding: clamp(10px,2vw,16px); border-radius: 12px;
+          border: 1px solid var(--stroke); background: var(--input-bg);
+        }
+        .gold-index__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 10px; }
+        .gold-index__probe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px,1fr)); gap: 8px; margin: 8px 0; }
+
+        /* ── city list ──────────────────────────────────── */
         .gold-index__cities { display: flex; flex-direction: column; gap: 10px; }
         .gold-index__city { padding: 0; overflow: hidden; border: 1px solid var(--stroke); border-radius: 14px; background: var(--input-bg); }
         .gold-index__city-head {
-          width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+          width: 100%; display: flex; align-items: center; gap: 10px;
+          padding: clamp(10px,2vw,14px) clamp(12px,2vw,16px);
           background: transparent; border: none; color: inherit; cursor: pointer; text-align: left;
+          transition: background 0.15s;
         }
+        .gold-index__city-head:hover { background: var(--hover-bg,rgba(255,255,255,.05)); }
         .gold-index__dot { width: 12px; height: 12px; border-radius: 999px; flex-shrink: 0; }
-        .gold-index__city-title { flex: 1; min-width: 0; }
-        .gold-index__ratio { font-weight: 600; color: var(--gold); }
-        .gold-index__city-body { padding: 0 14px 14px; border-top: 1px solid var(--stroke); }
-        .gold-index__table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 10px 0; }
-        .gold-index__table th, .gold-index__table td { padding: 8px 6px; border-bottom: 1px solid var(--stroke); text-align: left; vertical-align: top; }
-        .gold-index__table th { color: var(--text-muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
-        .gold-index__add-comp { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--stroke); }
-        .btn-ghost.small { padding: 6px 10px; font-size: 0.78rem; }
+        .gold-index__city-title { flex: 1; min-width: 0; overflow: hidden; }
+        .gold-index__city-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+        .gold-index__ratio { font-weight: 700; color: var(--gold); margin-left: auto; white-space: nowrap; }
+        .gold-index__city-body { padding: clamp(10px,2vw,14px) clamp(12px,2vw,16px); border-top: 1px solid var(--stroke); }
+
+        /* ── competitor cards ───────────────────────────── */
+        .gi-comp-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        .gi-comp-card {
+          border: 1px solid var(--stroke); border-radius: 10px;
+          padding: 10px 12px; background: var(--card-bg, transparent);
+        }
+        .gi-comp-card--editing { border-color: var(--gold); }
+        .gi-comp-header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+        .gi-comp-name { font-weight: 600; font-size: 0.9rem; }
+        .gi-comp-date { font-size: 0.78rem; }
+        .gi-comp-ratio { font-size: 1rem; font-weight: 700; font-family: var(--font-mono,'monospace'); }
+        .gi-ratio--green  { color: #3c9b5e; }
+        .gi-ratio--yellow { color: #b8921a; }
+        .gi-ratio--orange { color: #d4691a; }
+        .gi-ratio--red    { color: #c2312c; }
+        .gi-ratio--neutral{ color: var(--gold); }
+
+        .gi-probe-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+        .gi-probe-chip {
+          display: inline-flex; align-items: center; gap: 4px;
+          background: var(--stroke); border-radius: 6px; padding: 2px 7px; font-size: 0.76rem;
+        }
+        .gi-probe-label { color: var(--text-muted); }
+        .gi-probe-val { font-weight: 600; font-family: var(--font-mono,'monospace'); }
+
+        .gi-comp-edit-row { display: flex; flex-wrap: wrap; gap: 8px; }
+        .gi-comp-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+        /* ── section dividers ───────────────────────────── */
+        .gi-section-divider {
+          display: flex; align-items: center; gap: 8px;
+          margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--stroke);
+          list-style: none;
+        }
+        .gi-section-divider::-webkit-details-marker { display: none; }
+        .gi-section-title { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); }
+
+        /* ── new competitor form ────────────────────────── */
+        .gi-new-comp { margin-top: 10px; }
+
+        /* ── history ────────────────────────────────────── */
+        .gi-history-list { display: flex; flex-direction: column; gap: 6px; }
+        .gi-history-row {
+          display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px;
+          font-size: 0.8rem; padding: 6px 0; border-bottom: 1px solid var(--stroke);
+        }
+        .gi-history-row:last-child { border-bottom: none; }
+        .gi-history-badge {
+          display: inline-flex; align-items: center; font-size: 0.7rem; font-weight: 700;
+          text-transform: uppercase; letter-spacing: 0.05em; border-radius: 6px;
+          padding: 2px 7px; white-space: nowrap; flex-shrink: 0;
+        }
+        .gi-history-badge--create { background: #d1f5e0; color: #1a6637; }
+        .gi-history-badge--update { background: #fff3cd; color: #856404; }
+        .gi-history-badge--delete { background: #fce4e4; color: #8c1c1c; }
+        .gi-history-entity { white-space: nowrap; }
+        .gi-history-who { flex: 1; min-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .gi-history-when { white-space: nowrap; margin-left: auto; }
+
+        /* ── misc buttons ───────────────────────────────── */
+        .btn-ghost.small { padding: 5px 10px; font-size: 0.78rem; }
         .btn-ghost.danger { color: var(--danger); }
+
+        /* ── responsive tweaks ──────────────────────────── */
+        @media (max-width: 540px) {
+          .gold-index__actions { flex-direction: column; align-items: stretch; }
+          .gi-export-block { width: 100%; }
+          .gi-export-btns { width: 100%; }
+          .gi-export-btns button { flex: 1; }
+          .gi-export-dates { width: 100%; }
+          .gi-date-field input { width: 100%; flex: 1; }
+          .gold-index__toolbar { flex-direction: column; align-items: stretch; }
+          .gi-filters { flex-direction: column; }
+          .gi-comp-header { flex-direction: column; gap: 4px; }
+          .gi-history-who { white-space: normal; }
+          .gi-history-when { margin-left: 0; }
+        }
       `}</style>
     </section>
   );

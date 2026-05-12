@@ -101,8 +101,8 @@ export async function buildGoldIndexReportPdfBuffer(overview, options = {}) {
 
   const historyTableRows = [
     [
-      { text: 'Когда', style: 'th' },
-      { text: 'Сущность', style: 'th' },
+      { text: 'Дата / время', style: 'th' },
+      { text: 'Тип', style: 'th' },
       { text: 'Действие', style: 'th' },
       { text: 'Объект', style: 'th' },
       { text: 'Кто изменил', style: 'th' },
@@ -119,33 +119,50 @@ export async function buildGoldIndexReportPdfBuffer(overview, options = {}) {
       row?.payload?.company_name ||
       row?.payload?.before?.company_name ||
       '—';
-    const actor = [row?.changed_by_name || '', row?.changed_by_email || ''].filter(Boolean).join(' · ') || '—';
+    const actorName = (row?.changed_by_name || '').trim();
+    const actorEmail = (row?.changed_by_email || '').trim();
+    const actorCell = actorName || actorEmail
+      ? {
+          stack: [
+            actorName ? { text: actorName, bold: true, fontSize: 7.5 } : null,
+            actorEmail ? { text: actorEmail, fontSize: 7, color: '#5c5348' } : null,
+          ].filter(Boolean),
+        }
+      : { text: 'Система', fontSize: 7.5, color: '#5c5348' };
     historyTableRows.push([
-      ts,
-      row?.entity_type === 'city' ? 'Город' : 'Конкурент',
-      action,
-      String(payloadCity || '—'),
-      actor,
+      { text: ts, fontSize: 7.5, noWrap: false },
+      { text: row?.entity_type === 'city' ? 'Город' : 'Конкурент', fontSize: 7.5 },
+      { text: action, fontSize: 7.5 },
+      { text: String(payloadCity || '—'), fontSize: 7.5, noWrap: false },
+      actorCell,
     ]);
   }
   if (historyTableRows.length === 1) {
-    historyTableRows.push(['—', '—', '—', 'Нет изменений за выбранный период', '—']);
+    historyTableRows.push([
+      { text: '—', fontSize: 7.5 },
+      { text: '—', fontSize: 7.5 },
+      { text: '—', fontSize: 7.5 },
+      { text: 'Нет изменений за выбранный период', fontSize: 7.5, colSpan: 2 },
+      {},
+    ]);
   }
 
   const docDefinition = {
     pageSize: 'A4',
     pageMargins: [PAGE_MARGIN_X, 50, PAGE_MARGIN_X, 46],
+    defaultStyle: { font: 'Roboto', fontSize: 9 },
     styles: {
       header: { fontSize: 16, bold: true, color: '#1a1510' },
-      sub: { fontSize: 9, color: '#5c5348', margin: [0, 4, 0, 12] },
+      sub: { fontSize: 9, color: '#5c5348', margin: [0, 4, 0, 10] },
       cityHead: { fontSize: 11, bold: true, color: '#2a2018' },
       small: { fontSize: 8, color: '#5c5348' },
-      th: { bold: true, fillColor: '#f5f1ea', fontSize: 8 },
+      th: { bold: true, fillColor: '#f5f1ea', fontSize: 7.5, color: '#3a3028' },
+      sectionHead: { fontSize: 10, bold: true, color: '#2a2018', margin: [0, 4, 0, 6] },
     },
     footer: (cur, tot) => ({
       margin: [PAGE_MARGIN_X, 6, PAGE_MARGIN_X, 0],
       columns: [
-        { text: 'REAKTIVO PRO · индекс золота', color: '#9a9288', fontSize: 6.5 },
+        { text: 'REAKTIVO PRO · Индекс золота', color: '#9a9288', fontSize: 6.5 },
         { text: `стр. ${cur} / ${tot}`, alignment: 'right', color: '#9a9288', fontSize: 6.5 },
       ],
     }),
@@ -155,35 +172,37 @@ export async function buildGoldIndexReportPdfBuffer(overview, options = {}) {
         text: `Сформировано: ${generated} · Биржа (эталон): ${spot} · Выкуп лома: ${bb}%`,
         style: 'sub',
       },
-      {
-        text: filtersText,
-        style: 'sub',
-      },
-      {
-        text: 'Сводка по регионам',
-        fontSize: 10,
-        bold: true,
-        margin: [0, 0, 0, 6],
-      },
+      filtersText ? { text: filtersText, style: 'sub', color: '#b8921a' } : null,
+      { text: 'Сводка по регионам', style: 'sectionHead' },
       {
         table: {
-          widths: ['*', 50, 70],
+          widths: ['*', 55, 70],
           body: regionRows,
         },
         layout: 'lightHorizontalLines',
         margin: [0, 0, 0, 14],
       },
-      { text: 'Города и конкуренты', fontSize: 10, bold: true, margin: [0, 0, 0, 6] },
+      { text: 'Города и конкуренты', style: 'sectionHead' },
       ...cityBlocks,
-      { text: 'История изменений', fontSize: 10, bold: true, margin: [0, 12, 0, 6] },
+      { text: 'История изменений', style: 'sectionHead', margin: [0, 12, 0, 6] },
       {
         table: {
-          widths: [86, 56, 56, '*', '*'],
+          widths: [80, 52, 52, '*', 110],
           body: historyTableRows,
+          dontBreakRows: false,
         },
-        layout: 'lightHorizontalLines',
+        layout: {
+          ...pdfMake.tableLayouts?.lightHorizontalLines,
+          hLineWidth: (i) => (i === 0 || i === 1 ? 1 : 0.5),
+          hLineColor: () => '#d9d4cc',
+          vLineWidth: () => 0,
+          paddingLeft: () => 4,
+          paddingRight: () => 4,
+          paddingTop: () => 4,
+          paddingBottom: () => 4,
+        },
       },
-    ],
+    ].filter(Boolean),
   };
 
   const out = await pdfMake.createPdf(docDefinition).getBuffer();
