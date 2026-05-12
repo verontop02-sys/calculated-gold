@@ -912,50 +912,54 @@ app.get(
   '/api/gold-index/report.pdf',
   asyncHandler(requireSuperAdmin),
   asyncHandler(async (req, res) => {
-    const overview = await buildGoldIndexOverview(supabase);
-    const regionCode = String(req.query.regionCode || '').trim();
-    const from = String(req.query.from || '').trim();
-    const to = String(req.query.to || '').trim();
-    const filteredCities = regionCode
-      ? (overview.cities || []).filter((c) => String(c.region_code || '') === regionCode)
-      : overview.cities || [];
-    const cityIdSet = new Set(filteredCities.map((c) => c.id));
-    const filteredRegions = (overview.regions || []).filter((r) => {
-      if (!regionCode) return true;
-      return String(r.regionCode || '') === regionCode;
-    });
-    const filteredOverview = {
-      ...overview,
-      regions: filteredRegions,
-      cities: filteredCities,
-      stats: {
-        cityCount: filteredCities.length,
-        populationCovered: filteredCities.reduce((s, x) => s + (x.population || 0), 0),
-        competitorRows: filteredCities.reduce((s, x) => s + (x.competitors?.length || 0), 0),
-      },
-    };
-    const history = await listGoldIndexHistory(supabase, {
-      cityIds: [...cityIdSet],
-      from,
-      to,
-      limit: 120,
-      offset: 0,
-    });
-    const historyRows = await enrichGoldIndexHistoryActors(supabase, history.rows || []);
-    const buf = buildGoldIndexReportPdfBuffer(filteredOverview, {
-      filters: {
-        regionCode: regionCode || null,
-        regionName:
-          regionCode && filteredCities[0] ? String(filteredCities[0].region_name || regionCode) : null,
-        from: /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : null,
-        to: /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : null,
-      },
-      historyRows,
-    });
-    const out = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="gold-index.pdf"');
-    res.send(out);
+    try {
+      const overview = await buildGoldIndexOverview(supabase);
+      const regionCode = String(req.query.regionCode || '').trim();
+      const from = String(req.query.from || '').trim();
+      const to = String(req.query.to || '').trim();
+      const filteredCities = regionCode
+        ? (overview.cities || []).filter((c) => String(c.region_code || '') === regionCode)
+        : overview.cities || [];
+      const cityIdSet = new Set(filteredCities.map((c) => c.id));
+      const filteredRegions = (overview.regions || []).filter((r) => {
+        if (!regionCode) return true;
+        return String(r.regionCode || '') === regionCode;
+      });
+      const filteredOverview = {
+        ...overview,
+        regions: filteredRegions,
+        cities: filteredCities,
+        stats: {
+          cityCount: filteredCities.length,
+          populationCovered: filteredCities.reduce((s, x) => s + (x.population || 0), 0),
+          competitorRows: filteredCities.reduce((s, x) => s + (x.competitors?.length || 0), 0),
+        },
+      };
+      const history = await listGoldIndexHistory(supabase, {
+        cityIds: [...cityIdSet],
+        from,
+        to,
+        limit: 120,
+        offset: 0,
+      });
+      const historyRows = await enrichGoldIndexHistoryActors(supabase, history.rows || []);
+      const buf = await buildGoldIndexReportPdfBuffer(filteredOverview, {
+        filters: {
+          regionCode: regionCode || null,
+          regionName:
+            regionCode && filteredCities[0] ? String(filteredCities[0].region_name || regionCode) : null,
+          from: /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : null,
+          to: /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : null,
+        },
+        historyRows,
+      });
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="gold-index.pdf"');
+      res.send(buf);
+    } catch (e) {
+      console.error('[gold-index/report.pdf]', e?.message || e);
+      res.status(500).json({ error: 'Не удалось сформировать PDF. Проверьте миграции и повторите.' });
+    }
   })
 );
 

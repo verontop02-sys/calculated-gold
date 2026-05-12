@@ -467,7 +467,14 @@ export async function listGoldIndexHistory(supabase, opts = {}) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(from)) q = q.gte('created_at', `${from}T00:00:00.000Z`);
   if (/^\d{4}-\d{2}-\d{2}$/.test(to)) q = q.lte('created_at', `${to}T23:59:59.999Z`);
   const { data, error } = await q;
-  if (error) throw error;
+  if (error) {
+    const msg = String(error?.message || '');
+    if (error?.code === '42P01' || /gold_index_changes/i.test(msg)) {
+      console.warn('[gold index history] table missing, continue without history');
+      return { rows: [], limit, offset };
+    }
+    throw error;
+  }
   return { rows: data || [], limit, offset };
 }
 

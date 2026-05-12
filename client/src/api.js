@@ -115,7 +115,12 @@ async function request(path, options = {}) {
 }
 
 async function requestBlob(path, options = {}) {
-  const { timeout = BLOB_TIMEOUT_MS, ...opt } = options;
+  const {
+    timeout = BLOB_TIMEOUT_MS,
+    expectedContentTypes = ['pdf'],
+    expectedLabel = 'PDF',
+    ...opt
+  } = options;
   const c = new AbortController();
   const to = setTimeout(() => c.abort(), timeout);
   const token = await getAccessToken();
@@ -132,7 +137,7 @@ async function requestBlob(path, options = {}) {
   } catch (e) {
     clearTimeout(to);
     if (e?.name === 'AbortError') {
-      const err = new Error('Скачивание PDF: сервер слишком долго не отвечал. Повторите запрос.');
+      const err = new Error(`Скачивание ${expectedLabel}: сервер слишком долго не отвечал. Повторите запрос.`);
       err.code = 'API_TIMEOUT';
       throw err;
     }
@@ -158,8 +163,10 @@ async function requestBlob(path, options = {}) {
     err.status = res.status;
     throw err;
   }
-  if (!ct.includes('pdf')) {
-    let msg = 'Ожидался PDF';
+  const expected = Array.isArray(expectedContentTypes) ? expectedContentTypes : [String(expectedContentTypes || '')];
+  const contentOk = expected.some((x) => x && ct.includes(String(x).toLowerCase()));
+  if (!contentOk) {
+    let msg = `Ожидался ${expectedLabel}`;
     try {
       const j = await res.json();
       if (j?.error) msg = j.error;
@@ -370,7 +377,11 @@ export const api = {
     if (opts.from) q.set('from', String(opts.from));
     if (opts.to) q.set('to', String(opts.to));
     const s = q.toString();
-    return requestBlob(`/gold-index/report.pdf${s ? `?${s}` : ''}`, { method: 'GET' });
+    return requestBlob(`/gold-index/report.pdf${s ? `?${s}` : ''}`, {
+      method: 'GET',
+      expectedContentTypes: ['pdf'],
+      expectedLabel: 'PDF',
+    });
   },
   goldIndexExportXlsx: (opts = {}) => {
     const q = new URLSearchParams();
@@ -378,7 +389,15 @@ export const api = {
     if (opts.from) q.set('from', String(opts.from));
     if (opts.to) q.set('to', String(opts.to));
     const s = q.toString();
-    return requestBlob(`/gold-index/export.xlsx${s ? `?${s}` : ''}`, { method: 'GET' });
+    return requestBlob(`/gold-index/export.xlsx${s ? `?${s}` : ''}`, {
+      method: 'GET',
+      expectedContentTypes: [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel',
+        'octet-stream',
+      ],
+      expectedLabel: 'Excel',
+    });
   },
   goldIndexGeocode: (body) => request('/gold-index/geocode', { method: 'POST', body: JSON.stringify(body) }),
   goldIndexCreateCity: (body) => request('/gold-index/cities', { method: 'POST', body: JSON.stringify(body) }),

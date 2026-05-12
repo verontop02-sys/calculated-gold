@@ -27,7 +27,7 @@ const fmtRatio = (n) => {
 const PAGE_MARGIN_X = 40;
 
 /** overview — результат buildGoldIndexOverview */
-export function buildGoldIndexReportPdfBuffer(overview, options = {}) {
+export async function buildGoldIndexReportPdfBuffer(overview, options = {}) {
   const generated = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
   const spot = overview?.goldRubPerGram != null ? fmtRub(overview.goldRubPerGram) : '—';
   const bb = overview?.settingsSnapshot?.buybackPercentOfScrap ?? '—';
@@ -186,5 +186,6 @@ export function buildGoldIndexReportPdfBuffer(overview, options = {}) {
     ],
   };
 
-  return pdfMake.createPdf(docDefinition).getBuffer();
+  const out = await pdfMake.createPdf(docDefinition).getBuffer();
+  return Buffer.isBuffer(out) ? out : Buffer.from(out);
 }

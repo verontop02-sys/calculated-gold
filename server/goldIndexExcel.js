@@ -9,6 +9,9 @@ export function buildGoldIndexExcelBuffer(overview, options = {}) {
   const wb = XLSX.utils.book_new();
   const filters = options?.filters || {};
   const historyRows = Array.isArray(options?.historyRows) ? options.historyRows : [];
+  const probes = Array.isArray(overview?.probesSuggested) && overview.probesSuggested.length
+    ? overview.probesSuggested
+    : [375, 500, 583, 585, 750, 875, 900, 916, 958, 999];
 
   const summary = [
     ['Параметр', 'Значение'],
@@ -22,64 +25,117 @@ export function buildGoldIndexExcelBuffer(overview, options = {}) {
     ['Охват населения', overview?.stats?.populationCovered ?? 0],
     ['Строк конкурентов', overview?.stats?.competitorRows ?? 0],
   ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Summary');
+  const wsSummary = XLSX.utils.aoa_to_sheet(summary);
+  wsSummary['!cols'] = [{ wch: 30 }, { wch: 26 }];
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Сводка');
 
-  const regions = (overview?.regions || []).map((r) => ({
-    regionCode: r.regionCode || '',
-    regionName: r.regionName || '',
-    cityCount: r.cityCount ?? 0,
-    ratioAvg: fmtRatio(r.ratioAvg),
-    colorKey: r.colorKey || '',
-  }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(regions), 'Regions');
+  const regions = [
+    ['Код региона', 'Регион', 'Городов', 'Средний индекс', 'Цвет'],
+    ...(overview?.regions || []).map((r) => [
+      r.regionCode || '',
+      r.regionName || '',
+      r.cityCount ?? 0,
+      fmtRatio(r.ratioAvg),
+      r.colorKey || '',
+    ]),
+  ];
+  const wsRegions = XLSX.utils.aoa_to_sheet(regions);
+  wsRegions['!cols'] = [{ wch: 16 }, { wch: 30 }, { wch: 10 }, { wch: 16 }, { wch: 10 }];
+  XLSX.utils.book_append_sheet(wb, wsRegions, 'Регионы');
 
-  const cities = (overview?.cities || []).map((c) => ({
-    id: c.id || '',
-    regionCode: c.region_code || '',
-    regionName: c.region_name || '',
-    cityName: c.city_name || '',
-    lat: c.lat ?? null,
-    lng: c.lng ?? null,
-    population: c.population ?? null,
-    ratioAvg: fmtRatio(c.ratioAvg),
-    colorKey: c.colorKey || '',
-    street: c.street || '',
-    building: c.building || '',
-    addressNote: c.address_note || '',
-    geocodedLabel: c.geocoded_label || '',
-    notes: c.notes || '',
-  }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cities), 'Cities');
+  const cities = [
+    [
+      'ID города',
+      'Код региона',
+      'Регион',
+      'Город',
+      'Широта',
+      'Долгота',
+      'Население',
+      'Средний индекс',
+      'Цвет',
+      'Улица',
+      'Дом',
+      'Уточнение адреса',
+      'Подпись точки',
+      'Заметки',
+    ],
+    ...(overview?.cities || []).map((c) => [
+      c.id || '',
+      c.region_code || '',
+      c.region_name || '',
+      c.city_name || '',
+      c.lat ?? null,
+      c.lng ?? null,
+      c.population ?? null,
+      fmtRatio(c.ratioAvg),
+      c.colorKey || '',
+      c.street || '',
+      c.building || '',
+      c.address_note || '',
+      c.geocoded_label || '',
+      c.notes || '',
+    ]),
+  ];
+  const wsCities = XLSX.utils.aoa_to_sheet(cities);
+  wsCities['!cols'] = [
+    { wch: 38 }, { wch: 14 }, { wch: 24 }, { wch: 22 }, { wch: 11 }, { wch: 11 }, { wch: 12 },
+    { wch: 14 }, { wch: 10 }, { wch: 20 }, { wch: 12 }, { wch: 24 }, { wch: 36 }, { wch: 24 },
+  ];
+  XLSX.utils.book_append_sheet(wb, wsCities, 'Города');
 
-  const competitors = [];
+  const competitors = [[
+    'ID города',
+    'Регион',
+    'Город',
+    'ID конкурента',
+    'Компания',
+    'Дата замера',
+    'Средний индекс',
+    ...probes.map((p) => `${p} ₽/г`),
+    'Заметки',
+  ]];
   for (const c of overview?.cities || []) {
     for (const co of c.competitors || []) {
-      competitors.push({
-        cityId: c.id || '',
-        regionName: c.region_name || '',
-        cityName: c.city_name || '',
-        competitorId: co.id || '',
-        companyName: co.companyName || '',
-        measuredAt: co.measuredAt || '',
-        ratioAvg: fmtRatio(co.ratioAvg),
-        notes: co.notes || '',
-        probes: JSON.stringify(co.probes || {}),
-      });
+      competitors.push([
+        c.id || '',
+        c.region_name || '',
+        c.city_name || '',
+        co.id || '',
+        co.companyName || '',
+        co.measuredAt || '',
+        fmtRatio(co.ratioAvg),
+        ...probes.map((p) => {
+          const v = co?.probes?.[String(p)];
+          return v == null ? null : Number(v);
+        }),
+        co.notes || '',
+      ]);
     }
   }
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(competitors), 'Competitors');
+  const wsCompetitors = XLSX.utils.aoa_to_sheet(competitors);
+  wsCompetitors['!cols'] = [
+    { wch: 38 }, { wch: 20 }, { wch: 18 }, { wch: 38 }, { wch: 24 }, { wch: 14 }, { wch: 14 },
+    ...probes.map(() => ({ wch: 10 })), { wch: 22 },
+  ];
+  XLSX.utils.book_append_sheet(wb, wsCompetitors, 'Конкуренты');
 
-  const history = historyRows.map((r) => ({
-    createdAt: r.created_at || '',
-    entityType: r.entity_type || '',
-    action: r.action || '',
-    actorName: r.changed_by_name || '',
-    actorEmail: r.changed_by_email || '',
-    cityId: r.city_id || '',
-    entityId: r.entity_id || '',
-    payload: JSON.stringify(r.payload || {}),
-  }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(history), 'History');
+  const history = [
+    ['Когда', 'Сущность', 'Действие', 'Кто изменил', 'Email', 'ID города', 'ID объекта', 'Данные'],
+    ...historyRows.map((r) => [
+      r.created_at || '',
+      r.entity_type || '',
+      r.action || '',
+      r.changed_by_name || '',
+      r.changed_by_email || '',
+      r.city_id || '',
+      r.entity_id || '',
+      JSON.stringify(r.payload || {}),
+    ]),
+  ];
+  const wsHistory = XLSX.utils.aoa_to_sheet(history);
+  wsHistory['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 24 }, { wch: 28 }, { wch: 38 }, { wch: 38 }, { wch: 50 }];
+  XLSX.utils.book_append_sheet(wb, wsHistory, 'История');
 
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', compression: true });
 }
