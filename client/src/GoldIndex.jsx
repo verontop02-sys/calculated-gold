@@ -30,7 +30,10 @@ export function GoldIndex({ formatMoney, toast }) {
   const mapRef = useRef(null);
   const mapInstRef = useRef(null);
   const layerRef = useRef(null);
+  /** После первого успешного ответа не включаем «полный» loading — иначе размонтируется карта и ломается Leaflet. */
+  const hasLoadedOnceRef = useRef(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -49,15 +52,19 @@ export function GoldIndex({ formatMoney, toast }) {
 
   const load = useCallback(async () => {
     setErr('');
-    setLoading(true);
+    if (!hasLoadedOnceRef.current) setLoading(true);
+    else setRefreshing(true);
     try {
       const d = await api.goldIndexOverview();
       setData(d);
+      hasLoadedOnceRef.current = true;
     } catch (e) {
       setErr(e?.message || 'Не удалось загрузить');
       setData(null);
+      hasLoadedOnceRef.current = false;
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -80,7 +87,7 @@ export function GoldIndex({ formatMoney, toast }) {
   );
 
   useEffect(() => {
-    if (!mapRef.current || loading) return;
+    if (!mapRef.current) return;
     if (!mapInstRef.current) {
       const m = L.map(mapRef.current, { scrollWheelZoom: true }).setView([61.5, 105], 3);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -113,8 +120,15 @@ export function GoldIndex({ formatMoney, toast }) {
     if (cities.length === 1) {
       m.setView([cities[0].lat, cities[0].lng], 8);
     }
+    requestAnimationFrame(() => {
+      try {
+        mapInstRef.current?.invalidateSize();
+      } catch {
+        /* ignore */
+      }
+    });
     return () => {};
-  }, [loading, cities]);
+  }, [cities]);
 
   useEffect(() => {
     return () => {
@@ -238,19 +252,24 @@ export function GoldIndex({ formatMoney, toast }) {
           </p>
         </div>
         <div className="gold-index__actions">
-          <button type="button" className="btn-ghost" disabled={pdfBusy || loading} onClick={() => load()}>
+          <button type="button" className="btn-ghost" disabled={pdfBusy || loading || refreshing} onClick={() => load()}>
             Обновить
           </button>
-          <button type="button" className="btn-primary" disabled={pdfBusy || loading} onClick={handlePdf}>
+          <button type="button" className="btn-primary" disabled={pdfBusy || loading || refreshing} onClick={handlePdf}>
             {pdfBusy ? 'PDF…' : 'Скачать PDF'}
           </button>
         </div>
       </div>
 
-      {loading && <p className="muted">Загрузка…</p>}
+      {loading && data == null && <p className="muted">Загрузка…</p>}
+      {refreshing && data && (
+        <p className="muted small" style={{ marginBottom: 8 }}>
+          Обновление…
+        </p>
+      )}
       {err && <p className="err-text">{err}</p>}
 
-      {!loading && data && (
+      {data && (
         <>
           <div className="gold-index__meta mono-nums">
             <span>
