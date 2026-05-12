@@ -17,6 +17,7 @@ import {
   createFieldDealSession,
   getPublicFieldDealSession,
   verifyFieldDealSession,
+  sendFieldDealReceiptByClient,
   listFieldDealSessionsForManager,
   cancelFieldDealSession,
 } from './fieldDealSession.js';
@@ -739,6 +740,23 @@ app.post(
     }
   })
 );
+
+app.post(
+  '/api/public/field-deal-session/:token/receipt',
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await sendFieldDealReceiptByClient(supabase, {
+        token: req.params.token,
+        channel: req.body?.channel,
+        target: req.body?.target,
+      });
+      res.json(out);
+    } catch (e) {
+      const st = e.status || 500;
+      res.status(st).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
 app.get(
   '/api/price/stream',
   asyncHandler(async (req, res) => {
@@ -801,11 +819,15 @@ app.post(
   '/api/field-deal-sessions',
   asyncHandler(async (req, res) => {
     const role = await getRequesterRole(req);
-    const out = await createFieldDealSession(supabase, { reqUser: req.user, requesterRole: role, body: req.body || {} });
     const origin = corsOrigins[0] || 'http://localhost:5173';
     const base = process.env.PUBLIC_APP_ORIGIN || origin;
-    const link = `${String(base).replace(/\/$/, '')}/podtverzhdenie/${encodeURIComponent(out.publicToken)}`;
-    res.json({ ...out, confirmUrl: link });
+    const out = await createFieldDealSession(supabase, {
+      reqUser: req.user,
+      requesterRole: role,
+      body: req.body || {},
+      publicAppOrigin: base,
+    });
+    res.json(out);
   })
 );
 

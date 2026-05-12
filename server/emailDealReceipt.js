@@ -33,3 +33,33 @@ export async function sendDealReceiptEmailIfConfigured({ toEmail, subject, pdfBu
   }
   return { sent: true, id: j?.id };
 }
+
+export async function sendDealReceiptTextEmailIfConfigured({ toEmail, subject, text, html }) {
+  const key = (process.env.RESEND_API_KEY || '').trim();
+  const from = (process.env.DEAL_RECEIPT_EMAIL_FROM || '').trim();
+  if (!key || !from || !toEmail) {
+    if (toEmail) console.info('[email deal receipt text] skip: RESEND_API_KEY or DEAL_RECEIPT_EMAIL_FROM or recipient missing');
+    return { sent: false, reason: 'not_configured' };
+  }
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from,
+      to: [toEmail],
+      subject: subject || 'Чек по сделке',
+      text: text || '',
+      ...(html ? { html } : {}),
+    }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(j?.message || `Resend HTTP ${res.status}`);
+    err.body = j;
+    throw err;
+  }
+  return { sent: true, id: j?.id };
+}

@@ -246,6 +246,17 @@ export async function publicFieldDealSessionVerify(token, code) {
   return j;
 }
 
+export async function publicFieldDealSessionSendReceipt(token, channel, target) {
+  const r = await fetch(withBase(`/public/field-deal-session/${encodeURIComponent(token)}/receipt`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ channel, target }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+  return j;
+}
+
 export const api = {
   me: () => request('/auth/me'),
   /** quote: moex | xaut (Мосбиржа / Tether Gold XAUT в USD → ₽ через ЦБ) */

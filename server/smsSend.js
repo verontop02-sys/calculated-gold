@@ -26,20 +26,32 @@ export async function sendDealConfirmationSms({ to, text }) {
   const apiId = (process.env.SMSRU_API_ID || '').trim();
   if (apiId) {
     const { default: axios } = await import('axios');
+    const toDigits = to.replace(/\D/g, '');
     const u = new URL('https://sms.ru/sms/send');
     u.searchParams.set('json', '1');
     u.searchParams.set('api_id', apiId);
-    u.searchParams.set('to', to.replace(/\D/g, ''));
+    u.searchParams.set('to', toDigits);
     u.searchParams.set('msg', text);
     const from = (process.env.SMSRU_FROM || '').trim();
     if (from) u.searchParams.set('from', from);
     const { data } = await axios.get(u.toString(), { timeout: 20_000 });
+    const row = data?.sms?.[toDigits] || data?.sms?.[toDigits.replace(/^7/, '')] || null;
     if (data?.status !== 'OK' && data?.status_code !== 100) {
       const err = new Error(data?.status_text || data?.error || 'SMS provider error');
       err.smsDebug = data;
       throw enrichSmsError(err, data);
     }
-    return { ok: true, provider: 'sms.ru' };
+    if (row && Number(row.status_code) !== 100) {
+      const err = new Error(row.status_text || 'SMS provider error');
+      err.smsDebug = data;
+      throw enrichSmsError(err, data);
+    }
+    return {
+      ok: true,
+      provider: 'sms.ru',
+      statusCode: Number(row?.status_code || data?.status_code || 100),
+      smsId: row?.sms_id || null,
+    };
   }
 
   const isDev = process.env.NODE_ENV !== 'production';

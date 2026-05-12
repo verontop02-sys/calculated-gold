@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { publicFieldDealSessionGet, publicFieldDealSessionVerify } from './api.js';
+import { publicFieldDealSessionGet, publicFieldDealSessionSendReceipt, publicFieldDealSessionVerify } from './api.js';
 import { ThemeToggle } from './ThemeToggle.jsx';
 
 function formatMoney(n) {
@@ -18,6 +18,11 @@ export function FieldDealConfirm({ token }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [receiptMode, setReceiptMode] = useState('email');
+  const [receiptTarget, setReceiptTarget] = useState('');
+  const [receiptBusy, setReceiptBusy] = useState(false);
+  const [receiptDone, setReceiptDone] = useState(false);
+  const [receiptMsg, setReceiptMsg] = useState('');
 
   const load = useCallback(async () => {
     setErr('');
@@ -49,11 +54,42 @@ export function FieldDealConfirm({ token }) {
     try {
       await publicFieldDealSessionVerify(token, c);
       setDone(true);
+      setReceiptDone(false);
+      setReceiptMsg('');
+      setReceiptTarget('');
+      await load();
     } catch (e) {
       setErr(e?.message || 'Ошибка');
       await load();
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function submitReceipt(e) {
+    e.preventDefault();
+    setErr('');
+    setReceiptMsg('');
+    const target = String(receiptTarget || '').trim();
+    if (!target) {
+      setErr(receiptMode === 'email' ? 'Укажите email для отправки чека' : 'Укажите номер телефона для отправки чека');
+      return;
+    }
+    setReceiptBusy(true);
+    try {
+      const out = await publicFieldDealSessionSendReceipt(token, receiptMode, target);
+      setReceiptDone(true);
+      if (out.channel === 'sms') {
+        setReceiptMsg(`Чек отправлен по SMS на номер +7 ••• ${out.target || '****'}`);
+      } else {
+        setReceiptMsg(`Чек отправлен на email ${target}`);
+      }
+      await load();
+    } catch (e) {
+      setErr(e?.message || 'Не удалось отправить чек');
+      await load();
+    } finally {
+      setReceiptBusy(false);
     }
   }
 
@@ -100,12 +136,7 @@ export function FieldDealConfirm({ token }) {
               </div>
             )}
 
-            {done && (
-              <p className="fd-success">
-                Готово: сделка зафиксирована. PDF с квитанцией отправлен на почту сотрудника (если настроена почта на
-                сервере). Можно закрыть эту страницу.
-              </p>
-            )}
+            {done && <p className="fd-success">Код подтверждён. Теперь выберите, куда отправить мини-чек.</p>}
 
             {info.status === 'pending' && info.canEnterCode && !done && (
               <form className="fd-form" onSubmit={submit}>
@@ -135,6 +166,46 @@ export function FieldDealConfirm({ token }) {
             {info.status === 'pending' && !info.canEnterCode && !done && (
               <p className="fd-err">Попытки исчерпаны или время истекло. Запросите новую ссылку у сотрудника.</p>
             )}
+
+            {(done || info.status === 'confirmed') && !info.receiptSent && (
+              <form className="fd-form" onSubmit={submitReceipt}>
+                <label className="field">
+                  <span className="field-label">Куда отправить чек</span>
+                  <select
+                    className="input"
+                    value={receiptMode}
+                    onChange={(e) => {
+                      setReceiptMode(e.target.value === 'sms' ? 'sms' : 'email');
+                      setReceiptTarget('');
+                    }}
+                  >
+                    <option value="email">На email</option>
+                    <option value="sms">На телефон (SMS)</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field-label">{receiptMode === 'email' ? 'Email' : 'Телефон'}</span>
+                  <input
+                    className="input mono-nums"
+                    inputMode={receiptMode === 'email' ? 'email' : 'tel'}
+                    autoComplete={receiptMode === 'email' ? 'email' : 'tel'}
+                    placeholder={receiptMode === 'email' ? 'example@mail.ru' : '+7XXXXXXXXXX'}
+                    value={receiptTarget}
+                    onChange={(e) => setReceiptTarget(e.target.value)}
+                  />
+                </label>
+                <button type="submit" className="btn-primary fd-submit" disabled={receiptBusy}>
+                  {receiptBusy ? 'Отправляем…' : 'Отправить чек'}
+                </button>
+              </form>
+            )}
+
+            {info.receiptSent && (
+              <p className="fd-success">
+                Чек уже отправлен {info.receiptChannel === 'sms' ? 'по SMS' : 'на email'}. Можно закрыть страницу.
+              </p>
+            )}
+            {receiptDone && receiptMsg && <p className="fd-success">{receiptMsg}</p>}
           </>
         )}
       </div>

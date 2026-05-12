@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { firstFilledContractRow } from './scrapDealFirstRow.js';
 import { buildScrapContractPdfBuffer } from './scrapContractPdf.js';
 import { sendDealConfirmationSms } from './smsSend.js';
-import { sendDealReceiptEmailIfConfigured } from './emailDealReceipt.js';
+import { sendDealReceiptEmailIfConfigured, sendDealReceiptTextEmailIfConfigured } from './emailDealReceipt.js';
 
 function normalizeScrapPhoneDigits(v) {
   const digits = String(v || '').replace(/\D/g, '');
@@ -129,7 +129,37 @@ function phoneLast4(phone) {
   return d.length >= 4 ? d.slice(-4) : '****';
 }
 
-export async function createFieldDealSession(supabase, { reqUser, requesterRole, body }) {
+function maskEmail(email) {
+  const s = String(email || '').trim();
+  const idx = s.indexOf('@');
+  if (idx <= 1) return '***';
+  return `${s[0]}***${s.slice(idx - 1)}`;
+}
+
+async function getReceiptSentEvent(supabase, sessionId) {
+  const { data, error } = await supabase
+    .from('field_deal_audit_events')
+    .select('id, detail, created_at')
+    .eq('session_id', sessionId)
+    .eq('event_type', 'receipt_sent')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return data || null;
+}
+
+function buildMiniReceiptText({ payload, totalRub, createdAt }) {
+  const amount = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Number(totalRub || 0));
+  const dt = createdAt
+    ? new Date(createdAt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : new Date().toLocaleDateString('ru-RU');
+  const contractNo = String(payload?.contractNo || '').trim() || 'без номера';
+  const seller = String(payload?.sellerName || '').trim() || 'клиент';
+  return `REAKTIVO: чек по сделке. Договор: ${contractNo}. Сумма: ${amount} ₽. Дата: ${dt}. Продавец: ${seller}.`;
+}
+
+export async function createFieldDealSession(supabase, { reqUser, requesterRole, body, publicAppOrigin }) {
   const sellerName = String(body?.sellerName || '').trim();
   if (!sellerName) {
     const err = new Error('Укажите ФИО продавца');
@@ -232,7 +262,9 @@ export async function createFieldDealSession(supabase, { reqUser, requesterRole,
   if (error) throw error;
   const sessionId = row?.id;
   const smsDigits = `+7${phone_normalized}`;
-  const text = `REAKTIVO: код подтверждения сделки ${code}. Никому не сообщайте. Действует ${Math.round(ttlMs() / 60000)} мин.`;
+  const base = String(publicAppOrigin || process.env.PUBLIC_APP_ORIGIN || '').trim().replace(/\/$/, '');
+  const confirmUrl = `${base}/podtverzhdenie/${encodeURIComponent(token)}`;
+  const text = `REAKTIVO код ${code}. Ссылка: ${confirmUrl}`;
 
   await audit(supabase, sessionId, 'session_created', 'panel_user', reqUser.id, {
     totalRub,
@@ -240,8 +272,12 @@ export async function createFieldDealSession(supabase, { reqUser, requesterRole,
   });
 
   try {
-    await sendDealConfirmationSms({ to: smsDigits, text });
-    await audit(supabase, sessionId, 'sms_sent', 'system', null, { provider: 'queued' });
+    const smsOut = await sendDealConfirmationSms({ to: smsDigits, text });
+    await audit(supabase, sessionId, 'sms_sent', 'system', null, {
+      provider: smsOut?.provider || 'sms.ru',
+      statusCode: smsOut?.statusCode || null,
+      smsId: smsOut?.smsId || null,
+    });
   } catch (e) {
     await supabase.from('field_deal_sessions').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', sessionId);
     await audit(supabase, sessionId, 'sms_failed', 'system', null, { error: e?.message || String(e) });
@@ -251,6 +287,7 @@ export async function createFieldDealSession(supabase, { reqUser, requesterRole,
   return {
     sessionId,
     publicToken: token,
+    confirmUrl,
     expiresAt: expires,
     smsTo: phoneLast4(phone),
     /** Только для dev / внутренней приёмки: в prod не возвращать. */
@@ -287,6 +324,7 @@ export async function getPublicFieldDealSession(supabase, token) {
     await audit(supabase, s.id, 'expired', 'system', null, {});
   }
   const payload = s.payload || {};
+  const receiptEvent = s.status === 'confirmed' ? await getReceiptSentEvent(supabase, s.id) : null;
   return {
     status,
     totalRub: s.total_rub,
@@ -296,6 +334,9 @@ export async function getPublicFieldDealSession(supabase, token) {
     attemptsMax: s.max_attempts,
     expiresAt: s.code_expires_at,
     canEnterCode: status === 'pending' && now <= expMs && s.attempt_count < s.max_attempts,
+    canRequestReceipt: status === 'confirmed' && !receiptEvent,
+    receiptSent: !!receiptEvent,
+    receiptChannel: receiptEvent?.detail?.channel || null,
   };
 }
 
@@ -469,7 +510,76 @@ export async function verifyFieldDealSession(supabase, { token, code, clientIp }
     console.error('[field deal email/pdf]', e?.message || e);
   }
 
-  return { ok: true, dealId };
+  return { ok: true, dealId, canRequestReceipt: true, receiptSent: false };
+}
+
+export async function sendFieldDealReceiptByClient(supabase, { token, channel, target }) {
+  const t = String(token || '').trim();
+  if (!/^[A-Za-z0-9_-]{20,200}$/.test(t)) {
+    const err = new Error('Некорректная ссылка');
+    err.status = 400;
+    throw err;
+  }
+  const mode = String(channel || '').trim().toLowerCase();
+  if (mode !== 'sms' && mode !== 'email') {
+    const err = new Error('Выберите способ отправки чека');
+    err.status = 400;
+    throw err;
+  }
+  const { data: s, error } = await supabase
+    .from('field_deal_sessions')
+    .select('id, status, total_rub, phone, payload, created_at')
+    .eq('public_token', t)
+    .maybeSingle();
+  if (error) throw error;
+  if (!s) {
+    const err = new Error('Сессия не найдена');
+    err.status = 404;
+    throw err;
+  }
+  if (s.status !== 'confirmed') {
+    const err = new Error('Чек можно отправить только после подтверждения кода');
+    err.status = 409;
+    throw err;
+  }
+  const sent = await getReceiptSentEvent(supabase, s.id);
+  if (sent) {
+    const err = new Error('Чек уже отправлен по этой ссылке');
+    err.status = 409;
+    throw err;
+  }
+  const text = buildMiniReceiptText({ payload: s.payload, totalRub: s.total_rub, createdAt: s.created_at });
+  if (mode === 'email') {
+    const email = String(target || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      const err = new Error('Укажите корректный email');
+      err.status = 400;
+      throw err;
+    }
+    const emailOut = await sendDealReceiptTextEmailIfConfigured({
+      toEmail: email,
+      subject: 'Чек по сделке REAKTIVO',
+      text,
+      html: `<p>${text}</p>`,
+    });
+    if (!emailOut?.sent) {
+      const err = new Error('Отправка email временно недоступна');
+      err.status = 503;
+      throw err;
+    }
+    await audit(supabase, s.id, 'receipt_sent', 'client', null, { channel: 'email', target: maskEmail(email) });
+    return { ok: true, channel: 'email', target: maskEmail(email) };
+  }
+  const n = normalizeScrapPhoneDigits(String(target || '').trim());
+  if (!n) {
+    const err = new Error('Укажите корректный телефон РФ');
+    err.status = 400;
+    throw err;
+  }
+  const smsPhone = `+7${n}`;
+  await sendDealConfirmationSms({ to: smsPhone, text });
+  await audit(supabase, s.id, 'receipt_sent', 'client', null, { channel: 'sms', target: phoneLast4(smsPhone) });
+  return { ok: true, channel: 'sms', target: phoneLast4(smsPhone) };
 }
 
 export async function listFieldDealSessionsForManager(supabase, { limit = 40, offset = 0 }) {
