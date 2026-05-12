@@ -29,8 +29,12 @@ import {
   createGoldIndexCompetitor,
   updateGoldIndexCompetitor,
   deleteGoldIndexCompetitor,
+  listGoldIndexHistory,
+  enrichGoldIndexHistoryActors,
+  geocodeGoldIndexLocation,
 } from './goldIndex.js';
 import { buildGoldIndexReportPdfBuffer } from './goldIndexPdf.js';
+import { buildGoldIndexExcelBuffer } from './goldIndexExcel.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // npm run dev из корня монорепо: cwd ≠ server/, иначе dotenv не видит server/.env
@@ -876,14 +880,135 @@ app.get(
 );
 
 app.get(
+  '/api/gold-index/history',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (req, res) => {
+    const cityId = String(req.query.cityId || '').trim();
+    const limit = parseInt(String(req.query.limit || '30'), 10) || 30;
+    const offset = parseInt(String(req.query.offset || '0'), 10) || 0;
+    const from = String(req.query.from || '').trim();
+    const to = String(req.query.to || '').trim();
+    const data = await listGoldIndexHistory(supabase, { cityId, from, to, limit, offset });
+    const rows = await enrichGoldIndexHistoryActors(supabase, data.rows || []);
+    res.json({ ...data, rows });
+  })
+);
+
+app.post(
+  '/api/gold-index/geocode',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await geocodeGoldIndexLocation(req.body || {});
+      res.json(out);
+    } catch (e) {
+      const st = e.status || 500;
+      res.status(st).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.get(
   '/api/gold-index/report.pdf',
   asyncHandler(requireSuperAdmin),
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const overview = await buildGoldIndexOverview(supabase);
-    const buf = buildGoldIndexReportPdfBuffer(overview);
+    const regionCode = String(req.query.regionCode || '').trim();
+    const from = String(req.query.from || '').trim();
+    const to = String(req.query.to || '').trim();
+    const filteredCities = regionCode
+      ? (overview.cities || []).filter((c) => String(c.region_code || '') === regionCode)
+      : overview.cities || [];
+    const cityIdSet = new Set(filteredCities.map((c) => c.id));
+    const filteredRegions = (overview.regions || []).filter((r) => {
+      if (!regionCode) return true;
+      return String(r.regionCode || '') === regionCode;
+    });
+    const filteredOverview = {
+      ...overview,
+      regions: filteredRegions,
+      cities: filteredCities,
+      stats: {
+        cityCount: filteredCities.length,
+        populationCovered: filteredCities.reduce((s, x) => s + (x.population || 0), 0),
+        competitorRows: filteredCities.reduce((s, x) => s + (x.competitors?.length || 0), 0),
+      },
+    };
+    const history = await listGoldIndexHistory(supabase, {
+      cityIds: [...cityIdSet],
+      from,
+      to,
+      limit: 120,
+      offset: 0,
+    });
+    const historyRows = await enrichGoldIndexHistoryActors(supabase, history.rows || []);
+    const buf = buildGoldIndexReportPdfBuffer(filteredOverview, {
+      filters: {
+        regionCode: regionCode || null,
+        regionName:
+          regionCode && filteredCities[0] ? String(filteredCities[0].region_name || regionCode) : null,
+        from: /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : null,
+        to: /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : null,
+      },
+      historyRows,
+    });
     const out = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="gold-index.pdf"');
+    res.send(out);
+  })
+);
+
+app.get(
+  '/api/gold-index/export.xlsx',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (req, res) => {
+    const overview = await buildGoldIndexOverview(supabase);
+    const regionCode = String(req.query.regionCode || '').trim();
+    const from = String(req.query.from || '').trim();
+    const to = String(req.query.to || '').trim();
+    const filteredCities = regionCode
+      ? (overview.cities || []).filter((c) => String(c.region_code || '') === regionCode)
+      : overview.cities || [];
+    const cityIdSet = new Set(filteredCities.map((c) => c.id));
+    const filteredRegions = (overview.regions || []).filter((r) => {
+      if (!regionCode) return true;
+      return String(r.regionCode || '') === regionCode;
+    });
+    const filteredOverview = {
+      ...overview,
+      regions: filteredRegions,
+      cities: filteredCities,
+      stats: {
+        cityCount: filteredCities.length,
+        populationCovered: filteredCities.reduce((s, x) => s + (x.population || 0), 0),
+        competitorRows: filteredCities.reduce((s, x) => s + (x.competitors?.length || 0), 0),
+      },
+    };
+    const history = await listGoldIndexHistory(supabase, {
+      cityIds: [...cityIdSet],
+      from,
+      to,
+      limit: 1000,
+      offset: 0,
+    });
+    const historyRows = await enrichGoldIndexHistoryActors(supabase, history.rows || []);
+    const buf = buildGoldIndexExcelBuffer(filteredOverview, {
+      filters: {
+        regionCode: regionCode || null,
+        regionName:
+          regionCode && filteredCities[0] ? String(filteredCities[0].region_name || regionCode) : null,
+        from: /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : null,
+        to: /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : null,
+      },
+      historyRows,
+    });
+    const out = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', 'attachment; filename="gold-index.xlsx"');
     res.send(out);
   })
 );
@@ -903,7 +1028,7 @@ app.patch(
   asyncHandler(async (req, res) => {
     const id = String(req.params.id || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Некорректный id' });
-    await updateGoldIndexCity(supabase, id, req.body || {});
+    await updateGoldIndexCity(supabase, id, req.body || {}, req.user.id);
     res.json({ ok: true });
   })
 );
@@ -914,7 +1039,7 @@ app.delete(
   asyncHandler(async (req, res) => {
     const id = String(req.params.id || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Некорректный id' });
-    await deleteGoldIndexCity(supabase, id);
+    await deleteGoldIndexCity(supabase, id, req.user.id);
     res.json({ ok: true });
   })
 );
@@ -925,7 +1050,7 @@ app.post(
   asyncHandler(async (req, res) => {
     const cityId = String(req.params.cityId || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(cityId)) return res.status(400).json({ error: 'Некорректный id города' });
-    const id = await createGoldIndexCompetitor(supabase, cityId, req.body || {});
+    const id = await createGoldIndexCompetitor(supabase, cityId, req.body || {}, req.user.id);
     res.json({ id });
   })
 );
@@ -936,7 +1061,7 @@ app.patch(
   asyncHandler(async (req, res) => {
     const id = String(req.params.id || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Некорректный id' });
-    await updateGoldIndexCompetitor(supabase, id, req.body || {});
+    await updateGoldIndexCompetitor(supabase, id, req.body || {}, req.user.id);
     res.json({ ok: true });
   })
 );
@@ -947,7 +1072,7 @@ app.delete(
   asyncHandler(async (req, res) => {
     const id = String(req.params.id || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Некорректный id' });
-    await deleteGoldIndexCompetitor(supabase, id);
+    await deleteGoldIndexCompetitor(supabase, id, req.user.id);
     res.json({ ok: true });
   })
 );

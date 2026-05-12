@@ -354,7 +354,33 @@ export const api = {
     request(`/field-deal-sessions/${encodeURIComponent(String(id))}/cancel`, { method: 'POST' }),
   /** Индекс золота (только super_admin на сервере). */
   goldIndexOverview: () => request('/gold-index/overview'),
-  goldIndexReportPdf: () => requestBlob('/gold-index/report.pdf', { method: 'GET' }),
+  goldIndexHistory: (opts = {}) => {
+    const q = new URLSearchParams();
+    if (opts.cityId) q.set('cityId', String(opts.cityId));
+    if (opts.from) q.set('from', String(opts.from));
+    if (opts.to) q.set('to', String(opts.to));
+    if (opts.limit != null) q.set('limit', String(opts.limit));
+    if (opts.offset != null) q.set('offset', String(opts.offset));
+    const s = q.toString();
+    return request(`/gold-index/history${s ? `?${s}` : ''}`);
+  },
+  goldIndexReportPdf: (opts = {}) => {
+    const q = new URLSearchParams();
+    if (opts.regionCode) q.set('regionCode', String(opts.regionCode));
+    if (opts.from) q.set('from', String(opts.from));
+    if (opts.to) q.set('to', String(opts.to));
+    const s = q.toString();
+    return requestBlob(`/gold-index/report.pdf${s ? `?${s}` : ''}`, { method: 'GET' });
+  },
+  goldIndexExportXlsx: (opts = {}) => {
+    const q = new URLSearchParams();
+    if (opts.regionCode) q.set('regionCode', String(opts.regionCode));
+    if (opts.from) q.set('from', String(opts.from));
+    if (opts.to) q.set('to', String(opts.to));
+    const s = q.toString();
+    return requestBlob(`/gold-index/export.xlsx${s ? `?${s}` : ''}`, { method: 'GET' });
+  },
+  goldIndexGeocode: (body) => request('/gold-index/geocode', { method: 'POST', body: JSON.stringify(body) }),
   goldIndexCreateCity: (body) => request('/gold-index/cities', { method: 'POST', body: JSON.stringify(body) }),
   goldIndexUpdateCity: (id, body) =>
     request(`/gold-index/cities/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) }),

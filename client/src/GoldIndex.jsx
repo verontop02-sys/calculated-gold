@@ -37,17 +37,34 @@ export function GoldIndex({ formatMoney, toast }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [excelBusy, setExcelBusy] = useState(false);
   const [expanded, setExpanded] = useState(() => new Set());
   const [showCityForm, setShowCityForm] = useState(false);
   const [cityDraft, setCityDraft] = useState({
     region_code: '',
     region_name: '',
     city_name: '',
+    street: '',
+    building: '',
+    address_note: '',
+    geocode_raw: '',
+    geocoded_label: '',
     lat: '',
     lng: '',
     population: '',
     notes: '',
   });
+  const [geocodeBusy, setGeocodeBusy] = useState(false);
+  const [editingCityId, setEditingCityId] = useState(null);
+  const [editDraft, setEditDraft] = useState(null);
+  const [regionFilter, setRegionFilter] = useState('');
+  const [cityQuery, setCityQuery] = useState('');
+  const [pdfFrom, setPdfFrom] = useState('');
+  const [pdfTo, setPdfTo] = useState('');
+  const [historyByCity, setHistoryByCity] = useState({});
+  const [historyBusyByCity, setHistoryBusyByCity] = useState({});
+  const [editingCompetitorId, setEditingCompetitorId] = useState(null);
+  const [editCompetitorDraft, setEditCompetitorDraft] = useState(null);
   const [compDraftByCity, setCompDraftByCity] = useState({});
 
   const load = useCallback(async () => {
@@ -58,10 +75,12 @@ export function GoldIndex({ formatMoney, toast }) {
       const d = await api.goldIndexOverview();
       setData(d);
       hasLoadedOnceRef.current = true;
+      return d;
     } catch (e) {
       setErr(e?.message || 'Не удалось загрузить');
       setData(null);
       hasLoadedOnceRef.current = false;
+      return null;
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -73,6 +92,21 @@ export function GoldIndex({ formatMoney, toast }) {
   }, [load]);
 
   const cities = data?.cities || [];
+  const filteredCities = useMemo(() => {
+    const q = cityQuery.trim().toLowerCase();
+    return cities.filter((c) => {
+      if (regionFilter && c.region_code !== regionFilter) return false;
+      if (!q) return true;
+      return `${c.city_name || ''} ${c.region_name || ''} ${c.street || ''} ${c.building || ''}`.toLowerCase().includes(q);
+    });
+  }, [cities, cityQuery, regionFilter]);
+  const regionOptions = useMemo(() => {
+    const map = new Map();
+    for (const c of cities) {
+      if (!map.has(c.region_code)) map.set(c.region_code, c.region_name || c.region_code);
+    }
+    return [...map.entries()].map(([code, name]) => ({ code, name })).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+  }, [cities]);
   const regionsChart = useMemo(
     () =>
       (data?.regions || [])
@@ -100,7 +134,7 @@ export function GoldIndex({ formatMoney, toast }) {
     const layer = layerRef.current;
     const m = mapInstRef.current;
     layer.clearLayers();
-    for (const c of cities) {
+    for (const c of filteredCities) {
       const fill = COLOR_HEX[c.colorKey] || COLOR_HEX.neutral;
       const mk = L.circleMarker([c.lat, c.lng], {
         radius: 9,
@@ -109,16 +143,19 @@ export function GoldIndex({ formatMoney, toast }) {
         fillColor: fill,
         fillOpacity: 0.92,
       });
+      const addrPop = formatCityAddressLine(c);
       mk.bindPopup(
-        `<strong>${escapeHtml(c.city_name)}</strong><br/>${escapeHtml(c.region_name)}<br/>Индекс: ${fmtRatio(c.ratioAvg)}`
+        `<strong>${escapeHtml(c.city_name)}</strong><br/>${escapeHtml(c.region_name)}${
+          addrPop ? `<br/>${escapeHtml(addrPop)}` : ''
+        }<br/>Индекс: ${fmtRatio(c.ratioAvg)}`
       );
       mk.on('click', () => {
         setExpanded((prev) => new Set(prev).add(c.id));
       });
       mk.addTo(layer);
     }
-    if (cities.length === 1) {
-      m.setView([cities[0].lat, cities[0].lng], 8);
+    if (filteredCities.length === 1) {
+      m.setView([filteredCities[0].lat, filteredCities[0].lng], 8);
     }
     requestAnimationFrame(() => {
       try {
@@ -128,7 +165,7 @@ export function GoldIndex({ formatMoney, toast }) {
       }
     });
     return () => {};
-  }, [cities]);
+  }, [filteredCities]);
 
   useEffect(() => {
     return () => {
@@ -141,7 +178,11 @@ export function GoldIndex({ formatMoney, toast }) {
   async function handlePdf() {
     setPdfBusy(true);
     try {
-      const blob = await api.goldIndexReportPdf();
+      const blob = await api.goldIndexReportPdf({
+        regionCode: regionFilter || undefined,
+        from: pdfFrom || undefined,
+        to: pdfTo || undefined,
+      });
       downloadBlob(blob, `gold-index-${new Date().toISOString().slice(0, 10)}.pdf`);
       toast('PDF сохранён', 'success');
     } catch (e) {
@@ -151,14 +192,62 @@ export function GoldIndex({ formatMoney, toast }) {
     }
   }
 
+  async function handleExcel() {
+    setExcelBusy(true);
+    try {
+      const blob = await api.goldIndexExportXlsx({
+        regionCode: regionFilter || undefined,
+        from: pdfFrom || undefined,
+        to: pdfTo || undefined,
+      });
+      downloadBlob(blob, `gold-index-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast('Excel сохранен', 'success');
+    } catch (e) {
+      toast(e?.message || 'Ошибка Excel', 'error');
+    } finally {
+      setExcelBusy(false);
+    }
+  }
+
+  async function loadCityHistory(cityId) {
+    if (!cityId) return;
+    setHistoryBusyByCity((prev) => ({ ...prev, [cityId]: true }));
+    try {
+      const out = await api.goldIndexHistory({
+        cityId,
+        from: pdfFrom || undefined,
+        to: pdfTo || undefined,
+        limit: 20,
+      });
+      setHistoryByCity((prev) => ({ ...prev, [cityId]: out?.rows || [] }));
+    } catch (e) {
+      toast(e?.message || 'Не удалось загрузить историю изменений', 'error');
+    } finally {
+      setHistoryBusyByCity((prev) => ({ ...prev, [cityId]: false }));
+    }
+  }
+
   function toggleExpand(id) {
     setExpanded((prev) => {
       const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
+      if (n.has(id)) {
+        n.delete(id);
+      } else {
+        n.add(id);
+        if (!historyByCity[id] && !historyBusyByCity[id]) {
+          loadCityHistory(id);
+        }
+      }
       return n;
     });
   }
+
+  useEffect(() => {
+    for (const cityId of expanded) {
+      if (!historyBusyByCity[cityId]) loadCityHistory(cityId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pdfFrom, pdfTo]);
 
   function probeFieldsForCity(cityId) {
     const probes = data?.probesSuggested || [585, 750, 916];
@@ -173,6 +262,125 @@ export function GoldIndex({ formatMoney, toast }) {
     }));
   }
 
+  function buildGeocodePayload(draft) {
+    const raw = String(draft.geocode_raw || '').trim();
+    if (raw) return { raw_query: raw };
+    return {
+      city_name: draft.city_name,
+      region_name: draft.region_name,
+      street: draft.street || '',
+      building: draft.building || '',
+      address_note: draft.address_note || '',
+    };
+  }
+
+  async function runGeocodeNew() {
+    setGeocodeBusy(true);
+    try {
+      const out = await api.goldIndexGeocode(buildGeocodePayload(cityDraft));
+      setCityDraft((d) => ({
+        ...d,
+        lat: String(out.lat),
+        lng: String(out.lng),
+        geocoded_label: out.displayName || '',
+      }));
+      toast('Координаты подставлены — проверьте маркер на карте и при необходимости поправьте вручную', 'success');
+    } catch (e2) {
+      toast(e2?.message || 'Геокодирование не удалось', 'error');
+    } finally {
+      setGeocodeBusy(false);
+    }
+  }
+
+  async function runGeocodeEdit() {
+    if (!editDraft) return;
+    setGeocodeBusy(true);
+    try {
+      const out = await api.goldIndexGeocode(buildGeocodePayload(editDraft));
+      setEditDraft((d) => ({
+        ...d,
+        lat: String(out.lat),
+        lng: String(out.lng),
+        geocoded_label: out.displayName || '',
+      }));
+      toast('Координаты подставлены — проверьте маркер на карте и при необходимости поправьте вручную', 'success');
+    } catch (e2) {
+      toast(e2?.message || 'Геокодирование не удалось', 'error');
+    } finally {
+      setGeocodeBusy(false);
+    }
+  }
+
+  function startEditCity(c) {
+    setEditingCityId(c.id);
+    setEditDraft({
+      region_code: c.region_code ?? '',
+      region_name: c.region_name ?? '',
+      city_name: c.city_name ?? '',
+      street: c.street ?? '',
+      building: c.building ?? '',
+      address_note: c.address_note ?? '',
+      geocode_raw: '',
+      geocoded_label: c.geocoded_label ?? '',
+      lat: c.lat != null ? String(c.lat) : '',
+      lng: c.lng != null ? String(c.lng) : '',
+      population: c.population != null ? String(c.population) : '',
+      notes: c.notes ?? '',
+    });
+  }
+
+  function cancelEditCity() {
+    setEditingCityId(null);
+    setEditDraft(null);
+  }
+
+  async function saveEditCity() {
+    if (!editingCityId || !editDraft) return;
+    const lat = parseFloat(String(editDraft.lat).replace(',', '.'));
+    const lng = parseFloat(String(editDraft.lng).replace(',', '.'));
+    if (!editDraft.region_code?.trim() || !editDraft.region_name?.trim() || !editDraft.city_name?.trim()) {
+      toast('Укажите код региона, регион и город', 'error');
+      return;
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      toast('Укажите корректные широту и долготу', 'error');
+      return;
+    }
+    try {
+      await api.goldIndexUpdateCity(editingCityId, {
+        region_code: editDraft.region_code,
+        region_name: editDraft.region_name,
+        city_name: editDraft.city_name,
+        lat,
+        lng,
+        population: editDraft.population === '' ? null : editDraft.population,
+        notes: editDraft.notes || null,
+        street: editDraft.street?.trim() ? editDraft.street.trim() : null,
+        building: editDraft.building?.trim() ? editDraft.building.trim() : null,
+        address_note: editDraft.address_note?.trim() ? editDraft.address_note.trim() : null,
+        geocoded_label: editDraft.geocoded_label?.trim() ? editDraft.geocoded_label.trim() : null,
+      });
+      toast('Город обновлён', 'success');
+      cancelEditCity();
+      const fresh = await load();
+      const persisted = (fresh?.cities || []).find((x) => x.id === editingCityId);
+      if (persisted) {
+        const before = [editDraft.street || '', editDraft.building || '', editDraft.address_note || '', editDraft.geocoded_label || '']
+          .map((x) => x.trim())
+          .join('|');
+        const after = [persisted.street || '', persisted.building || '', persisted.address_note || '', persisted.geocoded_label || '']
+          .map((x) => String(x).trim())
+          .join('|');
+        if (before !== after) {
+          toast('Часть адресных полей не сохранилась. Проверьте миграции БД и перезапуск API.', 'error');
+        }
+      }
+      await loadCityHistory(editingCityId);
+    } catch (err2) {
+      toast(err2?.message || 'Ошибка', 'error');
+    }
+  }
+
   async function submitCity(e) {
     e.preventDefault();
     try {
@@ -184,6 +392,10 @@ export function GoldIndex({ formatMoney, toast }) {
         lng: parseFloat(String(cityDraft.lng).replace(',', '.')),
         population: cityDraft.population === '' ? null : cityDraft.population,
         notes: cityDraft.notes || null,
+        street: cityDraft.street?.trim() ? cityDraft.street.trim() : null,
+        building: cityDraft.building?.trim() ? cityDraft.building.trim() : null,
+        address_note: cityDraft.address_note?.trim() ? cityDraft.address_note.trim() : null,
+        geocoded_label: cityDraft.geocoded_label?.trim() ? cityDraft.geocoded_label.trim() : null,
       });
       toast('Город добавлен', 'success');
       setShowCityForm(false);
@@ -191,6 +403,11 @@ export function GoldIndex({ formatMoney, toast }) {
         region_code: '',
         region_name: '',
         city_name: '',
+        street: '',
+        building: '',
+        address_note: '',
+        geocode_raw: '',
+        geocoded_label: '',
         lat: '',
         lng: '',
         population: '',
@@ -214,8 +431,42 @@ export function GoldIndex({ formatMoney, toast }) {
       toast('Конкурент добавлен', 'success');
       setCompDraft(cityId, { company_name: '', measured_at: '', probes: {}, notes: '' });
       await load();
+      await loadCityHistory(cityId);
     } catch (err2) {
       toast(err2?.message || 'Ошибка', 'error');
+    }
+  }
+
+  function startEditCompetitor(co) {
+    setEditingCompetitorId(co.id);
+    setEditCompetitorDraft({
+      company_name: co.companyName || '',
+      measured_at: co.measuredAt || '',
+      notes: co.notes || '',
+      probes: { ...(co.probes || {}) },
+    });
+  }
+
+  function cancelEditCompetitor() {
+    setEditingCompetitorId(null);
+    setEditCompetitorDraft(null);
+  }
+
+  async function saveCompetitor(cityId, competitorId) {
+    if (!editCompetitorDraft) return;
+    try {
+      await api.goldIndexUpdateCompetitor(competitorId, {
+        company_name: editCompetitorDraft.company_name,
+        measured_at: editCompetitorDraft.measured_at || null,
+        notes: editCompetitorDraft.notes || null,
+        probes: editCompetitorDraft.probes || {},
+      });
+      toast('Конкурент обновлён', 'success');
+      cancelEditCompetitor();
+      await load();
+      await loadCityHistory(cityId);
+    } catch (e) {
+      toast(e?.message || 'Ошибка', 'error');
     }
   }
 
@@ -230,12 +481,13 @@ export function GoldIndex({ formatMoney, toast }) {
     }
   }
 
-  async function deleteCompetitor(id) {
+  async function deleteCompetitor(cityId, id) {
     if (!window.confirm('Удалить компанию из списка?')) return;
     try {
       await api.goldIndexDeleteCompetitor(id);
       toast('Удалено', 'success');
       await load();
+      await loadCityHistory(cityId);
     } catch (err2) {
       toast(err2?.message || 'Ошибка', 'error');
     }
@@ -254,6 +506,23 @@ export function GoldIndex({ formatMoney, toast }) {
         <div className="gold-index__actions">
           <button type="button" className="btn-ghost" disabled={pdfBusy || loading || refreshing} onClick={() => load()}>
             Обновить
+          </button>
+          <input
+            type="date"
+            className="input"
+            value={pdfFrom}
+            onChange={(e) => setPdfFrom(e.target.value)}
+            title="Период истории: от"
+          />
+          <input
+            type="date"
+            className="input"
+            value={pdfTo}
+            onChange={(e) => setPdfTo(e.target.value)}
+            title="Период истории: до"
+          />
+          <button type="button" className="btn-ghost" disabled={excelBusy || loading || refreshing} onClick={handleExcel}>
+            {excelBusy ? 'Excel…' : 'Скачать Excel'}
           </button>
           <button type="button" className="btn-primary" disabled={pdfBusy || loading || refreshing} onClick={handlePdf}>
             {pdfBusy ? 'PDF…' : 'Скачать PDF'}
@@ -334,10 +603,34 @@ export function GoldIndex({ formatMoney, toast }) {
             <button type="button" className="btn-primary" onClick={() => setShowCityForm((v) => !v)}>
               {showCityForm ? 'Скрыть форму' : '+ Город'}
             </button>
+            <select className="input" value={regionFilter} onChange={(e) => setRegionFilter(e.target.value)}>
+              <option value="">Все регионы</option>
+              {regionOptions.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+            <input
+              className="input"
+              value={cityQuery}
+              onChange={(e) => setCityQuery(e.target.value)}
+              placeholder="Поиск: город, регион, улица"
+              style={{ minWidth: 240 }}
+            />
           </div>
 
           {showCityForm && (
             <form className="gold-index__form" onSubmit={submitCity}>
+              <p className="muted small" style={{ marginBottom: 12, lineHeight: 1.45 }}>
+                Координаты вручную: на{' '}
+                <a href="https://www.openstreetmap.org/" target="_blank" rel="noreferrer">
+                  OpenStreetMap
+                </a>{' '}
+                — ПКМ по точке; также Яндекс и Google Карты. Регион и город различают одноимённые пункты; улица и дом
+                уточняют метку. Кнопка ниже подставляет координаты по адресу (OpenStreetMap Nominatim, без ключа; не чаще ~1
+                запрос/с).
+              </p>
               <div className="gold-index__grid">
                 <label className="field">
                   <span className="field-label">Код региона</span>
@@ -367,6 +660,41 @@ export function GoldIndex({ formatMoney, toast }) {
                     required
                   />
                 </label>
+                <label className="field" style={{ gridColumn: '1 / -1' }}>
+                  <span className="field-label">Адрес одной строкой для поиска</span>
+                  <input
+                    className="input"
+                    value={cityDraft.geocode_raw}
+                    onChange={(e) => setCityDraft((d) => ({ ...d, geocode_raw: e.target.value }))}
+                    placeholder="Если заполнено — ищем только по этой строке (регион и город можно не повторять)"
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Улица</span>
+                  <input
+                    className="input"
+                    value={cityDraft.street}
+                    onChange={(e) => setCityDraft((d) => ({ ...d, street: e.target.value }))}
+                    placeholder="ул. …"
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Дом / корп.</span>
+                  <input
+                    className="input"
+                    value={cityDraft.building}
+                    onChange={(e) => setCityDraft((d) => ({ ...d, building: e.target.value }))}
+                  />
+                </label>
+                <label className="field" style={{ gridColumn: '1 / -1' }}>
+                  <span className="field-label">Уточнение адреса</span>
+                  <input
+                    className="input"
+                    value={cityDraft.address_note}
+                    onChange={(e) => setCityDraft((d) => ({ ...d, address_note: e.target.value }))}
+                    placeholder="Здание ТЦ, ориентир — попадает в запрос к геокодеру"
+                  />
+                </label>
                 <label className="field">
                   <span className="field-label">Широта</span>
                   <input
@@ -394,6 +722,28 @@ export function GoldIndex({ formatMoney, toast }) {
                   />
                 </label>
               </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  disabled={geocodeBusy || loading || refreshing}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    runGeocodeNew();
+                  }}
+                >
+                  {geocodeBusy ? 'Поиск…' : 'Подставить координаты по адресу'}
+                </button>
+              </div>
+              <label className="field">
+                <span className="field-label">Подпись точки (геокодер / можно править)</span>
+                <input
+                  className="input"
+                  value={cityDraft.geocoded_label}
+                  onChange={(e) => setCityDraft((d) => ({ ...d, geocoded_label: e.target.value }))}
+                  placeholder="Полный адрес от сервиса или своя пометка"
+                />
+              </label>
               <label className="field">
                 <span className="field-label">Заметки</span>
                 <input
@@ -409,7 +759,7 @@ export function GoldIndex({ formatMoney, toast }) {
           )}
 
           <div className="gold-index__cities">
-            {cities.map((c) => (
+            {filteredCities.map((c) => (
               <div key={c.id} className="gold-index__city">
                 <button type="button" className="gold-index__city-head" onClick={() => toggleExpand(c.id)}>
                   <span
@@ -425,10 +775,150 @@ export function GoldIndex({ formatMoney, toast }) {
                 </button>
                 {expanded.has(c.id) && (
                   <div className="gold-index__city-body">
-                    <p className="muted small">
-                      Координаты {c.lat?.toFixed?.(4)}, {c.lng?.toFixed?.(4)}
-                      {c.population != null ? ` · население ${c.population}` : ''}
-                    </p>
+                    {editingCityId === c.id && editDraft ? (
+                      <div style={{ marginBottom: 12 }}>
+                        <p className="muted small" style={{ marginBottom: 8 }}>
+                          Правка адреса и координат
+                        </p>
+                        <div className="gold-index__grid">
+                          <label className="field">
+                            <span className="field-label">Код региона</span>
+                            <input
+                              className="input"
+                              value={editDraft.region_code}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, region_code: e.target.value }))}
+                            />
+                          </label>
+                          <label className="field">
+                            <span className="field-label">Регион</span>
+                            <input
+                              className="input"
+                              value={editDraft.region_name}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, region_name: e.target.value }))}
+                            />
+                          </label>
+                          <label className="field">
+                            <span className="field-label">Город</span>
+                            <input
+                              className="input"
+                              value={editDraft.city_name}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, city_name: e.target.value }))}
+                            />
+                          </label>
+                          <label className="field" style={{ gridColumn: '1 / -1' }}>
+                            <span className="field-label">Адрес одной строкой для поиска</span>
+                            <input
+                              className="input"
+                              value={editDraft.geocode_raw}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, geocode_raw: e.target.value }))}
+                              placeholder="Необязательно: полный запрос к геокодеру"
+                            />
+                          </label>
+                          <label className="field">
+                            <span className="field-label">Улица</span>
+                            <input
+                              className="input"
+                              value={editDraft.street}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, street: e.target.value }))}
+                            />
+                          </label>
+                          <label className="field">
+                            <span className="field-label">Дом / корп.</span>
+                            <input
+                              className="input"
+                              value={editDraft.building}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, building: e.target.value }))}
+                            />
+                          </label>
+                          <label className="field" style={{ gridColumn: '1 / -1' }}>
+                            <span className="field-label">Уточнение адреса</span>
+                            <input
+                              className="input"
+                              value={editDraft.address_note}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, address_note: e.target.value }))}
+                            />
+                          </label>
+                          <label className="field">
+                            <span className="field-label">Широта</span>
+                            <input
+                              className="input mono-nums"
+                              value={editDraft.lat}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, lat: e.target.value }))}
+                            />
+                          </label>
+                          <label className="field">
+                            <span className="field-label">Долгота</span>
+                            <input
+                              className="input mono-nums"
+                              value={editDraft.lng}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, lng: e.target.value }))}
+                            />
+                          </label>
+                          <label className="field">
+                            <span className="field-label">Население</span>
+                            <input
+                              className="input mono-nums"
+                              value={editDraft.population}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, population: e.target.value }))}
+                            />
+                          </label>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', margin: '10px 0' }}>
+                          <button
+                            type="button"
+                            className="btn-ghost"
+                            disabled={geocodeBusy || loading || refreshing}
+                            onClick={runGeocodeEdit}
+                          >
+                            {geocodeBusy ? 'Поиск…' : 'Подставить координаты по адресу'}
+                          </button>
+                        </div>
+                        <label className="field">
+                          <span className="field-label">Подпись точки</span>
+                          <input
+                            className="input"
+                            value={editDraft.geocoded_label}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, geocoded_label: e.target.value }))}
+                          />
+                        </label>
+                        <label className="field">
+                          <span className="field-label">Заметки</span>
+                          <input
+                            className="input"
+                            value={editDraft.notes}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, notes: e.target.value }))}
+                          />
+                        </label>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                          <button type="button" className="btn-primary" onClick={saveEditCity}>
+                            Сохранить
+                          </button>
+                          <button type="button" className="btn-ghost" onClick={cancelEditCity}>
+                            Отмена
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="muted small">
+                          Координаты {c.lat?.toFixed?.(4)}, {c.lng?.toFixed?.(4)}
+                          {c.population != null ? ` · население ${c.population}` : ''}
+                        </p>
+                        {formatCityAddressLine(c) ? (
+                          <p className="muted small" style={{ marginTop: 4 }}>
+                            {formatCityAddressLine(c)}
+                          </p>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="btn-ghost small"
+                          style={{ marginTop: 8 }}
+                          onClick={() => startEditCity(c)}
+                        >
+                          Адрес и координаты…
+                        </button>
+                      </>
+                    )}
                     <button type="button" className="btn-ghost small danger" onClick={() => deleteCity(c.id)}>
                       Удалить город
                     </button>
@@ -445,17 +935,74 @@ export function GoldIndex({ formatMoney, toast }) {
                       <tbody>
                         {(c.competitors || []).map((co) => (
                           <tr key={co.id}>
-                            <td>{co.companyName}</td>
+                            <td>
+                              {editingCompetitorId === co.id ? (
+                                <input
+                                  className="input"
+                                  value={editCompetitorDraft?.company_name || ''}
+                                  onChange={(e) =>
+                                    setEditCompetitorDraft((d) => ({ ...(d || {}), company_name: e.target.value }))
+                                  }
+                                />
+                              ) : (
+                                co.companyName
+                              )}
+                            </td>
                             <td className="mono-nums">{fmtRatio(co.ratioAvg)}</td>
                             <td className="small">
-                              {Object.entries(co.probes || {})
-                                .map(([k, v]) => `${k}: ${formatMoney(typeof v === 'number' ? v : Number(v))}`)
-                                .join(' · ') || '—'}
+                              {editingCompetitorId === co.id
+                                ? [
+                                    <input
+                                      key="measured_at"
+                                      className="input"
+                                      type="date"
+                                      style={{ width: 170, marginBottom: 6 }}
+                                      value={editCompetitorDraft?.measured_at || ''}
+                                      onChange={(e) =>
+                                        setEditCompetitorDraft((d) => ({ ...(d || {}), measured_at: e.target.value }))
+                                      }
+                                    />,
+                                    ...probeFieldsForCity(c.id).probes.map((pb) => (
+                                      <span key={pb} style={{ display: 'inline-block', marginRight: 8, marginBottom: 6 }}>
+                                        <span className="muted small">{pb}: </span>
+                                        <input
+                                          className="input mono-nums"
+                                          style={{ width: 90 }}
+                                          value={editCompetitorDraft?.probes?.[pb] ?? ''}
+                                          onChange={(e) =>
+                                            setEditCompetitorDraft((d) => ({
+                                              ...(d || {}),
+                                              probes: { ...(d?.probes || {}), [pb]: e.target.value },
+                                            }))
+                                          }
+                                        />
+                                      </span>
+                                    )),
+                                  ]
+                                : Object.entries(co.probes || {})
+                                    .map(([k, v]) => `${k}: ${formatMoney(typeof v === 'number' ? v : Number(v))}`)
+                                    .join(' · ') || '—'}
                             </td>
                             <td>
-                              <button type="button" className="btn-ghost small" onClick={() => deleteCompetitor(co.id)}>
-                                Удалить
-                              </button>
+                              {editingCompetitorId === co.id ? (
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  <button type="button" className="btn-ghost small" onClick={() => saveCompetitor(c.id, co.id)}>
+                                    Сохранить
+                                  </button>
+                                  <button type="button" className="btn-ghost small" onClick={cancelEditCompetitor}>
+                                    Отмена
+                                  </button>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  <button type="button" className="btn-ghost small" onClick={() => startEditCompetitor(co)}>
+                                    Править
+                                  </button>
+                                  <button type="button" className="btn-ghost small" onClick={() => deleteCompetitor(c.id, co.id)}>
+                                    Удалить
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -506,6 +1053,39 @@ export function GoldIndex({ formatMoney, toast }) {
                         Добавить конкурента
                       </button>
                     </div>
+                    <div className="gold-index__add-comp">
+                      <p className="muted small">История изменений</p>
+                      {historyBusyByCity[c.id] ? (
+                        <p className="muted small">Загрузка…</p>
+                      ) : (historyByCity[c.id] || []).length === 0 ? (
+                        <p className="muted small">Пока пусто</p>
+                      ) : (
+                        <table className="gold-index__table">
+                          <thead>
+                            <tr>
+                              <th>Когда</th>
+                              <th>Сущность</th>
+                              <th>Действие</th>
+                              <th>Кто изменил</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(historyByCity[c.id] || []).map((h) => (
+                              <tr key={h.id}>
+                                <td className="small">{formatHistoryDate(h.created_at)}</td>
+                                <td className="small">{h.entity_type === 'city' ? 'Город' : 'Конкурент'}</td>
+                                <td className="small">{historyActionLabel(h.action)}</td>
+                                <td className="small">
+                                  {[(h.changed_by_name || '').trim(), (h.changed_by_email || '').trim()]
+                                    .filter(Boolean)
+                                    .join(' · ') || 'Система'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -530,7 +1110,7 @@ export function GoldIndex({ formatMoney, toast }) {
           border: 1px solid var(--stroke); margin-bottom: 14px; z-index: 0;
         }
         .gold-index__chart { margin-bottom: 14px; }
-        .gold-index__toolbar { margin-bottom: 10px; }
+        .gold-index__toolbar { margin-bottom: 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
         .gold-index__form { margin-bottom: 16px; padding: 12px; border-radius: 12px; border: 1px solid var(--stroke); background: var(--input-bg); }
         .gold-index__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
         .gold-index__probe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin: 10px 0; }
@@ -553,6 +1133,29 @@ export function GoldIndex({ formatMoney, toast }) {
       `}</style>
     </section>
   );
+}
+
+function formatCityAddressLine(c) {
+  const line = [c.street, c.building].filter(Boolean).join(', ');
+  const bits = [];
+  if (line) bits.push(line);
+  if (c.address_note) bits.push(String(c.address_note));
+  if (bits.length) return bits.join(' · ');
+  return c.geocoded_label ? String(c.geocoded_label) : '';
+}
+
+function formatHistoryDate(v) {
+  if (!v) return '—';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('ru-RU');
+}
+
+function historyActionLabel(a) {
+  if (a === 'create') return 'Создание';
+  if (a === 'update') return 'Изменение';
+  if (a === 'delete') return 'Удаление';
+  return String(a || '—');
 }
 
 function escapeHtml(s) {

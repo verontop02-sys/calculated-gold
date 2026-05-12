@@ -27,10 +27,20 @@ const fmtRatio = (n) => {
 const PAGE_MARGIN_X = 40;
 
 /** overview — результат buildGoldIndexOverview */
-export function buildGoldIndexReportPdfBuffer(overview) {
+export function buildGoldIndexReportPdfBuffer(overview, options = {}) {
   const generated = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
   const spot = overview?.goldRubPerGram != null ? fmtRub(overview.goldRubPerGram) : '—';
   const bb = overview?.settingsSnapshot?.buybackPercentOfScrap ?? '—';
+  const filters = options?.filters || {};
+  const historyRows = Array.isArray(options?.historyRows) ? options.historyRows : [];
+  const filtersText = [
+    filters.regionName ? `Регион: ${filters.regionName}` : null,
+    filters.from || filters.to
+      ? `Период истории: ${filters.from || '...'} — ${filters.to || '...'}`
+      : 'Период истории: последние изменения',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   const regionRows = [
     [{ text: 'Регион', style: 'th' }, { text: 'Городов', style: 'th' }, { text: 'Индекс ср.', style: 'th' }],
@@ -48,8 +58,14 @@ export function buildGoldIndexReportPdfBuffer(overview) {
       style: 'cityHead',
       margin: [0, 10, 0, 4],
     });
+    const bits = [];
+    const streetLine = [c.street, c.building].filter(Boolean).join(', ');
+    if (streetLine) bits.push(`ул.: ${streetLine}`);
+    if (c.address_note) bits.push(`прим.: ${c.address_note}`);
+    if (c.geocoded_label) bits.push(String(c.geocoded_label));
+    const addrSuffix = bits.length ? ` · ${bits.join(' · ')}` : '';
     cityBlocks.push({
-      text: `Координаты: ${c.lat?.toFixed?.(4) ?? c.lat}, ${c.lng?.toFixed?.(4) ?? c.lng} · Население: ${c.population ?? '—'} · Индекс города: ${fmtRatio(c.ratioAvg)}`,
+      text: `Координаты: ${c.lat?.toFixed?.(4) ?? c.lat}, ${c.lng?.toFixed?.(4) ?? c.lng} · Население: ${c.population ?? '—'} · Индекс: ${fmtRatio(c.ratioAvg)}${addrSuffix}`,
       style: 'small',
       margin: [0, 0, 0, 6],
     });
@@ -83,6 +99,39 @@ export function buildGoldIndexReportPdfBuffer(overview) {
     });
   }
 
+  const historyTableRows = [
+    [
+      { text: 'Когда', style: 'th' },
+      { text: 'Сущность', style: 'th' },
+      { text: 'Действие', style: 'th' },
+      { text: 'Объект', style: 'th' },
+      { text: 'Кто изменил', style: 'th' },
+    ],
+  ];
+  for (const row of historyRows.slice(0, 120)) {
+    const ts = row?.created_at ? new Date(row.created_at).toLocaleString('ru-RU') : '—';
+    const action =
+      row?.action === 'create' ? 'Создание' : row?.action === 'update' ? 'Изменение' : row?.action === 'delete' ? 'Удаление' : '—';
+    const payloadCity =
+      row?.payload?.city_name ||
+      row?.payload?.before?.city_name ||
+      row?.payload?.patch?.city_name ||
+      row?.payload?.company_name ||
+      row?.payload?.before?.company_name ||
+      '—';
+    const actor = [row?.changed_by_name || '', row?.changed_by_email || ''].filter(Boolean).join(' · ') || '—';
+    historyTableRows.push([
+      ts,
+      row?.entity_type === 'city' ? 'Город' : 'Конкурент',
+      action,
+      String(payloadCity || '—'),
+      actor,
+    ]);
+  }
+  if (historyTableRows.length === 1) {
+    historyTableRows.push(['—', '—', '—', 'Нет изменений за выбранный период', '—']);
+  }
+
   const docDefinition = {
     pageSize: 'A4',
     pageMargins: [PAGE_MARGIN_X, 50, PAGE_MARGIN_X, 46],
@@ -107,6 +156,10 @@ export function buildGoldIndexReportPdfBuffer(overview) {
         style: 'sub',
       },
       {
+        text: filtersText,
+        style: 'sub',
+      },
+      {
         text: 'Сводка по регионам',
         fontSize: 10,
         bold: true,
@@ -122,6 +175,14 @@ export function buildGoldIndexReportPdfBuffer(overview) {
       },
       { text: 'Города и конкуренты', fontSize: 10, bold: true, margin: [0, 0, 0, 6] },
       ...cityBlocks,
+      { text: 'История изменений', fontSize: 10, bold: true, margin: [0, 12, 0, 6] },
+      {
+        table: {
+          widths: [86, 56, 56, '*', '*'],
+          body: historyTableRows,
+        },
+        layout: 'lightHorizontalLines',
+      },
     ],
   };
 

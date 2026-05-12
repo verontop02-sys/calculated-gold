@@ -3,12 +3,19 @@
  * Эталонная цена лома за грамм изделия = биржа × проба × политика выкупа (как в калькуляторе).
  */
 
+import axios from 'axios';
+
 const DEFAULT_SETTINGS = {
   buybackPercentOfScrap: 92,
   rangeHalfWidthPercent: 2,
   purityAdjustments: { 375: 0, 500: 0, 583: 0, 585: 0, 750: 0, 875: 0, 900: 0, 916: 0, 958: 0, 999: 0 },
   purityOrder: [375, 500, 583, 585, 750, 875, 900, 916, 958, 999],
 };
+
+async function logGoldIndexChange(supabase, payload) {
+  const { error } = await supabase.from('gold_index_changes').insert(payload);
+  if (error) throw error;
+}
 
 function parseThresholds() {
   const raw = (process.env.GOLD_INDEX_THRESHOLDS || '1.03,1.10,1.18').trim();
@@ -104,7 +111,9 @@ export async function buildGoldIndexOverview(supabase) {
 
   const { data: cities, error: cErr } = await supabase
     .from('gold_index_cities')
-    .select('id, region_code, region_name, city_name, lat, lng, population, notes, created_at, updated_at')
+    .select(
+      'id, region_code, region_name, city_name, lat, lng, street, building, address_note, geocoded_label, population, notes, created_at, updated_at'
+    )
     .order('region_name', { ascending: true })
     .order('city_name', { ascending: true });
   if (cErr) throw cErr;
@@ -226,6 +235,11 @@ export async function createGoldIndexCity(supabase, body, createdBy) {
     if (Number.isFinite(n) && n >= 0) population = n;
   }
   const notes = body?.notes != null ? String(body.notes).trim() || null : null;
+  const street = body?.street != null ? String(body.street).trim() || null : null;
+  const building = body?.building != null ? String(body.building).trim() || null : null;
+  const address_note = body?.address_note != null ? String(body.address_note).trim() || null : null;
+  const geocoded_label =
+    body?.geocoded_label != null ? String(body.geocoded_label).trim() || null : null;
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('gold_index_cities')
@@ -235,6 +249,10 @@ export async function createGoldIndexCity(supabase, body, createdBy) {
       city_name,
       lat,
       lng,
+      street,
+      building,
+      address_note,
+      geocoded_label,
       population: Number.isFinite(population) ? population : null,
       notes,
       created_by: createdBy || null,
@@ -243,10 +261,38 @@ export async function createGoldIndexCity(supabase, body, createdBy) {
     .select('id')
     .maybeSingle();
   if (error) throw error;
+  await logGoldIndexChange(supabase, {
+    entity_type: 'city',
+    entity_id: data?.id,
+    city_id: data?.id,
+    action: 'create',
+    changed_by: createdBy || null,
+    payload: {
+      region_code,
+      region_name,
+      city_name,
+      lat,
+      lng,
+      street,
+      building,
+      address_note,
+      geocoded_label,
+      population: Number.isFinite(population) ? population : null,
+      notes,
+    },
+  });
   return data?.id;
 }
 
-export async function updateGoldIndexCity(supabase, id, body) {
+export async function updateGoldIndexCity(supabase, id, body, changedBy) {
+  const { data: beforeRow, error: beforeErr } = await supabase
+    .from('gold_index_cities')
+    .select(
+      'id, region_code, region_name, city_name, lat, lng, street, building, address_note, geocoded_label, population, notes'
+    )
+    .eq('id', id)
+    .maybeSingle();
+  if (beforeErr) throw beforeErr;
   const patch = {};
   if (body.region_code != null) patch.region_code = String(body.region_code).trim();
   if (body.region_name != null) patch.region_name = String(body.region_name).trim();
@@ -260,14 +306,46 @@ export async function updateGoldIndexCity(supabase, id, body) {
         : null;
   }
   if (body.notes !== undefined) patch.notes = body.notes != null ? String(body.notes).trim() || null : null;
+  if (body.street !== undefined) patch.street = body.street != null ? String(body.street).trim() || null : null;
+  if (body.building !== undefined) patch.building = body.building != null ? String(body.building).trim() || null : null;
+  if (body.address_note !== undefined) {
+    patch.address_note = body.address_note != null ? String(body.address_note).trim() || null : null;
+  }
+  if (body.geocoded_label !== undefined) {
+    patch.geocoded_label = body.geocoded_label != null ? String(body.geocoded_label).trim() || null : null;
+  }
   patch.updated_at = new Date().toISOString();
   const { error } = await supabase.from('gold_index_cities').update(patch).eq('id', id);
   if (error) throw error;
+  await logGoldIndexChange(supabase, {
+    entity_type: 'city',
+    entity_id: id,
+    city_id: id,
+    action: 'update',
+    changed_by: changedBy || null,
+    payload: { before: beforeRow || null, patch },
+  });
 }
 
-export async function deleteGoldIndexCity(supabase, id) {
+export async function deleteGoldIndexCity(supabase, id, changedBy) {
+  const { data: beforeRow, error: beforeErr } = await supabase
+    .from('gold_index_cities')
+    .select(
+      'id, region_code, region_name, city_name, lat, lng, street, building, address_note, geocoded_label, population, notes'
+    )
+    .eq('id', id)
+    .maybeSingle();
+  if (beforeErr) throw beforeErr;
   const { error } = await supabase.from('gold_index_cities').delete().eq('id', id);
   if (error) throw error;
+  await logGoldIndexChange(supabase, {
+    entity_type: 'city',
+    entity_id: id,
+    city_id: id,
+    action: 'delete',
+    changed_by: changedBy || null,
+    payload: beforeRow || null,
+  });
 }
 
 function normalizeProbes(p) {
@@ -283,7 +361,7 @@ function normalizeProbes(p) {
   return out;
 }
 
-export async function createGoldIndexCompetitor(supabase, cityId, body) {
+export async function createGoldIndexCompetitor(supabase, cityId, body, changedBy) {
   const company_name = String(body?.company_name || '').trim();
   if (!company_name) {
     const e = new Error('Укажите название компании');
@@ -312,10 +390,24 @@ export async function createGoldIndexCompetitor(supabase, cityId, body) {
     .select('id')
     .maybeSingle();
   if (error) throw error;
+  await logGoldIndexChange(supabase, {
+    entity_type: 'competitor',
+    entity_id: data?.id,
+    city_id: cityId,
+    action: 'create',
+    changed_by: changedBy || null,
+    payload: { company_name, probes, measured_at, notes, sort_order },
+  });
   return data?.id;
 }
 
-export async function updateGoldIndexCompetitor(supabase, id, body) {
+export async function updateGoldIndexCompetitor(supabase, id, body, changedBy) {
+  const { data: beforeRow, error: beforeErr } = await supabase
+    .from('gold_index_competitors')
+    .select('id, city_id, company_name, probes, measured_at, notes, sort_order')
+    .eq('id', id)
+    .maybeSingle();
+  if (beforeErr) throw beforeErr;
   const patch = { updated_at: new Date().toISOString() };
   if (body.company_name != null) patch.company_name = String(body.company_name).trim();
   if (body.probes != null) patch.probes = normalizeProbes(body.probes);
@@ -329,9 +421,157 @@ export async function updateGoldIndexCompetitor(supabase, id, body) {
   if (body.sort_order != null) patch.sort_order = parseInt(String(body.sort_order), 10) || 0;
   const { error } = await supabase.from('gold_index_competitors').update(patch).eq('id', id);
   if (error) throw error;
+  await logGoldIndexChange(supabase, {
+    entity_type: 'competitor',
+    entity_id: id,
+    city_id: beforeRow?.city_id || null,
+    action: 'update',
+    changed_by: changedBy || null,
+    payload: { before: beforeRow || null, patch },
+  });
 }
 
-export async function deleteGoldIndexCompetitor(supabase, id) {
+export async function deleteGoldIndexCompetitor(supabase, id, changedBy) {
+  const { data: beforeRow, error: beforeErr } = await supabase
+    .from('gold_index_competitors')
+    .select('id, city_id, company_name, probes, measured_at, notes, sort_order')
+    .eq('id', id)
+    .maybeSingle();
+  if (beforeErr) throw beforeErr;
   const { error } = await supabase.from('gold_index_competitors').delete().eq('id', id);
   if (error) throw error;
+  await logGoldIndexChange(supabase, {
+    entity_type: 'competitor',
+    entity_id: id,
+    city_id: beforeRow?.city_id || null,
+    action: 'delete',
+    changed_by: changedBy || null,
+    payload: beforeRow || null,
+  });
+}
+
+export async function listGoldIndexHistory(supabase, opts = {}) {
+  const limit = Math.min(200, Math.max(1, parseInt(String(opts.limit || '30'), 10) || 30));
+  const offset = Math.max(0, parseInt(String(opts.offset || '0'), 10) || 0);
+  const cityId = String(opts.cityId || '').trim();
+  const from = String(opts.from || '').trim();
+  const to = String(opts.to || '').trim();
+  const cityIds = Array.isArray(opts.cityIds) ? opts.cityIds.filter((x) => /^[0-9a-f-]{36}$/i.test(String(x))) : [];
+  let q = supabase
+    .from('gold_index_changes')
+    .select('id, entity_type, entity_id, city_id, action, changed_by, payload, created_at')
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (/^[0-9a-f-]{36}$/i.test(cityId)) q = q.eq('city_id', cityId);
+  if (cityIds.length) q = q.in('city_id', cityIds);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(from)) q = q.gte('created_at', `${from}T00:00:00.000Z`);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(to)) q = q.lte('created_at', `${to}T23:59:59.999Z`);
+  const { data, error } = await q;
+  if (error) throw error;
+  return { rows: data || [], limit, offset };
+}
+
+export async function enrichGoldIndexHistoryActors(supabase, rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const actorIds = [...new Set(list.map((r) => String(r?.changed_by || '').trim()).filter(Boolean))];
+  if (!actorIds.length) return list;
+
+  let users = [];
+  try {
+    const { data: listData, error } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+    if (!error && Array.isArray(listData?.users)) users = listData.users;
+  } catch (e) {
+    console.warn('[gold index history actors]', e?.message || e);
+  }
+
+  const byId = new Map();
+  for (const u of users) {
+    const id = String(u?.id || '').trim();
+    if (!id) continue;
+    const email = String(u?.email || '').trim();
+    const fullName =
+      String(u?.user_metadata?.full_name || '').trim() ||
+      String(u?.user_metadata?.name || '').trim() ||
+      (email ? email.split('@')[0] : '');
+    byId.set(id, { fullName: fullName || '—', email: email || '—' });
+  }
+
+  return list.map((r) => {
+    const key = String(r?.changed_by || '').trim();
+    const actor = key ? byId.get(key) : null;
+    return {
+      ...r,
+      changed_by_name: actor?.fullName || (key ? 'Пользователь' : 'Система'),
+      changed_by_email: actor?.email || (key ? '—' : '—'),
+    };
+  });
+}
+
+/**
+ * Геокодирование через OpenStreetMap Nominatim (без ключа).
+ * https://nominatim.org/release-docs/latest/api/Search/ — не злоупотребляйте частотой запросов.
+ */
+export async function geocodeGoldIndexLocation(body) {
+  const raw = String(body?.raw_query || '').trim();
+  let q;
+  if (raw) {
+    q = raw;
+  } else {
+    const city = String(body?.city_name || '').trim();
+    const region = String(body?.region_name || '').trim();
+    const street = String(body?.street || '').trim();
+    const building = String(body?.building || '').trim();
+    const note = String(body?.address_note || '').trim();
+    if (!city || !region) {
+      const err = new Error('Укажите регион и город, либо поле «Адрес одной строкой»');
+      err.status = 400;
+      throw err;
+    }
+    const line1 = [street, building].filter(Boolean).join(', ');
+    q = [line1, city, region, 'Россия'].filter((x) => x && String(x).trim()).join(', ');
+    if (note) q = `${q}. ${note}`;
+  }
+  let data;
+  try {
+    ({ data } = await axios.get('https://nominatim.openstreetmap.org/search', {
+      params: { q, format: 'json', limit: 1, 'accept-language': 'ru' },
+      timeout: 20000,
+      headers: {
+        'User-Agent':
+          process.env.NOMINATIM_USER_AGENT ||
+          'ReaktivoProGoldIndex/1.0 (https://reaktivo.pro; gold index geocode)',
+      },
+      validateStatus: (s) => s === 200,
+    }));
+  } catch (e) {
+    const st = e?.response?.status;
+    const err = new Error(
+      st === 429
+        ? 'Слишком частые запросы к геокодеру. Подождите минуту и повторите.'
+        : 'Сервис геокодирования временно недоступен. Введите координаты вручную или повторите позже.'
+    );
+    err.status = st === 429 ? 429 : 502;
+    throw err;
+  }
+  if (!Array.isArray(data) || !data[0]) {
+    const err = new Error(
+      'Точка не найдена. Уточните адрес или вставьте запрос в «Адрес одной строкой», либо введите координаты вручную (карты: ПКМ по точке → координаты).'
+    );
+    err.status = 404;
+    throw err;
+  }
+  const hit = data[0];
+  const lat = parseFloat(hit.lat);
+  const lng = parseFloat(hit.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    const err = new Error('Геокодер вернул некорректные координаты');
+    err.status = 502;
+    throw err;
+  }
+  return {
+    lat,
+    lng,
+    displayName: hit.display_name || q,
+    queryUsed: q,
+  };
 }
