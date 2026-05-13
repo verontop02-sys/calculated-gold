@@ -32,6 +32,7 @@ import {
   listGoldIndexHistory,
   enrichGoldIndexHistoryActors,
   geocodeGoldIndexLocation,
+  buildGoldIndexChartData,
 } from './goldIndex.js';
 import { buildGoldIndexReportPdfBuffer } from './goldIndexPdf.js';
 import { buildGoldIndexExcelBuffer } from './goldIndexExcel.js';
@@ -891,6 +892,18 @@ app.get(
     const data = await listGoldIndexHistory(supabase, { cityId, from, to, limit, offset });
     const rows = await enrichGoldIndexHistoryActors(supabase, data.rows || []);
     res.json({ ...data, rows });
+  })
+);
+
+app.get(
+  '/api/gold-index/history/chart',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (req, res) => {
+    const from = String(req.query.from || '').trim();
+    const to = String(req.query.to || '').trim();
+    const regionCode = String(req.query.regionCode || '').trim();
+    const result = await buildGoldIndexChartData(supabase, { from, to, regionCode });
+    res.json(result);
   })
 );
 

@@ -399,6 +399,13 @@ export const api = {
       expectedLabel: 'Excel',
     });
   },
+  goldIndexChartHistory: (opts = {}) => {
+    const q = new URLSearchParams();
+    if (opts.from) q.set('from', opts.from);
+    if (opts.to) q.set('to', opts.to);
+    if (opts.regionCode) q.set('regionCode', opts.regionCode);
+    return request(`/gold-index/history/chart?${q}`);
+  },
   goldIndexGeocode: (body) => request('/gold-index/geocode', { method: 'POST', body: JSON.stringify(body) }),
   goldIndexCreateCity: (body) => request('/gold-index/cities', { method: 'POST', body: JSON.stringify(body) }),
   goldIndexUpdateCity: (id, body) =>

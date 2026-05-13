@@ -515,6 +515,105 @@ export async function enrichGoldIndexHistoryActors(supabase, rows) {
 }
 
 /**
+ * Исторические данные по ценам проб — для линейного графика динамики.
+ * Группирует обновления конкурентов по (неделе, region_code) и вычисляет
+ * среднюю цену каждой пробы в конкретный период.
+ */
+export async function buildGoldIndexChartData(supabase, opts = {}) {
+  const from = String(opts.from || '').trim();
+  const to = String(opts.to || '').trim();
+  const regionCode = String(opts.regionCode || '').trim();
+
+  // 1. История конкурентов (создание + обновление)
+  let hq = supabase
+    .from('gold_index_changes')
+    .select('city_id, action, payload, created_at')
+    .eq('entity_type', 'competitor')
+    .in('action', ['create', 'update'])
+    .not('city_id', 'is', null)
+    .order('created_at', { ascending: true })
+    .limit(2000);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(from)) hq = hq.gte('created_at', `${from}T00:00:00.000Z`);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(to)) hq = hq.lte('created_at', `${to}T23:59:59.999Z`);
+
+  const { data: histRows, error: hErr } = await hq;
+  if (hErr) {
+    const msg = String(hErr?.message || '');
+    if (hErr?.code === '42P01' || /gold_index_changes/i.test(msg)) return { series: [] };
+    throw hErr;
+  }
+  if (!histRows?.length) return { series: [] };
+
+  // 2. Города — нужны region_code и region_name
+  const cityIds = [...new Set(histRows.map((r) => r.city_id).filter(Boolean))];
+  const { data: cities, error: cErr } = await supabase
+    .from('gold_index_cities')
+    .select('id, region_code, region_name')
+    .in('id', cityIds);
+  if (cErr) throw cErr;
+
+  const cityMap = new Map((cities || []).map((c) => [c.id, c]));
+
+  // 3. Группировка по (неделя, regionCode)
+  function weekMonday(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return iso.slice(0, 10);
+    const day = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() - day + 1);
+    return d.toISOString().slice(0, 10);
+  }
+
+  // series[rc] = { regionCode, regionName, points: { weekKey: { sums: {}, counts: {} } } }
+  const series = {};
+
+  for (const row of histRows) {
+    const city = cityMap.get(row.city_id);
+    if (!city) continue;
+    if (regionCode && city.region_code !== regionCode) continue;
+
+    const probes =
+      row.action === 'create'
+        ? row.payload?.probes || {}
+        : row.payload?.patch?.probes || row.payload?.probes || {};
+    if (!probes || !Object.keys(probes).length) continue;
+
+    const rc = city.region_code || 'UNKNOWN';
+    const week = weekMonday(row.created_at);
+
+    if (!series[rc]) {
+      series[rc] = { regionCode: rc, regionName: city.region_name || rc, points: {} };
+    }
+    if (!series[rc].points[week]) {
+      series[rc].points[week] = { sums: {}, counts: {} };
+    }
+    const pt = series[rc].points[week];
+    for (const [probe, price] of Object.entries(probes)) {
+      const p = parseFloat(String(price));
+      if (!Number.isFinite(p) || p <= 0) continue;
+      pt.sums[probe] = (pt.sums[probe] || 0) + p;
+      pt.counts[probe] = (pt.counts[probe] || 0) + 1;
+    }
+  }
+
+  // 4. Преобразуем в массив с усреднёнными значениями
+  const result = Object.values(series).map((s) => ({
+    regionCode: s.regionCode,
+    regionName: s.regionName,
+    points: Object.entries(s.points)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([week, pt]) => {
+        const entry = { week };
+        for (const [probe, sum] of Object.entries(pt.sums)) {
+          entry[`p${probe}`] = Math.round(sum / pt.counts[probe]);
+        }
+        return entry;
+      }),
+  }));
+
+  return { series: result };
+}
+
+/**
  * Геокодирование через OpenStreetMap Nominatim (без ключа).
  * https://nominatim.org/release-docs/latest/api/Search/ — не злоупотребляйте частотой запросов.
  */

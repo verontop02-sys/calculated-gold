@@ -1,8 +1,50 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import {
+  BarChart, Bar,
+  LineChart, Line, Legend,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+} from 'recharts';
 import { api } from './api.js';
+
+// ── GeoJSON helpers ──────────────────────────────────────────────────────────
+const GEO_URL = '/russia-regions.geojson';
+
+/** HASC "RU.AD" → ISO "RU-AD" */
+function hascToIso(hasc) {
+  return (hasc || '').replace('.', '-').toUpperCase();
+}
+
+/** Normalise Russian region name for loose matching */
+function normRu(s) {
+  return (s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Match a GeoJSON feature to one of our region records.
+ * Tries HASC→ISO code first, then loose name match.
+ */
+function matchFeatureToRegion(props, regionList) {
+  if (!props || !regionList?.length) return null;
+  const iso = hascToIso(props.hasc);
+  if (iso) {
+    const exact = regionList.find((r) => (r.regionCode || '').toUpperCase() === iso);
+    if (exact) return exact;
+  }
+  // Fallback: name containment (useful if user entered non-standard code)
+  const gNorm = normRu(props.name_ru || props.name || '');
+  if (!gNorm) return null;
+  return (
+    regionList.find((r) => {
+      const rn = normRu(r.regionName || '');
+      return rn && (rn.includes(gNorm) || gNorm.includes(rn));
+    }) || null
+  );
+}
+
+const CHART_COLORS = ['#e8c547', '#38bdf8', '#f87171', '#4ade80', '#a78bfa', '#fb923c', '#34d399'];
+const COMMON_PROBES = ['375', '500', '585', '750', '875', '916', '999'];
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -55,6 +97,14 @@ export function GoldIndex({ formatMoney, toast }) {
     notes: '',
   });
   const [geocodeBusy, setGeocodeBusy] = useState(false);
+  // GeoJSON layer
+  const geoLayerRef = useRef(null);
+  const geoJsonCacheRef = useRef(null);
+  const [geoLoaded, setGeoLoaded] = useState(false);
+  // Chart
+  const [chartData, setChartData] = useState(null);
+  const [chartProbe, setChartProbe] = useState('585');
+  const [chartBusy, setChartBusy] = useState(false);
   const [editingCityId, setEditingCityId] = useState(null);
   const [editDraft, setEditDraft] = useState(null);
   const [regionFilter, setRegionFilter] = useState('');
@@ -120,64 +170,146 @@ export function GoldIndex({ formatMoney, toast }) {
     [data?.regions]
   );
 
+  // Line chart: flatten chart data into [{week, RU-SVE: 5800, ...}]
+  const { flatLineData, lineRegions } = useMemo(() => {
+    if (!chartData?.length) return { flatLineData: [], lineRegions: [] };
+    const probeKey = `p${chartProbe}`;
+    const weekSet = new Set();
+    const byRegion = {};
+    // Limit to top 6 regions by number of data points
+    const sorted = [...chartData].sort((a, b) => b.points.length - a.points.length).slice(0, 6);
+    for (const r of sorted) {
+      byRegion[r.regionCode] = { name: r.regionName, pts: {} };
+      for (const pt of r.points) {
+        if (pt[probeKey] != null) {
+          weekSet.add(pt.week);
+          byRegion[r.regionCode].pts[pt.week] = pt[probeKey];
+        }
+      }
+    }
+    const weeks = [...weekSet].sort();
+    const flatLineData = weeks.map((w) => {
+      const entry = { week: w };
+      for (const [rc, { pts }] of Object.entries(byRegion)) {
+        if (pts[w] != null) entry[rc] = pts[w];
+      }
+      return entry;
+    });
+    const lineRegions = sorted.map((r) => ({ regionCode: r.regionCode, regionName: r.regionName }));
+    return { flatLineData, lineRegions };
+  }, [chartData, chartProbe]);
+
+  // Fetch Russia GeoJSON once on mount
+  useEffect(() => {
+    if (geoJsonCacheRef.current) return;
+    fetch(GEO_URL)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((json) => {
+        geoJsonCacheRef.current = json;
+        setGeoLoaded(true);
+      })
+      .catch((e) => console.warn('[GoldIndex] GeoJSON load failed:', e));
+  }, []);
+
+  // Update map: markers + region polygons
   useEffect(() => {
     if (!mapRef.current) return;
     if (!mapInstRef.current) {
-      const m = L.map(mapRef.current, {
-        scrollWheelZoom: true,
-        tap: false,
-        tapTolerance: 15,
-      }).setView([61.5, 105], 3);
+      const m = L.map(mapRef.current, { scrollWheelZoom: true, tap: false, tapTolerance: 15 })
+        .setView([61.5, 105], 3);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap',
         maxZoom: 18,
       }).addTo(m);
+      geoLayerRef.current = L.layerGroup().addTo(m);  // polygons below
+      layerRef.current = L.layerGroup().addTo(m);     // markers above
       mapInstRef.current = m;
-      layerRef.current = L.layerGroup().addTo(m);
     }
+
+    // ── Region polygons ──────────────────────────────────────────────────────
+    const geoLayer = geoLayerRef.current;
+    geoLayer.clearLayers();
+    if (geoJsonCacheRef.current && data?.regions?.length) {
+      const regionList = data.regions;
+      let activeGeoJson = null;
+      activeGeoJson = L.geoJSON(geoJsonCacheRef.current, {
+        style: (feature) => {
+          const r = matchFeatureToRegion(feature.properties, regionList);
+          if (!r) return { fillColor: '#e2e8f0', fillOpacity: 0.25, weight: 0.8, color: '#94a3b8' };
+          return {
+            fillColor: COLOR_HEX[r.colorKey] || COLOR_HEX.neutral,
+            fillOpacity: 0.38,
+            weight: 1.2,
+            color: '#334155',
+          };
+        },
+        onEachFeature: (feature, fl) => {
+          const r = matchFeatureToRegion(feature.properties, regionList);
+          const rawName = feature.properties?.name || feature.properties?.hasc || '';
+          if (r) {
+            const cityCount = r.cityCount ?? 0;
+            const ratio = fmtRatio(r.ratioAvg);
+            fl.bindTooltip(
+              `<strong>${escapeHtml(r.regionName)}</strong><br/>Городов: ${cityCount} · Индекс: ${ratio}`,
+              { sticky: true, className: 'gi-map-tooltip' }
+            );
+            fl.on('click', () => {
+              setRegionFilter(r.regionCode);
+              requestAnimationFrame(() => {
+                document.querySelector('.gold-index__toolbar')?.scrollIntoView({ behavior: 'smooth' });
+              });
+            });
+          } else {
+            if (rawName) fl.bindTooltip(escapeHtml(rawName), { sticky: true });
+          }
+          fl.on('mouseover', function () { this.setStyle({ fillOpacity: 0.6 }); });
+          fl.on('mouseout', function () { activeGeoJson.resetStyle(this); });
+        },
+      });
+      activeGeoJson.addTo(geoLayer);
+    }
+
+    // ── City markers ─────────────────────────────────────────────────────────
     const layer = layerRef.current;
     const m = mapInstRef.current;
     layer.clearLayers();
     for (const c of filteredCities) {
       const fill = COLOR_HEX[c.colorKey] || COLOR_HEX.neutral;
       const mk = L.circleMarker([c.lat, c.lng], {
-        radius: 9,
-        color: '#1e293b',
-        weight: 1,
-        fillColor: fill,
-        fillOpacity: 0.92,
+        radius: 9, color: '#1e293b', weight: 1.5, fillColor: fill, fillOpacity: 0.95,
       });
       const addrPop = formatCityAddressLine(c);
       mk.bindPopup(
         `<strong>${escapeHtml(c.city_name)}</strong><br/>${escapeHtml(c.region_name)}${
-          addrPop ? `<br/>${escapeHtml(addrPop)}` : ''
-        }<br/>Индекс: ${fmtRatio(c.ratioAvg)}`
+          addrPop ? `<br/><span style="font-size:11px">${escapeHtml(addrPop)}</span>` : ''
+        }<br/>Индекс: <strong>${fmtRatio(c.ratioAvg)}</strong>`
       );
-      mk.on('click', () => {
-        setExpanded((prev) => new Set(prev).add(c.id));
-      });
+      mk.on('click', () => setExpanded((prev) => new Set(prev).add(c.id)));
       mk.addTo(layer);
     }
-    if (filteredCities.length === 1) {
-      m.setView([filteredCities[0].lat, filteredCities[0].lng], 8);
-    }
-    requestAnimationFrame(() => {
-      try {
-        mapInstRef.current?.invalidateSize();
-      } catch {
-        /* ignore */
-      }
-    });
-    return () => {};
-  }, [filteredCities]);
+    if (filteredCities.length === 1) m.setView([filteredCities[0].lat, filteredCities[0].lng], 8);
+
+    requestAnimationFrame(() => { try { mapInstRef.current?.invalidateSize(); } catch { /* ignore */ } });
+  }, [filteredCities, geoLoaded, data?.regions]);
 
   useEffect(() => {
     return () => {
       mapInstRef.current?.remove();
       mapInstRef.current = null;
+      geoLayerRef.current = null;
       layerRef.current = null;
     };
   }, []);
+
+  // Load chart data whenever base data or date filters change
+  useEffect(() => {
+    if (!data) return;
+    setChartBusy(true);
+    api.goldIndexChartHistory({ from: pdfFrom || undefined, to: pdfTo || undefined })
+      .then((res) => setChartData(res?.series || []))
+      .catch(() => setChartData([]))
+      .finally(() => setChartBusy(false));
+  }, [data, pdfFrom, pdfTo]);
 
   async function handlePdf() {
     setPdfBusy(true);
@@ -585,22 +717,83 @@ export function GoldIndex({ formatMoney, toast }) {
           {regionsChart.length > 0 && (
             <div className="gold-index__chart">
               <p className="muted small" style={{ marginBottom: 8 }}>
-                Средний индекс по регионам (где есть данные)
+                Текущий средний индекс по регионам
               </p>
-              <div style={{ width: '100%', height: 220 }}>
+              <div style={{ width: '100%', height: 200 }}>
                 <ResponsiveContainer>
-                  <BarChart data={regionsChart} margin={{ top: 6, right: 8, left: -18, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-35} textAnchor="end" height={70} />
+                  <BarChart data={regionsChart} margin={{ top: 4, right: 8, left: -18, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-30} textAnchor="end" height={60} />
                     <YAxis tick={{ fontSize: 10 }} domain={['auto', 'auto']} />
-                    <Tooltip
-                      formatter={(v) => [fmtRatio(v), 'Индекс']}
-                      labelFormatter={(_, p) => p?.[0]?.payload?.full || ''}
-                    />
-                    <Bar dataKey="ratio" fill="#e8c547" radius={[4, 4, 0, 0]} />
+                    <Tooltip formatter={(v) => [fmtRatio(v), 'Индекс']} labelFormatter={(_, p) => p?.[0]?.payload?.full || ''} />
+                    <Bar dataKey="ratio" fill="#e8c547" radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+            </div>
+          )}
+
+          {(flatLineData.length > 0 || chartBusy) && (
+            <div className="gold-index__chart">
+              <div className="gi-chart-header">
+                <p className="muted small">
+                  Динамика цены по пробам{chartBusy ? ' (загрузка…)' : ''}
+                </p>
+                <div className="gi-probe-select">
+                  <span className="muted small">Проба:</span>
+                  <select
+                    className="input"
+                    value={chartProbe}
+                    style={{ width: 72, padding: '3px 6px', fontSize: '0.8rem' }}
+                    onChange={(e) => setChartProbe(e.target.value)}
+                  >
+                    {COMMON_PROBES.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {flatLineData.length > 0 ? (
+                <div style={{ width: '100%', height: 220 }}>
+                  <ResponsiveContainer>
+                    <LineChart data={flatLineData} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                      <XAxis dataKey="week" tick={{ fontSize: 9 }} />
+                      <YAxis tick={{ fontSize: 9 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+                      <Tooltip
+                        formatter={(v, name) => {
+                          const r = lineRegions.find((r) => r.regionCode === name);
+                          return [`${v} ₽/г`, r?.regionName || name];
+                        }}
+                        labelFormatter={(w) => `Неделя с ${w}`}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: 10, paddingTop: 4 }}
+                        formatter={(value) => {
+                          const r = lineRegions.find((r) => r.regionCode === value);
+                          const n = r?.regionName || value;
+                          return n.length > 20 ? n.slice(0, 18) + '…' : n;
+                        }}
+                      />
+                      {lineRegions.map((r, i) => (
+                        <Line
+                          key={r.regionCode}
+                          type="monotone"
+                          dataKey={r.regionCode}
+                          stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                          strokeWidth={2}
+                          dot={false}
+                          connectNulls
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                !chartBusy && <p className="muted small" style={{ marginTop: 6 }}>
+                  Нет данных по пробе {chartProbe} в выбранном периоде
+                </p>
+              )}
             </div>
           )}
 
@@ -1106,7 +1299,9 @@ export function GoldIndex({ formatMoney, toast }) {
           touch-action: pan-x pan-y;
         }
         .gold-index__map .leaflet-container { touch-action: pan-x pan-y; }
-        .gold-index__chart { margin-bottom: 14px; }
+        .gold-index__chart { margin-bottom: 14px; background: var(--input-bg); border: 1px solid var(--stroke); border-radius: 12px; padding: 12px 14px; }
+        .gi-chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
+        .gi-probe-select { display: flex; align-items: center; gap: 6px; }
 
         /* ── toolbar ───────────────────────────────────── */
         .gold-index__toolbar {
@@ -1201,6 +1396,9 @@ export function GoldIndex({ formatMoney, toast }) {
         /* ── misc buttons ───────────────────────────────── */
         .btn-ghost.small { padding: 5px 10px; font-size: 0.78rem; }
         .btn-ghost.danger { color: var(--danger); }
+
+        /* ── leaflet tooltip ────────────────────────────── */
+        .gi-map-tooltip { font-size: 12px; font-family: inherit; padding: 5px 8px; border-radius: 6px; }
 
         /* ── responsive tweaks ──────────────────────────── */
         @media (max-width: 540px) {
