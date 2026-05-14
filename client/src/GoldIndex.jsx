@@ -72,8 +72,6 @@ export function GoldIndex({ formatMoney, toast }) {
   const mapRef = useRef(null);
   const mapInstRef = useRef(null);
   const layerRef = useRef(null);
-  const [gestureVisible, setGestureVisible] = useState(false);
-  const gestureHideRef = useRef(null);
   /** После первого успешного ответа не включаем «полный» loading — иначе размонтируется карта и ломается Leaflet. */
   const hasLoadedOnceRef = useRef(false);
   const [loading, setLoading] = useState(true);
@@ -381,17 +379,6 @@ export function GoldIndex({ formatMoney, toast }) {
       toast(e?.message || 'Не удалось загрузить историю изменений', 'error');
     } finally {
       setHistoryBusyByCity((prev) => ({ ...prev, [cityId]: false }));
-    }
-  }
-
-  function handleMapTouchStart(e) {
-    if (e.touches.length === 1) {
-      setGestureVisible(true);
-      if (gestureHideRef.current) clearTimeout(gestureHideRef.current);
-      gestureHideRef.current = setTimeout(() => setGestureVisible(false), 1600);
-    } else if (e.touches.length >= 2) {
-      setGestureVisible(false);
-      if (gestureHideRef.current) clearTimeout(gestureHideRef.current);
     }
   }
 
@@ -739,18 +726,10 @@ export function GoldIndex({ formatMoney, toast }) {
                 <i style={{ background: COLOR_HEX[k] }} /> {label}
               </span>
             ))}
-            <span className="muted small" style={{ marginLeft: 8 }}>
-              Пороги ENV: GOLD_INDEX_THRESHOLDS (три числа через запятую).
-            </span>
           </div>
 
-          <div className="gold-index__map-wrap" onTouchStart={handleMapTouchStart}>
+          <div className="gold-index__map-wrap">
             <div ref={mapRef} className="gold-index__map" />
-            {gestureVisible && (
-              <div className="gi-gesture-overlay">
-                <span className="gi-gesture-hint">🤏 Два пальца для перемещения карты</span>
-              </div>
-            )}
           </div>
 
           {regionsChart.length > 0 && (
@@ -1136,31 +1115,34 @@ export function GoldIndex({ formatMoney, toast }) {
                       </div>
                     ) : (
                       <>
-                        <p className="muted small">
-                          Координаты {c.lat?.toFixed?.(4)}, {c.lng?.toFixed?.(4)}
-                          {c.population != null ? ` · население ${c.population}` : ''}
-                        </p>
-                        {formatCityAddressLine(c) ? (
-                          <p className="muted small" style={{ marginTop: 4 }}>
-                            {formatCityAddressLine(c)}
-                          </p>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="btn-ghost small"
-                          style={{ marginTop: 8 }}
-                          onClick={() => startEditCity(c)}
-                        >
-                          Адрес и координаты…
-                        </button>
+                        <div className="gi-city-meta">
+                          <span className="muted small">
+                            {c.lat?.toFixed?.(4)}, {c.lng?.toFixed?.(4)}
+                            {c.population != null ? ` · ${new Intl.NumberFormat('ru-RU').format(c.population)} чел.` : ''}
+                          </span>
+                          {formatCityAddressLine(c) && (
+                            <span className="muted small"> · {formatCityAddressLine(c)}</span>
+                          )}
+                          <button
+                            type="button"
+                            className="btn-ghost small gi-edit-addr-btn"
+                            onClick={() => startEditCity(c)}
+                          >
+                            Изменить
+                          </button>
+                        </div>
                       </>
                     )}
-                    <button type="button" className="btn-ghost small danger" onClick={() => deleteCity(c.id)}>
-                      Удалить город
-                    </button>
+
+                    <div className="gi-comp-section-head">
+                      <span className="gi-section-label">Конкуренты</span>
+                      {(c.competitors || []).length > 0 && (
+                        <span className="gi-comp-count">{(c.competitors || []).length}</span>
+                      )}
+                    </div>
 
                     {(c.competitors || []).length === 0 ? (
-                      <p className="muted small" style={{ marginTop: 10 }}>Конкурентов пока нет — добавьте ниже.</p>
+                      <p className="muted small gi-no-comp">Конкурентов пока нет — добавьте ниже.</p>
                     ) : (
                       <div className="gi-comp-list">
                         {(c.competitors || []).map((co) => (
@@ -1226,8 +1208,8 @@ export function GoldIndex({ formatMoney, toast }) {
                       </div>
                     )}
 
-                    <div className="gi-section-divider">
-                      <span className="gi-section-title">+ Новый конкурент</span>
+                    <div className="gi-comp-section-head" style={{ marginTop: 14 }}>
+                      <span className="gi-section-label">+ Новый конкурент</span>
                     </div>
                     <div className="gi-new-comp">
                       <div className="gi-comp-edit-row">
@@ -1257,7 +1239,7 @@ export function GoldIndex({ formatMoney, toast }) {
                       </button>
                     </div>
                     <details className="gi-history-details">
-                      <summary className="gi-section-divider" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <summary className="gi-history-summary" style={{ cursor: 'pointer', userSelect: 'none' }}>
                         <span className="gi-section-title">История изменений</span>
                         <span className="muted small" style={{ marginLeft: 8 }}>
                           {historyBusyByCity[c.id] ? '…' : `${(historyByCity[c.id] || []).length} записей`}
@@ -1288,6 +1270,12 @@ export function GoldIndex({ formatMoney, toast }) {
                         )}
                       </div>
                     </details>
+
+                    <div className="gi-city-danger-zone">
+                      <button type="button" className="btn-ghost small danger" onClick={() => deleteCity(c.id)}>
+                        Удалить город
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1340,20 +1328,6 @@ export function GoldIndex({ formatMoney, toast }) {
         .gold-index__map {
           width: 100%; height: min(420px, 55vh); z-index: 0;
         }
-        .gi-gesture-overlay {
-          position: absolute; inset: 0; z-index: 1000;
-          display: flex; align-items: center; justify-content: center;
-          background: rgba(0,0,0,0.35); pointer-events: none;
-          border-radius: 14px; animation: gi-gesture-fade-in 0.15s ease;
-        }
-        @keyframes gi-gesture-fade-in { from { opacity: 0 } to { opacity: 1 } }
-        .gi-gesture-hint {
-          background: rgba(10,8,4,0.82); color: #faf8f4;
-          padding: 10px 18px; border-radius: 22px;
-          font-size: 14px; font-weight: 500; letter-spacing: 0.01em;
-          box-shadow: 0 2px 12px rgba(0,0,0,0.4);
-          backdrop-filter: blur(4px);
-        }
         .gold-index__chart { margin-bottom: 14px; background: var(--input-bg); border: 1px solid var(--stroke); border-radius: 12px; padding: 12px 14px; }
         .gi-chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
         .gi-probe-select { display: flex; align-items: center; gap: 6px; }
@@ -1387,7 +1361,36 @@ export function GoldIndex({ formatMoney, toast }) {
         .gold-index__city-title { flex: 1; min-width: 0; overflow: hidden; }
         .gold-index__city-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
         .gold-index__ratio { font-weight: 700; color: var(--gold); margin-left: auto; white-space: nowrap; }
-        .gold-index__city-body { padding: clamp(10px,2vw,14px) clamp(12px,2vw,16px); border-top: 1px solid var(--stroke); }
+        .gold-index__city-body { padding: clamp(10px,2vw,14px) clamp(12px,2vw,16px); border-top: 1px solid var(--stroke); display: flex; flex-direction: column; gap: 0; }
+
+        /* ── city meta row ──────────────────────────────── */
+        .gi-city-meta {
+          display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
+          font-size: 0.8rem; margin-bottom: 14px;
+          padding-bottom: 12px; border-bottom: 1px solid var(--stroke);
+        }
+        .gi-edit-addr-btn { margin-left: auto; }
+
+        /* ── competitor section header ──────────────────── */
+        .gi-comp-section-head {
+          display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+        }
+        .gi-section-label {
+          font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+          letter-spacing: 0.08em; color: var(--text-muted);
+        }
+        .gi-comp-count {
+          background: var(--gold); color: #1a1000;
+          font-size: 0.7rem; font-weight: 700;
+          border-radius: 99px; padding: 1px 7px; line-height: 1.6;
+        }
+        .gi-no-comp { margin-bottom: 10px; }
+
+        /* ── danger zone ────────────────────────────────── */
+        .gi-city-danger-zone {
+          margin-top: 16px; padding-top: 12px;
+          border-top: 1px dashed var(--stroke);
+        }
 
         /* ── competitor cards ───────────────────────────── */
         .gi-comp-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
@@ -1417,14 +1420,12 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-comp-edit-row { display: flex; flex-wrap: wrap; gap: 8px; }
         .gi-comp-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 
-        /* ── section dividers ───────────────────────────── */
-        .gi-section-divider {
-          display: flex; align-items: center; gap: 8px;
-          margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--stroke);
-          list-style: none;
+        /* ── history summary ────────────────────────────── */
+        .gi-history-summary {
+          display: flex; align-items: center; gap: 8px; list-style: none;
+          margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--stroke);
         }
-        .gi-section-divider::-webkit-details-marker { display: none; }
-        .gi-section-title { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); }
+        .gi-history-summary::-webkit-details-marker { display: none; }
 
         /* ── new competitor form ────────────────────────── */
         .gi-new-comp { margin-top: 10px; }
