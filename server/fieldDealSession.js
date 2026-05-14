@@ -500,9 +500,10 @@ export async function verifyFieldDealSession(supabase, { token, code, clientIp }
       if (to) {
         await sendDealReceiptEmailIfConfigured({
           toEmail: to,
-          subject: 'Подтверждённая сделка: квитанция (PDF)',
+          subject: `Подтверждённая сделка № ${deal.contract_no || String(dealId).slice(0, 8)} — квитанция PDF`,
           pdfBuffer: buf,
           filename: `dogovor-${String(dealId).slice(0, 8)}.pdf`,
+          dealInfo: deal,
         });
       }
     }
@@ -558,9 +559,11 @@ export async function sendFieldDealReceiptByClient(supabase, { token, channel, t
     }
     const emailOut = await sendDealReceiptTextEmailIfConfigured({
       toEmail: email,
-      subject: 'Чек по сделке REAKTIVO',
+      subject: `Чек по сделке REAKTIVO — договор № ${String(s.payload?.contractNo || '').trim() || '—'}`,
       text,
-      html: `<p>${text}</p>`,
+      payload: s.payload,
+      totalRub: s.total_rub,
+      createdAt: s.created_at,
     });
     if (!emailOut?.sent) {
       const err = new Error('Отправка email временно недоступна');
