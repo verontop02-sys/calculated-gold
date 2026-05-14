@@ -72,6 +72,8 @@ export function GoldIndex({ formatMoney, toast }) {
   const mapRef = useRef(null);
   const mapInstRef = useRef(null);
   const layerRef = useRef(null);
+  const [gestureVisible, setGestureVisible] = useState(false);
+  const gestureHideRef = useRef(null);
   /** После первого успешного ответа не включаем «полный» loading — иначе размонтируется карта и ломается Leaflet. */
   const hasLoadedOnceRef = useRef(false);
   const [loading, setLoading] = useState(true);
@@ -215,10 +217,14 @@ export function GoldIndex({ formatMoney, toast }) {
   useEffect(() => {
     if (!mapRef.current) return;
     if (!mapInstRef.current) {
-      const m = L.map(mapRef.current, { scrollWheelZoom: true, tap: false, tapTolerance: 15 })
-        .setView([61.5, 105], 3);
+      const m = L.map(mapRef.current, {
+        scrollWheelZoom: true,
+        tap: false,
+        tapTolerance: 15,
+        attributionControl: false,
+        zoomControl: true,
+      }).setView([61.5, 105], 3);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap',
         maxZoom: 18,
       }).addTo(m);
       geoLayerRef.current = L.layerGroup().addTo(m);  // polygons below
@@ -276,15 +282,30 @@ export function GoldIndex({ formatMoney, toast }) {
     for (const c of filteredCities) {
       const fill = COLOR_HEX[c.colorKey] || COLOR_HEX.neutral;
       const mk = L.circleMarker([c.lat, c.lng], {
-        radius: 9, color: '#1e293b', weight: 1.5, fillColor: fill, fillOpacity: 0.95,
+        radius: 11, color: '#fff', weight: 2, fillColor: fill, fillOpacity: 1,
       });
       const addrPop = formatCityAddressLine(c);
+      const compCount = c.competitorCount ?? 0;
       mk.bindPopup(
-        `<strong>${escapeHtml(c.city_name)}</strong><br/>${escapeHtml(c.region_name)}${
-          addrPop ? `<br/><span style="font-size:11px">${escapeHtml(addrPop)}</span>` : ''
-        }<br/>Индекс: <strong>${fmtRatio(c.ratioAvg)}</strong>`
+        `<div style="min-width:160px;font-size:13px;line-height:1.5">` +
+        `<div style="font-weight:700;font-size:14px;margin-bottom:2px">${escapeHtml(c.city_name)}</div>` +
+        `<div style="color:#666;font-size:11px;margin-bottom:6px">${escapeHtml(c.region_name)}</div>` +
+        (addrPop ? `<div style="font-size:11px;color:#888;margin-bottom:6px">${escapeHtml(addrPop)}</div>` : '') +
+        `<div style="display:flex;gap:10px;flex-wrap:wrap">` +
+        `<span style="background:${fill};color:#000;padding:2px 8px;border-radius:10px;font-weight:600;font-size:12px">` +
+        `Индекс: ${fmtRatio(c.ratioAvg)}</span>` +
+        (compCount > 0 ? `<span style="color:#555;font-size:11px">Конкурентов: ${compCount}</span>` : '') +
+        `</div>` +
+        `<div style="margin-top:8px;font-size:11px;color:#b8860b;cursor:pointer">▼ Подробнее в списке</div>` +
+        `</div>`,
+        { maxWidth: 240 }
       );
-      mk.on('click', () => setExpanded((prev) => new Set(prev).add(c.id)));
+      mk.on('click', () => {
+        setExpanded((prev) => new Set(prev).add(c.id));
+        requestAnimationFrame(() => {
+          document.getElementById(`gi-city-${c.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      });
       mk.addTo(layer);
     }
     if (filteredCities.length === 1) m.setView([filteredCities[0].lat, filteredCities[0].lng], 8);
@@ -360,6 +381,17 @@ export function GoldIndex({ formatMoney, toast }) {
       toast(e?.message || 'Не удалось загрузить историю изменений', 'error');
     } finally {
       setHistoryBusyByCity((prev) => ({ ...prev, [cityId]: false }));
+    }
+  }
+
+  function handleMapTouchStart(e) {
+    if (e.touches.length === 1) {
+      setGestureVisible(true);
+      if (gestureHideRef.current) clearTimeout(gestureHideRef.current);
+      gestureHideRef.current = setTimeout(() => setGestureVisible(false), 1600);
+    } else if (e.touches.length >= 2) {
+      setGestureVisible(false);
+      if (gestureHideRef.current) clearTimeout(gestureHideRef.current);
     }
   }
 
@@ -712,7 +744,14 @@ export function GoldIndex({ formatMoney, toast }) {
             </span>
           </div>
 
-          <div ref={mapRef} className="gold-index__map" />
+          <div className="gold-index__map-wrap" onTouchStart={handleMapTouchStart}>
+            <div ref={mapRef} className="gold-index__map" />
+            {gestureVisible && (
+              <div className="gi-gesture-overlay">
+                <span className="gi-gesture-hint">🤏 Два пальца для перемещения карты</span>
+              </div>
+            )}
+          </div>
 
           {regionsChart.length > 0 && (
             <div className="gold-index__chart">
@@ -957,7 +996,7 @@ export function GoldIndex({ formatMoney, toast }) {
 
           <div className="gold-index__cities">
             {filteredCities.map((c) => (
-              <div key={c.id} className="gold-index__city">
+              <div key={c.id} id={`gi-city-${c.id}`} className="gold-index__city">
                 <button type="button" className="gold-index__city-head" onClick={() => toggleExpand(c.id)}>
                   <span
                     className="gold-index__dot"
@@ -1293,12 +1332,28 @@ export function GoldIndex({ formatMoney, toast }) {
         .gold-index__leg-item i { width: 10px; height: 10px; border-radius: 999px; flex-shrink: 0; display: inline-block; }
 
         /* ── map ───────────────────────────────────────── */
-        .gold-index__map {
-          width: 100%; height: min(420px, 55vh); border-radius: 14px; overflow: hidden;
-          border: 1px solid var(--stroke); margin-bottom: 14px; z-index: 0;
-          touch-action: pan-x pan-y;
+        .gold-index__map-wrap {
+          position: relative; margin-bottom: 14px;
+          border-radius: 14px; overflow: hidden;
+          border: 1px solid var(--stroke);
         }
-        .gold-index__map .leaflet-container { touch-action: pan-x pan-y; }
+        .gold-index__map {
+          width: 100%; height: min(420px, 55vh); z-index: 0;
+        }
+        .gi-gesture-overlay {
+          position: absolute; inset: 0; z-index: 1000;
+          display: flex; align-items: center; justify-content: center;
+          background: rgba(0,0,0,0.35); pointer-events: none;
+          border-radius: 14px; animation: gi-gesture-fade-in 0.15s ease;
+        }
+        @keyframes gi-gesture-fade-in { from { opacity: 0 } to { opacity: 1 } }
+        .gi-gesture-hint {
+          background: rgba(10,8,4,0.82); color: #faf8f4;
+          padding: 10px 18px; border-radius: 22px;
+          font-size: 14px; font-weight: 500; letter-spacing: 0.01em;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+          backdrop-filter: blur(4px);
+        }
         .gold-index__chart { margin-bottom: 14px; background: var(--input-bg); border: 1px solid var(--stroke); border-radius: 12px; padding: 12px 14px; }
         .gi-chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
         .gi-probe-select { display: flex; align-items: center; gap: 6px; }

@@ -555,7 +555,6 @@ export default function App() {
         >
           Команда и KPI
         </button>
-        {/* Индекс золота — временно скрыт до запуска этапа 5
         {isSuperAdminRole(user.role) && (
           <button
             type="button"
@@ -567,7 +566,6 @@ export default function App() {
             Индекс золота
           </button>
         )}
-        */}
         {isUserManagerRole(user.role) && (
           <button type="button" role="tab" aria-selected={tab === 'settings'} className={tab === 'settings' ? 'tab active' : 'tab'} onClick={() => setTab('settings')}>
             {isSuperAdminRole(user.role) ? 'Настройки и доступы' : 'Пользователи'}
