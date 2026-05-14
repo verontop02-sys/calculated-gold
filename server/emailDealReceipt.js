@@ -27,14 +27,24 @@ function buildClientReceiptHtml({ contractNo, sellerName, totalRub, rows, phone,
 
   const probeLabels = { '375': '375 (9 кт)', '585': '585 (14 кт)', '750': '750 (18 кт)', '999': '999 (24 кт)', '925': '925 (серебро)' };
 
-  const rowsHtml = Array.isArray(rows) && rows.length > 0
-    ? rows.map((r, i) => {
+  const filledRows = Array.isArray(rows)
+    ? rows.filter((r) => {
+        const hasName = String(r?.itemName || r?.item_name || '').trim().length > 0;
+        const hasProbe = String(r?.probe || '').replace(/\D/g, '').length > 0;
+        const hasWeight = String(r?.weightGross || r?.weight_gross || '').trim().length > 0;
+        const hasPrice = r?.priceRub != null && Number(r.priceRub) > 0;
+        return hasName || hasProbe || hasWeight || hasPrice;
+      })
+    : [];
+
+  const rowsHtml = filledRows.length > 0
+    ? filledRows.map((r) => {
         const probe = String(r?.probe || '').replace(/\D/g, '');
         const probeLabel = probeLabels[probe] || (probe ? `проба ${probe}` : '—');
-        const wg = r?.weightGross || r?.weight_gross || '—';
-        const wn = r?.weightNet || r?.weight_net || '—';
-        const price = r?.priceRub != null ? formatMoney(r.priceRub) : '—';
-        const name = r?.itemName || r?.item_name || `Позиция ${i + 1}`;
+        const wg = String(r?.weightGross || r?.weight_gross || '').trim() || '—';
+        const wn = String(r?.weightNet || r?.weight_net || '').trim() || '—';
+        const price = r?.priceRub != null && Number(r.priceRub) > 0 ? formatMoney(r.priceRub) : '—';
+        const name = String(r?.itemName || r?.item_name || '').trim() || '—';
         return `
           <tr style="border-bottom:1px solid #f0e8d8;">
             <td style="padding:9px 10px;font-size:13px;color:#3d2b0e;">${name}</td>
