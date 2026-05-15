@@ -108,6 +108,7 @@ export function GoldIndex({ formatMoney, toast }) {
   const [editingCityId, setEditingCityId] = useState(null);
   const [editDraft, setEditDraft] = useState(null);
   const [regionFilter, setRegionFilter] = useState('');
+  const [showAddCompByCity, setShowAddCompByCity] = useState(() => new Set());
   const [cityQuery, setCityQuery] = useState('');
   const [pdfFrom, setPdfFrom] = useState('');
   const [pdfTo, setPdfTo] = useState('');
@@ -260,12 +261,8 @@ export function GoldIndex({ formatMoney, toast }) {
               `<div style="font-size:11px;color:#888;margin-top:2px">Городов: ${cityCount} · Индекс: ${ratio}</div>`,
               { sticky: true, className: 'gi-map-tooltip' }
             );
-            fl.on('click', () => {
-              setRegionFilter(r.regionCode);
-              requestAnimationFrame(() => {
-                document.querySelector('.gold-index__toolbar')?.scrollIntoView({ behavior: 'smooth' });
-              });
-            });
+            // Клик по региону — только tooltip, без автофильтра
+            fl.on('click', () => { fl.openTooltip(); });
           } else {
             if (rawName) fl.bindTooltip(`<span style="font-size:12px">${escapeHtml(rawName)}</span>`, { sticky: true, className: 'gi-map-tooltip' });
           }
@@ -1248,36 +1245,52 @@ export function GoldIndex({ formatMoney, toast }) {
                       </div>
                     )}
 
-                    <div className="gi-comp-section-head" style={{ marginTop: 14 }}>
-                      <span className="gi-section-label">+ Новый конкурент</span>
-                    </div>
-                    <div className="gi-new-comp">
-                      <div className="gi-comp-edit-row">
-                        <label className="field" style={{ flex: 1 }}>
-                          <span className="field-label">Компания</span>
-                          <input className="input" placeholder="Название" value={compDraftByCity[c.id]?.company_name || ''}
-                            onChange={(e) => setCompDraft(c.id, { company_name: e.target.value })} />
-                        </label>
-                        <label className="field">
-                          <span className="field-label">Дата замера</span>
-                          <input className="input" type="date" value={compDraftByCity[c.id]?.measured_at || ''}
-                            onChange={(e) => setCompDraft(c.id, { measured_at: e.target.value })} />
-                        </label>
-                      </div>
-                      <div className="gold-index__probe-grid">
-                        {probeFieldsForCity(c.id).probes.map((pb) => (
-                          <label key={pb} className="field">
-                            <span className="field-label">{pb} ₽/г</span>
-                            <input className="input mono-nums" inputMode="decimal" placeholder="0"
-                              value={compDraftByCity[c.id]?.probes?.[pb] ?? ''}
-                              onChange={(e) => setCompDraft(c.id, { probes: { ...(compDraftByCity[c.id]?.probes || {}), [pb]: e.target.value } })} />
-                          </label>
-                        ))}
-                      </div>
-                      <button type="button" className="btn-primary" style={{ marginTop: 8 }} onClick={() => submitCompetitor(c.id)}>
-                        Добавить конкурента
+                    <div className="gi-add-comp-toggle-row">
+                      <button
+                        type="button"
+                        className={`gi-add-comp-toggle${showAddCompByCity.has(c.id) ? ' gi-add-comp-toggle--open' : ''}`}
+                        onClick={() => setShowAddCompByCity((prev) => {
+                          const n = new Set(prev);
+                          n.has(c.id) ? n.delete(c.id) : n.add(c.id);
+                          return n;
+                        })}
+                      >
+                        <span>{showAddCompByCity.has(c.id) ? '✕' : '+'}</span>
+                        {showAddCompByCity.has(c.id) ? 'Скрыть форму' : 'Добавить конкурента'}
                       </button>
                     </div>
+                    {showAddCompByCity.has(c.id) && (
+                      <div className="gi-new-comp">
+                        <div className="gi-comp-edit-row">
+                          <label className="field" style={{ flex: 1 }}>
+                            <span className="field-label">Компания</span>
+                            <input className="input" placeholder="Название" value={compDraftByCity[c.id]?.company_name || ''}
+                              onChange={(e) => setCompDraft(c.id, { company_name: e.target.value })} />
+                          </label>
+                          <label className="field">
+                            <span className="field-label">Дата замера</span>
+                            <input className="input" type="date" value={compDraftByCity[c.id]?.measured_at || ''}
+                              onChange={(e) => setCompDraft(c.id, { measured_at: e.target.value })} />
+                          </label>
+                        </div>
+                        <div className="gold-index__probe-grid">
+                          {probeFieldsForCity(c.id).probes.map((pb) => (
+                            <label key={pb} className="field">
+                              <span className="field-label">{pb} ₽/г</span>
+                              <input className="input mono-nums" inputMode="decimal" placeholder="0"
+                                value={compDraftByCity[c.id]?.probes?.[pb] ?? ''}
+                                onChange={(e) => setCompDraft(c.id, { probes: { ...(compDraftByCity[c.id]?.probes || {}), [pb]: e.target.value } })} />
+                            </label>
+                          ))}
+                        </div>
+                        <button type="button" className="btn-primary" style={{ marginTop: 8 }} onClick={async () => {
+                          await submitCompetitor(c.id);
+                          setShowAddCompByCity((prev) => { const n = new Set(prev); n.delete(c.id); return n; });
+                        }}>
+                          Сохранить конкурента
+                        </button>
+                      </div>
+                    )}
                     <details className="gi-history-details">
                       <summary className="gi-history-summary" style={{ cursor: 'pointer', userSelect: 'none' }}>
                         <span className="gi-section-title">История изменений</span>
@@ -1517,8 +1530,19 @@ export function GoldIndex({ formatMoney, toast }) {
         }
         .gi-history-summary::-webkit-details-marker { display: none; }
 
+        /* ── add competitor toggle ──────────────────────── */
+        .gi-add-comp-toggle-row { margin-top: 12px; }
+        .gi-add-comp-toggle {
+          display: inline-flex; align-items: center; gap: 6px;
+          padding: 7px 14px; border-radius: 8px; border: 1.5px dashed var(--stroke);
+          background: transparent; color: var(--gold); font-weight: 600; font-size: 0.82rem;
+          cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em;
+        }
+        .gi-add-comp-toggle:hover { border-color: var(--gold); background: rgba(232,197,71,0.06); }
+        .gi-add-comp-toggle--open { border-style: solid; border-color: var(--gold); background: rgba(232,197,71,0.05); color: var(--text-muted); }
+
         /* ── new competitor form ────────────────────────── */
-        .gi-new-comp { margin-top: 10px; }
+        .gi-new-comp { margin-top: 10px; animation: gi-expand 0.2s ease both; }
 
         /* ── history ────────────────────────────────────── */
         .gi-history-list { display: flex; flex-direction: column; gap: 6px; }
