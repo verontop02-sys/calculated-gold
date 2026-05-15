@@ -222,8 +222,8 @@ export function GoldIndex({ formatMoney, toast }) {
         attributionControl: false,
         zoomControl: true,
       }).setView([61.5, 105], 3);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18,
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
       }).addTo(m);
       geoLayerRef.current = L.layerGroup().addTo(m);  // polygons below
       layerRef.current = L.layerGroup().addTo(m);     // markers above
@@ -239,22 +239,25 @@ export function GoldIndex({ formatMoney, toast }) {
       activeGeoJson = L.geoJSON(geoJsonCacheRef.current, {
         style: (feature) => {
           const r = matchFeatureToRegion(feature.properties, regionList);
-          if (!r) return { fillColor: '#e2e8f0', fillOpacity: 0.25, weight: 0.8, color: '#94a3b8' };
+          // Регионы без данных: тёплый бежевый — Россия видна единым контуром на карте
+          if (!r) return { fillColor: '#f5ead6', fillOpacity: 0.55, weight: 1, color: '#c8b48a', dashArray: '' };
           return {
             fillColor: COLOR_HEX[r.colorKey] || COLOR_HEX.neutral,
-            fillOpacity: 0.38,
-            weight: 1.2,
-            color: '#334155',
+            fillOpacity: 0.55,
+            weight: 1.5,
+            color: '#7c5c1e',
           };
         },
         onEachFeature: (feature, fl) => {
           const r = matchFeatureToRegion(feature.properties, regionList);
-          const rawName = feature.properties?.name || feature.properties?.hasc || '';
+          const rawName = feature.properties?.name_ru || feature.properties?.name || feature.properties?.hasc || '';
           if (r) {
             const cityCount = r.cityCount ?? 0;
             const ratio = fmtRatio(r.ratioAvg);
+            const colorDot = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${COLOR_HEX[r.colorKey] || COLOR_HEX.neutral};margin-right:5px;vertical-align:middle"></span>`;
             fl.bindTooltip(
-              `<strong>${escapeHtml(r.regionName)}</strong><br/>Городов: ${cityCount} · Индекс: ${ratio}`,
+              `<div style="font-size:13px"><strong>${colorDot}${escapeHtml(r.regionName)}</strong></div>` +
+              `<div style="font-size:11px;color:#888;margin-top:2px">Городов: ${cityCount} · Индекс: ${ratio}</div>`,
               { sticky: true, className: 'gi-map-tooltip' }
             );
             fl.on('click', () => {
@@ -264,9 +267,9 @@ export function GoldIndex({ formatMoney, toast }) {
               });
             });
           } else {
-            if (rawName) fl.bindTooltip(escapeHtml(rawName), { sticky: true });
+            if (rawName) fl.bindTooltip(`<span style="font-size:12px">${escapeHtml(rawName)}</span>`, { sticky: true, className: 'gi-map-tooltip' });
           }
-          fl.on('mouseover', function () { this.setStyle({ fillOpacity: 0.6 }); });
+          fl.on('mouseover', function () { this.setStyle({ fillOpacity: 0.78, weight: 2 }); });
           fl.on('mouseout', function () { activeGeoJson.resetStyle(this); });
         },
       });
@@ -279,31 +282,68 @@ export function GoldIndex({ formatMoney, toast }) {
     layer.clearLayers();
     for (const c of filteredCities) {
       const fill = COLOR_HEX[c.colorKey] || COLOR_HEX.neutral;
-      const mk = L.circleMarker([c.lat, c.lng], {
-        radius: 11, color: '#fff', weight: 2, fillColor: fill, fillOpacity: 1,
-      });
-      const addrPop = formatCityAddressLine(c);
-      const compCount = c.competitorCount ?? 0;
-      mk.bindPopup(
-        `<div style="min-width:160px;font-size:13px;line-height:1.5">` +
-        `<div style="font-weight:700;font-size:14px;margin-bottom:2px">${escapeHtml(c.city_name)}</div>` +
-        `<div style="color:#666;font-size:11px;margin-bottom:6px">${escapeHtml(c.region_name)}</div>` +
-        (addrPop ? `<div style="font-size:11px;color:#888;margin-bottom:6px">${escapeHtml(addrPop)}</div>` : '') +
-        `<div style="display:flex;gap:10px;flex-wrap:wrap">` +
-        `<span style="background:${fill};color:#000;padding:2px 8px;border-radius:10px;font-weight:600;font-size:12px">` +
-        `Индекс: ${fmtRatio(c.ratioAvg)}</span>` +
-        (compCount > 0 ? `<span style="color:#555;font-size:11px">Конкурентов: ${compCount}</span>` : '') +
+      const textOnFill = (c.colorKey === 'green' || c.colorKey === 'yellow') ? '#1a0e00' : '#fff';
+      const competitors = c.competitors || [];
+      const compCount = competitors.length;
+
+      // Top-3 competitors in popup
+      const compRowsHtml = competitors.slice(0, 3).map((co) =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f0e6d0;">` +
+        `<span style="font-size:12px;color:#3d2b0e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px">${escapeHtml(co.companyName || '—')}</span>` +
+        `<span style="font-size:12px;font-weight:700;color:${COLOR_HEX[co.colorKey] || '#888'};margin-left:8px">${fmtRatio(co.ratioAvg)}</span>` +
+        `</div>`
+      ).join('');
+
+      const popupHtml =
+        `<div style="min-width:210px;max-width:260px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden;border-radius:10px">` +
+        // Header
+        `<div style="background:${fill};padding:11px 14px;margin:-1px -1px 10px;border-radius:10px 10px 0 0">` +
+        `<div style="font-weight:800;font-size:15px;color:${textOnFill};letter-spacing:0.01em">${escapeHtml(c.city_name)}</div>` +
+        `<div style="font-size:11px;color:${textOnFill};opacity:0.8;margin-top:1px">${escapeHtml(c.region_name)}</div>` +
         `</div>` +
-        `<div style="margin-top:8px;font-size:11px;color:#b8860b;cursor:pointer">▼ Подробнее в списке</div>` +
-        `</div>`,
-        { maxWidth: 240 }
-      );
-      mk.on('click', () => {
-        setExpanded((prev) => new Set(prev).add(c.id));
-        requestAnimationFrame(() => {
-          document.getElementById(`gi-city-${c.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
+        // Stats row
+        `<div style="display:flex;gap:14px;padding:0 14px 10px">` +
+        `<div><div style="font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.06em">Индекс</div>` +
+        `<div style="font-size:20px;font-weight:800;color:${fill};line-height:1.2">${fmtRatio(c.ratioAvg)}</div></div>` +
+        `<div><div style="font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.06em">Конкурентов</div>` +
+        `<div style="font-size:20px;font-weight:800;color:#3d2b0e;line-height:1.2">${compCount}</div></div>` +
+        `</div>` +
+        // Competitors
+        (compRowsHtml ? `<div style="padding:0 14px 8px;border-top:1px solid #f0e6d0;padding-top:8px">${compRowsHtml}</div>` : '') +
+        (compCount > 3 ? `<div style="padding:0 14px 6px;font-size:11px;color:#b8860b">+ещё ${compCount - 3}</div>` : '') +
+        // Button
+        `<div style="padding:8px 14px 12px">` +
+        `<button class="gi-popup-detail-btn" data-city-id="${c.id}" style="width:100%;padding:8px 12px;` +
+        `background:linear-gradient(135deg,#b8860b,#e8c547);border:none;border-radius:8px;` +
+        `font-weight:700;cursor:pointer;font-size:13px;color:#1a0e00;letter-spacing:0.02em;` +
+        `transition:opacity 0.15s">Подробнее ↓</button>` +
+        `</div>` +
+        `</div>`;
+
+      const mk = L.circleMarker([c.lat, c.lng], {
+        radius: 11, color: '#fff', weight: 2.5, fillColor: fill, fillOpacity: 1,
       });
+
+      mk.bindPopup(popupHtml, { maxWidth: 280, className: 'gi-city-popup' });
+
+      // Wire up "Подробнее" button after popup opens
+      const cityId = c.id;
+      mk.on('popupopen', () => {
+        const popupEl = mk.getPopup()?.getElement();
+        const btn = popupEl?.querySelector('.gi-popup-detail-btn');
+        if (btn) {
+          btn.onmouseenter = () => { btn.style.opacity = '0.85'; };
+          btn.onmouseleave = () => { btn.style.opacity = '1'; };
+          btn.onclick = () => {
+            mk.closePopup();
+            setExpanded((prev) => new Set(prev).add(cityId));
+            setTimeout(() => {
+              document.getElementById(`gi-city-${cityId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 120);
+          };
+        }
+      });
+
       mk.addTo(layer);
     }
     if (filteredCities.length === 1) m.setView([filteredCities[0].lat, filteredCities[0].lng], 8);
@@ -816,8 +856,9 @@ export function GoldIndex({ formatMoney, toast }) {
           )}
 
           <div className="gold-index__toolbar">
-            <button type="button" className="btn-primary" onClick={() => setShowCityForm((v) => !v)}>
-              {showCityForm ? '✕ Скрыть' : '+ Добавить город'}
+            <button type="button" className={`gi-add-city-btn${showCityForm ? ' gi-add-city-btn--active' : ''}`} onClick={() => setShowCityForm((v) => !v)}>
+              <span className="gi-add-city-icon">{showCityForm ? '✕' : '+'}</span>
+              {showCityForm ? 'Скрыть форму' : 'Добавить город'}
             </button>
             <div className="gi-filters">
               <select className="input" value={regionFilter} onChange={(e) => setRegionFilter(e.target.value)}>
@@ -837,15 +878,14 @@ export function GoldIndex({ formatMoney, toast }) {
 
           {showCityForm && (
             <form className="gold-index__form" onSubmit={submitCity}>
-              <p className="muted small" style={{ marginBottom: 12, lineHeight: 1.45 }}>
-                Координаты вручную: на{' '}
-                <a href="https://www.openstreetmap.org/" target="_blank" rel="noreferrer">
-                  OpenStreetMap
-                </a>{' '}
-                — ПКМ по точке; также Яндекс и Google Карты. Регион и город различают одноимённые пункты; улица и дом
-                уточняют метку. Кнопка ниже подставляет координаты по адресу (OpenStreetMap Nominatim, без ключа; не чаще ~1
-                запрос/с).
-              </p>
+              <div className="gi-form-hint">
+                <span className="gi-form-hint-icon">📍</span>
+                <span>
+                  Введите регион и название города. Нажмите <strong>«Подставить координаты»</strong> — 
+                  система найдёт точку на карте автоматически. Или укажите координаты вручную 
+                  (<a href="https://www.openstreetmap.org/" target="_blank" rel="noreferrer">OpenStreetMap</a> → ПКМ по точке).
+                </span>
+              </div>
               <div className="gold-index__grid">
                 <label className="field">
                   <span className="field-label">Код региона</span>
@@ -974,8 +1014,8 @@ export function GoldIndex({ formatMoney, toast }) {
           )}
 
           <div className="gold-index__cities">
-            {filteredCities.map((c) => (
-              <div key={c.id} id={`gi-city-${c.id}`} className="gold-index__city">
+            {filteredCities.map((c, idx) => (
+              <div key={c.id} id={`gi-city-${c.id}`} className="gold-index__city" style={{ animationDelay: `${Math.min(idx * 40, 300)}ms` }}>
                 <button type="button" className="gold-index__city-head" onClick={() => toggleExpand(c.id)}>
                   <span
                     className="gold-index__dot"
@@ -1338,30 +1378,77 @@ export function GoldIndex({ formatMoney, toast }) {
         }
         .gi-filters { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
         .gi-filters .input { flex: 1; min-width: min(180px,100%); }
+        .gi-add-city-btn {
+          display: inline-flex; align-items: center; gap: 7px;
+          padding: 9px 18px; border-radius: 10px; border: none; cursor: pointer;
+          background: linear-gradient(135deg,#b8860b,#e8c547);
+          color: #1a0e00; font-weight: 700; font-size: 0.9rem;
+          transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
+          box-shadow: 0 2px 8px rgba(184,134,11,0.25);
+        }
+        .gi-add-city-btn:hover { opacity: 0.88; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(184,134,11,0.35); }
+        .gi-add-city-btn:active { transform: translateY(0); }
+        .gi-add-city-btn--active { background: var(--input-bg); color: var(--text); border: 1px solid var(--stroke); box-shadow: none; }
+        .gi-add-city-icon { font-size: 1.1rem; font-weight: 300; line-height: 1; }
 
         /* ── add-city form ──────────────────────────────── */
         .gold-index__form {
           margin-bottom: 16px; padding: clamp(10px,2vw,16px); border-radius: 12px;
           border: 1px solid var(--stroke); background: var(--input-bg);
+          animation: gi-expand 0.22s ease both;
         }
+        .gi-form-hint {
+          display: flex; gap: 10px; align-items: flex-start;
+          background: rgba(232,197,71,0.08); border: 1px solid rgba(232,197,71,0.2);
+          border-radius: 8px; padding: 10px 12px; margin-bottom: 14px;
+          font-size: 0.83rem; line-height: 1.5; color: var(--text);
+        }
+        .gi-form-hint a { color: var(--gold); }
+        .gi-form-hint-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
         .gold-index__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 10px; }
         .gold-index__probe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px,1fr)); gap: 8px; margin: 8px 0; }
 
+        /* ── animations ─────────────────────────────────── */
+        @keyframes gi-slide-up {
+          from { opacity: 0; transform: translateY(14px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes gi-fade-in {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes gi-expand {
+          from { opacity: 0; transform: translateY(-6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
         /* ── city list ──────────────────────────────────── */
         .gold-index__cities { display: flex; flex-direction: column; gap: 10px; }
-        .gold-index__city { padding: 0; overflow: hidden; border: 1px solid var(--stroke); border-radius: 14px; background: var(--input-bg); }
+        .gold-index__city {
+          padding: 0; overflow: hidden;
+          border: 1px solid var(--stroke); border-radius: 14px; background: var(--input-bg);
+          animation: gi-slide-up 0.28s ease both;
+          transition: box-shadow 0.2s, border-color 0.2s;
+        }
+        .gold-index__city:hover { box-shadow: 0 2px 14px rgba(0,0,0,0.1); }
         .gold-index__city-head {
           width: 100%; display: flex; align-items: center; gap: 10px;
           padding: clamp(10px,2vw,14px) clamp(12px,2vw,16px);
           background: transparent; border: none; color: inherit; cursor: pointer; text-align: left;
           transition: background 0.15s;
         }
-        .gold-index__city-head:hover { background: var(--hover-bg,rgba(255,255,255,.05)); }
-        .gold-index__dot { width: 12px; height: 12px; border-radius: 999px; flex-shrink: 0; }
+        .gold-index__city-head:hover { background: var(--hover-bg,rgba(232,197,71,0.06)); }
+        .gold-index__dot { width: 12px; height: 12px; border-radius: 999px; flex-shrink: 0; transition: transform 0.2s; }
+        .gold-index__city-head:hover .gold-index__dot { transform: scale(1.25); }
         .gold-index__city-title { flex: 1; min-width: 0; overflow: hidden; }
         .gold-index__city-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
         .gold-index__ratio { font-weight: 700; color: var(--gold); margin-left: auto; white-space: nowrap; }
-        .gold-index__city-body { padding: clamp(10px,2vw,14px) clamp(12px,2vw,16px); border-top: 1px solid var(--stroke); display: flex; flex-direction: column; gap: 0; }
+        .gold-index__city-body {
+          padding: clamp(10px,2vw,14px) clamp(12px,2vw,16px);
+          border-top: 1px solid var(--stroke);
+          display: flex; flex-direction: column; gap: 0;
+          animation: gi-expand 0.22s ease both;
+        }
 
         /* ── city meta row ──────────────────────────────── */
         .gi-city-meta {
@@ -1397,8 +1484,11 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-comp-card {
           border: 1px solid var(--stroke); border-radius: 10px;
           padding: 10px 12px; background: var(--card-bg, transparent);
+          animation: gi-slide-up 0.2s ease both;
+          transition: border-color 0.15s, box-shadow 0.15s;
         }
-        .gi-comp-card--editing { border-color: var(--gold); }
+        .gi-comp-card:hover { border-color: rgba(232,197,71,0.4); box-shadow: 0 1px 8px rgba(184,134,11,0.08); }
+        .gi-comp-card--editing { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(232,197,71,0.15); }
         .gi-comp-header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
         .gi-comp-name { font-weight: 600; font-size: 0.9rem; }
         .gi-comp-date { font-size: 0.78rem; }
@@ -1454,7 +1544,20 @@ export function GoldIndex({ formatMoney, toast }) {
         .btn-ghost.danger { color: var(--danger); }
 
         /* ── leaflet tooltip ────────────────────────────── */
-        .gi-map-tooltip { font-size: 12px; font-family: inherit; padding: 5px 8px; border-radius: 6px; }
+        .gi-map-tooltip {
+          font-size: 12px; font-family: inherit; padding: 6px 10px; border-radius: 8px;
+          border: none; box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+          background: rgba(255,253,248,0.97); color: #1a0e00;
+        }
+        /* ── leaflet popup ───────────────────────────────── */
+        .gi-city-popup .leaflet-popup-content-wrapper {
+          border-radius: 12px; padding: 0; overflow: hidden;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+          border: 1px solid rgba(184,134,11,0.15);
+          animation: gi-fade-in 0.18s ease;
+        }
+        .gi-city-popup .leaflet-popup-content { margin: 0; }
+        .gi-city-popup .leaflet-popup-tip-container { display: none; }
 
         /* ── responsive tweaks ──────────────────────────── */
         @media (max-width: 540px) {
