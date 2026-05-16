@@ -150,6 +150,10 @@ export function GoldIndex({ formatMoney, toast }) {
   const [editCompetitorDraft, setEditCompetitorDraft] = useState(null);
   const [compDraftByCity, setCompDraftByCity] = useState({});
   const [quickAddBusy, setQuickAddBusy] = useState(false);
+  // Drag-to-confirm mode: null or { marker: L.Marker }
+  const quickDragMarkerRef = useRef(null);
+  const [quickDragConfirmBusy, setQuickDragConfirmBusy] = useState(false);
+  const [quickDragActive, setQuickDragActive] = useState(false);
 
   const load = useCallback(async () => {
     setErr('');
@@ -689,6 +693,65 @@ export function GoldIndex({ formatMoney, toast }) {
    * 4. Если нашли → раскрываем карточку, открываем форму конкурента
    * 5. Если нет → создаём город автоматически, затем открываем форму
    */
+  /** Убираем перетаскиваемый маркер быстрого ввода */
+  function cancelQuickDrag() {
+    if (quickDragMarkerRef.current) {
+      quickDragMarkerRef.current.remove();
+      quickDragMarkerRef.current = null;
+    }
+    setQuickDragActive(false);
+  }
+
+  /** Пользователь подтвердил место — запускаем geocode + city lookup */
+  async function confirmQuickDrag() {
+    if (!quickDragMarkerRef.current) return;
+    const pos = quickDragMarkerRef.current.getLatLng();
+    const lat = pos.lat.toFixed(6);
+    const lng = pos.lng.toFixed(6);
+    setQuickDragConfirmBusy(true);
+    try {
+      const geo = await api.goldIndexReverseGeocode({ lat, lng });
+      const norm = (s) => (s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+      const cities = data?.cities || [];
+      const cityNorm = norm(geo.city);
+      const match = cityNorm ? cities.find((c) => norm(c.city_name) === cityNorm) : null;
+      cancelQuickDrag();
+      if (match) {
+        setExpanded((prev) => { const n = new Set(prev); n.add(match.id); return n; });
+        setShowAddCompByCity((prev) => { const n = new Set(prev); n.add(match.id); return n; });
+        setCompDraft(match.id, { lat, lng });
+        toast(`📍 Город «${match.city_name}» — заполните данные конкурента`, 'success');
+        setTimeout(() => {
+          document.getElementById(`gi-city-${match.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 350);
+      } else {
+        const cityName = geo.city || 'Новый город';
+        const regionMatch = cities.find((c) => norm(c.region_name) === norm(geo.region));
+        toast(`Создаём город «${cityName}»...`, 'success');
+        const { id: newCityId } = await api.goldIndexCreateCity({
+          city_name: cityName,
+          region_name: geo.region || '',
+          region_code: regionMatch?.region_code || '',
+          lat: parseFloat(lat),
+          lng: parseFloat(lng),
+          geocoded_label: geo.displayName || null,
+        });
+        await load();
+        setExpanded((prev) => { const n = new Set(prev); n.add(newCityId); return n; });
+        setShowAddCompByCity((prev) => { const n = new Set(prev); n.add(newCityId); return n; });
+        setCompDraft(newCityId, { lat, lng });
+        toast(`✅ Город «${cityName}» создан — заполните конкурента`, 'success');
+        setTimeout(() => {
+          document.getElementById(`gi-city-${newCityId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 500);
+      }
+    } catch (e2) {
+      toast(e2?.message || 'Ошибка', 'error');
+    } finally {
+      setQuickDragConfirmBusy(false);
+    }
+  }
+
   function quickAddCompetitor() {
     if (!navigator.geolocation) {
       toast('Геолокация не поддерживается браузером', 'error');
@@ -696,63 +759,41 @@ export function GoldIndex({ formatMoney, toast }) {
     }
     setQuickAddBusy(true);
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude.toFixed(6);
-        const lng = pos.coords.longitude.toFixed(6);
-        // Show temporary pin immediately
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
         const m = mapInstRef.current;
         if (m) {
-          m.setView([parseFloat(lat), parseFloat(lng)], 16);
+          m.setView([lat, lng], 17);
+          // Remove any previous drag marker
+          if (quickDragMarkerRef.current) { quickDragMarkerRef.current.remove(); quickDragMarkerRef.current = null; }
           if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
+          // Draggable marker with emoji-style icon
           const icon = L.divIcon({
             className: '',
-            html: '<div style="width:20px;height:20px;background:#e8c547;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 8px rgba(232,197,71,0.3)"></div>',
-            iconSize: [20, 20], iconAnchor: [10, 10],
+            html: `<div style="
+              display:flex;flex-direction:column;align-items:center;
+              filter:drop-shadow(0 3px 6px rgba(0,0,0,0.45));
+              cursor:grab;user-select:none;
+            ">
+              <div style="
+                width:36px;height:36px;
+                background:linear-gradient(135deg,#e8c547,#c8a020);
+                border:3px solid #fff;border-radius:50%;
+                display:flex;align-items:center;justify-content:center;
+                font-size:18px;line-height:1;
+              ">📍</div>
+              <div style="width:3px;height:14px;background:#c8a020;"></div>
+              <div style="width:8px;height:4px;background:rgba(0,0,0,0.2);border-radius:50%;"></div>
+            </div>`,
+            iconSize: [36, 54], iconAnchor: [18, 54],
           });
-          addPinRef.current = L.marker([parseFloat(lat), parseFloat(lng)], { icon }).addTo(m);
+          const marker = L.marker([lat, lng], { icon, draggable: true }).addTo(m);
+          quickDragMarkerRef.current = marker;
+          setQuickDragActive(true);
+          toast('Перетащите маркер на точное место и нажмите «Это здесь»', 'success');
         }
-        try {
-          const geo = await api.goldIndexReverseGeocode({ lat, lng });
-          const norm = (s) => (s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
-          const cities = data?.cities || [];
-          const cityNorm = norm(geo.city);
-          const match = cityNorm ? cities.find((c) => norm(c.city_name) === cityNorm) : null;
-          if (match) {
-            // City exists — open competitor form
-            setExpanded((prev) => { const n = new Set(prev); n.add(match.id); return n; });
-            setShowAddCompByCity((prev) => { const n = new Set(prev); n.add(match.id); return n; });
-            setCompDraft(match.id, { lat, lng });
-            toast(`📍 Вы в городе «${match.city_name}» — добавьте конкурента`, 'success');
-            setTimeout(() => {
-              document.getElementById(`gi-city-${match.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 350);
-          } else {
-            // City not found — auto-create
-            const cityName = geo.city || 'Неизвестный город';
-            const regionMatch = cities.find((c) => norm(c.region_name) === norm(geo.region));
-            toast(`Город «${cityName}» не найден — создаём автоматически...`, 'success');
-            const { id: newCityId } = await api.goldIndexCreateCity({
-              city_name: cityName,
-              region_name: geo.region || '',
-              region_code: regionMatch?.region_code || '',
-              lat: parseFloat(lat),
-              lng: parseFloat(lng),
-              geocoded_label: geo.displayName || null,
-            });
-            await load();
-            setExpanded((prev) => { const n = new Set(prev); n.add(newCityId); return n; });
-            setShowAddCompByCity((prev) => { const n = new Set(prev); n.add(newCityId); return n; });
-            setCompDraft(newCityId, { lat, lng });
-            toast(`✅ Город «${cityName}» создан — заполните данные конкурента`, 'success');
-            setTimeout(() => {
-              document.getElementById(`gi-city-${newCityId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 500);
-          }
-        } catch (e2) {
-          toast(e2?.message || 'Ошибка', 'error');
-        } finally {
-          setQuickAddBusy(false);
-        }
+        setQuickAddBusy(false);
       },
       (geoErr) => {
         const msgs = {
@@ -1108,15 +1149,38 @@ export function GoldIndex({ formatMoney, toast }) {
           <div className="gold-index__map-wrap">
             <div ref={mapRef} className="gold-index__map" />
             {/* Quick-add competitor via GPS — main floating button */}
-            <button
-              type="button"
-              className={`gi-quick-add-btn${quickAddBusy ? ' gi-quick-add-btn--busy' : ''}`}
-              onClick={quickAddCompetitor}
-              disabled={quickAddBusy}
-              title="Определить своё местоположение и добавить конкурента"
-            >
-              {quickAddBusy ? '⏳ Определяем...' : '✈ Добавить точку'}
-            </button>
+            {quickDragActive ? (
+              <div className="gi-drag-confirm-panel">
+                <span className="gi-drag-confirm-hint">Перетащите маркер на точное место</span>
+                <div className="gi-drag-confirm-btns">
+                  <button
+                    type="button"
+                    className="gi-drag-confirm-ok"
+                    onClick={confirmQuickDrag}
+                    disabled={quickDragConfirmBusy}
+                  >
+                    {quickDragConfirmBusy ? '⏳' : '✓'} Это здесь
+                  </button>
+                  <button
+                    type="button"
+                    className="gi-drag-confirm-cancel"
+                    onClick={cancelQuickDrag}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={`gi-quick-add-btn${quickAddBusy ? ' gi-quick-add-btn--busy' : ''}`}
+                onClick={quickAddCompetitor}
+                disabled={quickAddBusy}
+                title="Определить своё местоположение и добавить конкурента"
+              >
+                {quickAddBusy ? '⏳ Определяем...' : '✈ Добавить точку'}
+              </button>
+            )}
             {/* City placement button */}
             <button
               type="button"
@@ -2017,6 +2081,29 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-quick-add-btn:disabled { opacity: 0.7; cursor: default; }
         .gi-quick-add-btn--busy { animation: gi-pulse 1s infinite; }
         @keyframes gi-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.65; } }
+        .gi-drag-confirm-panel {
+          position: absolute; bottom: 12px; left: 12px; z-index: 500;
+          display: flex; flex-direction: column; gap: 8px;
+          background: rgba(255,253,248,0.96); border-radius: 18px;
+          padding: 12px 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.22);
+          backdrop-filter: blur(8px); border: 1.5px solid rgba(232,197,71,0.5);
+          max-width: 220px;
+        }
+        .gi-drag-confirm-hint { font-size: 12px; color: #7a6540; font-weight: 500; line-height: 1.3; }
+        .gi-drag-confirm-btns { display: flex; gap: 8px; }
+        .gi-drag-confirm-ok {
+          flex: 1; padding: 10px 14px; border-radius: 14px; border: none; cursor: pointer;
+          background: linear-gradient(135deg,#e8c547,#c8a020); color: #1a0e00;
+          font-size: 14px; font-weight: 700; transition: all 0.15s;
+        }
+        .gi-drag-confirm-ok:hover:not(:disabled) { box-shadow: 0 3px 12px rgba(184,134,11,0.45); }
+        .gi-drag-confirm-ok:disabled { opacity: 0.65; cursor: default; }
+        .gi-drag-confirm-cancel {
+          width: 40px; height: 40px; border-radius: 12px; border: none; cursor: pointer;
+          background: rgba(239,68,68,0.12); color: #dc2626; font-size: 16px; font-weight: 700;
+          transition: background 0.15s; display: flex; align-items: center; justify-content: center;
+        }
+        .gi-drag-confirm-cancel:hover { background: rgba(239,68,68,0.22); }
         .gi-map-add-btn {
           position: absolute; bottom: 12px; right: 12px; z-index: 500;
           display: inline-flex; align-items: center; gap: 6px;
