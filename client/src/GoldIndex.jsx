@@ -274,10 +274,11 @@ export function GoldIndex({ formatMoney, toast }) {
       activeGeoJson = L.geoJSON(geoJsonCacheRef.current, {
         style: (feature) => {
           const r = matchFeatureToRegion(feature.properties, regionList);
-          // Только границы — без заливки, карта видна полностью при зуме
-          if (!r) return { fill: false, weight: 1.2, color: '#c8a84b', opacity: 0.7 };
+          // fillOpacity:0 = прозрачная заливка, но область ловит курсор по всей площади
+          if (!r) return { fillColor: '#000', fillOpacity: 0, weight: 1.2, color: '#c8a84b', opacity: 0.65 };
           return {
-            fill: false,
+            fillColor: COLOR_HEX[r.colorKey] || COLOR_HEX.neutral,
+            fillOpacity: 0,
             weight: 2.5,
             color: COLOR_HEX[r.colorKey] || COLOR_HEX.neutral,
             opacity: 0.9,
@@ -300,7 +301,12 @@ export function GoldIndex({ formatMoney, toast }) {
             if (rawName) fl.bindTooltip(`<span style="font-size:12px">${escapeHtml(rawName)}</span>`, { sticky: true, className: 'gi-map-tooltip' });
           }
           fl.on('mouseover', function () {
-            this.setStyle({ weight: r ? 3.5 : 2, opacity: 1 });
+            // При наведении — лёгкая заливка цветом региона
+            this.setStyle({
+              fillOpacity: r ? 0.12 : 0.06,
+              weight: r ? 3.5 : 2,
+              opacity: 1,
+            });
           });
           fl.on('mouseout', function () { activeGeoJson.resetStyle(this); });
         },
