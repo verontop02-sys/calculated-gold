@@ -3,8 +3,9 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
   BarChart, Bar,
-  LineChart, Line, Legend,
+  AreaChart, Area, Legend,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  Cell,
 } from 'recharts';
 import { api } from './api.js';
 
@@ -174,20 +175,30 @@ export function GoldIndex({ formatMoney, toast }) {
     [data?.regions]
   );
 
-  // Line chart: flatten chart data into [{week, RU-SVE: 5800, ...}]
+  // Area chart: flatten chart data into [{week, RU-SVE: 5800, ...}]
+  // Deduplicate by regionName to avoid "Свердловская область" appearing twice
   const { flatLineData, lineRegions } = useMemo(() => {
     if (!chartData?.length) return { flatLineData: [], lineRegions: [] };
     const probeKey = `p${chartProbe}`;
     const weekSet = new Set();
     const byRegion = {};
-    // Limit to top 6 regions by number of data points
-    const sorted = [...chartData].sort((a, b) => b.points.length - a.points.length).slice(0, 6);
+    const seenNames = new Set();
+    const sorted = [...chartData].sort((a, b) => b.points.length - a.points.length).slice(0, 8);
     for (const r of sorted) {
-      byRegion[r.regionCode] = { name: r.regionName, pts: {} };
+      // Deduplicate by name — merge into existing entry if name already seen
+      const existingKey = [...Object.entries(byRegion)].find(([, v]) => v.name === r.regionName)?.[0];
+      const key = existingKey || r.regionCode;
+      if (!byRegion[key]) {
+        if (seenNames.has(r.regionName)) continue;
+        seenNames.add(r.regionName);
+        byRegion[key] = { name: r.regionName, pts: {} };
+      }
       for (const pt of r.points) {
         if (pt[probeKey] != null) {
           weekSet.add(pt.week);
-          byRegion[r.regionCode].pts[pt.week] = pt[probeKey];
+          // Merge: average if already has value for this week
+          const existing = byRegion[key].pts[pt.week];
+          byRegion[key].pts[pt.week] = existing != null ? (existing + pt[probeKey]) / 2 : pt[probeKey];
         }
       }
     }
@@ -195,11 +206,11 @@ export function GoldIndex({ formatMoney, toast }) {
     const flatLineData = weeks.map((w) => {
       const entry = { week: w };
       for (const [rc, { pts }] of Object.entries(byRegion)) {
-        if (pts[w] != null) entry[rc] = pts[w];
+        if (pts[w] != null) entry[rc] = Math.round(pts[w]);
       }
       return entry;
     });
-    const lineRegions = sorted.map((r) => ({ regionCode: r.regionCode, regionName: r.regionName }));
+    const lineRegions = Object.entries(byRegion).map(([rc, { name }]) => ({ regionCode: rc, regionName: name }));
     return { flatLineData, lineRegions };
   }, [chartData, chartProbe]);
 
@@ -799,28 +810,47 @@ export function GoldIndex({ formatMoney, toast }) {
 
       {data && (
         <>
-          <div className="gold-index__meta mono-nums">
-            <span>
-              Биржа (эталон):{' '}
-              <strong>{data.goldRubPerGram != null ? formatMoney(data.goldRubPerGram) : '—'} / г</strong>
-            </span>
-            <span>
-              Выкуп лома: <strong>{data.settingsSnapshot?.buybackPercentOfScrap ?? '—'}%</strong>
-            </span>
-            <span>
-              Городов: <strong>{data.stats?.cityCount ?? 0}</strong> · Охват населения:{' '}
-              <strong>
-                {data.stats?.populationCovered != null
-                  ? new Intl.NumberFormat('ru-RU').format(data.stats.populationCovered)
-                  : '—'}
-              </strong>
-            </span>
+          <div className="gi-stats-grid">
+            <div className="gi-stat-card">
+              <div className="gi-stat-icon">⚡</div>
+              <div>
+                <div className="gi-stat-label">Биржа (эталон)</div>
+                <div className="gi-stat-value mono-nums">
+                  {data.goldRubPerGram != null ? formatMoney(data.goldRubPerGram) : '—'} <span className="gi-stat-unit">₽/г</span>
+                </div>
+              </div>
+            </div>
+            <div className="gi-stat-card">
+              <div className="gi-stat-icon">🏷️</div>
+              <div>
+                <div className="gi-stat-label">Выкуп лома</div>
+                <div className="gi-stat-value">{data.settingsSnapshot?.buybackPercentOfScrap ?? '—'}<span className="gi-stat-unit">%</span></div>
+              </div>
+            </div>
+            <div className="gi-stat-card">
+              <div className="gi-stat-icon">📍</div>
+              <div>
+                <div className="gi-stat-label">Городов</div>
+                <div className="gi-stat-value">{data.stats?.cityCount ?? 0}</div>
+              </div>
+            </div>
+            <div className="gi-stat-card">
+              <div className="gi-stat-icon">👥</div>
+              <div>
+                <div className="gi-stat-label">Охват населения</div>
+                <div className="gi-stat-value mono-nums">
+                  {data.stats?.populationCovered != null
+                    ? new Intl.NumberFormat('ru-RU').format(data.stats.populationCovered)
+                    : '—'}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="gold-index__legend">
-            <span className="muted small">Легенда индекса:</span>
+            <span className="gi-legend-title">Индекс:</span>
             {[
-              ['green', 'ниже порога 1'],
+              ['green', 'ниже рынка'],
               ['yellow', 'умеренно'],
               ['orange', 'выше'],
               ['red', 'значительно выше'],
@@ -853,86 +883,159 @@ export function GoldIndex({ formatMoney, toast }) {
 
           {regionsChart.length > 0 && (
             <div className="gold-index__chart">
-              <p className="muted small" style={{ marginBottom: 8 }}>
-                Текущий средний индекс по регионам
-              </p>
-              <div style={{ width: '100%', height: 200 }}>
+              <div className="gi-chart-header">
+                <span className="gi-chart-title">Индекс по регионам</span>
+                <span className="gi-chart-subtitle muted small">{regionsChart.length} регион{regionsChart.length === 1 ? '' : regionsChart.length < 5 ? 'а' : 'ов'}</span>
+              </div>
+              <div style={{ width: '100%', height: 210 }}>
                 <ResponsiveContainer>
-                  <BarChart data={regionsChart} margin={{ top: 4, right: 8, left: -18, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-30} textAnchor="end" height={60} />
-                    <YAxis tick={{ fontSize: 10 }} domain={['auto', 'auto']} />
-                    <Tooltip formatter={(v) => [fmtRatio(v), 'Индекс']} labelFormatter={(_, p) => p?.[0]?.payload?.full || ''} />
-                    <Bar dataKey="ratio" fill="#e8c547" radius={[3, 3, 0, 0]} />
+                  <BarChart data={regionsChart} margin={{ top: 8, right: 8, left: 0, bottom: 40 }} barCategoryGap="25%">
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0e6d0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#7a6540' }} interval={0} angle={-30} textAnchor="end" height={56} />
+                    <YAxis tick={{ fontSize: 10, fill: '#7a6540' }} axisLine={false} tickLine={false} domain={[0, 'auto']} />
+                    <Tooltip
+                      cursor={{ fill: 'rgba(232,197,71,0.08)' }}
+                      formatter={(v, _, { payload }) => [fmtRatio(v), payload?.full || '']}
+                      contentStyle={{ borderRadius: 10, border: '1px solid #e8c547', fontSize: 12 }}
+                      labelFormatter={() => 'Индекс'}
+                    />
+                    <Bar dataKey="ratio" radius={[6, 6, 0, 0]}>
+                      {regionsChart.map((r, i) => {
+                        const colorKey = r.ratio < 1.5 ? 'green' : r.ratio < 2.5 ? 'yellow' : r.ratio < 3.5 ? 'orange' : 'red';
+                        return <Cell key={i} fill={COLOR_HEX[colorKey]} />;
+                      })}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
           )}
 
-          {(flatLineData.length > 0 || chartBusy) && (
-            <div className="gold-index__chart">
-              <div className="gi-chart-header">
-                <p className="muted small">
-                  Динамика цены по пробам{chartBusy ? ' (загрузка…)' : ''}
-                </p>
-                <div className="gi-probe-select">
-                  <span className="muted small">Проба:</span>
-                  <select
-                    className="input"
-                    value={chartProbe}
-                    style={{ width: 72, padding: '3px 6px', fontSize: '0.8rem' }}
-                    onChange={(e) => setChartProbe(e.target.value)}
-                  >
-                    {COMMON_PROBES.map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
-                </div>
+          {/* ── Динамика цен по пробам ─────────────────────────────────────── */}
+          <div className="gold-index__chart gi-price-chart">
+            <div className="gi-chart-header">
+              <div className="gi-chart-title-row">
+                <span className="gi-chart-title">Динамика цены по пробам</span>
+                <span className="gi-chart-subtitle muted small">
+                  {chartBusy ? 'Загрузка…' : flatLineData.length > 1
+                    ? `${flatLineData.length} недель данных · ${lineRegions.length} регион${lineRegions.length === 1 ? '' : lineRegions.length < 5 ? 'а' : 'ов'}`
+                    : flatLineData.length === 1 ? 'Снимок за одну неделю' : 'Данные появятся после первого заполнения'}
+                </span>
               </div>
-              {flatLineData.length > 0 ? (
+              <div className="gi-probe-select">
+                <span className="muted small">Проба:</span>
+                <select
+                  className="input"
+                  value={chartProbe}
+                  style={{ width: 72, padding: '4px 6px', fontSize: '0.85rem' }}
+                  onChange={(e) => setChartProbe(e.target.value)}
+                >
+                  {COMMON_PROBES.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {chartBusy && (
+              <div className="gi-chart-empty">
+                <span className="gi-chart-empty-icon">⏳</span>
+                <span>Загружаем данные…</span>
+              </div>
+            )}
+
+            {/* Single week — show bar snapshot, much clearer than 1 isolated dot */}
+            {!chartBusy && flatLineData.length === 1 && lineRegions.length > 0 && (() => {
+              const snapshot = lineRegions
+                .map((r) => ({ name: r.regionName.length > 18 ? r.regionName.slice(0, 16) + '…' : r.regionName, full: r.regionName, value: flatLineData[0][r.regionCode] }))
+                .filter((x) => x.value != null)
+                .sort((a, b) => b.value - a.value);
+              if (!snapshot.length) return null;
+              return (
                 <div style={{ width: '100%', height: 220 }}>
                   <ResponsiveContainer>
-                    <LineChart data={flatLineData} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                      <XAxis dataKey="week" tick={{ fontSize: 9 }} />
-                      <YAxis tick={{ fontSize: 9 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+                    <BarChart data={snapshot} margin={{ top: 8, right: 12, left: 0, bottom: 36 }} barCategoryGap="30%">
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0e6d0" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#7a6540' }} interval={0} angle={-25} textAnchor="end" height={56} />
+                      <YAxis tick={{ fontSize: 10, fill: '#7a6540' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}к`} axisLine={false} tickLine={false} />
                       <Tooltip
-                        formatter={(v, name) => {
-                          const r = lineRegions.find((r) => r.regionCode === name);
-                          return [`${v} ₽/г`, r?.regionName || name];
-                        }}
-                        labelFormatter={(w) => `Неделя с ${w}`}
+                        cursor={{ fill: 'rgba(232,197,71,0.08)' }}
+                        formatter={(v, _, { payload }) => [`${new Intl.NumberFormat('ru-RU').format(v)} ₽/г`, payload?.full || '']}
+                        labelFormatter={() => `Проба ${chartProbe}`}
+                        contentStyle={{ borderRadius: 10, border: '1px solid #e8c547', fontSize: 12 }}
                       />
-                      <Legend
-                        wrapperStyle={{ fontSize: 10, paddingTop: 4 }}
-                        formatter={(value) => {
-                          const r = lineRegions.find((r) => r.regionCode === value);
-                          const n = r?.regionName || value;
-                          return n.length > 20 ? n.slice(0, 18) + '…' : n;
-                        }}
-                      />
-                      {lineRegions.map((r, i) => (
-                        <Line
-                          key={r.regionCode}
-                          type="monotone"
-                          dataKey={r.regionCode}
-                          stroke={CHART_COLORS[i % CHART_COLORS.length]}
-                          strokeWidth={2}
-                          dot={false}
-                          connectNulls
-                        />
-                      ))}
-                    </LineChart>
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                        {snapshot.map((_, i) => (
+                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
-              ) : (
-                !chartBusy && <p className="muted small" style={{ marginTop: 6 }}>
-                  Нет данных по пробе {chartProbe} в выбранном периоде
-                </p>
-              )}
-            </div>
-          )}
+              );
+            })()}
+
+            {/* Multi-week — AreaChart with gradient fills */}
+            {!chartBusy && flatLineData.length > 1 && (
+              <div style={{ width: '100%', height: 240 }}>
+                <ResponsiveContainer>
+                  <AreaChart data={flatLineData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+                    <defs>
+                      {lineRegions.map((r, i) => (
+                        <linearGradient key={r.regionCode} id={`grad-${i}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={CHART_COLORS[i % CHART_COLORS.length]} stopOpacity={0.3} />
+                          <stop offset="95%" stopColor={CHART_COLORS[i % CHART_COLORS.length]} stopOpacity={0} />
+                        </linearGradient>
+                      ))}
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0e6d0" />
+                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#7a6540' }} tickFormatter={(w) => w?.slice(5)} />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: '#7a6540' }}
+                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}к`}
+                      axisLine={false} tickLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 10, border: '1px solid #e8c547', fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}
+                      formatter={(v, name) => {
+                        const r = lineRegions.find((r) => r.regionCode === name);
+                        return [`${new Intl.NumberFormat('ru-RU').format(v)} ₽/г`, r?.regionName || name];
+                      }}
+                      labelFormatter={(w) => `Неделя ${w}`}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                      formatter={(value) => {
+                        const r = lineRegions.find((r) => r.regionCode === value);
+                        const n = r?.regionName || value;
+                        return n.length > 22 ? n.slice(0, 20) + '…' : n;
+                      }}
+                    />
+                    {lineRegions.map((r, i) => (
+                      <Area
+                        key={r.regionCode}
+                        type="monotone"
+                        dataKey={r.regionCode}
+                        stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                        strokeWidth={2.5}
+                        fill={`url(#grad-${i})`}
+                        dot={{ r: 4, fill: CHART_COLORS[i % CHART_COLORS.length], strokeWidth: 2, stroke: '#fff' }}
+                        activeDot={{ r: 6 }}
+                        connectNulls
+                      />
+                    ))}
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {!chartBusy && flatLineData.length === 0 && (
+              <div className="gi-chart-empty">
+                <span className="gi-chart-empty-icon">📈</span>
+                <span>Добавьте конкурентов с ценами — динамика появится через несколько недель</span>
+              </div>
+            )}
+          </div>
 
           <div className="gold-index__toolbar">
             <button type="button" className={`gi-add-city-btn${showCityForm ? ' gi-add-city-btn--active' : ''}`} onClick={() => setShowCityForm((v) => !v)}>
@@ -1448,13 +1551,28 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-export-btns { display: flex; gap: 6px; margin-left: auto; }
 
         /* ── meta / legend ─────────────────────────────── */
-        .gold-index__meta {
-          display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.82rem; margin-bottom: 12px;
-          background: var(--input-bg); border: 1px solid var(--stroke); border-radius: 10px;
-          padding: 10px 14px;
+        /* ── stats grid ─────────────────────────────────── */
+        .gi-stats-grid {
+          display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+          gap: 10px; margin-bottom: 12px;
         }
-        .gold-index__legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 10px; }
-        .gold-index__leg-item { font-size: 0.75rem; display: inline-flex; align-items: center; gap: 5px; }
+        .gi-stat-card {
+          display: flex; align-items: center; gap: 10px;
+          background: var(--input-bg); border: 1px solid var(--stroke);
+          border-radius: 12px; padding: 11px 13px;
+          transition: box-shadow 0.15s, border-color 0.15s;
+        }
+        .gi-stat-card:hover { border-color: rgba(232,197,71,0.4); box-shadow: 0 2px 10px rgba(184,134,11,0.08); }
+        .gi-stat-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1; }
+        .gi-stat-label { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px; }
+        .gi-stat-value { font-size: 1rem; font-weight: 700; line-height: 1.2; }
+        .gi-stat-unit { font-size: 0.72rem; font-weight: 400; color: var(--text-muted); margin-left: 2px; }
+        @media (max-width: 480px) { .gi-stats-grid { grid-template-columns: 1fr 1fr; } }
+
+        /* ── legend ─────────────────────────────────────── */
+        .gold-index__legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 10px; }
+        .gi-legend-title { font-size: 0.76rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        .gold-index__leg-item { font-size: 0.76rem; display: inline-flex; align-items: center; gap: 5px; }
         .gold-index__leg-item i { width: 10px; height: 10px; border-radius: 999px; flex-shrink: 0; display: inline-block; }
 
         /* ── map ───────────────────────────────────────── */
@@ -1489,9 +1607,23 @@ export function GoldIndex({ formatMoney, toast }) {
           0%,100% { box-shadow: 0 0 0 4px rgba(232,197,71,0.5); }
           50% { box-shadow: 0 0 0 10px rgba(232,197,71,0.0); }
         }
-        .gold-index__chart { margin-bottom: 14px; background: var(--input-bg); border: 1px solid var(--stroke); border-radius: 12px; padding: 12px 14px; }
-        .gi-chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
-        .gi-probe-select { display: flex; align-items: center; gap: 6px; }
+        .gold-index__chart {
+          margin-bottom: 14px; background: var(--input-bg); border: 1px solid var(--stroke);
+          border-radius: 14px; padding: 16px;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .gi-price-chart { border-top: 3px solid #e8c547; }
+        .gi-chart-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 6px; }
+        .gi-chart-title-row { display: flex; flex-direction: column; gap: 2px; }
+        .gi-chart-title { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+        .gi-chart-subtitle { font-size: 0.76rem; }
+        .gi-probe-select { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .gi-chart-empty {
+          display: flex; align-items: center; justify-content: center;
+          gap: 10px; padding: 32px 16px;
+          color: var(--text-muted); font-size: 0.85rem; text-align: center;
+        }
+        .gi-chart-empty-icon { font-size: 1.8rem; }
 
         /* ── toolbar ───────────────────────────────────── */
         .gold-index__toolbar {
