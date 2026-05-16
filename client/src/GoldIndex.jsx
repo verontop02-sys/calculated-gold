@@ -272,6 +272,9 @@ export function GoldIndex({ formatMoney, toast }) {
       });
     }
 
+    // Remove any leftover GPS/map-click temp pin (not part of layer group)
+    if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
+
     // ── Region polygons ──────────────────────────────────────────────────────
     const geoLayer = geoLayerRef.current;
     geoLayer.clearLayers();
@@ -811,6 +814,8 @@ export function GoldIndex({ formatMoney, toast }) {
       });
       toast('Конкурент добавлен', 'success');
       setCompDraft(cityId, { company_name: '', measured_at: '', probes: {}, notes: '', lat: '', lng: '' });
+      // Remove temp GPS/map-click pin — it will be replaced by the real marker
+      if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
       await load();
       await loadCityHistory(cityId);
     } catch (err2) {
@@ -871,6 +876,8 @@ export function GoldIndex({ formatMoney, toast }) {
     try {
       await api.goldIndexDeleteCompetitor(id);
       toast('Удалено', 'success');
+      // Clear any leftover temp pin
+      if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
       await load();
       await loadCityHistory(cityId);
     } catch (err2) {
