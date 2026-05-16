@@ -1258,24 +1258,51 @@ export function GoldIndex({ formatMoney, toast }) {
                     placeholder="Здание ТЦ, ориентир — попадает в запрос к геокодеру"
                   />
                 </label>
-                <label className="field">
-                  <span className="field-label">Широта</span>
-                  <input
-                    className="input mono-nums"
-                    value={cityDraft.lat}
-                    onChange={(e) => setCityDraft((d) => ({ ...d, lat: e.target.value }))}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span className="field-label">Долгота</span>
-                  <input
-                    className="input mono-nums"
-                    value={cityDraft.lng}
-                    onChange={(e) => setCityDraft((d) => ({ ...d, lng: e.target.value }))}
-                    required
-                  />
-                </label>
+                <div className="gi-city-coords-row">
+                  <label className="field" style={{ flex: 1 }}>
+                    <span className="field-label">Широта</span>
+                    <input
+                      className="input mono-nums"
+                      value={cityDraft.lat}
+                      onChange={(e) => setCityDraft((d) => ({ ...d, lat: e.target.value }))}
+                      required
+                    />
+                  </label>
+                  <label className="field" style={{ flex: 1 }}>
+                    <span className="field-label">Долгота</span>
+                    <input
+                      className="input mono-nums"
+                      value={cityDraft.lng}
+                      onChange={(e) => setCityDraft((d) => ({ ...d, lng: e.target.value }))}
+                      required
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="gi-comp-map-pin-btn gi-gps-btn gi-city-gps-btn"
+                    title="Определить моё местоположение"
+                    disabled={geolocBusy === 'city'}
+                    onClick={() => {
+                      if (!navigator.geolocation) { toast('Геолокация не поддерживается', 'error'); return; }
+                      setGeolocBusy('city');
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          setCityDraft((d) => ({
+                            ...d,
+                            lat: pos.coords.latitude.toFixed(6),
+                            lng: pos.coords.longitude.toFixed(6),
+                          }));
+                          toast('Геопозиция определена', 'success');
+                          setGeolocBusy(null);
+                        },
+                        () => { toast('Не удалось определить геопозицию', 'error'); setGeolocBusy(null); },
+                        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+                      );
+                    }}
+                  >
+                    {geolocBusy === 'city' ? '⏳' : '🎯'}
+                  </button>
+                </div>
                 <label className="field">
                   <span className="field-label">Население (руч.)</span>
                   <input
@@ -2055,19 +2082,99 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-city-popup .leaflet-popup-content { margin: 0; }
         .gi-city-popup .leaflet-popup-tip-container { display: none; }
 
-        /* ── responsive tweaks ──────────────────────────── */
-        @media (max-width: 540px) {
+        /* ── city coords row ────────────────────────────── */
+        .gi-city-coords-row { display: flex; align-items: flex-end; gap: 8px; }
+        .gi-city-gps-btn { align-self: flex-end; }
+
+        /* ── mobile ─────────────────────────────────────── */
+
+        /* Минимальный touch target 44px на мобиле */
+        @media (max-width: 768px) {
+          .gi-comp-map-pin-btn { width: 44px; height: 44px; font-size: 1.2rem; }
+          .gi-city-gps-btn { width: 44px; height: 44px; }
+          .gi-add-comp-toggle { padding: 10px 16px; font-size: 0.88rem; }
+          .btn-primary { padding: 11px 18px; font-size: 0.92rem; min-height: 44px; }
+          .btn-ghost.small { padding: 8px 14px; font-size: 0.82rem; min-height: 40px; }
+          .input { font-size: 16px !important; } /* prevents iOS zoom on focus */
+        }
+
+        @media (max-width: 600px) {
+          /* Header */
+          .gold-index__head { flex-direction: column; gap: 10px; }
           .gold-index__actions { flex-direction: column; align-items: stretch; }
-          .gi-export-block { width: 100%; }
-          .gi-export-btns { width: 100%; }
-          .gi-export-btns button { flex: 1; }
-          .gi-export-dates { width: 100%; }
-          .gi-date-field input { width: 100%; flex: 1; }
+          .gi-export-block { width: 100%; box-sizing: border-box; }
+          .gi-export-dates { flex-direction: column; gap: 6px; }
+          .gi-date-field { width: 100%; }
+          .gi-date-field input { flex: 1; width: auto; min-width: 0; }
+          .gi-export-btns { width: 100%; margin-left: 0; }
+          .gi-export-btns button { flex: 1; min-height: 44px; }
+
+          /* Map */
+          .gold-index__map { height: min(320px, 48vh); }
+          .gi-map-add-btn { padding: 10px 16px; font-size: 14px; min-height: 44px; bottom: 10px; right: 10px; }
+          .gi-map-add-hint { white-space: normal; text-align: center; font-size: 12px; max-width: 90%; pointer-events: auto; padding: 8px 14px; }
+
+          /* Stats */
+          .gi-stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+          .gi-stat-card { padding: 9px 11px; gap: 8px; }
+          .gi-stat-icon { font-size: 1.2rem; }
+          .gi-stat-value { font-size: 0.92rem; }
+
+          /* Charts */
+          .gold-index__chart { padding: 12px; }
+          .gi-chart-header { flex-direction: column; gap: 8px; }
+          .gi-probe-select { align-self: flex-end; }
+
+          /* Toolbar */
           .gold-index__toolbar { flex-direction: column; align-items: stretch; }
+          .gi-add-city-btn { width: 100%; justify-content: center; min-height: 48px; font-size: 1rem; }
           .gi-filters { flex-direction: column; }
-          .gi-comp-header { flex-direction: column; gap: 4px; }
-          .gi-history-who { white-space: normal; }
+          .gi-filters .input { width: 100%; min-width: 0; }
+
+          /* City coords in add form */
+          .gi-city-coords-row { flex-wrap: wrap; }
+          .gi-city-coords-row .field { min-width: calc(50% - 30px); }
+
+          /* City card */
+          .gold-index__city-body { padding: 12px; }
+          .gold-index__city-head { padding: 12px 14px; }
+
+          /* Competitor coords row: stack on mobile */
+          .gi-comp-coords-row { flex-direction: column; gap: 6px; }
+          .gi-comp-loc-btns { flex-direction: row; gap: 8px; align-self: flex-end; }
+          .gi-comp-loc-btns .gi-comp-map-pin-btn { flex: 1; width: auto; padding: 0 16px; }
+
+          /* Probe chips */
+          .gi-probe-chips { gap: 6px; }
+          .gi-probe-chip { padding: 3px 9px; font-size: 0.8rem; }
+          .gi-probe-val { font-size: 0.85rem; }
+
+          /* Probe input grid */
+          .gold-index__probe-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 6px; }
+
+          /* Competitor edit/add rows */
+          .gi-comp-edit-row { flex-direction: column; }
+          .gi-comp-actions { gap: 8px; }
+          .gi-comp-actions button { flex: 1; min-height: 42px; }
+
+          /* Competitor header */
+          .gi-comp-header { flex-wrap: nowrap; }
+          .gi-comp-ratio { font-size: 1rem; padding: 2px 8px; }
+
+          /* History row */
+          .gi-history-row { flex-wrap: wrap; gap: 4px; }
+          .gi-history-who { white-space: normal; min-width: 0; }
           .gi-history-when { margin-left: 0; }
+
+          /* Save button full-width */
+          .gi-new-comp .btn-primary { width: 100%; }
+        }
+
+        /* Very narrow phones */
+        @media (max-width: 380px) {
+          .gi-stats-grid { grid-template-columns: 1fr 1fr; }
+          .gold-index { padding: 10px 10px 20px; }
+          .gi-probe-chip { font-size: 0.75rem; padding: 2px 7px; }
         }
       `}</style>
     </section>
