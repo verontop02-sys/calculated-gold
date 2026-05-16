@@ -32,6 +32,7 @@ import {
   listGoldIndexHistory,
   enrichGoldIndexHistoryActors,
   geocodeGoldIndexLocation,
+  reverseGeocodeGoldIndex,
   buildGoldIndexChartData,
 } from './goldIndex.js';
 import { buildGoldIndexReportPdfBuffer } from './goldIndexPdf.js';
@@ -904,6 +905,24 @@ app.get(
     const regionCode = String(req.query.regionCode || '').trim();
     const result = await buildGoldIndexChartData(supabase, { from, to, regionCode });
     res.json(result);
+  })
+);
+
+app.get(
+  '/api/gold-index/reverse-geocode',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (req, res) => {
+    try {
+      const lat = parseFloat(req.query.lat);
+      const lng = parseFloat(req.query.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return res.status(400).json({ error: 'Неверные координаты' });
+      }
+      const out = await reverseGeocodeGoldIndex({ lat, lng });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
   })
 );
 

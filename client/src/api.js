@@ -407,6 +407,7 @@ export const api = {
     return request(`/gold-index/history/chart?${q}`);
   },
   goldIndexGeocode: (body) => request('/gold-index/geocode', { method: 'POST', body: JSON.stringify(body) }),
+  goldIndexReverseGeocode: ({ lat, lng }) => request(`/gold-index/reverse-geocode?lat=${lat}&lng=${lng}`),
   goldIndexCreateCity: (body) => request('/gold-index/cities', { method: 'POST', body: JSON.stringify(body) }),
   goldIndexUpdateCity: (id, body) =>
     request(`/gold-index/cities/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) }),

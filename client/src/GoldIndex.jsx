@@ -149,6 +149,7 @@ export function GoldIndex({ formatMoney, toast }) {
   const [editingCompetitorId, setEditingCompetitorId] = useState(null);
   const [editCompetitorDraft, setEditCompetitorDraft] = useState(null);
   const [compDraftByCity, setCompDraftByCity] = useState({});
+  const [quickAddBusy, setQuickAddBusy] = useState(false);
 
   const load = useCallback(async () => {
     setErr('');
@@ -680,6 +681,92 @@ export function GoldIndex({ formatMoney, toast }) {
     );
   }
 
+  /**
+   * "Самолётик" — умный быстрый ввод конкурента по GPS:
+   * 1. Берём GPS-позицию
+   * 2. Обратное геокодирование → город
+   * 3. Ищем город в базе
+   * 4. Если нашли → раскрываем карточку, открываем форму конкурента
+   * 5. Если нет → создаём город автоматически, затем открываем форму
+   */
+  function quickAddCompetitor() {
+    if (!navigator.geolocation) {
+      toast('Геолокация не поддерживается браузером', 'error');
+      return;
+    }
+    setQuickAddBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude.toFixed(6);
+        const lng = pos.coords.longitude.toFixed(6);
+        // Show temporary pin immediately
+        const m = mapInstRef.current;
+        if (m) {
+          m.setView([parseFloat(lat), parseFloat(lng)], 16);
+          if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
+          const icon = L.divIcon({
+            className: '',
+            html: '<div style="width:20px;height:20px;background:#e8c547;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 8px rgba(232,197,71,0.3)"></div>',
+            iconSize: [20, 20], iconAnchor: [10, 10],
+          });
+          addPinRef.current = L.marker([parseFloat(lat), parseFloat(lng)], { icon }).addTo(m);
+        }
+        try {
+          const geo = await api.goldIndexReverseGeocode({ lat, lng });
+          const norm = (s) => (s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+          const cities = data?.cities || [];
+          const cityNorm = norm(geo.city);
+          const match = cityNorm ? cities.find((c) => norm(c.city_name) === cityNorm) : null;
+          if (match) {
+            // City exists — open competitor form
+            setExpanded((prev) => { const n = new Set(prev); n.add(match.id); return n; });
+            setShowAddCompByCity((prev) => { const n = new Set(prev); n.add(match.id); return n; });
+            setCompDraft(match.id, { lat, lng });
+            toast(`📍 Вы в городе «${match.city_name}» — добавьте конкурента`, 'success');
+            setTimeout(() => {
+              document.getElementById(`gi-city-${match.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 350);
+          } else {
+            // City not found — auto-create
+            const cityName = geo.city || 'Неизвестный город';
+            const regionMatch = cities.find((c) => norm(c.region_name) === norm(geo.region));
+            toast(`Город «${cityName}» не найден — создаём автоматически...`, 'success');
+            const { id: newCityId } = await api.goldIndexCreateCity({
+              city_name: cityName,
+              region_name: geo.region || '',
+              region_code: regionMatch?.region_code || '',
+              lat: parseFloat(lat),
+              lng: parseFloat(lng),
+              geocoded_label: geo.displayName || null,
+            });
+            await load();
+            setExpanded((prev) => { const n = new Set(prev); n.add(newCityId); return n; });
+            setShowAddCompByCity((prev) => { const n = new Set(prev); n.add(newCityId); return n; });
+            setCompDraft(newCityId, { lat, lng });
+            toast(`✅ Город «${cityName}» создан — заполните данные конкурента`, 'success');
+            setTimeout(() => {
+              document.getElementById(`gi-city-${newCityId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 500);
+          }
+        } catch (e2) {
+          toast(e2?.message || 'Ошибка', 'error');
+        } finally {
+          setQuickAddBusy(false);
+        }
+      },
+      (geoErr) => {
+        const msgs = {
+          1: 'Разрешите доступ к геолокации в настройках браузера',
+          2: 'Не удалось определить местоположение (GPS недоступен)',
+          3: 'Время ожидания истекло — попробуйте ещё раз',
+        };
+        toast(msgs[geoErr.code] || 'Ошибка геолокации', 'error');
+        setQuickAddBusy(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
+  }
+
   function buildGeocodePayload(draft) {
     const raw = String(draft.geocode_raw || '').trim();
     if (raw) return { raw_query: raw };
@@ -1020,6 +1107,17 @@ export function GoldIndex({ formatMoney, toast }) {
 
           <div className="gold-index__map-wrap">
             <div ref={mapRef} className="gold-index__map" />
+            {/* Quick-add competitor via GPS — main floating button */}
+            <button
+              type="button"
+              className={`gi-quick-add-btn${quickAddBusy ? ' gi-quick-add-btn--busy' : ''}`}
+              onClick={quickAddCompetitor}
+              disabled={quickAddBusy}
+              title="Определить своё местоположение и добавить конкурента"
+            >
+              {quickAddBusy ? '⏳ Определяем...' : '✈ Добавить точку'}
+            </button>
+            {/* City placement button */}
             <button
               type="button"
               className={`gi-map-add-btn${mapAddMode ? ' gi-map-add-btn--active' : ''}`}
@@ -1903,6 +2001,22 @@ export function GoldIndex({ formatMoney, toast }) {
         .gold-index__map {
           width: 100%; height: min(420px, 55vh); z-index: 0;
         }
+        .gi-quick-add-btn {
+          position: absolute; bottom: 12px; left: 12px; z-index: 500;
+          display: inline-flex; align-items: center; gap: 7px;
+          padding: 11px 20px; border-radius: 24px; border: none; cursor: pointer;
+          background: linear-gradient(135deg, #e8c547 0%, #c8a020 100%); color: #1a0e00;
+          font-size: 14px; font-weight: 700; letter-spacing: 0.01em;
+          box-shadow: 0 4px 18px rgba(184,134,11,0.45);
+          backdrop-filter: blur(6px);
+          transition: all 0.18s;
+          min-height: 46px;
+        }
+        .gi-quick-add-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(184,134,11,0.55); }
+        .gi-quick-add-btn:active:not(:disabled) { transform: translateY(0); }
+        .gi-quick-add-btn:disabled { opacity: 0.7; cursor: default; }
+        .gi-quick-add-btn--busy { animation: gi-pulse 1s infinite; }
+        @keyframes gi-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.65; } }
         .gi-map-add-btn {
           position: absolute; bottom: 12px; right: 12px; z-index: 500;
           display: inline-flex; align-items: center; gap: 6px;
@@ -2222,6 +2336,7 @@ export function GoldIndex({ formatMoney, toast }) {
           /* Map */
           .gold-index__map { height: min(320px, 48vh); }
           .gi-map-add-btn { padding: 10px 16px; font-size: 14px; min-height: 44px; bottom: 10px; right: 10px; }
+          .gi-quick-add-btn { padding: 12px 18px; font-size: 14px; min-height: 48px; bottom: 10px; left: 10px; }
           .gi-map-add-hint { white-space: normal; text-align: center; font-size: 12px; max-width: 90%; pointer-events: auto; padding: 8px 14px; }
 
           /* Stats */

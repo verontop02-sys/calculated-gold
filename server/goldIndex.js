@@ -690,3 +690,37 @@ export async function geocodeGoldIndexLocation(body) {
     queryUsed: q,
   };
 }
+
+/**
+ * Обратное геокодирование координат → город/регион через Nominatim.
+ */
+export async function reverseGeocodeGoldIndex({ lat, lng }) {
+  let data;
+  try {
+    ({ data } = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+      params: { lat, lon: lng, format: 'json', 'accept-language': 'ru' },
+      timeout: 10000,
+      headers: {
+        'User-Agent':
+          process.env.NOMINATIM_USER_AGENT ||
+          'ReaktivoProGoldIndex/1.0 (https://reaktivo.pro; gold index reverse geocode)',
+      },
+      validateStatus: (s) => s === 200,
+    }));
+  } catch (e) {
+    const err = new Error('Сервис геокодирования временно недоступен');
+    err.status = 502;
+    throw err;
+  }
+  const addr = data?.address || {};
+  const city = addr.city || addr.town || addr.village || addr.county || addr.municipality || '';
+  const region = addr.state || '';
+  return {
+    city,
+    region,
+    lat: parseFloat(data.lat ?? lat),
+    lng: parseFloat(data.lon ?? lng),
+    displayName: data.display_name || '',
+    address: addr,
+  };
+}
