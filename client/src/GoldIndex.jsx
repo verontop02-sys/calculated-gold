@@ -69,6 +69,31 @@ function fmtRatio(n) {
   return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
+/**
+ * % от биржевого курса = ratioAvg × buybackPct
+ * ratioAvg = (конкурентная цена) / (наша референсная цена за изделие)
+ * referencePrice = goldRubPerGram × (probe/1000) × (buybackPct/100)
+ * → competitorPrice / (goldRubPerGram × probe/1000) = ratioAvg × buybackPct / 100
+ * Итого % от биржи ≈ ratioAvg × buybackPct
+ */
+function calcPctOfExchange(ratioAvg, buybackPct) {
+  if (ratioAvg == null || !Number.isFinite(ratioAvg) || !buybackPct) return null;
+  return ratioAvg * Number(buybackPct);
+}
+
+function fmtPct(n) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return `${Math.round(n)}%`;
+}
+
+function pctColorKey(pct) {
+  if (pct == null) return 'neutral';
+  if (pct >= 70) return 'green';
+  if (pct >= 55) return 'yellow';
+  if (pct >= 40) return 'orange';
+  return 'red';
+}
+
 export function GoldIndex({ formatMoney, toast }) {
   const mapRef = useRef(null);
   const mapInstRef = useRef(null);
@@ -354,12 +379,21 @@ export function GoldIndex({ formatMoney, toast }) {
         `<div style="font-size:11px;color:${textOnFill};opacity:0.8;margin-top:1px">${escapeHtml(c.region_name)}</div>` +
         `</div>` +
         // Stats row
-        `<div style="display:flex;gap:14px;padding:0 14px 10px">` +
-        `<div><div style="font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.06em">Индекс</div>` +
-        `<div style="font-size:20px;font-weight:800;color:${fill};line-height:1.2">${fmtRatio(c.ratioAvg)}</div></div>` +
-        `<div><div style="font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.06em">Конкурентов</div>` +
-        `<div style="font-size:20px;font-weight:800;color:#3d2b0e;line-height:1.2">${compCount}</div></div>` +
-        `</div>` +
+        (() => {
+          const bp = data?.settingsSnapshot?.buybackPercentOfScrap;
+          const pct = calcPctOfExchange(c.ratioAvg, bp);
+          const pctColors = { green: '#166534', yellow: '#92620a', orange: '#9a3d0a', red: '#8c1c1c', neutral: '#5a4200' };
+          const pctBg = { green: 'rgba(34,197,94,0.12)', yellow: 'rgba(234,179,8,0.12)', orange: 'rgba(249,115,22,0.12)', red: 'rgba(239,68,68,0.12)', neutral: 'rgba(232,197,71,0.12)' };
+          const pk = pctColorKey(pct);
+          return `<div style="display:flex;gap:10px;padding:0 14px 10px;flex-wrap:wrap">` +
+          `<div><div style="font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.06em">Индекс</div>` +
+          `<div style="font-size:20px;font-weight:800;color:${fill};line-height:1.2">${fmtRatio(c.ratioAvg)}</div></div>` +
+          (pct != null ? `<div><div style="font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.06em">% от биржи</div>` +
+          `<div style="font-size:18px;font-weight:800;color:${pctColors[pk]};line-height:1.2;background:${pctBg[pk]};border-radius:8px;padding:1px 8px">${fmtPct(pct)}</div></div>` : '') +
+          `<div><div style="font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.06em">Конкурентов</div>` +
+          `<div style="font-size:20px;font-weight:800;color:#3d2b0e;line-height:1.2">${compCount}</div></div>` +
+          `</div>`;
+        })() +
         // Competitors
         (compRowsHtml ? `<div style="padding:0 14px 8px;border-top:1px solid #f0e6d0;padding-top:8px">${compRowsHtml}</div>` : '') +
         (compCount > 3 ? `<div style="padding:0 14px 6px;font-size:11px;color:#b8860b">+ещё ${compCount - 3}</div>` : '') +
@@ -1367,8 +1401,17 @@ export function GoldIndex({ formatMoney, toast }) {
                     <strong>{c.city_name}</strong>
                     <span className="muted small"> · {c.region_name}</span>
                   </span>
-                  <span className="mono-nums gold-index__ratio">{fmtRatio(c.ratioAvg)}</span>
-                  <span className="muted small">{expanded.has(c.id) ? '▼' : '▶'}</span>
+                  <span className="gi-city-head-right">
+                    {(() => {
+                      const bp = data?.settingsSnapshot?.buybackPercentOfScrap;
+                      const pct = calcPctOfExchange(c.ratioAvg, bp);
+                      return pct != null ? (
+                        <span className={`gi-city-pct gi-pct--${pctColorKey(pct)}`}>{fmtPct(pct)}</span>
+                      ) : null;
+                    })()}
+                    <span className="mono-nums gold-index__ratio">{fmtRatio(c.ratioAvg)}</span>
+                    <span className="muted small">{expanded.has(c.id) ? '▼' : '▶'}</span>
+                  </span>
                 </button>
                 {expanded.has(c.id) && (
                   <div className="gold-index__city-body">
@@ -1612,24 +1655,40 @@ export function GoldIndex({ formatMoney, toast }) {
                               </>
                             ) : (
                               <>
-                                <div className="gi-comp-header">
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <span className="gi-comp-name">{co.companyName}</span>
-                                    {co.measuredAt && <span className="gi-comp-date muted small"> · {co.measuredAt}</span>}
-                                    {co.notes && <div className="gi-comp-address muted small">📍 {co.notes}</div>}
-                                  </div>
-                                  <span className={`gi-comp-ratio gi-ratio--${co.colorKey || 'neutral'}`}>{fmtRatio(co.ratioAvg)}</span>
-                                </div>
-                                {Object.keys(co.probes || {}).length > 0 && (
-                                  <div className="gi-probe-chips">
-                                    {Object.entries(co.probes || {}).map(([k, v]) => (
-                                      <span key={k} className="gi-probe-chip">
-                                        <span className="gi-probe-label">{k}</span>
-                                        <span className="gi-probe-val">{formatMoney(typeof v === 'number' ? v : Number(v))}</span>
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
+                                {(() => {
+                                  const buybackPct = data?.settingsSnapshot?.buybackPercentOfScrap;
+                                  const pct = calcPctOfExchange(co.ratioAvg, buybackPct);
+                                  const pck = pctColorKey(pct);
+                                  return (
+                                    <>
+                                      <div className="gi-comp-header">
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                          <span className="gi-comp-name">{co.companyName}</span>
+                                          {co.measuredAt && <span className="gi-comp-date muted small"> · {co.measuredAt}</span>}
+                                          {co.notes && <div className="gi-comp-address muted small">📍 {co.notes}</div>}
+                                        </div>
+                                        <div className="gi-comp-badges">
+                                          {pct != null && (
+                                            <span className={`gi-pct-badge gi-pct--${pck}`} title="% от биржевого курса">
+                                              {fmtPct(pct)} <span className="gi-pct-label">биржи</span>
+                                            </span>
+                                          )}
+                                          <span className={`gi-comp-ratio gi-ratio--${co.colorKey || 'neutral'}`} title="Индекс">{fmtRatio(co.ratioAvg)}</span>
+                                        </div>
+                                      </div>
+                                      {Object.keys(co.probes || {}).length > 0 && (
+                                        <div className="gi-probe-chips">
+                                          {Object.entries(co.probes || {}).map(([k, v]) => (
+                                            <span key={k} className="gi-probe-chip">
+                                              <span className="gi-probe-label">{k}</span>
+                                              <span className="gi-probe-val">{formatMoney(typeof v === 'number' ? v : Number(v))}</span>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                                 <div className="gi-comp-actions">
                                   <button type="button" className="btn-ghost small" onClick={() => startEditCompetitor(co)}>✎ Изменить</button>
                                   <button type="button" className="btn-ghost small danger" onClick={() => deleteCompetitor(c.id, co.id)}>Удалить</button>
@@ -2015,6 +2074,19 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-ratio--red    { color: #8c1c1c; background: rgba(239,68,68,0.12); }
         .gi-ratio--neutral{ color: #5a4200; background: rgba(232,197,71,0.12); }
         .gi-comp-address { margin-top: 2px; font-size: 0.74rem; }
+        .gi-comp-badges { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .gi-pct-badge {
+          font-size: 0.85rem; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+          display: inline-flex; align-items: baseline; gap: 3px; white-space: nowrap;
+        }
+        .gi-pct-label { font-size: 0.68rem; font-weight: 500; opacity: 0.75; }
+        .gi-pct--green  { color: #166534; background: rgba(34,197,94,0.14); }
+        .gi-pct--yellow { color: #92620a; background: rgba(234,179,8,0.14); }
+        .gi-pct--orange { color: #9a3d0a; background: rgba(249,115,22,0.14); }
+        .gi-pct--red    { color: #8c1c1c; background: rgba(239,68,68,0.14); }
+        .gi-pct--neutral{ color: #5a4200; background: rgba(232,197,71,0.14); }
+        .gi-city-head-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+        .gi-city-pct { font-size: 0.8rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
         /* ── location section in competitor form ───────── */
         .gi-loc-section { margin-top: 8px; background: rgba(232,197,71,0.04); border: 1px solid var(--stroke); border-radius: 10px; padding: 10px 12px; }
         .gi-loc-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 8px; }
