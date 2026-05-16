@@ -995,7 +995,7 @@ export function GoldIndex({ formatMoney, toast }) {
               }}
               title={mapAddMode ? 'Отменить выбор' : 'Выбрать место на карте'}
             >
-              {mapAddMode ? '✕ Отмена' : '📍 Тыкнуть на карту'}
+              {mapAddMode ? '✕ Отмена' : '📍 Указать место'}
             </button>
             {mapAddMode && (
               <div className="gi-map-add-hint">
@@ -1551,33 +1551,21 @@ export function GoldIndex({ formatMoney, toast }) {
                                     value={editCompetitorDraft?.notes || ''}
                                     onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), notes: e.target.value }))} />
                                 </label>
-                                <div className="gi-comp-coords-row">
-                                  <label className="field" style={{ flex: 1 }}>
-                                    <span className="field-label">Широта</span>
-                                    <input className="input mono-nums" placeholder="56.8174" inputMode="decimal"
-                                      value={editCompetitorDraft?.lat || ''}
-                                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), lat: e.target.value }))} />
-                                  </label>
-                                  <label className="field" style={{ flex: 1 }}>
-                                    <span className="field-label">Долгота</span>
-                                    <input className="input mono-nums" placeholder="60.6037" inputMode="decimal"
-                                      value={editCompetitorDraft?.lng || ''}
-                                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), lng: e.target.value }))} />
-                                  </label>
-                                  <div className="gi-comp-loc-btns">
+                                <div className="gi-loc-section">
+                                  <div className="gi-loc-label">Местоположение точки</div>
+                                  <div className="gi-loc-btns-row">
                                     <button
                                       type="button"
-                                      className="gi-comp-map-pin-btn gi-gps-btn"
-                                      title="Определить моё местоположение"
+                                      className={`gi-loc-btn gi-loc-btn--gps${geolocBusy === 'edit' ? ' gi-loc-btn--busy' : ''}`}
                                       disabled={geolocBusy === 'edit'}
                                       onClick={() => useMyLocation({ type: 'edit' })}
                                     >
-                                      {geolocBusy === 'edit' ? '⏳' : '🎯'}
+                                      <span className="gi-loc-btn-icon">📍</span>
+                                      <span>{geolocBusy === 'edit' ? 'Определяем…' : 'Я здесь (GPS)'}</span>
                                     </button>
                                     <button
                                       type="button"
-                                      className={`gi-comp-map-pin-btn${compMapTarget?.cityId === c.id && compMapTarget?.mode === 'edit' ? ' gi-comp-map-pin-btn--active' : ''}`}
-                                      title="Выбрать на карте"
+                                      className={`gi-loc-btn gi-loc-btn--map${compMapTarget?.cityId === c.id && compMapTarget?.mode === 'edit' ? ' gi-loc-btn--active' : ''}`}
                                       onClick={() => {
                                         setCompMapTarget((prev) =>
                                           prev?.cityId === c.id && prev?.mode === 'edit' ? null : { cityId: c.id, mode: 'edit' }
@@ -1585,8 +1573,24 @@ export function GoldIndex({ formatMoney, toast }) {
                                         window.scrollTo({ top: 0, behavior: 'smooth' });
                                       }}
                                     >
-                                      {compMapTarget?.cityId === c.id && compMapTarget?.mode === 'edit' ? '✕' : '🗺️'}
+                                      <span className="gi-loc-btn-icon">🗺</span>
+                                      <span>{compMapTarget?.cityId === c.id && compMapTarget?.mode === 'edit' ? 'Отмена' : 'Указать на карте'}</span>
                                     </button>
+                                  </div>
+                                  {(editCompetitorDraft?.lat || editCompetitorDraft?.lng) && (
+                                    <div className="gi-loc-coords">
+                                      <span className="gi-loc-coords-val">{editCompetitorDraft?.lat}, {editCompetitorDraft?.lng}</span>
+                                      <button type="button" className="gi-loc-coords-clear"
+                                        onClick={() => setEditCompetitorDraft((d) => ({ ...(d || {}), lat: '', lng: '' }))}>✕</button>
+                                    </div>
+                                  )}
+                                  <div className="gi-loc-manual-row">
+                                    <input className="input mono-nums" placeholder="Широта" inputMode="decimal" style={{ flex: 1 }}
+                                      value={editCompetitorDraft?.lat || ''}
+                                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), lat: e.target.value }))} />
+                                    <input className="input mono-nums" placeholder="Долгота" inputMode="decimal" style={{ flex: 1 }}
+                                      value={editCompetitorDraft?.lng || ''}
+                                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), lng: e.target.value }))} />
                                   </div>
                                 </div>
                                 <div className="gold-index__probe-grid" style={{ marginTop: 8 }}>
@@ -1674,33 +1678,21 @@ export function GoldIndex({ formatMoney, toast }) {
                               onChange={(e) => setCompDraft(c.id, { notes: e.target.value })} />
                           </label>
                         </div>
-                        <div className="gi-comp-coords-row">
-                          <label className="field" style={{ flex: 1 }}>
-                            <span className="field-label">Широта</span>
-                            <input className="input mono-nums" placeholder="56.8174" inputMode="decimal"
-                              value={compDraftByCity[c.id]?.lat || ''}
-                              onChange={(e) => setCompDraft(c.id, { lat: e.target.value })} />
-                          </label>
-                          <label className="field" style={{ flex: 1 }}>
-                            <span className="field-label">Долгота</span>
-                            <input className="input mono-nums" placeholder="60.6037" inputMode="decimal"
-                              value={compDraftByCity[c.id]?.lng || ''}
-                              onChange={(e) => setCompDraft(c.id, { lng: e.target.value })} />
-                          </label>
-                          <div className="gi-comp-loc-btns">
+                        <div className="gi-loc-section">
+                          <div className="gi-loc-label">Местоположение точки</div>
+                          <div className="gi-loc-btns-row">
                             <button
                               type="button"
-                              className="gi-comp-map-pin-btn gi-gps-btn"
-                              title="Определить моё местоположение"
+                              className={`gi-loc-btn gi-loc-btn--gps${geolocBusy === c.id ? ' gi-loc-btn--busy' : ''}`}
                               disabled={geolocBusy === c.id}
                               onClick={() => useMyLocation({ type: 'new', cityId: c.id })}
                             >
-                              {geolocBusy === c.id ? '⏳' : '🎯'}
+                              <span className="gi-loc-btn-icon">📍</span>
+                              <span>{geolocBusy === c.id ? 'Определяем…' : 'Я здесь (GPS)'}</span>
                             </button>
                             <button
                               type="button"
-                              className={`gi-comp-map-pin-btn${compMapTarget?.cityId === c.id && compMapTarget?.mode === 'new' ? ' gi-comp-map-pin-btn--active' : ''}`}
-                              title="Выбрать на карте"
+                              className={`gi-loc-btn gi-loc-btn--map${compMapTarget?.cityId === c.id && compMapTarget?.mode === 'new' ? ' gi-loc-btn--active' : ''}`}
                               onClick={() => {
                                 setCompMapTarget((prev) =>
                                   prev?.cityId === c.id && prev?.mode === 'new' ? null : { cityId: c.id, mode: 'new' }
@@ -1708,8 +1700,25 @@ export function GoldIndex({ formatMoney, toast }) {
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
                             >
-                              {compMapTarget?.cityId === c.id && compMapTarget?.mode === 'new' ? '✕' : '🗺️'}
+                              <span className="gi-loc-btn-icon">🗺</span>
+                              <span>{compMapTarget?.cityId === c.id && compMapTarget?.mode === 'new' ? 'Отмена' : 'Указать на карте'}</span>
                             </button>
+                          </div>
+                          {(compDraftByCity[c.id]?.lat || compDraftByCity[c.id]?.lng) && (
+                            <div className="gi-loc-coords">
+                              <span className="gi-loc-coords-val">
+                                {compDraftByCity[c.id]?.lat}, {compDraftByCity[c.id]?.lng}
+                              </span>
+                              <button type="button" className="gi-loc-coords-clear" onClick={() => setCompDraft(c.id, { lat: '', lng: '' })}>✕</button>
+                            </div>
+                          )}
+                          <div className="gi-loc-manual-row">
+                            <input className="input mono-nums" placeholder="Широта" inputMode="decimal" style={{ flex: 1 }}
+                              value={compDraftByCity[c.id]?.lat || ''}
+                              onChange={(e) => setCompDraft(c.id, { lat: e.target.value })} />
+                            <input className="input mono-nums" placeholder="Долгота" inputMode="decimal" style={{ flex: 1 }}
+                              value={compDraftByCity[c.id]?.lng || ''}
+                              onChange={(e) => setCompDraft(c.id, { lng: e.target.value })} />
                           </div>
                         </div>
                         <div className="gold-index__probe-grid">
@@ -2006,13 +2015,35 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-ratio--red    { color: #8c1c1c; background: rgba(239,68,68,0.12); }
         .gi-ratio--neutral{ color: #5a4200; background: rgba(232,197,71,0.12); }
         .gi-comp-address { margin-top: 2px; font-size: 0.74rem; }
+        /* ── location section in competitor form ───────── */
+        .gi-loc-section { margin-top: 8px; background: rgba(232,197,71,0.04); border: 1px solid var(--stroke); border-radius: 10px; padding: 10px 12px; }
+        .gi-loc-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 8px; }
+        .gi-loc-btns-row { display: flex; gap: 8px; margin-bottom: 8px; }
+        .gi-loc-btn {
+          flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+          padding: 10px 12px; border-radius: 9px; border: 1.5px solid var(--stroke);
+          background: var(--input-bg); cursor: pointer; font-size: 0.85rem; font-weight: 600;
+          transition: all 0.15s; min-height: 44px; color: var(--text);
+        }
+        .gi-loc-btn:disabled { opacity: 0.5; cursor: default; }
+        .gi-loc-btn-icon { font-size: 1.1rem; line-height: 1; }
+        .gi-loc-btn--gps:hover:not(:disabled) { border-color: #22c55e; background: rgba(34,197,94,0.1); color: #166534; }
+        .gi-loc-btn--gps.gi-loc-btn--busy { border-color: #22c55e; background: rgba(34,197,94,0.1); }
+        .gi-loc-btn--map:hover:not(:disabled) { border-color: #38bdf8; background: rgba(56,189,248,0.1); color: #0e4f6e; }
+        .gi-loc-btn--map.gi-loc-btn--active { border-color: #38bdf8; background: rgba(56,189,248,0.15); color: #0e4f6e; }
+        .gi-loc-coords { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.78rem; color: var(--text-muted); background: rgba(34,197,94,0.08); border-radius: 6px; padding: 5px 8px; }
+        .gi-loc-coords-val { flex: 1; font-family: var(--font-mono, monospace); }
+        .gi-loc-coords-clear { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; padding: 2px; }
+        .gi-loc-manual-row { display: flex; gap: 8px; }
+        /* keep old classes for backward compat */
         .gi-comp-coords-row { display: flex; align-items: flex-end; gap: 8px; margin-top: 6px; }
         .gi-comp-loc-btns { display: flex; gap: 4px; flex-shrink: 0; }
         .gi-comp-map-pin-btn {
-          flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--stroke);
+          flex-shrink: 0; width: 44px; height: 44px; border-radius: 8px; border: 1px solid var(--stroke);
           background: var(--input-bg); cursor: pointer; font-size: 1.1rem; display: flex; align-items: center;
           justify-content: center; transition: all 0.15s;
         }
+        .gi-city-gps-btn { align-self: flex-end; }
         .gi-comp-map-pin-btn:disabled { opacity: 0.5; cursor: default; }
         .gi-comp-map-pin-btn:hover:not(:disabled) { border-color: #38bdf8; background: rgba(56,189,248,0.1); }
         .gi-comp-map-pin-btn--active { background: #38bdf8; border-color: #38bdf8; }
