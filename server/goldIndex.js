@@ -338,10 +338,11 @@ export async function deleteGoldIndexCity(supabase, id, changedBy) {
   if (beforeErr) throw beforeErr;
   const { error } = await supabase.from('gold_index_cities').delete().eq('id', id);
   if (error) throw error;
+  // city_id = null because the city was just deleted (FK ON DELETE SET NULL)
   await logGoldIndexChange(supabase, {
     entity_type: 'city',
     entity_id: id,
-    city_id: id,
+    city_id: null,
     action: 'delete',
     changed_by: changedBy || null,
     payload: beforeRow || null,

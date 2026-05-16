@@ -1374,7 +1374,7 @@ export function GoldIndex({ formatMoney, toast }) {
                             {editingCompetitorId === co.id ? (
                               <>
                                 <div className="gi-comp-edit-row">
-                                  <label className="field" style={{ flex: 1 }}>
+                                  <label className="field" style={{ flex: 2 }}>
                                     <span className="field-label">Компания</span>
                                     <input className="input" value={editCompetitorDraft?.company_name || ''}
                                       onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), company_name: e.target.value }))} />
@@ -1385,6 +1385,12 @@ export function GoldIndex({ formatMoney, toast }) {
                                       onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), measured_at: e.target.value }))} />
                                   </label>
                                 </div>
+                                <label className="field">
+                                  <span className="field-label">Адрес точки</span>
+                                  <input className="input" placeholder="ул. Ленина, 12"
+                                    value={editCompetitorDraft?.notes || ''}
+                                    onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), notes: e.target.value }))} />
+                                </label>
                                 <div className="gold-index__probe-grid" style={{ marginTop: 8 }}>
                                   {probeFieldsForCity(c.id).probes.map((pb) => (
                                     <label key={pb} className="field">
@@ -1405,9 +1411,10 @@ export function GoldIndex({ formatMoney, toast }) {
                             ) : (
                               <>
                                 <div className="gi-comp-header">
-                                  <div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
                                     <span className="gi-comp-name">{co.companyName}</span>
                                     {co.measuredAt && <span className="gi-comp-date muted small"> · {co.measuredAt}</span>}
+                                    {co.notes && <div className="gi-comp-address muted small">📍 {co.notes}</div>}
                                   </div>
                                   <span className={`gi-comp-ratio gi-ratio--${co.colorKey || 'neutral'}`}>{fmtRatio(co.ratioAvg)}</span>
                                 </div>
@@ -1450,17 +1457,23 @@ export function GoldIndex({ formatMoney, toast }) {
                     {showAddCompByCity.has(c.id) && (
                       <div className="gi-new-comp">
                         <div className="gi-comp-edit-row">
-                          <label className="field" style={{ flex: 1 }}>
-                            <span className="field-label">Компания</span>
-                            <input className="input" placeholder="Название" value={compDraftByCity[c.id]?.company_name || ''}
+                          <label className="field" style={{ flex: 2 }}>
+                            <span className="field-label">Название компании</span>
+                            <input className="input" placeholder="Ломбард / Скупка / …" value={compDraftByCity[c.id]?.company_name || ''}
                               onChange={(e) => setCompDraft(c.id, { company_name: e.target.value })} />
                           </label>
                           <label className="field">
                             <span className="field-label">Дата замера</span>
-                            <input className="input" type="date" value={compDraftByCity[c.id]?.measured_at || ''}
+                            <input className="input" type="date" value={compDraftByCity[c.id]?.measured_at || new Date().toISOString().slice(0, 10)}
                               onChange={(e) => setCompDraft(c.id, { measured_at: e.target.value })} />
                           </label>
                         </div>
+                        <label className="field">
+                          <span className="field-label">Адрес точки</span>
+                          <input className="input" placeholder="ул. Ленина, 12 — где находится этот конкурент"
+                            value={compDraftByCity[c.id]?.notes || ''}
+                            onChange={(e) => setCompDraft(c.id, { notes: e.target.value })} />
+                        </label>
                         <div className="gold-index__probe-grid">
                           {probeFieldsForCity(c.id).probes.map((pb) => (
                             <label key={pb} className="field">
@@ -1754,6 +1767,7 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-ratio--orange { color: #9a3d0a; background: rgba(249,115,22,0.12); }
         .gi-ratio--red    { color: #8c1c1c; background: rgba(239,68,68,0.12); }
         .gi-ratio--neutral{ color: #5a4200; background: rgba(232,197,71,0.12); }
+        .gi-comp-address { margin-top: 2px; font-size: 0.74rem; }
 
         .gi-probe-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
         .gi-probe-chip {
