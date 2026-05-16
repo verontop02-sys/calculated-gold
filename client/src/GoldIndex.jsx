@@ -437,26 +437,67 @@ export function GoldIndex({ formatMoney, toast }) {
 
       mk.addTo(layer);
 
-      // ── Competitor markers (only those with own lat/lng) ─────────────────
+      // ── Competitor markers (draggable, only those with own lat/lng) ────────
       for (const co of competitors) {
         if (co.lat == null || co.lng == null) continue;
         const coFill = COLOR_HEX[co.colorKey] || COLOR_HEX.neutral;
-        const coMk = L.circleMarker([co.lat, co.lng], {
-          radius: 7, color: '#fff', weight: 2, fillColor: coFill, fillOpacity: 1,
-          // Small inner dot to distinguish from city marker
+        const textColor = (co.colorKey === 'green' || co.colorKey === 'yellow') ? '#1a0e00' : '#fff';
+
+        const coIcon = L.divIcon({
+          className: '',
+          html: `<div title="Перетащите, чтобы изменить место" style="
+            display:flex;flex-direction:column;align-items:center;
+            filter:drop-shadow(0 2px 5px rgba(0,0,0,0.4));cursor:grab;
+          ">
+            <div style="
+              width:22px;height:22px;
+              background:${coFill};
+              border:2.5px solid #fff;
+              border-radius:50%;
+              display:flex;align-items:center;justify-content:center;
+            ">
+              <div style="width:6px;height:6px;background:rgba(255,255,255,0.7);border-radius:50%"></div>
+            </div>
+            <div style="width:2px;height:9px;background:${coFill};opacity:0.8"></div>
+            <div style="width:6px;height:3px;background:rgba(0,0,0,0.18);border-radius:50%"></div>
+          </div>`,
+          iconSize: [22, 34], iconAnchor: [11, 34],
         });
+
+        const coMk = L.marker([co.lat, co.lng], { icon: coIcon, draggable: true });
+
         const coPopupHtml =
           `<div style="min-width:170px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">` +
           `<div style="background:${coFill};padding:8px 12px;margin:-1px -1px 8px;border-radius:8px 8px 0 0">` +
-          `<div style="font-weight:700;font-size:13px;color:${(co.colorKey === 'green' || co.colorKey === 'yellow') ? '#1a0e00' : '#fff'}">${escapeHtml(co.companyName)}</div>` +
-          `<div style="font-size:11px;opacity:0.8;color:${(co.colorKey === 'green' || co.colorKey === 'yellow') ? '#1a0e00' : '#fff'}">${escapeHtml(c.city_name)} · ${escapeHtml(c.region_name)}</div>` +
+          `<div style="font-weight:700;font-size:13px;color:${textColor}">${escapeHtml(co.companyName)}</div>` +
+          `<div style="font-size:11px;opacity:0.8;color:${textColor}">${escapeHtml(c.city_name)} · ${escapeHtml(c.region_name)}</div>` +
           `</div>` +
           `<div style="padding:0 12px 8px;font-size:12px;color:#555">` +
           (co.notes ? `<div style="margin-bottom:4px">📍 ${escapeHtml(co.notes)}</div>` : '') +
           `<div>Индекс: <strong style="color:${coFill}">${fmtRatio(co.ratioAvg)}</strong></div>` +
           (co.measuredAt ? `<div style="color:#999;font-size:11px;margin-top:2px">Замер: ${co.measuredAt}</div>` : '') +
+          `</div>` +
+          `<div style="padding:0 12px 10px;font-size:11px;color:#b8860b;display:flex;align-items:center;gap:4px">` +
+          `<span>✥</span><span>Перетащите маркер, чтобы уточнить место</span>` +
           `</div></div>`;
+
         coMk.bindPopup(coPopupHtml, { maxWidth: 240, className: 'gi-city-popup' });
+
+        // Save new coords on drag end
+        const coId = co.id;
+        const coName = co.companyName;
+        coMk.on('dragstart', () => { coMk.closePopup(); });
+        coMk.on('dragend', async () => {
+          const p = coMk.getLatLng();
+          try {
+            await api.goldIndexUpdateCompetitor(coId, { lat: p.lat, lng: p.lng });
+            toast(`📍 Место «${coName}» обновлено`, 'success');
+            await load();
+          } catch (saveErr) {
+            toast(saveErr?.message || 'Ошибка сохранения координат', 'error');
+          }
+        });
+
         coMk.addTo(layer);
       }
     }
