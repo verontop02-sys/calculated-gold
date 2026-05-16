@@ -597,6 +597,52 @@ export function GoldIndex({ formatMoney, toast }) {
     }));
   }
 
+  // GPS self-location for competitor form
+  const [geolocBusy, setGeolocBusy] = useState(null); // cityId | 'edit' | null
+  function useMyLocation(target) {
+    // target: { type: 'new', cityId } | { type: 'edit' }
+    if (!navigator.geolocation) {
+      toast('Геолокация не поддерживается браузером', 'error');
+      return;
+    }
+    const key = target.type === 'edit' ? 'edit' : target.cityId;
+    setGeolocBusy(key);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude.toFixed(6);
+        const lng = pos.coords.longitude.toFixed(6);
+        if (target.type === 'new') {
+          setCompDraft(target.cityId, { lat, lng });
+          // Show on map
+          if (mapInstRef.current) {
+            mapInstRef.current.setView([parseFloat(lat), parseFloat(lng)], 16);
+            if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
+            const icon = L.divIcon({
+              className: '',
+              html: '<div style="width:16px;height:16px;background:#38bdf8;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 6px rgba(56,189,248,0.3)"></div>',
+              iconSize: [16, 16], iconAnchor: [8, 8],
+            });
+            addPinRef.current = L.marker([parseFloat(lat), parseFloat(lng)], { icon }).addTo(mapInstRef.current);
+          }
+        } else {
+          setEditCompetitorDraft((d) => ({ ...(d || {}), lat, lng }));
+        }
+        toast(`Геопозиция определена: ${lat}, ${lng}`, 'success');
+        setGeolocBusy(null);
+      },
+      (err) => {
+        const msgs = {
+          1: 'Разрешите доступ к геолокации в настройках браузера',
+          2: 'Не удалось определить местоположение (GPS недоступен)',
+          3: 'Время ожидания истекло — попробуйте ещё раз',
+        };
+        toast(msgs[err.code] || 'Ошибка геолокации', 'error');
+        setGeolocBusy(null);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
+  }
+
   function buildGeocodePayload(draft) {
     const raw = String(draft.geocode_raw || '').trim();
     if (raw) return { raw_query: raw };
@@ -1484,19 +1530,30 @@ export function GoldIndex({ formatMoney, toast }) {
                                       value={editCompetitorDraft?.lng || ''}
                                       onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), lng: e.target.value }))} />
                                   </label>
-                                  <button
-                                    type="button"
-                                    className={`gi-comp-map-pin-btn${compMapTarget?.cityId === c.id && compMapTarget?.mode === 'edit' ? ' gi-comp-map-pin-btn--active' : ''}`}
-                                    title="Тыкнуть на карту"
-                                    onClick={() => {
-                                      setCompMapTarget((prev) =>
-                                        prev?.cityId === c.id && prev?.mode === 'edit' ? null : { cityId: c.id, mode: 'edit' }
-                                      );
-                                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                                    }}
-                                  >
-                                    {compMapTarget?.cityId === c.id && compMapTarget?.mode === 'edit' ? '✕' : '📍'}
-                                  </button>
+                                  <div className="gi-comp-loc-btns">
+                                    <button
+                                      type="button"
+                                      className="gi-comp-map-pin-btn gi-gps-btn"
+                                      title="Определить моё местоположение"
+                                      disabled={geolocBusy === 'edit'}
+                                      onClick={() => useMyLocation({ type: 'edit' })}
+                                    >
+                                      {geolocBusy === 'edit' ? '⏳' : '🎯'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`gi-comp-map-pin-btn${compMapTarget?.cityId === c.id && compMapTarget?.mode === 'edit' ? ' gi-comp-map-pin-btn--active' : ''}`}
+                                      title="Выбрать на карте"
+                                      onClick={() => {
+                                        setCompMapTarget((prev) =>
+                                          prev?.cityId === c.id && prev?.mode === 'edit' ? null : { cityId: c.id, mode: 'edit' }
+                                        );
+                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                      }}
+                                    >
+                                      {compMapTarget?.cityId === c.id && compMapTarget?.mode === 'edit' ? '✕' : '🗺️'}
+                                    </button>
+                                  </div>
                                 </div>
                                 <div className="gold-index__probe-grid" style={{ marginTop: 8 }}>
                                   {probeFieldsForCity(c.id).probes.map((pb) => (
@@ -1596,19 +1653,30 @@ export function GoldIndex({ formatMoney, toast }) {
                               value={compDraftByCity[c.id]?.lng || ''}
                               onChange={(e) => setCompDraft(c.id, { lng: e.target.value })} />
                           </label>
-                          <button
-                            type="button"
-                            className={`gi-comp-map-pin-btn${compMapTarget?.cityId === c.id && compMapTarget?.mode === 'new' ? ' gi-comp-map-pin-btn--active' : ''}`}
-                            title="Тыкнуть на карту"
-                            onClick={() => {
-                              setCompMapTarget((prev) =>
-                                prev?.cityId === c.id && prev?.mode === 'new' ? null : { cityId: c.id, mode: 'new' }
-                              );
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                          >
-                            {compMapTarget?.cityId === c.id && compMapTarget?.mode === 'new' ? '✕' : '📍'}
-                          </button>
+                          <div className="gi-comp-loc-btns">
+                            <button
+                              type="button"
+                              className="gi-comp-map-pin-btn gi-gps-btn"
+                              title="Определить моё местоположение"
+                              disabled={geolocBusy === c.id}
+                              onClick={() => useMyLocation({ type: 'new', cityId: c.id })}
+                            >
+                              {geolocBusy === c.id ? '⏳' : '🎯'}
+                            </button>
+                            <button
+                              type="button"
+                              className={`gi-comp-map-pin-btn${compMapTarget?.cityId === c.id && compMapTarget?.mode === 'new' ? ' gi-comp-map-pin-btn--active' : ''}`}
+                              title="Выбрать на карте"
+                              onClick={() => {
+                                setCompMapTarget((prev) =>
+                                  prev?.cityId === c.id && prev?.mode === 'new' ? null : { cityId: c.id, mode: 'new' }
+                                );
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                            >
+                              {compMapTarget?.cityId === c.id && compMapTarget?.mode === 'new' ? '✕' : '🗺️'}
+                            </button>
+                          </div>
                         </div>
                         <div className="gold-index__probe-grid">
                           {probeFieldsForCity(c.id).probes.map((pb) => (
@@ -1905,13 +1973,16 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-ratio--neutral{ color: #5a4200; background: rgba(232,197,71,0.12); }
         .gi-comp-address { margin-top: 2px; font-size: 0.74rem; }
         .gi-comp-coords-row { display: flex; align-items: flex-end; gap: 8px; margin-top: 6px; }
+        .gi-comp-loc-btns { display: flex; gap: 4px; flex-shrink: 0; }
         .gi-comp-map-pin-btn {
           flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--stroke);
           background: var(--input-bg); cursor: pointer; font-size: 1.1rem; display: flex; align-items: center;
           justify-content: center; transition: all 0.15s;
         }
-        .gi-comp-map-pin-btn:hover { border-color: #38bdf8; background: rgba(56,189,248,0.1); }
+        .gi-comp-map-pin-btn:disabled { opacity: 0.5; cursor: default; }
+        .gi-comp-map-pin-btn:hover:not(:disabled) { border-color: #38bdf8; background: rgba(56,189,248,0.1); }
         .gi-comp-map-pin-btn--active { background: #38bdf8; border-color: #38bdf8; }
+        .gi-gps-btn:hover:not(:disabled) { border-color: #22c55e; background: rgba(34,197,94,0.12); }
 
         .gi-probe-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
         .gi-probe-chip {
