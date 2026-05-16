@@ -154,6 +154,10 @@ export function GoldIndex({ formatMoney, toast }) {
   const quickDragMarkerRef = useRef(null);
   const [quickDragConfirmBusy, setQuickDragConfirmBusy] = useState(false);
   const [quickDragActive, setQuickDragActive] = useState(false);
+  // Modal shown after confirming drag position
+  const [quickAddModal, setQuickAddModal] = useState(null);
+  // null | { cityId, cityName, regionName, lat, lng }
+  const [quickModalSaving, setQuickModalSaving] = useState(false);
 
   const load = useCallback(async () => {
     setErr('');
@@ -758,13 +762,8 @@ export function GoldIndex({ formatMoney, toast }) {
       const match = cityNorm ? cities.find((c) => norm(c.city_name) === cityNorm) : null;
       cancelQuickDrag();
       if (match) {
-        setExpanded((prev) => { const n = new Set(prev); n.add(match.id); return n; });
-        setShowAddCompByCity((prev) => { const n = new Set(prev); n.add(match.id); return n; });
         setCompDraft(match.id, { lat, lng });
-        toast(`📍 Город «${match.city_name}» — заполните данные конкурента`, 'success');
-        setTimeout(() => {
-          document.getElementById(`gi-city-${match.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 350);
+        setQuickAddModal({ cityId: match.id, cityName: match.city_name, regionName: match.region_name, lat, lng });
       } else {
         const cityName = geo.city || 'Новый город';
         const regionMatch = cities.find((c) => norm(c.region_name) === norm(geo.region));
@@ -778,13 +777,8 @@ export function GoldIndex({ formatMoney, toast }) {
           geocoded_label: geo.displayName || null,
         });
         await load();
-        setExpanded((prev) => { const n = new Set(prev); n.add(newCityId); return n; });
-        setShowAddCompByCity((prev) => { const n = new Set(prev); n.add(newCityId); return n; });
         setCompDraft(newCityId, { lat, lng });
-        toast(`✅ Город «${cityName}» создан — заполните конкурента`, 'success');
-        setTimeout(() => {
-          document.getElementById(`gi-city-${newCityId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 500);
+        setQuickAddModal({ cityId: newCityId, cityName, regionName: geo.region || '', lat, lng });
       }
     } catch (e2) {
       toast(e2?.message || 'Ошибка', 'error');
@@ -2529,7 +2523,163 @@ export function GoldIndex({ formatMoney, toast }) {
           .gold-index { padding: 10px 10px 20px; }
           .gi-probe-chip { font-size: 0.75rem; padding: 2px 7px; }
         }
+
+        /* ── Quick-add bottom sheet modal ──────────────────────────────────── */
+        .gi-modal-overlay {
+          position: fixed; inset: 0; z-index: 9000;
+          background: rgba(10,6,0,0.55);
+          backdrop-filter: blur(3px);
+          display: flex; align-items: flex-end; justify-content: center;
+          animation: gi-overlay-in 0.2s ease;
+        }
+        @keyframes gi-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+        .gi-modal-sheet {
+          width: 100%; max-width: 560px;
+          background: #fffdf8;
+          border-radius: 24px 24px 0 0;
+          box-shadow: 0 -8px 40px rgba(0,0,0,0.25);
+          display: flex; flex-direction: column;
+          max-height: 90vh;
+          animation: gi-sheet-in 0.28s cubic-bezier(0.32,0.72,0,1);
+        }
+        @keyframes gi-sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .gi-modal-header {
+          display: flex; align-items: flex-start; justify-content: space-between;
+          gap: 12px;
+          padding: 20px 20px 14px;
+          border-bottom: 1px solid #f0e6d0;
+          flex-shrink: 0;
+        }
+        .gi-modal-city { font-size: 1.2rem; font-weight: 800; color: #1a0e00; }
+        .gi-modal-region { font-size: 0.8rem; color: #b8860b; margin-top: 2px; font-family: monospace; }
+        .gi-modal-close {
+          width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer;
+          background: rgba(0,0,0,0.07); color: #555; font-size: 16px; font-weight: 700;
+          flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+          transition: background 0.15s;
+        }
+        .gi-modal-close:hover { background: rgba(239,68,68,0.12); color: #dc2626; }
+        .gi-modal-body {
+          padding: 16px 20px; overflow-y: auto; flex: 1;
+          display: flex; flex-direction: column; gap: 10px;
+        }
+        .gi-modal-probes-label {
+          font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em;
+          color: #b8860b; margin-bottom: -4px;
+        }
+        .gi-modal-footer {
+          display: flex; gap: 10px; align-items: center; justify-content: flex-end;
+          padding: 14px 20px 20px;
+          border-top: 1px solid #f0e6d0;
+          flex-shrink: 0;
+        }
+        .gi-modal-save {
+          flex: 1; max-width: 220px;
+          font-size: 1rem; padding: 12px 20px;
+          border-radius: 14px;
+        }
+        .gi-modal-save:disabled { opacity: 0.5; cursor: default; }
       `}</style>
+
+      {/* ── Quick-add competitor modal (bottom sheet) ─────────────────────── */}
+      {quickAddModal && (() => {
+        const { cityId, cityName, regionName, lat, lng } = quickAddModal;
+        const draft = compDraftByCity[cityId] || {};
+        const probes = data?.probesSuggested || [585, 750, 916];
+        return (
+          <div className="gi-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget && !quickModalSaving) setQuickAddModal(null); }}>
+            <div className="gi-modal-sheet">
+              {/* Header */}
+              <div className="gi-modal-header">
+                <div>
+                  <div className="gi-modal-city">{cityName}</div>
+                  <div className="gi-modal-region">{regionName} · {parseFloat(lat).toFixed(4)}, {parseFloat(lng).toFixed(4)}</div>
+                </div>
+                <button className="gi-modal-close" onClick={() => setQuickAddModal(null)} disabled={quickModalSaving}>✕</button>
+              </div>
+
+              {/* Body */}
+              <div className="gi-modal-body">
+                {/* Name + Date */}
+                <div className="gi-comp-edit-row">
+                  <label className="field" style={{ flex: 2 }}>
+                    <span className="field-label">Название точки *</span>
+                    <input
+                      className="input" autoFocus placeholder="Ломбард / Скупка / …"
+                      value={draft.company_name || ''}
+                      onChange={(e) => setCompDraft(cityId, { company_name: e.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Дата замера</span>
+                    <input
+                      className="input" type="date"
+                      value={draft.measured_at || new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => setCompDraft(cityId, { measured_at: e.target.value })}
+                    />
+                  </label>
+                </div>
+
+                {/* Address note */}
+                <label className="field">
+                  <span className="field-label">Адрес / комментарий</span>
+                  <input
+                    className="input" placeholder="ул. Ленина, 12 — уточните при необходимости"
+                    value={draft.notes || ''}
+                    onChange={(e) => setCompDraft(cityId, { notes: e.target.value })}
+                  />
+                </label>
+
+                {/* Probe prices */}
+                <div className="gi-modal-probes-label">Цены по пробам (₽/г)</div>
+                <div className="gold-index__probe-grid">
+                  {probes.map((pb) => (
+                    <label key={pb} className="field">
+                      <span className="field-label">{pb}</span>
+                      <input
+                        className="input mono-nums" inputMode="decimal" placeholder="0"
+                        value={draft.probes?.[pb] ?? ''}
+                        onChange={(e) => setCompDraft(cityId, { probes: { ...(draft.probes || {}), [pb]: e.target.value } })}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="gi-modal-footer">
+                <button
+                  className="btn-ghost small"
+                  onClick={() => setQuickAddModal(null)}
+                  disabled={quickModalSaving}
+                >
+                  Отмена
+                </button>
+                <button
+                  className="btn-primary gi-modal-save"
+                  disabled={quickModalSaving || !draft.company_name?.trim()}
+                  onClick={async () => {
+                    setQuickModalSaving(true);
+                    try {
+                      await submitCompetitor(cityId);
+                      setQuickAddModal(null);
+                      // Also expand the city card
+                      setExpanded((prev) => { const n = new Set(prev); n.add(cityId); return n; });
+                      setTimeout(() => {
+                        document.getElementById(`gi-city-${cityId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }, 400);
+                    } finally {
+                      setQuickModalSaving(false);
+                    }
+                  }}
+                >
+                  {quickModalSaving ? '⏳ Сохраняем...' : '✓ Сохранить точку'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </section>
   );
 }
