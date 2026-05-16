@@ -72,6 +72,9 @@ export function GoldIndex({ formatMoney, toast }) {
   const mapRef = useRef(null);
   const mapInstRef = useRef(null);
   const layerRef = useRef(null);
+  const [mapAddMode, setMapAddMode] = useState(false);
+  const mapAddModeRef = useRef(false); // sync ref for Leaflet handler closure
+  const addPinRef = useRef(null); // temporary marker while choosing location
   /** После первого успешного ответа не включаем «полный» loading — иначе размонтируется карта и ломается Leaflet. */
   const hasLoadedOnceRef = useRef(false);
   const [loading, setLoading] = useState(true);
@@ -223,12 +226,32 @@ export function GoldIndex({ formatMoney, toast }) {
         attributionControl: false,
         zoomControl: true,
       }).setView([61.5, 105], 3);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      // OSM-RU: корректно отображает Крым как российскую территорию
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
+        opacity: 0.45, // приглушаем тайлы — регионы выделяются ярче
       }).addTo(m);
       geoLayerRef.current = L.layerGroup().addTo(m);  // polygons below
       layerRef.current = L.layerGroup().addTo(m);     // markers above
       mapInstRef.current = m;
+
+      // Click-to-add: when add mode is active, clicking the map sets coords
+      m.on('click', (e) => {
+        if (!mapAddModeRef.current) return;
+        const { lat, lng } = e.latlng;
+        // Remove previous temp pin
+        if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
+        // Add pulsing temp pin
+        const icon = L.divIcon({
+          className: '',
+          html: '<div style="width:18px;height:18px;background:#e8c547;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(232,197,71,0.4);animation:gi-pulse 1s infinite"></div>',
+          iconSize: [18, 18],
+          iconAnchor: [9, 9],
+        });
+        addPinRef.current = L.marker([lat, lng], { icon }).addTo(m);
+        // Fire custom event to React
+        window.dispatchEvent(new CustomEvent('gi:map-click-add', { detail: { lat, lng } }));
+      });
     }
 
     // ── Region polygons ──────────────────────────────────────────────────────
@@ -347,6 +370,48 @@ export function GoldIndex({ formatMoney, toast }) {
 
     requestAnimationFrame(() => { try { mapInstRef.current?.invalidateSize(); } catch { /* ignore */ } });
   }, [filteredCities, geoLoaded, data?.regions]);
+
+  // Sync mapAddMode boolean into a ref readable by Leaflet handlers
+  useEffect(() => {
+    mapAddModeRef.current = mapAddMode;
+    const container = mapInstRef.current?.getContainer();
+    if (container) container.style.cursor = mapAddMode ? 'crosshair' : '';
+  }, [mapAddMode]);
+
+  // Handle map click-to-add event
+  useEffect(() => {
+    async function onMapClickAdd(e) {
+      const { lat, lng } = e.detail;
+      setShowCityForm(true);
+      setCityDraft((d) => ({ ...d, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
+      setMapAddMode(false);
+      // Auto reverse-geocode
+      try {
+        const { default: axios } = await import('axios');
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ru`;
+        const { data: gd } = await axios.get(url, { timeout: 8000, headers: { 'User-Agent': 'ReactivoGoldIndex/1.0' } });
+        const addr = gd?.address || {};
+        const city = addr.city || addr.town || addr.village || addr.municipality || '';
+        const region = addr.state || '';
+        const street = addr.road || '';
+        const building = addr.house_number || '';
+        setCityDraft((d) => ({
+          ...d,
+          city_name: d.city_name || city,
+          region_name: d.region_name || region,
+          street: d.street || street,
+          building: d.building || building,
+          geocoded_label: gd?.display_name || '',
+        }));
+      } catch { /* ignore reverse geocode errors */ }
+      // Scroll to form
+      setTimeout(() => {
+        document.querySelector('.gold-index__form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    }
+    window.addEventListener('gi:map-click-add', onMapClickAdd);
+    return () => window.removeEventListener('gi:map-click-add', onMapClickAdd);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -767,6 +832,22 @@ export function GoldIndex({ formatMoney, toast }) {
 
           <div className="gold-index__map-wrap">
             <div ref={mapRef} className="gold-index__map" />
+            <button
+              type="button"
+              className={`gi-map-add-btn${mapAddMode ? ' gi-map-add-btn--active' : ''}`}
+              onClick={() => {
+                setMapAddMode((v) => !v);
+                if (!mapAddMode) setShowCityForm(true);
+              }}
+              title={mapAddMode ? 'Отменить выбор' : 'Выбрать место на карте'}
+            >
+              {mapAddMode ? '✕ Отмена' : '📍 Тыкнуть на карту'}
+            </button>
+            {mapAddMode && (
+              <div className="gi-map-add-hint">
+                Нажмите на любое место карты — координаты подставятся в форму
+              </div>
+            )}
           </div>
 
           {regionsChart.length > 0 && (
@@ -1184,6 +1265,8 @@ export function GoldIndex({ formatMoney, toast }) {
                       <div className="gi-comp-list">
                         {(c.competitors || []).map((co) => (
                           <div key={co.id} className={`gi-comp-card${editingCompetitorId === co.id ? ' gi-comp-card--editing' : ''}`}>
+                            <div className="gi-comp-card-bar" style={{ background: COLOR_HEX[co.colorKey] || COLOR_HEX.neutral }} />
+                            <div className="gi-comp-card-body">
                             {editingCompetitorId === co.id ? (
                               <>
                                 <div className="gi-comp-edit-row">
@@ -1240,6 +1323,7 @@ export function GoldIndex({ formatMoney, toast }) {
                                 </div>
                               </>
                             )}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1381,6 +1465,29 @@ export function GoldIndex({ formatMoney, toast }) {
         .gold-index__map {
           width: 100%; height: min(420px, 55vh); z-index: 0;
         }
+        .gi-map-add-btn {
+          position: absolute; bottom: 12px; right: 12px; z-index: 500;
+          display: inline-flex; align-items: center; gap: 6px;
+          padding: 8px 14px; border-radius: 20px; border: none; cursor: pointer;
+          background: rgba(255,253,248,0.92); color: #1a0e00;
+          font-size: 13px; font-weight: 600;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+          backdrop-filter: blur(6px);
+          transition: all 0.18s;
+        }
+        .gi-map-add-btn:hover { background: #e8c547; box-shadow: 0 4px 14px rgba(184,134,11,0.4); }
+        .gi-map-add-btn--active { background: #ef4444; color: #fff; }
+        .gi-map-add-hint {
+          position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 500;
+          background: rgba(10,8,4,0.82); color: #faf8f4;
+          padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 500;
+          pointer-events: none; white-space: nowrap; backdrop-filter: blur(4px);
+          animation: gi-fade-in 0.2s ease;
+        }
+        @keyframes gi-pulse {
+          0%,100% { box-shadow: 0 0 0 4px rgba(232,197,71,0.5); }
+          50% { box-shadow: 0 0 0 10px rgba(232,197,71,0.0); }
+        }
         .gold-index__chart { margin-bottom: 14px; background: var(--input-bg); border: 1px solid var(--stroke); border-radius: 12px; padding: 12px 14px; }
         .gi-chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
         .gi-probe-select { display: flex; align-items: center; gap: 6px; }
@@ -1495,22 +1602,25 @@ export function GoldIndex({ formatMoney, toast }) {
         /* ── competitor cards ───────────────────────────── */
         .gi-comp-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
         .gi-comp-card {
-          border: 1px solid var(--stroke); border-radius: 10px;
-          padding: 10px 12px; background: var(--card-bg, transparent);
+          border: 1px solid var(--stroke); border-radius: 12px;
+          overflow: hidden;
           animation: gi-slide-up 0.2s ease both;
           transition: border-color 0.15s, box-shadow 0.15s;
         }
-        .gi-comp-card:hover { border-color: rgba(232,197,71,0.4); box-shadow: 0 1px 8px rgba(184,134,11,0.08); }
+        .gi-comp-card:hover { border-color: rgba(232,197,71,0.5); box-shadow: 0 2px 10px rgba(184,134,11,0.1); }
         .gi-comp-card--editing { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(232,197,71,0.15); }
-        .gi-comp-header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
-        .gi-comp-name { font-weight: 600; font-size: 0.9rem; }
-        .gi-comp-date { font-size: 0.78rem; }
-        .gi-comp-ratio { font-size: 1rem; font-weight: 700; font-family: var(--font-mono,'monospace'); }
-        .gi-ratio--green  { color: #3c9b5e; }
-        .gi-ratio--yellow { color: #b8921a; }
-        .gi-ratio--orange { color: #d4691a; }
-        .gi-ratio--red    { color: #c2312c; }
-        .gi-ratio--neutral{ color: var(--gold); }
+        /* Top accent bar */
+        .gi-comp-card-bar { height: 3px; width: 100%; }
+        .gi-comp-card-body { padding: 10px 12px; }
+        .gi-comp-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+        .gi-comp-name { font-weight: 700; font-size: 0.95rem; letter-spacing: 0.01em; }
+        .gi-comp-date { font-size: 0.76rem; color: var(--text-muted); }
+        .gi-comp-ratio { font-size: 1.1rem; font-weight: 800; font-family: var(--font-mono,'monospace'); padding: 2px 10px; border-radius: 20px; }
+        .gi-ratio--green  { color: #1a6637; background: rgba(34,197,94,0.12); }
+        .gi-ratio--yellow { color: #92620a; background: rgba(234,179,8,0.12); }
+        .gi-ratio--orange { color: #9a3d0a; background: rgba(249,115,22,0.12); }
+        .gi-ratio--red    { color: #8c1c1c; background: rgba(239,68,68,0.12); }
+        .gi-ratio--neutral{ color: #5a4200; background: rgba(232,197,71,0.12); }
 
         .gi-probe-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
         .gi-probe-chip {
