@@ -263,13 +263,13 @@ export function GoldIndex({ formatMoney, toast }) {
       activeGeoJson = L.geoJSON(geoJsonCacheRef.current, {
         style: (feature) => {
           const r = matchFeatureToRegion(feature.properties, regionList);
-          // Регионы без данных: тёплый бежевый — Россия видна единым контуром на карте
-          if (!r) return { fillColor: '#f5ead6', fillOpacity: 0.55, weight: 1, color: '#c8b48a', dashArray: '' };
+          // Только границы — без заливки, карта видна полностью при зуме
+          if (!r) return { fill: false, weight: 1.2, color: '#c8a84b', opacity: 0.7 };
           return {
-            fillColor: COLOR_HEX[r.colorKey] || COLOR_HEX.neutral,
-            fillOpacity: 0.55,
-            weight: 1.5,
-            color: '#7c5c1e',
+            fill: false,
+            weight: 2.5,
+            color: COLOR_HEX[r.colorKey] || COLOR_HEX.neutral,
+            opacity: 0.9,
           };
         },
         onEachFeature: (feature, fl) => {
@@ -284,12 +284,13 @@ export function GoldIndex({ formatMoney, toast }) {
               `<div style="font-size:11px;color:#888;margin-top:2px">Городов: ${cityCount} · Индекс: ${ratio}</div>`,
               { sticky: true, className: 'gi-map-tooltip' }
             );
-            // Клик по региону — только tooltip, без автофильтра
             fl.on('click', () => { fl.openTooltip(); });
           } else {
             if (rawName) fl.bindTooltip(`<span style="font-size:12px">${escapeHtml(rawName)}</span>`, { sticky: true, className: 'gi-map-tooltip' });
           }
-          fl.on('mouseover', function () { this.setStyle({ fillOpacity: 0.78, weight: 2 }); });
+          fl.on('mouseover', function () {
+            this.setStyle({ weight: r ? 3.5 : 2, opacity: 1 });
+          });
           fl.on('mouseout', function () { activeGeoJson.resetStyle(this); });
         },
       });

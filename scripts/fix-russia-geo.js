@@ -29,9 +29,10 @@ function fixRuName(s) {
   // Fix Latin-lookalike initial letters (GADM quirk, e.g. "E" instead of "Е")
   s = s.replace(/^E([а-яё])/u, 'Е$1');
 
-  // Insert space on transition lowercase Cyrillic → uppercase Cyrillic
+  // Insert space on transition lowercase → uppercase Cyrillic only
   // e.g. "РеспубликаАдыгея" → "Республика Адыгея"
-  s = s.replace(/([а-яёА-ЯЁ])([А-ЯЁ])/gu, '$1 $2');
+  // Do NOT break uppercase abbreviations like "АО", "АОб"
+  s = s.replace(/([а-яё])([А-ЯЁ])/gu, '$1 $2');
 
   // Insert space before suffix words that may have stayed lower-case concatenated
   // e.g. "Алтайскийкрай" → "Алтайский край"
@@ -50,23 +51,36 @@ function fixRuName(s) {
   return s;
 }
 
-// ── Crimea polygons (simplified, ~100 m precision) ────────────────────────────
-// Republic of Crimea — main peninsula outline
+// ── Crimea polygons — accurate simplified outline ─────────────────────────────
+// Republic of Crimea: real coastline + Arabat Spit + Kerch Peninsula
 const crimeaCoords = [[
-  [33.60, 46.07], [33.88, 46.10], [34.27, 46.10], [34.60, 46.08],
-  [35.03, 46.00], [35.47, 45.89], [35.80, 45.75], [36.10, 45.54],
-  [36.35, 45.40], [36.63, 45.22], [36.20, 44.92], [35.90, 44.71],
-  [35.47, 44.54], [35.00, 44.38], [34.52, 44.41], [34.10, 44.43],
-  [33.56, 44.53], [33.12, 44.66], [32.80, 44.87], [32.60, 45.05],
-  [32.51, 45.30], [32.53, 45.58], [32.73, 45.82], [33.10, 46.02],
-  [33.60, 46.07],
+  // Perekop isthmus (N, mainland connection)
+  [33.72, 46.10], [34.20, 46.14], [34.76, 46.10], [35.12, 46.05],
+  // Sivash lake eastern shore / Arabat Spit base
+  [35.22, 45.95], [35.42, 45.75], [35.70, 45.55],
+  // Kerch Peninsula east coast
+  [36.00, 45.35], [36.40, 45.37], [36.65, 45.28],
+  // SE Kerch → Feodosiya
+  [36.52, 45.10], [36.18, 45.00], [35.92, 44.86], [35.62, 44.72],
+  // Cape Meganom → Alushta → Yalta
+  [35.15, 44.58], [34.75, 44.48], [34.40, 44.49], [34.10, 44.49],
+  // Cape Sarych (southernmost)
+  [33.70, 44.39],
+  // SW coast → Sevastopol area
+  [33.42, 44.55], [33.38, 44.65],
+  // Cape Khersones → W coast
+  [33.05, 44.82], [32.72, 45.00], [32.52, 45.24],
+  // Cape Tarkhankut (westernmost)
+  [32.48, 45.52],
+  // NW coast back to Perekop
+  [32.62, 45.80], [32.95, 46.02], [33.38, 46.09], [33.72, 46.10],
 ]];
 
-// City of Sevastopol (federal city, SW Crimea — small enclave around city)
+// City of Sevastopol (federal city, SW Crimea)
 const sevCoords = [[
-  [33.34, 44.72], [33.36, 44.76], [33.45, 44.79], [33.57, 44.77],
-  [33.63, 44.68], [33.56, 44.60], [33.45, 44.58], [33.36, 44.63],
-  [33.34, 44.72],
+  [33.28, 44.68], [33.32, 44.76], [33.44, 44.80], [33.60, 44.78],
+  [33.68, 44.70], [33.62, 44.58], [33.48, 44.55], [33.36, 44.60],
+  [33.28, 44.68],
 ]];
 
 const crimeaFeatures = [
