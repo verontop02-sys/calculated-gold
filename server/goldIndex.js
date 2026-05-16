@@ -123,7 +123,7 @@ export async function buildGoldIndexOverview(supabase) {
   if (cityIds.length) {
     const { data: comps, error: compErr } = await supabase
       .from('gold_index_competitors')
-      .select('id, city_id, company_name, probes, measured_at, notes, sort_order, updated_at')
+      .select('id, city_id, company_name, probes, measured_at, notes, lat, lng, sort_order, updated_at')
       .in('city_id', cityIds)
       .order('sort_order', { ascending: true })
       .order('company_name', { ascending: true });
@@ -151,6 +151,8 @@ export async function buildGoldIndexOverview(supabase) {
         probes: co.probes || {},
         measuredAt: co.measured_at,
         notes: co.notes,
+        lat: co.lat ?? null,
+        lng: co.lng ?? null,
         sortOrder: co.sort_order,
         updatedAt: co.updated_at,
         ratioAvg,
@@ -376,6 +378,8 @@ export async function createGoldIndexCompetitor(supabase, cityId, body, changedB
       : null;
   const notes = body?.notes != null ? String(body.notes).trim() || null : null;
   const sort_order = parseInt(String(body?.sort_order ?? '0'), 10) || 0;
+  const lat = body?.lat != null && String(body.lat).trim() !== '' ? parseFloat(String(body.lat)) : null;
+  const lng = body?.lng != null && String(body.lng).trim() !== '' ? parseFloat(String(body.lng)) : null;
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('gold_index_competitors')
@@ -385,6 +389,8 @@ export async function createGoldIndexCompetitor(supabase, cityId, body, changedB
       probes,
       measured_at,
       notes,
+      lat: Number.isFinite(lat) ? lat : null,
+      lng: Number.isFinite(lng) ? lng : null,
       sort_order,
       updated_at: now,
     })
@@ -420,6 +426,8 @@ export async function updateGoldIndexCompetitor(supabase, id, body, changedBy) {
   }
   if (body.notes !== undefined) patch.notes = body.notes != null ? String(body.notes).trim() || null : null;
   if (body.sort_order != null) patch.sort_order = parseInt(String(body.sort_order), 10) || 0;
+  if (body.lat !== undefined) { const v = parseFloat(String(body.lat ?? '')); patch.lat = Number.isFinite(v) ? v : null; }
+  if (body.lng !== undefined) { const v = parseFloat(String(body.lng ?? '')); patch.lng = Number.isFinite(v) ? v : null; }
   const { error } = await supabase.from('gold_index_competitors').update(patch).eq('id', id);
   if (error) throw error;
   await logGoldIndexChange(supabase, {

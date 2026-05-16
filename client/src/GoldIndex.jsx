@@ -76,6 +76,9 @@ export function GoldIndex({ formatMoney, toast }) {
   const [mapAddMode, setMapAddMode] = useState(false);
   const mapAddModeRef = useRef(false); // sync ref for Leaflet handler closure
   const addPinRef = useRef(null); // temporary marker while choosing location
+  // For competitor map-click: { cityId, mode: 'new'|'edit' }
+  const [compMapTarget, setCompMapTarget] = useState(null);
+  const compMapTargetRef = useRef(null);
   /** После первого успешного ответа не включаем «полный» loading — иначе размонтируется карта и ломается Leaflet. */
   const hasLoadedOnceRef = useRef(false);
   const [loading, setLoading] = useState(true);
@@ -246,22 +249,26 @@ export function GoldIndex({ formatMoney, toast }) {
       layerRef.current = L.layerGroup().addTo(m);     // markers above
       mapInstRef.current = m;
 
-      // Click-to-add: when add mode is active, clicking the map sets coords
+      // Click-to-add: city or competitor coord selection
       m.on('click', (e) => {
-        if (!mapAddModeRef.current) return;
+        const isMapAdd = mapAddModeRef.current;
+        const compTarget = compMapTargetRef.current;
+        if (!isMapAdd && !compTarget) return;
         const { lat, lng } = e.latlng;
-        // Remove previous temp pin
         if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
-        // Add pulsing temp pin
+        const color = compTarget ? '#38bdf8' : '#e8c547';
         const icon = L.divIcon({
           className: '',
-          html: '<div style="width:18px;height:18px;background:#e8c547;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(232,197,71,0.4);animation:gi-pulse 1s infinite"></div>',
-          iconSize: [18, 18],
-          iconAnchor: [9, 9],
+          html: `<div style="width:16px;height:16px;background:${color};border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px ${color}66;animation:gi-pulse 1s infinite"></div>`,
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
         });
         addPinRef.current = L.marker([lat, lng], { icon }).addTo(m);
-        // Fire custom event to React
-        window.dispatchEvent(new CustomEvent('gi:map-click-add', { detail: { lat, lng } }));
+        if (compTarget) {
+          window.dispatchEvent(new CustomEvent('gi:map-click-comp', { detail: { lat, lng, ...compTarget } }));
+        } else {
+          window.dispatchEvent(new CustomEvent('gi:map-click-add', { detail: { lat, lng } }));
+        }
       });
     }
 
@@ -387,18 +394,42 @@ export function GoldIndex({ formatMoney, toast }) {
       });
 
       mk.addTo(layer);
+
+      // ── Competitor markers (only those with own lat/lng) ─────────────────
+      for (const co of competitors) {
+        if (co.lat == null || co.lng == null) continue;
+        const coFill = COLOR_HEX[co.colorKey] || COLOR_HEX.neutral;
+        const coMk = L.circleMarker([co.lat, co.lng], {
+          radius: 7, color: '#fff', weight: 2, fillColor: coFill, fillOpacity: 1,
+          // Small inner dot to distinguish from city marker
+        });
+        const coPopupHtml =
+          `<div style="min-width:170px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">` +
+          `<div style="background:${coFill};padding:8px 12px;margin:-1px -1px 8px;border-radius:8px 8px 0 0">` +
+          `<div style="font-weight:700;font-size:13px;color:${(co.colorKey === 'green' || co.colorKey === 'yellow') ? '#1a0e00' : '#fff'}">${escapeHtml(co.companyName)}</div>` +
+          `<div style="font-size:11px;opacity:0.8;color:${(co.colorKey === 'green' || co.colorKey === 'yellow') ? '#1a0e00' : '#fff'}">${escapeHtml(c.city_name)} · ${escapeHtml(c.region_name)}</div>` +
+          `</div>` +
+          `<div style="padding:0 12px 8px;font-size:12px;color:#555">` +
+          (co.notes ? `<div style="margin-bottom:4px">📍 ${escapeHtml(co.notes)}</div>` : '') +
+          `<div>Индекс: <strong style="color:${coFill}">${fmtRatio(co.ratioAvg)}</strong></div>` +
+          (co.measuredAt ? `<div style="color:#999;font-size:11px;margin-top:2px">Замер: ${co.measuredAt}</div>` : '') +
+          `</div></div>`;
+        coMk.bindPopup(coPopupHtml, { maxWidth: 240, className: 'gi-city-popup' });
+        coMk.addTo(layer);
+      }
     }
     if (filteredCities.length === 1) m.setView([filteredCities[0].lat, filteredCities[0].lng], 8);
 
     requestAnimationFrame(() => { try { mapInstRef.current?.invalidateSize(); } catch { /* ignore */ } });
   }, [filteredCities, geoLoaded, data?.regions]);
 
-  // Sync mapAddMode boolean into a ref readable by Leaflet handlers
+  // Sync modes into refs readable by Leaflet handlers
   useEffect(() => {
     mapAddModeRef.current = mapAddMode;
+    compMapTargetRef.current = compMapTarget;
     const container = mapInstRef.current?.getContainer();
-    if (container) container.style.cursor = mapAddMode ? 'crosshair' : '';
-  }, [mapAddMode]);
+    if (container) container.style.cursor = (mapAddMode || compMapTarget) ? 'crosshair' : '';
+  }, [mapAddMode, compMapTarget]);
 
   // Handle map click-to-add event
   useEffect(() => {
@@ -433,7 +464,31 @@ export function GoldIndex({ formatMoney, toast }) {
       }, 150);
     }
     window.addEventListener('gi:map-click-add', onMapClickAdd);
-    return () => window.removeEventListener('gi:map-click-add', onMapClickAdd);
+
+    function onMapClickComp(e) {
+      const { lat, lng, cityId, mode } = e.detail;
+      const latStr = lat.toFixed(6);
+      const lngStr = lng.toFixed(6);
+      if (mode === 'new') {
+        setCompDraftByCity((prev) => ({
+          ...prev,
+          [cityId]: { ...(prev[cityId] || {}), lat: latStr, lng: lngStr },
+        }));
+      } else if (mode === 'edit') {
+        setEditCompetitorDraft((d) => ({ ...(d || {}), lat: latStr, lng: lngStr }));
+      }
+      setCompMapTarget(null);
+      if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
+      // Scroll back to city card
+      setTimeout(() => {
+        document.getElementById(`gi-city-${cityId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 200);
+    }
+    window.addEventListener('gi:map-click-comp', onMapClickComp);
+    return () => {
+      window.removeEventListener('gi:map-click-add', onMapClickAdd);
+      window.removeEventListener('gi:map-click-comp', onMapClickComp);
+    };
   }, []);
 
   useEffect(() => {
@@ -705,9 +760,11 @@ export function GoldIndex({ formatMoney, toast }) {
         probes: d.probes || {},
         measured_at: d.measured_at || null,
         notes: d.notes || null,
+        lat: d.lat || null,
+        lng: d.lng || null,
       });
       toast('Конкурент добавлен', 'success');
-      setCompDraft(cityId, { company_name: '', measured_at: '', probes: {}, notes: '' });
+      setCompDraft(cityId, { company_name: '', measured_at: '', probes: {}, notes: '', lat: '', lng: '' });
       await load();
       await loadCityHistory(cityId);
     } catch (err2) {
@@ -721,6 +778,8 @@ export function GoldIndex({ formatMoney, toast }) {
       company_name: co.companyName || '',
       measured_at: co.measuredAt || '',
       notes: co.notes || '',
+      lat: co.lat != null ? String(co.lat) : '',
+      lng: co.lng != null ? String(co.lng) : '',
       probes: { ...(co.probes || {}) },
     });
   }
@@ -738,6 +797,8 @@ export function GoldIndex({ formatMoney, toast }) {
         measured_at: editCompetitorDraft.measured_at || null,
         notes: editCompetitorDraft.notes || null,
         probes: editCompetitorDraft.probes || {},
+        lat: editCompetitorDraft.lat || null,
+        lng: editCompetitorDraft.lng || null,
       });
       toast('Конкурент обновлён', 'success');
       cancelEditCompetitor();
@@ -885,7 +946,17 @@ export function GoldIndex({ formatMoney, toast }) {
             </button>
             {mapAddMode && (
               <div className="gi-map-add-hint">
-                Нажмите на любое место карты — координаты подставятся в форму
+                Нажмите на любое место карты — координаты города подставятся в форму
+              </div>
+            )}
+            {compMapTarget && (
+              <div className="gi-map-add-hint" style={{ background: 'rgba(14,80,110,0.88)' }}>
+                Нажмите на место конкурента на карте
+                <button
+                  type="button"
+                  onClick={() => setCompMapTarget(null)}
+                  style={{ marginLeft: 10, background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 14 }}
+                >✕</button>
               </div>
             )}
           </div>
@@ -1400,6 +1471,33 @@ export function GoldIndex({ formatMoney, toast }) {
                                     value={editCompetitorDraft?.notes || ''}
                                     onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), notes: e.target.value }))} />
                                 </label>
+                                <div className="gi-comp-coords-row">
+                                  <label className="field" style={{ flex: 1 }}>
+                                    <span className="field-label">Широта</span>
+                                    <input className="input mono-nums" placeholder="56.8174" inputMode="decimal"
+                                      value={editCompetitorDraft?.lat || ''}
+                                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), lat: e.target.value }))} />
+                                  </label>
+                                  <label className="field" style={{ flex: 1 }}>
+                                    <span className="field-label">Долгота</span>
+                                    <input className="input mono-nums" placeholder="60.6037" inputMode="decimal"
+                                      value={editCompetitorDraft?.lng || ''}
+                                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), lng: e.target.value }))} />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    className={`gi-comp-map-pin-btn${compMapTarget?.cityId === c.id && compMapTarget?.mode === 'edit' ? ' gi-comp-map-pin-btn--active' : ''}`}
+                                    title="Тыкнуть на карту"
+                                    onClick={() => {
+                                      setCompMapTarget((prev) =>
+                                        prev?.cityId === c.id && prev?.mode === 'edit' ? null : { cityId: c.id, mode: 'edit' }
+                                      );
+                                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}
+                                  >
+                                    {compMapTarget?.cityId === c.id && compMapTarget?.mode === 'edit' ? '✕' : '📍'}
+                                  </button>
+                                </div>
                                 <div className="gold-index__probe-grid" style={{ marginTop: 8 }}>
                                   {probeFieldsForCity(c.id).probes.map((pb) => (
                                     <label key={pb} className="field">
@@ -1477,12 +1575,41 @@ export function GoldIndex({ formatMoney, toast }) {
                               onChange={(e) => setCompDraft(c.id, { measured_at: e.target.value })} />
                           </label>
                         </div>
-                        <label className="field">
-                          <span className="field-label">Адрес точки</span>
-                          <input className="input" placeholder="ул. Ленина, 12 — где находится этот конкурент"
-                            value={compDraftByCity[c.id]?.notes || ''}
-                            onChange={(e) => setCompDraft(c.id, { notes: e.target.value })} />
-                        </label>
+                        <div className="gi-comp-edit-row">
+                          <label className="field" style={{ flex: 1 }}>
+                            <span className="field-label">Адрес точки</span>
+                            <input className="input" placeholder="ул. Ленина, 12"
+                              value={compDraftByCity[c.id]?.notes || ''}
+                              onChange={(e) => setCompDraft(c.id, { notes: e.target.value })} />
+                          </label>
+                        </div>
+                        <div className="gi-comp-coords-row">
+                          <label className="field" style={{ flex: 1 }}>
+                            <span className="field-label">Широта</span>
+                            <input className="input mono-nums" placeholder="56.8174" inputMode="decimal"
+                              value={compDraftByCity[c.id]?.lat || ''}
+                              onChange={(e) => setCompDraft(c.id, { lat: e.target.value })} />
+                          </label>
+                          <label className="field" style={{ flex: 1 }}>
+                            <span className="field-label">Долгота</span>
+                            <input className="input mono-nums" placeholder="60.6037" inputMode="decimal"
+                              value={compDraftByCity[c.id]?.lng || ''}
+                              onChange={(e) => setCompDraft(c.id, { lng: e.target.value })} />
+                          </label>
+                          <button
+                            type="button"
+                            className={`gi-comp-map-pin-btn${compMapTarget?.cityId === c.id && compMapTarget?.mode === 'new' ? ' gi-comp-map-pin-btn--active' : ''}`}
+                            title="Тыкнуть на карту"
+                            onClick={() => {
+                              setCompMapTarget((prev) =>
+                                prev?.cityId === c.id && prev?.mode === 'new' ? null : { cityId: c.id, mode: 'new' }
+                              );
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                          >
+                            {compMapTarget?.cityId === c.id && compMapTarget?.mode === 'new' ? '✕' : '📍'}
+                          </button>
+                        </div>
                         <div className="gold-index__probe-grid">
                           {probeFieldsForCity(c.id).probes.map((pb) => (
                             <label key={pb} className="field">
@@ -1777,6 +1904,14 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-ratio--red    { color: #8c1c1c; background: rgba(239,68,68,0.12); }
         .gi-ratio--neutral{ color: #5a4200; background: rgba(232,197,71,0.12); }
         .gi-comp-address { margin-top: 2px; font-size: 0.74rem; }
+        .gi-comp-coords-row { display: flex; align-items: flex-end; gap: 8px; margin-top: 6px; }
+        .gi-comp-map-pin-btn {
+          flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--stroke);
+          background: var(--input-bg); cursor: pointer; font-size: 1.1rem; display: flex; align-items: center;
+          justify-content: center; transition: all 0.15s;
+        }
+        .gi-comp-map-pin-btn:hover { border-color: #38bdf8; background: rgba(56,189,248,0.1); }
+        .gi-comp-map-pin-btn--active { background: #38bdf8; border-color: #38bdf8; }
 
         .gi-probe-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
         .gi-probe-chip {
