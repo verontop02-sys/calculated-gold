@@ -288,7 +288,11 @@ export function GoldIndex({ formatMoney, toast }) {
           const r = matchFeatureToRegion(feature.properties, regionList);
           const rawName = feature.properties?.name_ru || feature.properties?.name || feature.properties?.hasc || '';
           if (r) {
-            const cityCount = r.cityCount ?? 0;
+            // Aggregate cityCount across all region records with the same name
+            // (can happen when cities were added with different region_code variants)
+            const normName = normRu(r.regionName || '');
+            const allSameName = regionList.filter((rl) => normRu(rl.regionName || '') === normName);
+            const cityCount = allSameName.reduce((s, rl) => s + (rl.cityCount || 0), 0);
             const ratio = fmtRatio(r.ratioAvg);
             const colorDot = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${COLOR_HEX[r.colorKey] || COLOR_HEX.neutral};margin-right:5px;vertical-align:middle"></span>`;
             fl.bindTooltip(
@@ -407,7 +411,8 @@ export function GoldIndex({ formatMoney, toast }) {
       try {
         const { default: axios } = await import('axios');
         const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ru`;
-        const { data: gd } = await axios.get(url, { timeout: 8000, headers: { 'User-Agent': 'ReactivoGoldIndex/1.0' } });
+        // Note: browsers block User-Agent header — omit it, Nominatim works fine without it
+        const { data: gd } = await axios.get(url, { timeout: 8000 });
         const addr = gd?.address || {};
         const city = addr.city || addr.town || addr.village || addr.municipality || '';
         const region = addr.state || '';
@@ -659,7 +664,7 @@ export function GoldIndex({ formatMoney, toast }) {
   async function submitCity(e) {
     e.preventDefault();
     try {
-      await api.goldIndexCreateCity({
+      const { id: newCityId } = await api.goldIndexCreateCity({
         region_code: cityDraft.region_code,
         region_name: cityDraft.region_name,
         city_name: cityDraft.city_name,
@@ -672,23 +677,21 @@ export function GoldIndex({ formatMoney, toast }) {
         address_note: cityDraft.address_note?.trim() ? cityDraft.address_note.trim() : null,
         geocoded_label: cityDraft.geocoded_label?.trim() ? cityDraft.geocoded_label.trim() : null,
       });
-      toast('Город добавлен', 'success');
+      toast('Город добавлен — теперь добавьте первого конкурента', 'success');
       setShowCityForm(false);
       setCityDraft({
-        region_code: '',
-        region_name: '',
-        city_name: '',
-        street: '',
-        building: '',
-        address_note: '',
-        geocode_raw: '',
-        geocoded_label: '',
-        lat: '',
-        lng: '',
-        population: '',
-        notes: '',
+        region_code: '', region_name: '', city_name: '', street: '', building: '',
+        address_note: '', geocode_raw: '', geocoded_label: '', lat: '', lng: '', population: '', notes: '',
       });
-      await load();
+      const freshData = await load();
+      // Auto-expand the new city card and open competitor form
+      if (newCityId) {
+        setExpanded((prev) => { const n = new Set(prev); n.add(newCityId); return n; });
+        setShowAddCompByCity((prev) => { const n = new Set(prev); n.add(newCityId); return n; });
+        setTimeout(() => {
+          document.getElementById(`gi-city-${newCityId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 300);
+      }
     } catch (err2) {
       toast(err2?.message || 'Ошибка', 'error');
     }
