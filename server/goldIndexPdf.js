@@ -80,8 +80,10 @@ export async function buildGoldIndexReportPdfBuffer(overview, options = {}) {
       const probesStr = Object.entries(co.probes || {})
         .map(([k, v]) => `${k}: ${fmtRub(typeof v === 'number' ? v : parseFloat(v))}`)
         .join('; ');
+      const addressStr = co.address ? `Адрес: ${co.address}` : 'Адрес: —';
+      const commentStr = co.comment || co.notes ? `Комментарий: ${co.comment || co.notes}` : 'Комментарий: —';
       compRows.push([
-        String(co.companyName || ''),
+        `${String(co.companyName || '')}\n${addressStr}\n${commentStr}`,
         fmtRatio(co.ratioAvg),
         probesStr || '—',
       ]);

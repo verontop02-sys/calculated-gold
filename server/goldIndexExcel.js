@@ -93,7 +93,8 @@ export function buildGoldIndexExcelBuffer(overview, options = {}) {
     'Дата замера',
     'Средний индекс',
     ...probes.map((p) => `${p} ₽/г`),
-    'Заметки',
+    'Адрес точки',
+    'Комментарий',
   ]];
   for (const c of overview?.cities || []) {
     for (const co of c.competitors || []) {
@@ -109,14 +110,15 @@ export function buildGoldIndexExcelBuffer(overview, options = {}) {
           const v = co?.probes?.[String(p)];
           return v == null ? null : Number(v);
         }),
-        co.notes || '',
+        co.address || '',
+        co.comment || co.notes || '',
       ]);
     }
   }
   const wsCompetitors = XLSX.utils.aoa_to_sheet(competitors);
   wsCompetitors['!cols'] = [
     { wch: 38 }, { wch: 20 }, { wch: 18 }, { wch: 38 }, { wch: 24 }, { wch: 14 }, { wch: 14 },
-    ...probes.map(() => ({ wch: 10 })), { wch: 22 },
+    ...probes.map(() => ({ wch: 10 })), { wch: 24 }, { wch: 28 },
   ];
   XLSX.utils.book_append_sheet(wb, wsCompetitors, 'Конкуренты');
 

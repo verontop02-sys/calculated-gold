@@ -98,6 +98,51 @@ function avg(nums) {
   return a.reduce((s, x) => s + x, 0) / a.length;
 }
 
+function parseLegacyCompetitorNotes(notes) {
+  const src = String(notes || '').trim();
+  if (!src) return { address: null, comment: null };
+  const mAddr = src.match(/(?:^|\n)\s*Адрес:\s*([^\n]+)/i);
+  const mComment = src.match(/(?:^|\n)\s*Комментарий:\s*([^\n]+)/i);
+  return {
+    address: mAddr?.[1]?.trim() || null,
+    comment: mComment?.[1]?.trim() || null,
+  };
+}
+
+function buildLegacyCompetitorNotes({ address, comment, notes }) {
+  const a = String(address || '').trim();
+  const c = String(comment || '').trim();
+  if (a || c) {
+    const rows = [];
+    if (a) rows.push(`Адрес: ${a}`);
+    if (c) rows.push(`Комментарий: ${c}`);
+    return rows.join('\n');
+  }
+  const n = String(notes || '').trim();
+  return n || null;
+}
+
+function isMissingCompetitorAddressColumns(err) {
+  // Check all error fields — Supabase/PostgREST may use single or double quotes
+  const haystack = [err?.message, err?.details, err?.hint, err?.code, String(err || '')]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  const hasTable =
+    haystack.includes('gold_index_competitors') ||
+    // PostgREST sometimes omits table name; fall back to just column check
+    (!haystack.includes('gold_index_') && (haystack.includes("'address'") || haystack.includes('"address"')));
+  const hasCol =
+    haystack.includes("'address'") ||
+    haystack.includes('"address"') ||
+    haystack.includes("'comment'") ||
+    haystack.includes('"comment"') ||
+    haystack.includes('column address') ||
+    haystack.includes('column comment') ||
+    haystack.includes('pgrst204');
+  return hasTable && hasCol;
+}
+
 export function computeCompetitorMetrics(probesObj, goldRubPerGram, settings) {
   const rows = competitorProbeRatios(probesObj, goldRubPerGram, settings);
   const ratioAvg = avg(rows.map((r) => r.ratio));
@@ -121,12 +166,23 @@ export async function buildGoldIndexOverview(supabase) {
   const cityIds = (cities || []).map((c) => c.id);
   let competitorsByCity = {};
   if (cityIds.length) {
-    const { data: comps, error: compErr } = await supabase
+    // Try with address/comment columns first; fall back to legacy schema if they don't exist yet
+    let comps = null;
+    let compErr = null;
+    ({ data: comps, error: compErr } = await supabase
       .from('gold_index_competitors')
-      .select('id, city_id, company_name, probes, measured_at, notes, lat, lng, sort_order, updated_at')
+      .select('id, city_id, company_name, probes, measured_at, notes, address, comment, lat, lng, sort_order, updated_at')
       .in('city_id', cityIds)
       .order('sort_order', { ascending: true })
-      .order('company_name', { ascending: true });
+      .order('company_name', { ascending: true }));
+    if (compErr && isMissingCompetitorAddressColumns(compErr)) {
+      ({ data: comps, error: compErr } = await supabase
+        .from('gold_index_competitors')
+        .select('id, city_id, company_name, probes, measured_at, notes, lat, lng, sort_order, updated_at')
+        .in('city_id', cityIds)
+        .order('sort_order', { ascending: true })
+        .order('company_name', { ascending: true }));
+    }
     if (compErr) throw compErr;
     for (const row of comps || []) {
       if (!competitorsByCity[row.city_id]) competitorsByCity[row.city_id] = [];
@@ -150,6 +206,8 @@ export async function buildGoldIndexOverview(supabase) {
         companyName: co.company_name,
         probes: co.probes || {},
         measuredAt: co.measured_at,
+        address: co.address || parseLegacyCompetitorNotes(co.notes).address || null,
+        comment: co.comment || parseLegacyCompetitorNotes(co.notes).comment || co.notes || null,
         notes: co.notes,
         lat: co.lat ?? null,
         lng: co.lng ?? null,
@@ -237,6 +295,8 @@ export async function createGoldIndexCity(supabase, body, createdBy) {
     if (Number.isFinite(n) && n >= 0) population = n;
   }
   const notes = body?.notes != null ? String(body.notes).trim() || null : null;
+  const address = body?.address != null ? String(body.address).trim() || null : null;
+  const comment = body?.comment != null ? String(body.comment).trim() || null : null;
   const street = body?.street != null ? String(body.street).trim() || null : null;
   const building = body?.building != null ? String(body.building).trim() || null : null;
   const address_note = body?.address_note != null ? String(body.address_note).trim() || null : null;
@@ -257,6 +317,8 @@ export async function createGoldIndexCity(supabase, body, createdBy) {
       geocoded_label,
       population: Number.isFinite(population) ? population : null,
       notes,
+      address,
+      comment,
       created_by: createdBy || null,
       updated_at: now,
     })
@@ -377,25 +439,43 @@ export async function createGoldIndexCompetitor(supabase, cityId, body, changedB
       ? String(body.measured_at).slice(0, 10)
       : null;
   const notes = body?.notes != null ? String(body.notes).trim() || null : null;
+  const address = body?.address != null ? String(body.address).trim() || null : null;
+  const comment = body?.comment != null ? String(body.comment).trim() || null : null;
+  const legacyNotes = buildLegacyCompetitorNotes({ address, comment, notes });
   const sort_order = parseInt(String(body?.sort_order ?? '0'), 10) || 0;
   const lat = body?.lat != null && String(body.lat).trim() !== '' ? parseFloat(String(body.lat)) : null;
   const lng = body?.lng != null && String(body.lng).trim() !== '' ? parseFloat(String(body.lng)) : null;
   const now = new Date().toISOString();
-  const { data, error } = await supabase
+  const insertPayload = {
+    city_id: cityId,
+    company_name,
+    probes,
+    measured_at,
+    notes: legacyNotes,
+    address,
+    comment,
+    lat: Number.isFinite(lat) ? lat : null,
+    lng: Number.isFinite(lng) ? lng : null,
+    sort_order,
+    updated_at: now,
+  };
+  let data;
+  let error;
+  ({ data, error } = await supabase
     .from('gold_index_competitors')
-    .insert({
-      city_id: cityId,
-      company_name,
-      probes,
-      measured_at,
-      notes,
-      lat: Number.isFinite(lat) ? lat : null,
-      lng: Number.isFinite(lng) ? lng : null,
-      sort_order,
-      updated_at: now,
-    })
+    .insert(insertPayload)
     .select('id')
-    .maybeSingle();
+    .maybeSingle());
+  if (error && isMissingCompetitorAddressColumns(error)) {
+    const fallbackPayload = { ...insertPayload };
+    delete fallbackPayload.address;
+    delete fallbackPayload.comment;
+    ({ data, error } = await supabase
+      .from('gold_index_competitors')
+      .insert(fallbackPayload)
+      .select('id')
+      .maybeSingle());
+  }
   if (error) throw error;
   await logGoldIndexChange(supabase, {
     entity_type: 'competitor',
@@ -403,17 +483,24 @@ export async function createGoldIndexCompetitor(supabase, cityId, body, changedB
     city_id: cityId,
     action: 'create',
     changed_by: changedBy || null,
-    payload: { company_name, probes, measured_at, notes, sort_order },
+    payload: { company_name, probes, measured_at, notes: legacyNotes, address, comment, sort_order },
   });
   return data?.id;
 }
 
 export async function updateGoldIndexCompetitor(supabase, id, body, changedBy) {
-  const { data: beforeRow, error: beforeErr } = await supabase
+  let { data: beforeRow, error: beforeErr } = await supabase
     .from('gold_index_competitors')
-    .select('id, city_id, company_name, probes, measured_at, notes, sort_order')
+    .select('id, city_id, company_name, probes, measured_at, notes, address, comment, sort_order')
     .eq('id', id)
     .maybeSingle();
+  if (beforeErr && isMissingCompetitorAddressColumns(beforeErr)) {
+    ({ data: beforeRow, error: beforeErr } = await supabase
+      .from('gold_index_competitors')
+      .select('id, city_id, company_name, probes, measured_at, notes, sort_order')
+      .eq('id', id)
+      .maybeSingle());
+  }
   if (beforeErr) throw beforeErr;
   const patch = { updated_at: new Date().toISOString() };
   if (body.company_name != null) patch.company_name = String(body.company_name).trim();
@@ -424,11 +511,28 @@ export async function updateGoldIndexCompetitor(supabase, id, body, changedBy) {
         ? String(body.measured_at).slice(0, 10)
         : null;
   }
-  if (body.notes !== undefined) patch.notes = body.notes != null ? String(body.notes).trim() || null : null;
+  const nextNotes = body?.notes != null ? String(body.notes).trim() || null : null;
+  const nextAddress = body?.address != null ? String(body.address).trim() || null : null;
+  const nextComment = body?.comment != null ? String(body.comment).trim() || null : null;
+  if (body.notes !== undefined || body.address !== undefined || body.comment !== undefined) {
+    patch.notes = buildLegacyCompetitorNotes({
+      address: body.address !== undefined ? nextAddress : beforeRow?.address,
+      comment: body.comment !== undefined ? nextComment : beforeRow?.comment,
+      notes: body.notes !== undefined ? nextNotes : beforeRow?.notes,
+    });
+  }
+  if (body.address !== undefined) patch.address = body.address != null ? String(body.address).trim() || null : null;
+  if (body.comment !== undefined) patch.comment = body.comment != null ? String(body.comment).trim() || null : null;
   if (body.sort_order != null) patch.sort_order = parseInt(String(body.sort_order), 10) || 0;
   if (body.lat !== undefined) { const v = parseFloat(String(body.lat ?? '')); patch.lat = Number.isFinite(v) ? v : null; }
   if (body.lng !== undefined) { const v = parseFloat(String(body.lng ?? '')); patch.lng = Number.isFinite(v) ? v : null; }
-  const { error } = await supabase.from('gold_index_competitors').update(patch).eq('id', id);
+  let { error } = await supabase.from('gold_index_competitors').update(patch).eq('id', id);
+  if (error && isMissingCompetitorAddressColumns(error)) {
+    const fallbackPatch = { ...patch };
+    delete fallbackPatch.address;
+    delete fallbackPatch.comment;
+    ({ error } = await supabase.from('gold_index_competitors').update(fallbackPatch).eq('id', id));
+  }
   if (error) throw error;
   await logGoldIndexChange(supabase, {
     entity_type: 'competitor',
@@ -441,11 +545,18 @@ export async function updateGoldIndexCompetitor(supabase, id, body, changedBy) {
 }
 
 export async function deleteGoldIndexCompetitor(supabase, id, changedBy) {
-  const { data: beforeRow, error: beforeErr } = await supabase
+  let { data: beforeRow, error: beforeErr } = await supabase
     .from('gold_index_competitors')
-    .select('id, city_id, company_name, probes, measured_at, notes, sort_order')
+    .select('id, city_id, company_name, probes, measured_at, notes, address, comment, sort_order')
     .eq('id', id)
     .maybeSingle();
+  if (beforeErr && isMissingCompetitorAddressColumns(beforeErr)) {
+    ({ data: beforeRow, error: beforeErr } = await supabase
+      .from('gold_index_competitors')
+      .select('id, city_id, company_name, probes, measured_at, notes, sort_order')
+      .eq('id', id)
+      .maybeSingle());
+  }
   if (beforeErr) throw beforeErr;
   const { error } = await supabase.from('gold_index_competitors').delete().eq('id', id);
   if (error) throw error;
@@ -626,6 +737,48 @@ export async function buildGoldIndexChartData(supabase, opts = {}) {
  * Геокодирование через OpenStreetMap Nominatim (без ключа).
  * https://nominatim.org/release-docs/latest/api/Search/ — не злоупотребляйте частотой запросов.
  */
+/** Попытка геокодирования через Nominatim. Возвращает { lat, lng, displayName } или null при ошибке. */
+async function tryNominatimSearch(q) {
+  try {
+    const { data } = await axios.get('https://nominatim.openstreetmap.org/search', {
+      params: { q, format: 'json', limit: 1, 'accept-language': 'ru' },
+      timeout: 12000,
+      headers: {
+        'User-Agent':
+          process.env.NOMINATIM_USER_AGENT ||
+          'ReaktivoProGoldIndex/1.0 (https://reaktivo.pro; nikita@reaktivo.pro)',
+      },
+    });
+    if (!Array.isArray(data) || !data[0]) return null;
+    const lat = parseFloat(data[0].lat);
+    const lng = parseFloat(data[0].lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat, lng, displayName: data[0].display_name || q };
+  } catch {
+    return null;
+  }
+}
+
+/** Попытка геокодирования через Photon (komoot.io) — fallback, тот же OSM-датасет. */
+async function tryPhotonSearch(q) {
+  try {
+    const { data } = await axios.get('https://photon.komoot.io/api/', {
+      params: { q, limit: 1, lang: 'ru' },
+      timeout: 12000,
+      headers: { 'User-Agent': 'ReaktivoProGoldIndex/1.0 (https://reaktivo.pro)' },
+    });
+    const feat = data?.features?.[0];
+    if (!feat) return null;
+    const [lng, lat] = feat.geometry?.coordinates || [];
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const p = feat.properties || {};
+    const displayName = [p.name, p.street, p.city, p.state, p.country].filter(Boolean).join(', ');
+    return { lat, lng, displayName: displayName || q };
+  } catch {
+    return null;
+  }
+}
+
 export async function geocodeGoldIndexLocation(body) {
   const raw = String(body?.raw_query || '').trim();
   let q;
@@ -646,49 +799,19 @@ export async function geocodeGoldIndexLocation(body) {
     q = [line1, city, region, 'Россия'].filter((x) => x && String(x).trim()).join(', ');
     if (note) q = `${q}. ${note}`;
   }
-  let data;
-  try {
-    ({ data } = await axios.get('https://nominatim.openstreetmap.org/search', {
-      params: { q, format: 'json', limit: 1, 'accept-language': 'ru' },
-      timeout: 20000,
-      headers: {
-        'User-Agent':
-          process.env.NOMINATIM_USER_AGENT ||
-          'ReaktivoProGoldIndex/1.0 (https://reaktivo.pro; gold index geocode)',
-      },
-      validateStatus: (s) => s === 200,
-    }));
-  } catch (e) {
-    const st = e?.response?.status;
+
+  // Try Nominatim first, fall back to Photon
+  let result = await tryNominatimSearch(q);
+  if (!result) result = await tryPhotonSearch(q);
+
+  if (!result) {
     const err = new Error(
-      st === 429
-        ? 'Слишком частые запросы к геокодеру. Подождите минуту и повторите.'
-        : 'Сервис геокодирования временно недоступен. Введите координаты вручную или повторите позже.'
-    );
-    err.status = st === 429 ? 429 : 502;
-    throw err;
-  }
-  if (!Array.isArray(data) || !data[0]) {
-    const err = new Error(
-      'Точка не найдена. Уточните адрес или вставьте запрос в «Адрес одной строкой», либо введите координаты вручную (карты: ПКМ по точке → координаты).'
+      'Точка не найдена. Уточните адрес или введите координаты вручную (в Яндекс/Google Картах: ПКМ по точке → скопировать координаты).'
     );
     err.status = 404;
     throw err;
   }
-  const hit = data[0];
-  const lat = parseFloat(hit.lat);
-  const lng = parseFloat(hit.lon);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    const err = new Error('Геокодер вернул некорректные координаты');
-    err.status = 502;
-    throw err;
-  }
-  return {
-    lat,
-    lng,
-    displayName: hit.display_name || q,
-    queryUsed: q,
-  };
+  return { lat: result.lat, lng: result.lng, displayName: result.displayName, queryUsed: q };
 }
 
 /**
@@ -696,6 +819,9 @@ export async function geocodeGoldIndexLocation(body) {
  */
 export async function reverseGeocodeGoldIndex({ lat, lng }) {
   let data;
+
+  // Try Nominatim reverse
+  let nominatimOk = false;
   try {
     ({ data } = await axios.get('https://nominatim.openstreetmap.org/reverse', {
       params: { lat, lon: lng, format: 'json', 'accept-language': 'ru' },
@@ -703,11 +829,30 @@ export async function reverseGeocodeGoldIndex({ lat, lng }) {
       headers: {
         'User-Agent':
           process.env.NOMINATIM_USER_AGENT ||
-          'ReaktivoProGoldIndex/1.0 (https://reaktivo.pro; gold index reverse geocode)',
+          'ReaktivoProGoldIndex/1.0 (https://reaktivo.pro; nikita@reaktivo.pro)',
       },
-      validateStatus: (s) => s === 200,
     }));
-  } catch (e) {
+    nominatimOk = true;
+  } catch { /* fall through to Photon */ }
+
+  if (!nominatimOk) {
+    // Fallback: Photon reverse geocode
+    try {
+      const photon = await axios.get('https://photon.komoot.io/reverse', {
+        params: { lat, lon: lng, lang: 'ru' },
+        timeout: 10000,
+        headers: { 'User-Agent': 'ReaktivoProGoldIndex/1.0 (https://reaktivo.pro)' },
+      });
+      const feat = photon.data?.features?.[0];
+      if (feat) {
+        const p = feat.properties || {};
+        const city = p.city || p.town || p.village || p.county || '';
+        const region = p.state || '';
+        const street = [p.street, p.housenumber].filter(Boolean).join(', ');
+        const displayName = [p.name, p.street, city, region, 'Россия'].filter(Boolean).join(', ');
+        return { city, region, street, displayName };
+      }
+    } catch { /* ignore */ }
     const err = new Error('Сервис геокодирования временно недоступен');
     err.status = 502;
     throw err;

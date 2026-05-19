@@ -158,6 +158,10 @@ export function GoldIndex({ formatMoney, toast }) {
   const [quickAddModal, setQuickAddModal] = useState(null);
   // null | { cityId, cityName, regionName, lat, lng }
   const [quickModalSaving, setQuickModalSaving] = useState(false);
+  const [highlightCompId, setHighlightCompId] = useState(null);
+  // Edit competitor modal
+  const [editCompModal, setEditCompModal] = useState(false);
+  const [editCompModalCityId, setEditCompModalCityId] = useState(null);
 
   const load = useCallback(async () => {
     setErr('');
@@ -470,6 +474,8 @@ export function GoldIndex({ formatMoney, toast }) {
 
         const coMk = L.marker([co.lat, co.lng], { icon: coIcon, draggable: true });
 
+        const coAddress = co.address ? `<div style="margin-bottom:4px">📍 ${escapeHtml(co.address)}</div>` : '';
+        const coComment = (co.comment || co.notes) ? `<div style="margin-bottom:4px">💬 ${escapeHtml(co.comment || co.notes)}</div>` : '';
         const coPopupHtml =
           `<div style="min-width:170px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">` +
           `<div style="background:${coFill};padding:8px 12px;margin:-1px -1px 8px;border-radius:8px 8px 0 0">` +
@@ -477,15 +483,46 @@ export function GoldIndex({ formatMoney, toast }) {
           `<div style="font-size:11px;opacity:0.8;color:${textColor}">${escapeHtml(c.city_name)} · ${escapeHtml(c.region_name)}</div>` +
           `</div>` +
           `<div style="padding:0 12px 8px;font-size:12px;color:#555">` +
-          (co.notes ? `<div style="margin-bottom:4px">📍 ${escapeHtml(co.notes)}</div>` : '') +
+          coAddress +
+          coComment +
           `<div>Индекс: <strong style="color:${coFill}">${fmtRatio(co.ratioAvg)}</strong></div>` +
           (co.measuredAt ? `<div style="color:#999;font-size:11px;margin-top:2px">Замер: ${co.measuredAt}</div>` : '') +
           `</div>` +
           `<div style="padding:0 12px 10px;font-size:11px;color:#b8860b;display:flex;align-items:center;gap:4px">` +
           `<span>✥</span><span>Перетащите маркер, чтобы уточнить место</span>` +
+          `</div>` +
+          `<div style="padding:0 12px 12px">` +
+          `<button class="gi-popup-comp-detail-btn" data-city-id="${c.id}" data-comp-id="${co.id}" style="width:100%;padding:7px 10px;` +
+          `background:linear-gradient(135deg,#b8860b,#e8c547);border:none;border-radius:8px;` +
+          `font-weight:700;cursor:pointer;font-size:12px;color:#1a0e00;letter-spacing:0.02em;">Подробнее</button>` +
           `</div></div>`;
 
         coMk.bindPopup(coPopupHtml, { maxWidth: 240, className: 'gi-city-popup' });
+        coMk.on('popupopen', () => {
+          const popupEl = coMk.getPopup()?.getElement();
+          const btn = popupEl?.querySelector('.gi-popup-comp-detail-btn');
+          if (!btn) return;
+          btn.onmouseenter = () => { btn.style.opacity = '0.85'; };
+          btn.onmouseleave = () => { btn.style.opacity = '1'; };
+          btn.onclick = () => {
+            coMk.closePopup();
+            setExpanded((prev) => new Set(prev).add(c.id));
+            startEditCompetitor(co, c.id);
+            setHighlightCompId(co.id);
+            // Wait for city to expand and competitor card to render, then scroll directly to it
+            setTimeout(() => {
+              const compEl = document.getElementById(`gi-comp-${co.id}`);
+              if (compEl) {
+                compEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              } else {
+                document.getElementById(`gi-city-${c.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            }, 220);
+            setTimeout(() => {
+              setHighlightCompId((prev) => (prev === co.id ? null : prev));
+            }, 2400);
+          };
+        });
 
         // Save new coords on drag end
         const coId = co.id;
@@ -517,6 +554,7 @@ export function GoldIndex({ formatMoney, toast }) {
     const container = mapInstRef.current?.getContainer();
     if (container) container.style.cursor = (mapAddMode || compMapTarget) ? 'crosshair' : '';
   }, [mapAddMode, compMapTarget]);
+
 
   // Handle map click-to-add event
   useEffect(() => {
@@ -680,7 +718,7 @@ export function GoldIndex({ formatMoney, toast }) {
   function setCompDraft(cityId, patch) {
     setCompDraftByCity((prev) => ({
       ...prev,
-      [cityId]: { company_name: '', measured_at: '', probes: {}, ...(prev[cityId] || {}), ...patch },
+      [cityId]: { company_name: '', measured_at: '', probes: {}, address: '', comment: '', ...(prev[cityId] || {}), ...patch },
     }));
   }
 
@@ -726,7 +764,7 @@ export function GoldIndex({ formatMoney, toast }) {
         toast(msgs[err.code] || 'Ошибка геолокации', 'error');
         setGeolocBusy(null);
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
     );
   }
 
@@ -740,6 +778,11 @@ export function GoldIndex({ formatMoney, toast }) {
    */
   /** Убираем перетаскиваемый маркер быстрого ввода */
   function cancelQuickDrag() {
+    const m = mapInstRef.current;
+    if (m && m._quickAddTapHandler) {
+      m.off('click', m._quickAddTapHandler);
+      m._quickAddTapHandler = null;
+    }
     if (quickDragMarkerRef.current) {
       quickDragMarkerRef.current.remove();
       quickDragMarkerRef.current = null;
@@ -823,10 +866,22 @@ export function GoldIndex({ formatMoney, toast }) {
             </div>`,
             iconSize: [36, 54], iconAnchor: [18, 54],
           });
-          const marker = L.marker([lat, lng], { icon, draggable: true }).addTo(m);
+          const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+          const marker = L.marker([lat, lng], { icon, draggable: !isTouchDevice }).addTo(m);
           quickDragMarkerRef.current = marker;
+          // On touch devices (iOS/Safari) drag doesn't work reliably —
+          // let user tap the map to reposition the marker instead
+          if (isTouchDevice) {
+            m._quickAddTapHandler = (e) => {
+              marker.setLatLng(e.latlng);
+            };
+            m.on('click', m._quickAddTapHandler);
+          }
           setQuickDragActive(true);
-          toast('Перетащите маркер на точное место и нажмите «Это здесь»', 'success');
+          const hint = isTouchDevice
+            ? 'Нажмите на карту чтобы уточнить место, затем «Это здесь»'
+            : 'Перетащите маркер на точное место и нажмите «Это здесь»';
+          toast(hint, 'success');
         }
         setQuickAddBusy(false);
       },
@@ -839,7 +894,7 @@ export function GoldIndex({ formatMoney, toast }) {
         toast(msgs[geoErr.code] || 'Ошибка геолокации', 'error');
         setQuickAddBusy(false);
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
     );
   }
 
@@ -1005,12 +1060,14 @@ export function GoldIndex({ formatMoney, toast }) {
         company_name: d.company_name,
         probes: d.probes || {},
         measured_at: d.measured_at || null,
-        notes: d.notes || null,
+        address: d.address || null,
+        comment: d.comment || null,
+        notes: d.comment || d.notes || null,
         lat: d.lat || null,
         lng: d.lng || null,
       });
       toast('Конкурент добавлен', 'success');
-      setCompDraft(cityId, { company_name: '', measured_at: '', probes: {}, notes: '', lat: '', lng: '' });
+      setCompDraft(cityId, { company_name: '', measured_at: '', probes: {}, address: '', comment: '', notes: '', lat: '', lng: '' });
       // Remove temp GPS/map-click pin — it will be replaced by the real marker
       if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
       await load();
@@ -1020,21 +1077,27 @@ export function GoldIndex({ formatMoney, toast }) {
     }
   }
 
-  function startEditCompetitor(co) {
+  function startEditCompetitor(co, cityId) {
     setEditingCompetitorId(co.id);
+    setEditCompModalCityId(cityId || null);
     setEditCompetitorDraft({
       company_name: co.companyName || '',
       measured_at: co.measuredAt || '',
+      address: co.address || '',
+      comment: co.comment || co.notes || '',
       notes: co.notes || '',
       lat: co.lat != null ? String(co.lat) : '',
       lng: co.lng != null ? String(co.lng) : '',
       probes: { ...(co.probes || {}) },
     });
+    setEditCompModal(true);
   }
 
   function cancelEditCompetitor() {
+    setEditCompModal(false);
     setEditingCompetitorId(null);
     setEditCompetitorDraft(null);
+    setEditCompModalCityId(null);
   }
 
   async function saveCompetitor(cityId, competitorId) {
@@ -1043,7 +1106,9 @@ export function GoldIndex({ formatMoney, toast }) {
       await api.goldIndexUpdateCompetitor(competitorId, {
         company_name: editCompetitorDraft.company_name,
         measured_at: editCompetitorDraft.measured_at || null,
-        notes: editCompetitorDraft.notes || null,
+        address: editCompetitorDraft.address || null,
+        comment: editCompetitorDraft.comment || null,
+        notes: editCompetitorDraft.comment || editCompetitorDraft.notes || null,
         probes: editCompetitorDraft.probes || {},
         lat: editCompetitorDraft.lat || null,
         lng: editCompetitorDraft.lng || null,
@@ -1186,7 +1251,11 @@ export function GoldIndex({ formatMoney, toast }) {
             {/* Quick-add competitor via GPS — main floating button */}
             {quickDragActive ? (
               <div className="gi-drag-confirm-panel">
-                <span className="gi-drag-confirm-hint">Перетащите маркер на точное место</span>
+                <span className="gi-drag-confirm-hint">
+                  {('ontouchstart' in window || navigator.maxTouchPoints > 0)
+                    ? 'Нажмите на карту чтобы уточнить место'
+                    : 'Перетащите маркер на точное место'}
+                </span>
                 <div className="gi-drag-confirm-btns">
                   <button
                     type="button"
@@ -1768,89 +1837,9 @@ export function GoldIndex({ formatMoney, toast }) {
                     ) : (
                       <div className="gi-comp-list">
                         {(c.competitors || []).map((co) => (
-                          <div key={co.id} className={`gi-comp-card${editingCompetitorId === co.id ? ' gi-comp-card--editing' : ''}`}>
+                          <div key={co.id} id={`gi-comp-${co.id}`} className={`gi-comp-card${highlightCompId === co.id ? ' gi-comp-card--flash' : ''}`}>
                             <div className="gi-comp-card-bar" style={{ background: COLOR_HEX[co.colorKey] || COLOR_HEX.neutral }} />
                             <div className="gi-comp-card-body">
-                            {editingCompetitorId === co.id ? (
-                              <>
-                                <div className="gi-comp-edit-row">
-                                  <label className="field" style={{ flex: 2 }}>
-                                    <span className="field-label">Компания</span>
-                                    <input className="input" value={editCompetitorDraft?.company_name || ''}
-                                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), company_name: e.target.value }))} />
-                                  </label>
-                                  <label className="field">
-                                    <span className="field-label">Дата замера</span>
-                                    <input className="input" type="date" value={editCompetitorDraft?.measured_at || ''}
-                                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), measured_at: e.target.value }))} />
-                                  </label>
-                                </div>
-                                <label className="field">
-                                  <span className="field-label">Адрес точки</span>
-                                  <input className="input" placeholder="ул. Ленина, 12"
-                                    value={editCompetitorDraft?.notes || ''}
-                                    onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), notes: e.target.value }))} />
-                                </label>
-                                <div className="gi-loc-section">
-                                  <div className="gi-loc-label">Местоположение точки</div>
-                                  <div className="gi-loc-btns-row">
-                                    <button
-                                      type="button"
-                                      className={`gi-loc-btn gi-loc-btn--gps${geolocBusy === 'edit' ? ' gi-loc-btn--busy' : ''}`}
-                                      disabled={geolocBusy === 'edit'}
-                                      onClick={() => useMyLocation({ type: 'edit' })}
-                                    >
-                                      <span className="gi-loc-btn-icon">📍</span>
-                                      <span>{geolocBusy === 'edit' ? 'Определяем…' : 'Я здесь (GPS)'}</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={`gi-loc-btn gi-loc-btn--map${compMapTarget?.cityId === c.id && compMapTarget?.mode === 'edit' ? ' gi-loc-btn--active' : ''}`}
-                                      onClick={() => {
-                                        setCompMapTarget((prev) =>
-                                          prev?.cityId === c.id && prev?.mode === 'edit' ? null : { cityId: c.id, mode: 'edit' }
-                                        );
-                                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                                      }}
-                                    >
-                                      <span className="gi-loc-btn-icon">🗺</span>
-                                      <span>{compMapTarget?.cityId === c.id && compMapTarget?.mode === 'edit' ? 'Отмена' : 'Указать на карте'}</span>
-                                    </button>
-                                  </div>
-                                  {(editCompetitorDraft?.lat || editCompetitorDraft?.lng) && (
-                                    <div className="gi-loc-coords">
-                                      <span className="gi-loc-coords-val">{editCompetitorDraft?.lat}, {editCompetitorDraft?.lng}</span>
-                                      <button type="button" className="gi-loc-coords-clear"
-                                        onClick={() => setEditCompetitorDraft((d) => ({ ...(d || {}), lat: '', lng: '' }))}>✕</button>
-                                    </div>
-                                  )}
-                                  <div className="gi-loc-manual-row">
-                                    <input className="input mono-nums" placeholder="Широта" inputMode="decimal" style={{ flex: 1 }}
-                                      value={editCompetitorDraft?.lat || ''}
-                                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), lat: e.target.value }))} />
-                                    <input className="input mono-nums" placeholder="Долгота" inputMode="decimal" style={{ flex: 1 }}
-                                      value={editCompetitorDraft?.lng || ''}
-                                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), lng: e.target.value }))} />
-                                  </div>
-                                </div>
-                                <div className="gold-index__probe-grid" style={{ marginTop: 8 }}>
-                                  {probeFieldsForCity(c.id).probes.map((pb) => (
-                                    <label key={pb} className="field">
-                                      <span className="field-label">{pb} ₽/г</span>
-                                      <input className="input mono-nums" inputMode="decimal" placeholder="0"
-                                        value={editCompetitorDraft?.probes?.[pb] ?? ''}
-                                        onChange={(e) => setEditCompetitorDraft((d) => ({
-                                          ...(d || {}), probes: { ...(d?.probes || {}), [pb]: e.target.value },
-                                        }))} />
-                                    </label>
-                                  ))}
-                                </div>
-                                <div className="gi-comp-actions">
-                                  <button type="button" className="btn-primary" style={{ fontSize: '0.8rem', padding: '6px 14px' }} onClick={() => saveCompetitor(c.id, co.id)}>Сохранить</button>
-                                  <button type="button" className="btn-ghost small" onClick={cancelEditCompetitor}>Отмена</button>
-                                </div>
-                              </>
-                            ) : (
                               <>
                                 {(() => {
                                   const buybackPct = data?.settingsSnapshot?.buybackPercentOfScrap;
@@ -1862,7 +1851,8 @@ export function GoldIndex({ formatMoney, toast }) {
                                         <div style={{ flex: 1, minWidth: 0 }}>
                                           <span className="gi-comp-name">{co.companyName}</span>
                                           {co.measuredAt && <span className="gi-comp-date muted small"> · {co.measuredAt}</span>}
-                                          {co.notes && <div className="gi-comp-address muted small">📍 {co.notes}</div>}
+                                          {co.address && <div className="gi-comp-address muted small"><span className="gi-meta-pill gi-meta-pill--addr">📍 {co.address}</span></div>}
+                                          {(co.comment || co.notes) && <div className="gi-comp-address muted small"><span className="gi-meta-pill gi-meta-pill--comment">💬 {co.comment || co.notes}</span></div>}
                                         </div>
                                         <div className="gi-comp-badges">
                                           {pct != null && (
@@ -1887,11 +1877,10 @@ export function GoldIndex({ formatMoney, toast }) {
                                   );
                                 })()}
                                 <div className="gi-comp-actions">
-                                  <button type="button" className="btn-ghost small" onClick={() => startEditCompetitor(co)}>✎ Изменить</button>
+                                  <button type="button" className="btn-ghost small" onClick={() => startEditCompetitor(co, c.id)}>✎ Изменить</button>
                                   <button type="button" className="btn-ghost small danger" onClick={() => deleteCompetitor(c.id, co.id)}>Удалить</button>
                                 </div>
                               </>
-                            )}
                             </div>
                           </div>
                         ))}
@@ -1927,11 +1916,17 @@ export function GoldIndex({ formatMoney, toast }) {
                           </label>
                         </div>
                         <div className="gi-comp-edit-row">
-                          <label className="field" style={{ flex: 1 }}>
+                          <label className="field" style={{ flex: 1.2 }}>
                             <span className="field-label">Адрес точки</span>
-                            <input className="input" placeholder="ул. Ленина, 12"
-                              value={compDraftByCity[c.id]?.notes || ''}
-                              onChange={(e) => setCompDraft(c.id, { notes: e.target.value })} />
+                            <input className="input" placeholder="ул. Пушкина, 10"
+                              value={compDraftByCity[c.id]?.address || ''}
+                              onChange={(e) => setCompDraft(c.id, { address: e.target.value })} />
+                          </label>
+                          <label className="field" style={{ flex: 1 }}>
+                            <span className="field-label">Комментарий</span>
+                            <input className="input" placeholder="Офис 12, вход справа, 1 этаж"
+                              value={compDraftByCity[c.id]?.comment || ''}
+                              onChange={(e) => setCompDraft(c.id, { comment: e.target.value })} />
                           </label>
                         </div>
                         <div className="gi-loc-section">
@@ -2107,9 +2102,12 @@ export function GoldIndex({ formatMoney, toast }) {
           background: linear-gradient(135deg, #e8c547 0%, #c8a020 100%); color: #1a0e00;
           font-size: 14px; font-weight: 700; letter-spacing: 0.01em;
           box-shadow: 0 4px 18px rgba(184,134,11,0.45);
+          -webkit-backdrop-filter: blur(6px);
           backdrop-filter: blur(6px);
           transition: all 0.18s;
           min-height: 46px;
+          transform: translateZ(0);
+          -webkit-transform: translateZ(0);
         }
         .gi-quick-add-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(184,134,11,0.55); }
         .gi-quick-add-btn:active:not(:disabled) { transform: translateY(0); }
@@ -2121,8 +2119,12 @@ export function GoldIndex({ formatMoney, toast }) {
           display: flex; flex-direction: column; gap: 8px;
           background: rgba(255,253,248,0.96); border-radius: 18px;
           padding: 12px 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.22);
-          backdrop-filter: blur(8px); border: 1.5px solid rgba(232,197,71,0.5);
+          -webkit-backdrop-filter: blur(8px);
+          backdrop-filter: blur(8px);
+          border: 1.5px solid rgba(232,197,71,0.5);
           max-width: 220px;
+          transform: translateZ(0);
+          -webkit-transform: translateZ(0);
         }
         .gi-drag-confirm-hint { font-size: 12px; color: #7a6540; font-weight: 500; line-height: 1.3; }
         .gi-drag-confirm-btns { display: flex; gap: 8px; }
@@ -2146,16 +2148,24 @@ export function GoldIndex({ formatMoney, toast }) {
           background: rgba(255,253,248,0.92); color: #1a0e00;
           font-size: 13px; font-weight: 600;
           box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+          -webkit-backdrop-filter: blur(6px);
           backdrop-filter: blur(6px);
           transition: all 0.18s;
+          transform: translateZ(0);
+          -webkit-transform: translateZ(0);
         }
         .gi-map-add-btn:hover { background: #e8c547; box-shadow: 0 4px 14px rgba(184,134,11,0.4); }
         .gi-map-add-btn--active { background: #ef4444; color: #fff; }
         .gi-map-add-hint {
-          position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 500;
+          position: absolute; top: 12px; left: 50%;
+          transform: translateX(-50%) translateZ(0);
+          -webkit-transform: translateX(-50%) translateZ(0);
+          z-index: 500;
           background: rgba(10,8,4,0.82); color: #faf8f4;
           padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 500;
-          pointer-events: none; white-space: nowrap; backdrop-filter: blur(4px);
+          pointer-events: none; white-space: nowrap;
+          -webkit-backdrop-filter: blur(4px);
+          backdrop-filter: blur(4px);
           animation: gi-fade-in 0.2s ease;
         }
         @keyframes gi-pulse {
@@ -2297,6 +2307,16 @@ export function GoldIndex({ formatMoney, toast }) {
         }
         .gi-comp-card:hover { border-color: rgba(232,197,71,0.5); box-shadow: 0 2px 10px rgba(184,134,11,0.1); }
         .gi-comp-card--editing { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(232,197,71,0.15); }
+        .gi-comp-card--flash {
+          animation: gi-comp-flash 1.4s ease-out;
+          border-color: rgba(232,197,71,0.95) !important;
+          box-shadow: 0 0 0 3px rgba(232,197,71,0.28), 0 6px 20px rgba(184,134,11,0.22) !important;
+        }
+        @keyframes gi-comp-flash {
+          0%   { transform: translateY(-2px); box-shadow: 0 0 0 0 rgba(232,197,71,0.6), 0 0 0 rgba(0,0,0,0); }
+          45%  { transform: translateY(0); box-shadow: 0 0 0 8px rgba(232,197,71,0.08), 0 6px 20px rgba(184,134,11,0.18); }
+          100% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(232,197,71,0), 0 2px 10px rgba(184,134,11,0.1); }
+        }
         /* Top accent bar */
         .gi-comp-card-bar { height: 3px; width: 100%; }
         .gi-comp-card-body { padding: 10px 12px; }
@@ -2310,6 +2330,28 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-ratio--red    { color: #8c1c1c; background: rgba(239,68,68,0.12); }
         .gi-ratio--neutral{ color: #5a4200; background: rgba(232,197,71,0.12); }
         .gi-comp-address { margin-top: 2px; font-size: 0.74rem; }
+        .gi-meta-pill {
+          display: inline-flex; align-items: center;
+          padding: 2px 8px; border-radius: 999px;
+          font-size: 0.73rem; line-height: 1.25;
+          border: 1px solid transparent;
+          transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+          max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .gi-meta-pill--addr {
+          background: rgba(56, 189, 248, 0.12);
+          color: #0c4a6e;
+          border-color: rgba(56, 189, 248, 0.22);
+        }
+        .gi-meta-pill--comment {
+          background: rgba(168, 85, 247, 0.1);
+          color: #5b21b6;
+          border-color: rgba(168, 85, 247, 0.2);
+        }
+        .gi-comp-card:hover .gi-meta-pill {
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+        }
         .gi-comp-badges { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .gi-pct-badge {
           font-size: 0.85rem; font-weight: 700; padding: 2px 8px; border-radius: 20px;
@@ -2339,6 +2381,14 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-loc-btn--gps.gi-loc-btn--busy { border-color: #22c55e; background: rgba(34,197,94,0.1); }
         .gi-loc-btn--map:hover:not(:disabled) { border-color: #38bdf8; background: rgba(56,189,248,0.1); color: #0e4f6e; }
         .gi-loc-btn--map.gi-loc-btn--active { border-color: #38bdf8; background: rgba(56,189,248,0.15); color: #0e4f6e; }
+        .gi-comp-edit-row .field .input {
+          transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+        }
+        .gi-comp-edit-row .field .input:focus {
+          border-color: #e8c547;
+          box-shadow: 0 0 0 3px rgba(232, 197, 71, 0.18);
+          background: #fffef9;
+        }
         .gi-loc-coords { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.78rem; color: var(--text-muted); background: rgba(34,197,94,0.08); border-radius: 6px; padding: 5px 8px; }
         .gi-loc-coords-val { flex: 1; font-family: var(--font-mono, monospace); }
         .gi-loc-coords-clear { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; padding: 2px; }
@@ -2456,9 +2506,16 @@ export function GoldIndex({ formatMoney, toast }) {
           .gi-export-btns button { flex: 1; min-height: 44px; }
 
           /* Map */
-          .gold-index__map { height: min(320px, 48vh); }
-          .gi-map-add-btn { padding: 10px 16px; font-size: 14px; min-height: 44px; bottom: 10px; right: 10px; }
-          .gi-quick-add-btn { padding: 12px 18px; font-size: 14px; min-height: 48px; bottom: 10px; left: 10px; }
+          .gold-index__map { height: min(300px, 46vh); }
+          /* Stack map buttons vertically on narrow screens so they don't overlap */
+          .gi-map-add-btn {
+            bottom: auto; top: 10px; right: 10px;
+            padding: 8px 12px; font-size: 13px; min-height: 40px;
+          }
+          .gi-quick-add-btn {
+            bottom: 10px; left: 10px;
+            padding: 10px 16px; font-size: 13px; min-height: 44px;
+          }
           .gi-map-add-hint { white-space: normal; text-align: center; font-size: 12px; max-width: 90%; pointer-events: auto; padding: 8px 14px; }
 
           /* Stats */
@@ -2505,8 +2562,40 @@ export function GoldIndex({ formatMoney, toast }) {
           .gi-comp-actions button { flex: 1; min-height: 42px; }
 
           /* Competitor header */
-          .gi-comp-header { flex-wrap: nowrap; }
+          .gi-comp-header { flex-wrap: wrap; align-items: flex-start; }
+          .gi-comp-badges { width: 100%; justify-content: flex-end; }
           .gi-comp-ratio { font-size: 1rem; padding: 2px 8px; }
+          .gi-city-head-right { gap: 6px; }
+          .gi-city-pct { font-size: 0.74rem; padding: 2px 7px; }
+
+          /* Meta pills: allow wrapping on mobile */
+          .gi-meta-pill {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            line-height: 1.35;
+          }
+
+          /* Bottom sheet mobile layout */
+          .gi-modal-sheet {
+            max-height: 94vh;
+            border-radius: 20px 20px 0 0;
+          }
+          .gi-modal-header { padding: 14px 14px 10px; }
+          .gi-modal-city { font-size: 1.05rem; }
+          .gi-modal-region { font-size: 0.75rem; }
+          .gi-modal-body { padding: 12px 14px; gap: 8px; }
+          .gi-modal-footer {
+            padding: 10px 14px calc(14px + env(safe-area-inset-bottom));
+            flex-direction: column-reverse;
+            align-items: stretch;
+          }
+          .gi-modal-footer .btn-ghost.small,
+          .gi-modal-save {
+            width: 100%;
+            max-width: none;
+            min-height: 46px;
+          }
 
           /* History row */
           .gi-history-row { flex-wrap: wrap; gap: 4px; }
@@ -2522,63 +2611,210 @@ export function GoldIndex({ formatMoney, toast }) {
           .gi-stats-grid { grid-template-columns: 1fr 1fr; }
           .gold-index { padding: 10px 10px 20px; }
           .gi-probe-chip { font-size: 0.75rem; padding: 2px 7px; }
+          .gi-modal-city { font-size: 1rem; }
+          .gi-modal-region { font-size: 0.72rem; }
+          .gi-modal-close { width: 34px; height: 34px; }
         }
 
-        /* ── Quick-add bottom sheet modal ──────────────────────────────────── */
+        /* ── Bottom sheet modal — shared ───────────────────────────────────── */
         .gi-modal-overlay {
           position: fixed; inset: 0; z-index: 9000;
-          background: rgba(10,6,0,0.55);
-          backdrop-filter: blur(3px);
+          background: rgba(6,4,2,0.62);
+          -webkit-backdrop-filter: blur(4px);
+          backdrop-filter: blur(4px);
           display: flex; align-items: flex-end; justify-content: center;
-          animation: gi-overlay-in 0.2s ease;
+          animation: gi-overlay-in 0.22s ease;
         }
         @keyframes gi-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+
         .gi-modal-sheet {
+          /* Force light-theme CSS vars regardless of system/app dark mode */
+          --input-bg: #ffffff;
+          --stroke: rgba(140,110,40,0.2);
+          --stroke-strong: rgba(140,110,40,0.38);
+          --text: #1c1814;
+          --text-muted: rgba(28,24,20,0.5);
+          --gold: #b8860b;
+          --gold-glow: rgba(184,134,11,0.22);
+          --gold-soft: rgba(184,134,11,0.1);
+          color-scheme: light;
+
           width: 100%; max-width: 560px;
-          background: #fffdf8;
+          background: #faf8f4;
           border-radius: 24px 24px 0 0;
-          box-shadow: 0 -8px 40px rgba(0,0,0,0.25);
+          box-shadow: 0 -4px 0 rgba(232,197,71,0.25), 0 -12px 50px rgba(0,0,0,0.32);
           display: flex; flex-direction: column;
-          max-height: 90vh;
-          animation: gi-sheet-in 0.28s cubic-bezier(0.32,0.72,0,1);
+          max-height: 92vh;
+          animation: gi-sheet-in 0.3s cubic-bezier(0.32,0.72,0,1);
         }
         @keyframes gi-sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+        /* Drag handle */
+        .gi-modal-sheet::before {
+          content: '';
+          display: block;
+          width: 40px; height: 4px;
+          background: rgba(28,24,20,0.18);
+          border-radius: 99px;
+          margin: 12px auto 0;
+          flex-shrink: 0;
+        }
+
         .gi-modal-header {
           display: flex; align-items: flex-start; justify-content: space-between;
-          gap: 12px;
-          padding: 20px 20px 14px;
-          border-bottom: 1px solid #f0e6d0;
+          gap: 12px; padding: 14px 20px 16px;
+          border-bottom: 1px solid rgba(140,110,40,0.14);
           flex-shrink: 0;
         }
-        .gi-modal-city { font-size: 1.2rem; font-weight: 800; color: #1a0e00; }
-        .gi-modal-region { font-size: 0.8rem; color: #b8860b; margin-top: 2px; font-family: monospace; }
+        .gi-modal-city { font-size: 1.25rem; font-weight: 800; color: #1a0e00; }
+        .gi-modal-region { font-size: 0.78rem; color: #b8860b; margin-top: 3px; }
+        .gi-modal-title-block { flex: 1; min-width: 0; }
+        .gi-modal-title { font-size: 1.1rem; font-weight: 800; color: #1a0e00; line-height: 1.2; }
+        .gi-modal-subtitle { font-size: 0.78rem; color: #b8860b; margin-top: 4px; }
         .gi-modal-close {
-          width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer;
-          background: rgba(0,0,0,0.07); color: #555; font-size: 16px; font-weight: 700;
-          flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-          transition: background 0.15s;
+          width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer;
+          background: rgba(28,24,20,0.08); color: #6b5230;
+          font-size: 15px; font-weight: 700; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+          transition: background 0.15s, color 0.15s;
         }
-        .gi-modal-close:hover { background: rgba(239,68,68,0.12); color: #dc2626; }
+        .gi-modal-close:hover { background: rgba(220,38,38,0.1); color: #dc2626; }
+
         .gi-modal-body {
-          padding: 16px 20px; overflow-y: auto; flex: 1;
-          display: flex; flex-direction: column; gap: 10px;
+          padding: 18px 20px 8px; overflow-y: auto; flex: 1;
+          display: flex; flex-direction: column; gap: 12px;
+          -webkit-overflow-scrolling: touch;
         }
+
+        /* All inputs inside modal — explicit light styling, overrides dark theme & WebKit */
+        .gi-modal-sheet input,
+        .gi-modal-sheet select {
+          background: #ffffff !important;
+          color: #1c1814 !important;
+          /* WebKit uses -webkit-text-fill-color for actual rendered text — must override */
+          -webkit-text-fill-color: #1c1814 !important;
+          caret-color: #b8860b !important;
+          border: 1.5px solid rgba(140,110,40,0.22) !important;
+          border-radius: 12px !important;
+          padding: 12px 14px !important;
+          font-size: 15px !important;
+          width: 100%;
+          outline: none;
+          transition: border-color 0.18s, box-shadow 0.18s;
+          -webkit-appearance: none;
+          appearance: none;
+          color-scheme: light;
+        }
+        .gi-modal-sheet input:focus,
+        .gi-modal-sheet select:focus {
+          border-color: #b8860b !important;
+          box-shadow: 0 0 0 3px rgba(184,134,11,0.18) !important;
+          outline: none !important;
+        }
+        .gi-modal-sheet input::placeholder {
+          color: rgba(28,24,20,0.35) !important;
+          -webkit-text-fill-color: rgba(28,24,20,0.35) !important;
+        }
+        /* Autofill override for Chrome/Safari dark mode */
+        .gi-modal-sheet input:-webkit-autofill,
+        .gi-modal-sheet input:-webkit-autofill:focus {
+          -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+          -webkit-text-fill-color: #1c1814 !important;
+          caret-color: #b8860b !important;
+        }
+
+        /* Field labels inside modal */
+        .gi-modal-sheet .field-label {
+          font-size: 0.7rem !important;
+          color: #b8860b !important;
+          font-weight: 700 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.07em !important;
+          margin-bottom: 5px !important;
+          display: block;
+        }
+        .gi-modal-sheet .field { display: flex; flex-direction: column; }
+
         .gi-modal-probes-label {
-          font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em;
-          color: #b8860b; margin-bottom: -4px;
+          font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+          letter-spacing: 0.07em; color: #b8860b; margin-bottom: -4px;
         }
+
+        /* Row layout for 2-column fields */
+        .gi-modal-body .gi-comp-edit-row {
+          display: flex; gap: 10px; flex-wrap: wrap;
+        }
+        .gi-modal-body .gi-comp-edit-row .field { flex: 1; min-width: 130px; }
+
+        /* Location section inside modal */
+        .gi-modal-sheet .gi-loc-section {
+          background: rgba(184,134,11,0.06);
+          border: 1px solid rgba(184,134,11,0.16);
+          border-radius: 14px;
+          padding: 12px 14px;
+          margin-top: 2px;
+        }
+        .gi-modal-sheet .gi-loc-label {
+          color: #b8860b !important;
+          font-size: 0.7rem !important;
+          font-weight: 700 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.07em !important;
+        }
+        .gi-modal-sheet .gi-loc-btn {
+          background: #fff !important;
+          color: #1c1814 !important;
+          border: 1.5px solid rgba(140,110,40,0.22) !important;
+        }
+        .gi-modal-sheet .gi-loc-btn--active {
+          background: rgba(184,134,11,0.1) !important;
+          border-color: #b8860b !important;
+          color: #7a5c0a !important;
+        }
+        .gi-modal-sheet .gi-loc-coords {
+          background: rgba(34,197,94,0.08) !important;
+          border: 1px solid rgba(34,197,94,0.22) !important;
+          border-radius: 10px !important;
+        }
+        .gi-modal-sheet .gi-loc-coords-val { color: #166534 !important; }
+
         .gi-modal-footer {
-          display: flex; gap: 10px; align-items: center; justify-content: flex-end;
-          padding: 14px 20px 20px;
-          border-top: 1px solid #f0e6d0;
+          display: flex; gap: 10px; align-items: center;
+          padding: 14px 20px 22px;
+          border-top: 1px solid rgba(140,110,40,0.12);
           flex-shrink: 0;
         }
-        .gi-modal-save {
-          flex: 1; max-width: 220px;
-          font-size: 1rem; padding: 12px 20px;
-          border-radius: 14px;
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+          .gi-modal-footer { padding-bottom: calc(22px + env(safe-area-inset-bottom)); }
         }
+
+        .gi-modal-save {
+          flex: 1;
+          background: linear-gradient(135deg, #f0d060 0%, #c9a227 50%, #9a7318 100%);
+          color: #1a1408; font-weight: 700; font-size: 1rem;
+          border: none; border-radius: 16px; cursor: pointer;
+          padding: 14px 20px;
+          box-shadow: 0 4px 18px rgba(184,134,11,0.38);
+          transition: filter 0.15s, transform 0.12s, box-shadow 0.15s;
+          display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .gi-modal-save:hover:not(:disabled) {
+          filter: brightness(1.06); transform: translateY(-1px);
+          box-shadow: 0 6px 24px rgba(184,134,11,0.48);
+        }
+        .gi-modal-save:active:not(:disabled) { transform: translateY(0); }
         .gi-modal-save:disabled { opacity: 0.5; cursor: default; }
+
+        .gi-modal-cancel {
+          padding: 14px 18px; border-radius: 16px; border: none; cursor: pointer;
+          background: transparent; color: #7a6540;
+          font-size: 0.95rem; font-weight: 600;
+          transition: color 0.15s, background 0.15s;
+        }
+        .gi-modal-cancel:hover { color: #dc2626; background: rgba(220,38,38,0.06); }
+
+        /* Edit modal specifics */
+        .gi-edit-modal-sheet { max-height: 94vh; }
       `}</style>
 
       {/* ── Quick-add competitor modal (bottom sheet) ─────────────────────── */}
@@ -2620,15 +2856,24 @@ export function GoldIndex({ formatMoney, toast }) {
                   </label>
                 </div>
 
-                {/* Address note */}
-                <label className="field">
-                  <span className="field-label">Адрес / комментарий</span>
-                  <input
-                    className="input" placeholder="ул. Ленина, 12 — уточните при необходимости"
-                    value={draft.notes || ''}
-                    onChange={(e) => setCompDraft(cityId, { notes: e.target.value })}
-                  />
-                </label>
+                <div className="gi-comp-edit-row">
+                  <label className="field" style={{ flex: 1.2 }}>
+                    <span className="field-label">Адрес точки</span>
+                    <input
+                      className="input" placeholder="ул. Ленина, 12"
+                      value={draft.address || ''}
+                      onChange={(e) => setCompDraft(cityId, { address: e.target.value })}
+                    />
+                  </label>
+                  <label className="field" style={{ flex: 1 }}>
+                    <span className="field-label">Комментарий</span>
+                    <input
+                      className="input" placeholder="Например: вход со двора, павильон 3, рядом с метро"
+                      value={draft.comment || ''}
+                      onChange={(e) => setCompDraft(cityId, { comment: e.target.value })}
+                    />
+                  </label>
+                </div>
 
                 {/* Probe prices */}
                 <div className="gi-modal-probes-label">Цены по пробам (₽/г)</div>
@@ -2675,6 +2920,113 @@ export function GoldIndex({ formatMoney, toast }) {
                 >
                   {quickModalSaving ? '⏳ Сохраняем...' : '✓ Сохранить точку'}
                 </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Edit competitor modal (bottom sheet) ──────────────────────────── */}
+      {editCompModal && editCompetitorDraft && (() => {
+        const cityId = editCompModalCityId;
+        const city = (data?.cities || []).find((c) => c.id === cityId);
+        const probes = cityId ? probeFieldsForCity(cityId).probes : (data?.probesSuggested || [585, 750, 916]);
+        return (
+          <div className="gi-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) cancelEditCompetitor(); }}>
+            <div className="gi-modal-sheet gi-edit-modal-sheet" onClick={(e) => e.stopPropagation()}>
+              <div className="gi-modal-header">
+                <div className="gi-modal-title-block">
+                  <div className="gi-modal-title">Редактировать конкурента</div>
+                  {city && <div className="gi-modal-subtitle">{city.city_name}{city.region_name ? ` · ${city.region_name}` : ''}</div>}
+                </div>
+                <button type="button" className="gi-modal-close" onClick={cancelEditCompetitor} aria-label="Закрыть">✕</button>
+              </div>
+              <div className="gi-modal-body">
+                {/* Company + date */}
+                <div className="gi-comp-edit-row">
+                  <label className="field" style={{ flex: 2 }}>
+                    <span className="field-label">Компания</span>
+                    <input className="input" value={editCompetitorDraft.company_name || ''}
+                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), company_name: e.target.value }))} />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Дата замера</span>
+                    <input className="input" type="date" value={editCompetitorDraft.measured_at || ''}
+                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), measured_at: e.target.value }))} />
+                  </label>
+                </div>
+                {/* Address + comment */}
+                <label className="field">
+                  <span className="field-label">Адрес точки</span>
+                  <input className="input" placeholder="ул. Ленина, 12"
+                    value={editCompetitorDraft.address || ''}
+                    onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), address: e.target.value }))} />
+                </label>
+                <label className="field">
+                  <span className="field-label">Комментарий</span>
+                  <input className="input" placeholder="Вход со двора, рядом с ТЦ"
+                    value={editCompetitorDraft.comment || ''}
+                    onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), comment: e.target.value }))} />
+                </label>
+                {/* Location */}
+                <div className="gi-loc-section">
+                  <div className="gi-loc-label">Местоположение точки</div>
+                  <div className="gi-loc-btns-row">
+                    <button type="button"
+                      className={`gi-loc-btn gi-loc-btn--gps${geolocBusy === 'edit' ? ' gi-loc-btn--busy' : ''}`}
+                      disabled={geolocBusy === 'edit'}
+                      onClick={() => useMyLocation({ type: 'edit' })}>
+                      <span className="gi-loc-btn-icon">📍</span>
+                      <span>{geolocBusy === 'edit' ? 'Определяем…' : 'Я здесь (GPS)'}</span>
+                    </button>
+                    <button type="button"
+                      className={`gi-loc-btn gi-loc-btn--map${compMapTarget?.mode === 'edit' ? ' gi-loc-btn--active' : ''}`}
+                      onClick={() => {
+                        setCompMapTarget((prev) => prev?.mode === 'edit' ? null : { cityId, mode: 'edit' });
+                        cancelEditCompetitor();
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}>
+                      <span className="gi-loc-btn-icon">🗺</span>
+                      <span>{compMapTarget?.mode === 'edit' ? 'Отмена' : 'Указать на карте'}</span>
+                    </button>
+                  </div>
+                  {(editCompetitorDraft.lat || editCompetitorDraft.lng) && (
+                    <div className="gi-loc-coords">
+                      <span className="gi-loc-coords-val">{editCompetitorDraft.lat}, {editCompetitorDraft.lng}</span>
+                      <button type="button" className="gi-loc-coords-clear"
+                        onClick={() => setEditCompetitorDraft((d) => ({ ...(d || {}), lat: '', lng: '' }))}>✕</button>
+                    </div>
+                  )}
+                  <div className="gi-loc-manual-row">
+                    <input className="input mono-nums" placeholder="Широта" inputMode="decimal" style={{ flex: 1 }}
+                      value={editCompetitorDraft.lat || ''}
+                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), lat: e.target.value }))} />
+                    <input className="input mono-nums" placeholder="Долгота" inputMode="decimal" style={{ flex: 1 }}
+                      value={editCompetitorDraft.lng || ''}
+                      onChange={(e) => setEditCompetitorDraft((d) => ({ ...(d || {}), lng: e.target.value }))} />
+                  </div>
+                </div>
+                {/* Probes */}
+                <div className="gi-loc-label" style={{ marginTop: 12 }}>Цены по пробам</div>
+                <div className="gold-index__probe-grid">
+                  {probes.map((pb) => (
+                    <label key={pb} className="field">
+                      <span className="field-label">{pb} ₽/г</span>
+                      <input className="input mono-nums" inputMode="decimal" placeholder="0"
+                        value={editCompetitorDraft.probes?.[pb] ?? ''}
+                        onChange={(e) => setEditCompetitorDraft((d) => ({
+                          ...(d || {}), probes: { ...(d?.probes || {}), [pb]: e.target.value },
+                        }))} />
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="gi-modal-footer">
+                <button type="button" className="gi-modal-save"
+                  onClick={() => saveCompetitor(cityId, editingCompetitorId)}>
+                  Сохранить
+                </button>
+                <button type="button" className="gi-modal-cancel" onClick={cancelEditCompetitor}>Отмена</button>
               </div>
             </div>
           </div>
