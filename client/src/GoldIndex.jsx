@@ -170,12 +170,19 @@ export function GoldIndex({ formatMoney, toast }) {
   const quickModalBodyRef = useRef(null);
   const modalOpenRef = useRef(false);
 
+  // ── Create-city modal (shown when "Это здесь" can't auto-resolve a city) ──
+  // null | { lat, lng, prefillCityName, prefillRegionName }
+  const [createCityModal, setCreateCityModal] = useState(null);
+  const [createCityDraft, setCreateCityDraft] = useState({ city_name: '', region_name: '' });
+  const [createCitySaving, setCreateCitySaving] = useState(false);
+  const [createCityClosing, setCreateCityClosing] = useState(false);
+
   const isTouchUi = useMemo(
     () => typeof window !== 'undefined' && (('ontouchstart' in window) || navigator.maxTouchPoints > 0),
     []
   );
 
-  const anyModalOpen = Boolean(quickAddModal || editCompModal);
+  const anyModalOpen = Boolean(quickAddModal || editCompModal || createCityModal);
 
   // Hard scroll-lock the page while a modal is open. Keeps background fully
   // fixed on iOS/Android so it never "shows through" the overlay.
@@ -900,12 +907,8 @@ export function GoldIndex({ formatMoney, toast }) {
         setCompDraft(match.id, { lat, lng });
         setQuickModalClosing(false);
         setQuickAddModal({ cityId: match.id, cityName: match.city_name, regionName: match.region_name, lat, lng });
-      } else {
-        if (!geo?.city || !geo?.region) {
-          const e = new Error('Сервис геокодирования временно недоступен. Выберите точку ближе к известному городу или добавьте город вручную.');
-          e.status = 502;
-          throw e;
-        }
+      } else if (geo?.city && geo?.region) {
+        // Geocoder gave us a clear city — create it silently and open quick-add.
         const cityName = geo.city;
         const regionMatch = cities.find((c) => norm(c.region_name) === norm(geo.region));
         toast(`Создаём город «${cityName}»...`, 'success');
@@ -921,11 +924,89 @@ export function GoldIndex({ formatMoney, toast }) {
         setCompDraft(newCityId, { lat, lng });
         setQuickModalClosing(false);
         setQuickAddModal({ cityId: newCityId, cityName, regionName: geo.region || '', lat, lng });
+      } else {
+        // Nothing matched and geocoder is incomplete/down → ask the user to
+        // either create a new city right here, or pick an existing one.
+        setCreateCityDraft({
+          city_name: geo?.city || '',
+          region_name: geo?.region || '',
+        });
+        setCreateCityClosing(false);
+        setCreateCityModal({
+          lat, lng,
+          prefillCityName: geo?.city || '',
+          prefillRegionName: geo?.region || '',
+        });
       }
     } catch (e2) {
       toast(e2?.message || 'Ошибка', 'error');
     } finally {
       setQuickDragConfirmBusy(false);
+    }
+  }
+
+  // ── Create-city modal helpers ────────────────────────────────────────────
+  function closeCreateCityModal(animated = true) {
+    if (animated) {
+      setCreateCityClosing(true);
+      setTimeout(() => {
+        setCreateCityModal(null);
+        setCreateCityClosing(false);
+        setCreateCityDraft({ city_name: '', region_name: '' });
+      }, 160);
+    } else {
+      setCreateCityModal(null);
+      setCreateCityClosing(false);
+      setCreateCityDraft({ city_name: '', region_name: '' });
+    }
+  }
+
+  /** User chose an existing city from the dropdown — open quick-add for it. */
+  function pickExistingCityFromCreateModal(cityId) {
+    const city = (data?.cities || []).find((c) => c.id === cityId);
+    if (!city || !createCityModal) return;
+    const { lat, lng } = createCityModal;
+    closeCreateCityModal(false);
+    setCompDraft(city.id, { lat, lng });
+    setQuickModalClosing(false);
+    setQuickAddModal({
+      cityId: city.id,
+      cityName: city.city_name,
+      regionName: city.region_name,
+      lat, lng,
+    });
+  }
+
+  /** User filled the new city form and confirmed — create + open quick-add. */
+  async function submitCreateCityFromModal() {
+    if (!createCityModal) return;
+    const cityName = (createCityDraft.city_name || '').trim();
+    const regionName = (createCityDraft.region_name || '').trim();
+    if (!cityName) { toast('Укажите название города', 'error'); return; }
+    if (!regionName) { toast('Укажите регион', 'error'); return; }
+    const { lat, lng } = createCityModal;
+    setCreateCitySaving(true);
+    try {
+      const norm = (s) => (s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+      const cities = data?.cities || [];
+      const regionMatch = cities.find((c) => norm(c.region_name) === norm(regionName));
+      const { id: newCityId } = await api.goldIndexCreateCity({
+        city_name: cityName,
+        region_name: regionName,
+        region_code: regionMatch?.region_code || regionName,
+        lat: parseFloat(lat),
+        lng: parseFloat(lng),
+      });
+      await load();
+      toast(`Город «${cityName}» создан`, 'success');
+      closeCreateCityModal(false);
+      setCompDraft(newCityId, { lat, lng });
+      setQuickModalClosing(false);
+      setQuickAddModal({ cityId: newCityId, cityName, regionName, lat, lng });
+    } catch (err) {
+      toast(err?.message || 'Не удалось создать город', 'error');
+    } finally {
+      setCreateCitySaving(false);
     }
   }
 
@@ -3268,6 +3349,124 @@ export function GoldIndex({ formatMoney, toast }) {
                   {editModalSaving ? '⏳ Сохраняем...' : 'Сохранить'}
                 </button>
                 <button type="button" className="gi-modal-cancel" onClick={() => cancelEditCompetitor()} disabled={editModalSaving}>Отмена</button>
+              </div>
+            </div>
+          </div>
+        );
+      })(), document.body)}
+
+      {/* ── Create-city modal (shown when "Это здесь" couldn't auto-detect) ── */}
+      {createCityModal && createPortal((() => {
+        const { lat, lng } = createCityModal;
+        const allCities = data?.cities || [];
+        return (
+          <div
+            className="gi-modal-overlay"
+            onClick={(e) => { if (e.target === e.currentTarget && !createCitySaving) closeCreateCityModal(); }}
+          >
+            <div className={`gi-modal-sheet gi-edit-modal-sheet${createCityClosing ? ' gi-modal-sheet--closing' : ''}`}
+              onClick={(e) => e.stopPropagation()}>
+              <div className="gi-modal-header">
+                <div className="gi-modal-title-block">
+                  <div className="gi-modal-title">Город не найден</div>
+                  <div className="gi-modal-subtitle">{parseFloat(lat).toFixed(4)}, {parseFloat(lng).toFixed(4)}</div>
+                </div>
+                <button type="button" className="gi-modal-close"
+                  onClick={() => closeCreateCityModal()}
+                  disabled={createCitySaving}>✕</button>
+              </div>
+
+              <div className="gi-modal-body">
+                <div style={{
+                  padding: '12px 14px',
+                  background: 'rgba(184,134,11,0.08)',
+                  border: '1px solid rgba(184,134,11,0.25)',
+                  borderRadius: 12,
+                  color: '#5c4310',
+                  fontSize: 13.5,
+                  lineHeight: 1.45,
+                }}>
+                  Не удалось автоматически определить город по этой точке.
+                  Создайте новый город или выберите существующий — мы сразу же откроем форму добавления точки.
+                </div>
+
+                {/* New city form */}
+                <div style={{ marginTop: 6 }}>
+                  <div className="gi-loc-label" style={{ marginBottom: 8 }}>Создать новый город</div>
+                  <div className="gi-comp-edit-row">
+                    <label className="field" style={{ flex: 1.4 }}>
+                      <span className="field-label">Название города *</span>
+                      <input className="input" autoFocus={!isTouchUi} placeholder="Калининград"
+                        value={createCityDraft.city_name}
+                        onChange={(e) => setCreateCityDraft((d) => ({ ...d, city_name: e.target.value }))} />
+                    </label>
+                    <label className="field" style={{ flex: 1.4 }}>
+                      <span className="field-label">Регион *</span>
+                      <input className="input" placeholder="Калининградская область"
+                        list="gi-create-city-regions"
+                        value={createCityDraft.region_name}
+                        onChange={(e) => setCreateCityDraft((d) => ({ ...d, region_name: e.target.value }))} />
+                      <datalist id="gi-create-city-regions">
+                        {[...new Set(allCities.map((c) => c.region_name).filter(Boolean))]
+                          .sort((a, b) => a.localeCompare(b, 'ru'))
+                          .map((r) => <option key={r} value={r} />)}
+                      </datalist>
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-primary gi-modal-save"
+                    style={{ marginTop: 10, width: '100%' }}
+                    disabled={createCitySaving || !createCityDraft.city_name.trim() || !createCityDraft.region_name.trim()}
+                    onClick={submitCreateCityFromModal}
+                  >
+                    {createCitySaving ? '⏳ Создаём...' : '✓ Создать город и добавить точку'}
+                  </button>
+                </div>
+
+                {/* Or pick an existing one */}
+                {allCities.length > 0 && (
+                  <div style={{ marginTop: 18 }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      color: 'rgba(28,24,20,0.45)', fontSize: 12, marginBottom: 10,
+                    }}>
+                      <div style={{ flex: 1, height: 1, background: 'rgba(140,110,40,0.18)' }} />
+                      <span>или</span>
+                      <div style={{ flex: 1, height: 1, background: 'rgba(140,110,40,0.18)' }} />
+                    </div>
+                    <div className="gi-loc-label" style={{ marginBottom: 8 }}>Выбрать существующий город</div>
+                    <select
+                      className="input"
+                      defaultValue=""
+                      disabled={createCitySaving}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        if (id) pickExistingCityFromCreateModal(id);
+                      }}
+                    >
+                      <option value="" disabled>— выберите город из базы —</option>
+                      {[...allCities]
+                        .sort((a, b) => (a.city_name || '').localeCompare(b.city_name || '', 'ru'))
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.city_name}{c.region_name ? ` · ${c.region_name}` : ''}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="gi-modal-footer">
+                <button
+                  type="button"
+                  className="btn-ghost small gi-modal-cancel"
+                  onClick={() => closeCreateCityModal()}
+                  disabled={createCitySaving}
+                >
+                  Отмена
+                </button>
               </div>
             </div>
           </div>
