@@ -158,10 +158,13 @@ export function GoldIndex({ formatMoney, toast }) {
   const [quickAddModal, setQuickAddModal] = useState(null);
   // null | { cityId, cityName, regionName, lat, lng }
   const [quickModalSaving, setQuickModalSaving] = useState(false);
+  const [quickModalClosing, setQuickModalClosing] = useState(false);
   const [highlightCompId, setHighlightCompId] = useState(null);
   // Edit competitor modal
   const [editCompModal, setEditCompModal] = useState(false);
   const [editCompModalCityId, setEditCompModalCityId] = useState(null);
+  const [editModalSaving, setEditModalSaving] = useState(false);
+  const [editModalClosing, setEditModalClosing] = useState(false);
   const editModalBodyRef = useRef(null);
   const quickModalBodyRef = useRef(null);
   const modalOpenRef = useRef(false);
@@ -173,16 +176,18 @@ export function GoldIndex({ formatMoney, toast }) {
 
   const anyModalOpen = Boolean(quickAddModal || editCompModal);
 
-  // Lock page scroll while a bottom sheet is open (prevents background jump on iOS)
+  // Hard scroll-lock the page while a modal is open. Keeps background fully
+  // fixed on iOS/Android so it never "shows through" the overlay.
   useEffect(() => {
     if (!anyModalOpen) {
       document.body.classList.remove('gi-modal-open');
       document.documentElement.style.removeProperty('--gi-vv-bottom');
       return undefined;
     }
-    const scrollY = window.scrollY;
+    const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
     document.body.classList.add('gi-modal-open');
     document.body.style.top = `-${scrollY}px`;
+
     const onVvResize = () => {
       const vv = window.visualViewport;
       if (!vv) return;
@@ -192,6 +197,7 @@ export function GoldIndex({ formatMoney, toast }) {
     onVvResize();
     window.visualViewport?.addEventListener('resize', onVvResize);
     window.visualViewport?.addEventListener('scroll', onVvResize);
+
     return () => {
       window.visualViewport?.removeEventListener('resize', onVvResize);
       window.visualViewport?.removeEventListener('scroll', onVvResize);
@@ -888,6 +894,7 @@ export function GoldIndex({ formatMoney, toast }) {
           toast(`Геокодер недоступен — выбрали ближайший город: ${match.city_name}`, 'success');
         }
         setCompDraft(match.id, { lat, lng });
+        setQuickModalClosing(false);
         setQuickAddModal({ cityId: match.id, cityName: match.city_name, regionName: match.region_name, lat, lng });
       } else {
         if (!geo?.city || !geo?.region) {
@@ -908,6 +915,7 @@ export function GoldIndex({ formatMoney, toast }) {
         });
         await load();
         setCompDraft(newCityId, { lat, lng });
+        setQuickModalClosing(false);
         setQuickAddModal({ cityId: newCityId, cityName, regionName: geo.region || '', lat, lng });
       }
     } catch (e2) {
@@ -1168,6 +1176,7 @@ export function GoldIndex({ formatMoney, toast }) {
   }
 
   function startEditCompetitor(co, cityId) {
+    setEditModalClosing(false);
     setEditingCompetitorId(co.id);
     setEditCompModalCityId(cityId || null);
     setEditCompetitorDraft({
@@ -1183,15 +1192,42 @@ export function GoldIndex({ formatMoney, toast }) {
     setEditCompModal(true);
   }
 
-  function cancelEditCompetitor() {
-    setEditCompModal(false);
-    setEditingCompetitorId(null);
-    setEditCompetitorDraft(null);
-    setEditCompModalCityId(null);
+  function closeQuickAddModal(animated = true) {
+    if (!quickAddModal) return;
+    if (!animated) {
+      setQuickModalClosing(false);
+      setQuickAddModal(null);
+      return;
+    }
+    setQuickModalClosing(true);
+    setTimeout(() => {
+      setQuickModalClosing(false);
+      setQuickAddModal(null);
+    }, 180);
+  }
+
+  function cancelEditCompetitor(animated = true) {
+    if (!animated) {
+      setEditModalClosing(false);
+      setEditCompModal(false);
+      setEditingCompetitorId(null);
+      setEditCompetitorDraft(null);
+      setEditCompModalCityId(null);
+      return;
+    }
+    setEditModalClosing(true);
+    setTimeout(() => {
+      setEditModalClosing(false);
+      setEditCompModal(false);
+      setEditingCompetitorId(null);
+      setEditCompetitorDraft(null);
+      setEditCompModalCityId(null);
+    }, 180);
   }
 
   async function saveCompetitor(cityId, competitorId) {
     if (!editCompetitorDraft) return;
+    setEditModalSaving(true);
     try {
       await api.goldIndexUpdateCompetitor(competitorId, {
         company_name: editCompetitorDraft.company_name,
@@ -1205,15 +1241,17 @@ export function GoldIndex({ formatMoney, toast }) {
       });
       toast('Конкурент обновлён', 'success');
       const savedId = competitorId;
-      cancelEditCompetitor();
       await load();
       await loadCityHistory(cityId);
+      cancelEditCompetitor(true);
       setExpanded((prev) => { const n = new Set(prev); n.add(cityId); return n; });
       setTimeout(() => {
         document.getElementById(`gi-comp-${savedId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 300);
     } catch (e) {
       toast(e?.message || 'Ошибка', 'error');
+    } finally {
+      setEditModalSaving(false);
     }
   }
 
@@ -2671,27 +2709,6 @@ export function GoldIndex({ formatMoney, toast }) {
             line-height: 1.35;
           }
 
-          /* Bottom sheet mobile layout */
-          .gi-modal-sheet {
-            max-height: 94vh;
-            border-radius: 20px 20px 0 0;
-          }
-          .gi-modal-header { padding: 14px 14px 10px; }
-          .gi-modal-city { font-size: 1.05rem; }
-          .gi-modal-region { font-size: 0.75rem; }
-          .gi-modal-body { padding: 12px 14px; gap: 8px; }
-          .gi-modal-footer {
-            padding: 10px 14px calc(14px + env(safe-area-inset-bottom));
-            flex-direction: column-reverse;
-            align-items: stretch;
-          }
-          .gi-modal-footer .btn-ghost.small,
-          .gi-modal-save {
-            width: 100%;
-            max-width: none;
-            min-height: 46px;
-          }
-
           /* History row */
           .gi-history-row { flex-wrap: wrap; gap: 4px; }
           .gi-history-who { white-space: normal; min-width: 0; }
@@ -2711,25 +2728,24 @@ export function GoldIndex({ formatMoney, toast }) {
           .gi-modal-close { width: 34px; height: 34px; }
         }
 
-        /* Page scroll lock while modal open (class toggled on body via JS) */
+        /* Hard scroll-lock: position: fixed keeps background visually frozen on iOS/Android */
         body.gi-modal-open {
-          overflow: hidden;
           position: fixed;
-          width: 100%;
           left: 0;
           right: 0;
-          touch-action: none;
+          width: 100%;
+          overflow: hidden;
         }
 
-        /* ── Bottom sheet modal — shared ───────────────────────────────────── */
+        /* ── Centered modal — shared ───────────────────────────────────────── */
         .gi-modal-overlay {
           position: fixed; inset: 0; z-index: 9000;
           background: rgba(6,4,2,0.62);
           -webkit-backdrop-filter: blur(4px);
           backdrop-filter: blur(4px);
-          display: flex; align-items: flex-end; justify-content: center;
+          display: flex; align-items: center; justify-content: center;
+          padding: 14px;
           animation: gi-overlay-in 0.22s ease;
-          touch-action: none;
           overscroll-behavior: contain;
         }
         @keyframes gi-overlay-in { from { opacity: 0; } to { opacity: 1; } }
@@ -2746,16 +2762,26 @@ export function GoldIndex({ formatMoney, toast }) {
           --gold-soft: rgba(184,134,11,0.1);
           color-scheme: light;
 
-          width: 100%; max-width: 560px;
+          width: min(680px, 100%);
           background: #faf8f4;
-          border-radius: 24px 24px 0 0;
+          border-radius: 24px;
           box-shadow: 0 -4px 0 rgba(232,197,71,0.25), 0 -12px 50px rgba(0,0,0,0.32);
           display: flex; flex-direction: column;
-          max-height: min(92dvh, 92vh);
-          animation: gi-sheet-in 0.32s cubic-bezier(0.32,0.72,0,1);
+          max-height: min(90dvh, 820px);
+          animation: gi-sheet-in 0.24s cubic-bezier(0.2,0.8,0.2,1);
           will-change: transform;
         }
-        @keyframes gi-sheet-in { from { transform: translateY(105%); } to { transform: translateY(0); } }
+        @keyframes gi-sheet-in {
+          from { transform: translateY(12px) scale(0.985); opacity: 0; }
+          to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .gi-modal-sheet--closing {
+          animation: gi-sheet-out 0.18s ease forwards;
+        }
+        @keyframes gi-sheet-out {
+          from { transform: translateY(0) scale(1); opacity: 1; }
+          to { transform: translateY(8px) scale(0.99); opacity: 0; }
+        }
 
         /* Drag handle */
         .gi-modal-sheet::before {
@@ -2794,6 +2820,7 @@ export function GoldIndex({ formatMoney, toast }) {
           -webkit-overflow-scrolling: touch;
           overscroll-behavior: contain;
           min-height: 0;
+          touch-action: pan-y;
         }
 
         /* All inputs inside modal — explicit light styling, overrides dark theme & WebKit */
@@ -2929,19 +2956,67 @@ export function GoldIndex({ formatMoney, toast }) {
         /* Edit modal specifics */
         .gi-edit-modal-sheet { max-height: min(94dvh, 94vh); }
 
-        @media (max-width: 600px) {
-          .gi-drag-confirm-panel {
-            left: 10px; right: 10px; max-width: none; bottom: 10px;
-            padding: 14px 16px;
+        /* ── Mobile: modal becomes a true full-screen sheet ─────────────────── */
+        @media (max-width: 700px) {
+          .gi-modal-overlay {
+            align-items: stretch;
+            justify-content: stretch;
+            padding: 0;
+            background: rgba(6,4,2,0.55);
           }
-          .gi-drag-confirm-ok { min-height: 48px; font-size: 15px; }
-          .gi-drag-confirm-cancel { width: 48px; height: 48px; flex-shrink: 0; }
+          .gi-modal-sheet,
+          .gi-edit-modal-sheet {
+            width: 100vw;
+            max-width: 100vw;
+            height: 100vh;     /* fallback */
+            height: 100dvh;
+            max-height: 100vh;
+            max-height: 100dvh;
+            border-radius: 0;
+            box-shadow: none;
+            animation: gi-sheet-in-mobile 0.22s ease;
+          }
+          @keyframes gi-sheet-in-mobile {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+          }
+          .gi-modal-sheet--closing {
+            animation: gi-sheet-out-mobile 0.16s ease forwards;
+          }
+          @keyframes gi-sheet-out-mobile {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(12px); opacity: 0; }
+          }
+          .gi-modal-sheet::before { display: none; }
+
+          .gi-modal-header {
+            padding: 14px 16px 12px;
+            position: sticky; top: 0;
+            background: #faf8f4;
+            z-index: 2;
+          }
+          .gi-modal-city { font-size: 1.05rem; }
+          .gi-modal-region { font-size: 0.75rem; }
+          .gi-modal-title { font-size: 1rem; }
+          .gi-modal-subtitle { font-size: 0.75rem; }
+
+          .gi-modal-body {
+            padding: 14px 16px 16px;
+            gap: 10px;
+            flex: 1 1 auto;
+          }
           .gi-modal-body .gi-comp-edit-row { flex-direction: column; }
           .gi-modal-body .gi-comp-edit-row .field { min-width: 0; width: 100%; }
+
           .gi-modal-footer {
-            flex-direction: column-reverse;
+            position: sticky; bottom: 0;
+            background: #faf8f4;
+            padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px) + var(--gi-vv-bottom, 0px));
+            flex-direction: column;
             align-items: stretch;
             gap: 8px;
+            z-index: 2;
+            box-shadow: 0 -8px 16px -8px rgba(0,0,0,0.06);
           }
           .gi-modal-save,
           .gi-modal-cancel,
@@ -2950,6 +3025,13 @@ export function GoldIndex({ formatMoney, toast }) {
             max-width: none;
             min-height: 48px;
           }
+
+          .gi-drag-confirm-panel {
+            left: 10px; right: 10px; max-width: none; bottom: 10px;
+            padding: 14px 16px;
+          }
+          .gi-drag-confirm-ok { min-height: 48px; font-size: 15px; }
+          .gi-drag-confirm-cancel { width: 48px; height: 48px; flex-shrink: 0; }
         }
       `}</style>
 
@@ -2959,15 +3041,15 @@ export function GoldIndex({ formatMoney, toast }) {
         const draft = compDraftByCity[cityId] || {};
         const probes = data?.probesSuggested || [585, 750, 916];
         return (
-          <div className="gi-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget && !quickModalSaving) setQuickAddModal(null); }}>
-            <div className="gi-modal-sheet">
+          <div className="gi-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget && !quickModalSaving) closeQuickAddModal(); }}>
+            <div className={`gi-modal-sheet${quickModalClosing ? ' gi-modal-sheet--closing' : ''}`}>
               {/* Header */}
               <div className="gi-modal-header">
                 <div>
                   <div className="gi-modal-city">{cityName}</div>
                   <div className="gi-modal-region">{regionName} · {parseFloat(lat).toFixed(4)}, {parseFloat(lng).toFixed(4)}</div>
                 </div>
-                <button className="gi-modal-close" onClick={() => setQuickAddModal(null)} disabled={quickModalSaving}>✕</button>
+                <button className="gi-modal-close" onClick={() => closeQuickAddModal()} disabled={quickModalSaving}>✕</button>
               </div>
 
               {/* Body */}
@@ -3031,7 +3113,7 @@ export function GoldIndex({ formatMoney, toast }) {
               <div className="gi-modal-footer">
                 <button
                   className="btn-ghost small"
-                  onClick={() => setQuickAddModal(null)}
+                  onClick={() => closeQuickAddModal()}
                   disabled={quickModalSaving}
                 >
                   Отмена
@@ -3043,7 +3125,7 @@ export function GoldIndex({ formatMoney, toast }) {
                     setQuickModalSaving(true);
                     try {
                       await submitCompetitor(cityId);
-                      setQuickAddModal(null);
+                      closeQuickAddModal();
                       // Also expand the city card
                       setExpanded((prev) => { const n = new Set(prev); n.add(cityId); return n; });
                       setTimeout(() => {
@@ -3068,14 +3150,14 @@ export function GoldIndex({ formatMoney, toast }) {
         const city = (data?.cities || []).find((c) => c.id === cityId);
         const probes = cityId ? probeFieldsForCity(cityId).probes : (data?.probesSuggested || [585, 750, 916]);
         return (
-          <div className="gi-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) cancelEditCompetitor(); }}>
-            <div className="gi-modal-sheet gi-edit-modal-sheet" onClick={(e) => e.stopPropagation()}>
+          <div className="gi-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget && !editModalSaving) cancelEditCompetitor(); }}>
+            <div className={`gi-modal-sheet gi-edit-modal-sheet${editModalClosing ? ' gi-modal-sheet--closing' : ''}`} onClick={(e) => e.stopPropagation()}>
               <div className="gi-modal-header">
                 <div className="gi-modal-title-block">
                   <div className="gi-modal-title">Редактировать конкурента</div>
                   {city && <div className="gi-modal-subtitle">{city.city_name}{city.region_name ? ` · ${city.region_name}` : ''}</div>}
                 </div>
-                <button type="button" className="gi-modal-close" onClick={cancelEditCompetitor} aria-label="Закрыть">✕</button>
+                <button type="button" className="gi-modal-close" onClick={() => cancelEditCompetitor()} aria-label="Закрыть" disabled={editModalSaving}>✕</button>
               </div>
               <div ref={editModalBodyRef} className="gi-modal-body">
                 {/* Company + date */}
@@ -3161,10 +3243,11 @@ export function GoldIndex({ formatMoney, toast }) {
               </div>
               <div className="gi-modal-footer">
                 <button type="button" className="gi-modal-save"
+                  disabled={editModalSaving || !editCompetitorDraft?.company_name?.trim()}
                   onClick={() => saveCompetitor(cityId, editingCompetitorId)}>
-                  Сохранить
+                  {editModalSaving ? '⏳ Сохраняем...' : 'Сохранить'}
                 </button>
-                <button type="button" className="gi-modal-cancel" onClick={cancelEditCompetitor}>Отмена</button>
+                <button type="button" className="gi-modal-cancel" onClick={() => cancelEditCompetitor()} disabled={editModalSaving}>Отмена</button>
               </div>
             </div>
           </div>
