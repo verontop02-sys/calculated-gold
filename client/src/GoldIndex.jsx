@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
@@ -3055,7 +3056,7 @@ export function GoldIndex({ formatMoney, toast }) {
       `}</style>
 
       {/* ── Quick-add competitor modal (bottom sheet) ─────────────────────── */}
-      {quickAddModal && (() => {
+      {quickAddModal && createPortal((() => {
         const { cityId, cityName, regionName, lat, lng } = quickAddModal;
         const draft = compDraftByCity[cityId] || {};
         const probes = data?.probesSuggested || [585, 750, 916];
@@ -3161,10 +3162,10 @@ export function GoldIndex({ formatMoney, toast }) {
             </div>
           </div>
         );
-      })()}
+      })(), document.body)}
 
       {/* ── Edit competitor modal (bottom sheet) ──────────────────────────── */}
-      {editCompModal && editCompetitorDraft && (() => {
+      {editCompModal && editCompetitorDraft && createPortal((() => {
         const cityId = editCompModalCityId;
         const city = (data?.cities || []).find((c) => c.id === cityId);
         const probes = cityId ? probeFieldsForCity(cityId).probes : (data?.probesSuggested || [585, 750, 916]);
@@ -3271,7 +3272,7 @@ export function GoldIndex({ formatMoney, toast }) {
             </div>
           </div>
         );
-      })()}
+      })(), document.body)}
     </section>
   );
 }
