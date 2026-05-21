@@ -162,6 +162,59 @@ export function GoldIndex({ formatMoney, toast }) {
   // Edit competitor modal
   const [editCompModal, setEditCompModal] = useState(false);
   const [editCompModalCityId, setEditCompModalCityId] = useState(null);
+  const editModalBodyRef = useRef(null);
+  const quickModalBodyRef = useRef(null);
+  const modalOpenRef = useRef(false);
+
+  const isTouchUi = useMemo(
+    () => typeof window !== 'undefined' && (('ontouchstart' in window) || navigator.maxTouchPoints > 0),
+    []
+  );
+
+  const anyModalOpen = Boolean(quickAddModal || editCompModal);
+
+  // Lock page scroll while a bottom sheet is open (prevents background jump on iOS)
+  useEffect(() => {
+    if (!anyModalOpen) {
+      document.body.classList.remove('gi-modal-open');
+      document.documentElement.style.removeProperty('--gi-vv-bottom');
+      return undefined;
+    }
+    const scrollY = window.scrollY;
+    document.body.classList.add('gi-modal-open');
+    document.body.style.top = `-${scrollY}px`;
+    const onVvResize = () => {
+      const vv = window.visualViewport;
+      if (!vv) return;
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty('--gi-vv-bottom', `${inset}px`);
+    };
+    onVvResize();
+    window.visualViewport?.addEventListener('resize', onVvResize);
+    window.visualViewport?.addEventListener('scroll', onVvResize);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', onVvResize);
+      window.visualViewport?.removeEventListener('scroll', onVvResize);
+      document.body.classList.remove('gi-modal-open');
+      document.body.style.top = '';
+      document.documentElement.style.removeProperty('--gi-vv-bottom');
+      window.scrollTo(0, scrollY);
+    };
+  }, [anyModalOpen]);
+
+  // Reset modal scroll position when opened
+  useEffect(() => {
+    if (!anyModalOpen) {
+      modalOpenRef.current = false;
+      return;
+    }
+    if (modalOpenRef.current) return;
+    modalOpenRef.current = true;
+    requestAnimationFrame(() => {
+      editModalBodyRef.current?.scrollTo(0, 0);
+      quickModalBodyRef.current?.scrollTo(0, 0);
+    });
+  }, [anyModalOpen, editCompModal, quickAddModal]);
 
   const load = useCallback(async () => {
     setErr('');
@@ -506,18 +559,8 @@ export function GoldIndex({ formatMoney, toast }) {
           btn.onmouseleave = () => { btn.style.opacity = '1'; };
           btn.onclick = () => {
             coMk.closePopup();
-            setExpanded((prev) => new Set(prev).add(c.id));
             startEditCompetitor(co, c.id);
             setHighlightCompId(co.id);
-            // Wait for city to expand and competitor card to render, then scroll directly to it
-            setTimeout(() => {
-              const compEl = document.getElementById(`gi-comp-${co.id}`);
-              if (compEl) {
-                compEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              } else {
-                document.getElementById(`gi-city-${c.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }
-            }, 220);
             setTimeout(() => {
               setHighlightCompId((prev) => (prev === co.id ? null : prev));
             }, 2400);
@@ -601,13 +644,18 @@ export function GoldIndex({ formatMoney, toast }) {
         }));
       } else if (mode === 'edit') {
         setEditCompetitorDraft((d) => ({ ...(d || {}), lat: latStr, lng: lngStr }));
+        setEditCompModal(true);
+        setTimeout(() => {
+          document.querySelector('.gold-index__map-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 120);
       }
       setCompMapTarget(null);
       if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
-      // Scroll back to city card
-      setTimeout(() => {
-        document.getElementById(`gi-city-${cityId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 200);
+      if (mode === 'new') {
+        setTimeout(() => {
+          document.getElementById(`gi-city-${cityId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 200);
+      }
     }
     window.addEventListener('gi:map-click-comp', onMapClickComp);
     return () => {
@@ -781,6 +829,7 @@ export function GoldIndex({ formatMoney, toast }) {
     const m = mapInstRef.current;
     if (m && m._quickAddTapHandler) {
       m.off('click', m._quickAddTapHandler);
+      m.off('touchend', m._quickAddTapHandler);
       m._quickAddTapHandler = null;
     }
     if (quickDragMarkerRef.current) {
@@ -798,23 +847,61 @@ export function GoldIndex({ formatMoney, toast }) {
     const lng = pos.lng.toFixed(6);
     setQuickDragConfirmBusy(true);
     try {
-      const geo = await api.goldIndexReverseGeocode({ lat, lng });
       const norm = (s) => (s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
       const cities = data?.cities || [];
-      const cityNorm = norm(geo.city);
-      const match = cityNorm ? cities.find((c) => norm(c.city_name) === cityNorm) : null;
+
+      // 1) Try reverse geocoder, but keep quick-add usable even when geocoder is down.
+      let geo = null;
+      try {
+        geo = await api.goldIndexReverseGeocode({ lat, lng });
+      } catch {
+        geo = null;
+      }
+
+      // 2) Prefer exact city match from reverse geocoder.
+      const cityNorm = norm(geo?.city);
+      let match = cityNorm ? cities.find((c) => norm(c.city_name) === cityNorm) : null;
+
+      // 3) If no city from geocoder, fall back to nearest existing city by coords.
+      if (!match && cities.length) {
+        const latN = parseFloat(lat);
+        const lngN = parseFloat(lng);
+        let nearest = null;
+        let minD = Infinity;
+        for (const c of cities) {
+          const clat = parseFloat(c.lat);
+          const clng = parseFloat(c.lng);
+          if (!Number.isFinite(clat) || !Number.isFinite(clng)) continue;
+          const d = Math.hypot(clat - latN, clng - lngN);
+          if (d < minD) {
+            minD = d;
+            nearest = c;
+          }
+        }
+        // threshold ~55km in rough degrees; prevents random far city bind
+        if (nearest && minD <= 0.5) match = nearest;
+      }
+
       cancelQuickDrag();
       if (match) {
+        if (!geo?.city) {
+          toast(`Геокодер недоступен — выбрали ближайший город: ${match.city_name}`, 'success');
+        }
         setCompDraft(match.id, { lat, lng });
         setQuickAddModal({ cityId: match.id, cityName: match.city_name, regionName: match.region_name, lat, lng });
       } else {
-        const cityName = geo.city || 'Новый город';
+        if (!geo?.city || !geo?.region) {
+          const e = new Error('Сервис геокодирования временно недоступен. Выберите точку ближе к известному городу или добавьте город вручную.');
+          e.status = 502;
+          throw e;
+        }
+        const cityName = geo.city;
         const regionMatch = cities.find((c) => norm(c.region_name) === norm(geo.region));
         toast(`Создаём город «${cityName}»...`, 'success');
         const { id: newCityId } = await api.goldIndexCreateCity({
           city_name: cityName,
-          region_name: geo.region || '',
-          region_code: regionMatch?.region_code || '',
+          region_name: geo.region,
+          region_code: regionMatch?.region_code || geo.region,
           lat: parseFloat(lat),
           lng: parseFloat(lng),
           geocoded_label: geo.displayName || null,
@@ -867,7 +954,9 @@ export function GoldIndex({ formatMoney, toast }) {
             iconSize: [36, 54], iconAnchor: [18, 54],
           });
           const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-          const marker = L.marker([lat, lng], { icon, draggable: !isTouchDevice }).addTo(m);
+          // Keep dragging enabled on touch too; some mobile browsers support it reliably.
+          // Tap-to-move remains as a fallback.
+          const marker = L.marker([lat, lng], { icon, draggable: true }).addTo(m);
           quickDragMarkerRef.current = marker;
           // On touch devices (iOS/Safari) drag doesn't work reliably —
           // let user tap the map to reposition the marker instead
@@ -876,6 +965,7 @@ export function GoldIndex({ formatMoney, toast }) {
               marker.setLatLng(e.latlng);
             };
             m.on('click', m._quickAddTapHandler);
+            m.on('touchend', m._quickAddTapHandler);
           }
           setQuickDragActive(true);
           const hint = isTouchDevice
@@ -1114,9 +1204,14 @@ export function GoldIndex({ formatMoney, toast }) {
         lng: editCompetitorDraft.lng || null,
       });
       toast('Конкурент обновлён', 'success');
+      const savedId = competitorId;
       cancelEditCompetitor();
       await load();
       await loadCityHistory(cityId);
+      setExpanded((prev) => { const n = new Set(prev); n.add(cityId); return n; });
+      setTimeout(() => {
+        document.getElementById(`gi-comp-${savedId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
     } catch (e) {
       toast(e?.message || 'Ошибка', 'error');
     }
@@ -2616,6 +2711,16 @@ export function GoldIndex({ formatMoney, toast }) {
           .gi-modal-close { width: 34px; height: 34px; }
         }
 
+        /* Page scroll lock while modal open (class toggled on body via JS) */
+        body.gi-modal-open {
+          overflow: hidden;
+          position: fixed;
+          width: 100%;
+          left: 0;
+          right: 0;
+          touch-action: none;
+        }
+
         /* ── Bottom sheet modal — shared ───────────────────────────────────── */
         .gi-modal-overlay {
           position: fixed; inset: 0; z-index: 9000;
@@ -2624,6 +2729,8 @@ export function GoldIndex({ formatMoney, toast }) {
           backdrop-filter: blur(4px);
           display: flex; align-items: flex-end; justify-content: center;
           animation: gi-overlay-in 0.22s ease;
+          touch-action: none;
+          overscroll-behavior: contain;
         }
         @keyframes gi-overlay-in { from { opacity: 0; } to { opacity: 1; } }
 
@@ -2644,10 +2751,11 @@ export function GoldIndex({ formatMoney, toast }) {
           border-radius: 24px 24px 0 0;
           box-shadow: 0 -4px 0 rgba(232,197,71,0.25), 0 -12px 50px rgba(0,0,0,0.32);
           display: flex; flex-direction: column;
-          max-height: 92vh;
-          animation: gi-sheet-in 0.3s cubic-bezier(0.32,0.72,0,1);
+          max-height: min(92dvh, 92vh);
+          animation: gi-sheet-in 0.32s cubic-bezier(0.32,0.72,0,1);
+          will-change: transform;
         }
-        @keyframes gi-sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes gi-sheet-in { from { transform: translateY(105%); } to { transform: translateY(0); } }
 
         /* Drag handle */
         .gi-modal-sheet::before {
@@ -2684,6 +2792,8 @@ export function GoldIndex({ formatMoney, toast }) {
           padding: 18px 20px 8px; overflow-y: auto; flex: 1;
           display: flex; flex-direction: column; gap: 12px;
           -webkit-overflow-scrolling: touch;
+          overscroll-behavior: contain;
+          min-height: 0;
         }
 
         /* All inputs inside modal — explicit light styling, overrides dark theme & WebKit */
@@ -2780,12 +2890,15 @@ export function GoldIndex({ formatMoney, toast }) {
 
         .gi-modal-footer {
           display: flex; gap: 10px; align-items: center;
-          padding: 14px 20px 22px;
+          padding: 14px 20px calc(22px + var(--gi-vv-bottom, 0px));
           border-top: 1px solid rgba(140,110,40,0.12);
           flex-shrink: 0;
+          background: #faf8f4;
         }
         @supports (padding-bottom: env(safe-area-inset-bottom)) {
-          .gi-modal-footer { padding-bottom: calc(22px + env(safe-area-inset-bottom)); }
+          .gi-modal-footer {
+            padding-bottom: calc(22px + env(safe-area-inset-bottom) + var(--gi-vv-bottom, 0px));
+          }
         }
 
         .gi-modal-save {
@@ -2814,7 +2927,30 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-modal-cancel:hover { color: #dc2626; background: rgba(220,38,38,0.06); }
 
         /* Edit modal specifics */
-        .gi-edit-modal-sheet { max-height: 94vh; }
+        .gi-edit-modal-sheet { max-height: min(94dvh, 94vh); }
+
+        @media (max-width: 600px) {
+          .gi-drag-confirm-panel {
+            left: 10px; right: 10px; max-width: none; bottom: 10px;
+            padding: 14px 16px;
+          }
+          .gi-drag-confirm-ok { min-height: 48px; font-size: 15px; }
+          .gi-drag-confirm-cancel { width: 48px; height: 48px; flex-shrink: 0; }
+          .gi-modal-body .gi-comp-edit-row { flex-direction: column; }
+          .gi-modal-body .gi-comp-edit-row .field { min-width: 0; width: 100%; }
+          .gi-modal-footer {
+            flex-direction: column-reverse;
+            align-items: stretch;
+            gap: 8px;
+          }
+          .gi-modal-save,
+          .gi-modal-cancel,
+          .gi-modal-footer .btn-ghost.small {
+            width: 100%;
+            max-width: none;
+            min-height: 48px;
+          }
+        }
       `}</style>
 
       {/* ── Quick-add competitor modal (bottom sheet) ─────────────────────── */}
@@ -2835,13 +2971,13 @@ export function GoldIndex({ formatMoney, toast }) {
               </div>
 
               {/* Body */}
-              <div className="gi-modal-body">
+              <div ref={quickModalBodyRef} className="gi-modal-body">
                 {/* Name + Date */}
                 <div className="gi-comp-edit-row">
                   <label className="field" style={{ flex: 2 }}>
                     <span className="field-label">Название точки *</span>
                     <input
-                      className="input" autoFocus placeholder="Ломбард / Скупка / …"
+                      className="input" autoFocus={!isTouchUi} placeholder="Ломбард / Скупка / …"
                       value={draft.company_name || ''}
                       onChange={(e) => setCompDraft(cityId, { company_name: e.target.value })}
                     />
@@ -2941,7 +3077,7 @@ export function GoldIndex({ formatMoney, toast }) {
                 </div>
                 <button type="button" className="gi-modal-close" onClick={cancelEditCompetitor} aria-label="Закрыть">✕</button>
               </div>
-              <div className="gi-modal-body">
+              <div ref={editModalBodyRef} className="gi-modal-body">
                 {/* Company + date */}
                 <div className="gi-comp-edit-row">
                   <label className="field" style={{ flex: 2 }}>
@@ -2983,8 +3119,10 @@ export function GoldIndex({ formatMoney, toast }) {
                       className={`gi-loc-btn gi-loc-btn--map${compMapTarget?.mode === 'edit' ? ' gi-loc-btn--active' : ''}`}
                       onClick={() => {
                         setCompMapTarget((prev) => prev?.mode === 'edit' ? null : { cityId, mode: 'edit' });
-                        cancelEditCompetitor();
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        setEditCompModal(false);
+                        setTimeout(() => {
+                          document.querySelector('.gold-index__map-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }, 80);
                       }}>
                       <span className="gi-loc-btn-icon">🗺</span>
                       <span>{compMapTarget?.mode === 'edit' ? 'Отмена' : 'Указать на карте'}</span>

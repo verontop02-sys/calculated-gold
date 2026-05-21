@@ -274,12 +274,12 @@ export async function buildGoldIndexOverview(supabase) {
 }
 
 export async function createGoldIndexCity(supabase, body, createdBy) {
-  const region_code = String(body?.region_code || '').trim();
+  const region_code_raw = String(body?.region_code || '').trim();
   const region_name = String(body?.region_name || '').trim();
   const city_name = String(body?.city_name || '').trim();
   const lat = parseFloat(body?.lat);
   const lng = parseFloat(body?.lng);
-  if (!region_code || !region_name || !city_name) {
+  if (!region_name || !city_name) {
     const e = new Error('Укажите регион и город');
     e.status = 400;
     throw e;
@@ -303,6 +303,7 @@ export async function createGoldIndexCity(supabase, body, createdBy) {
   const geocoded_label =
     body?.geocoded_label != null ? String(body.geocoded_label).trim() || null : null;
   const now = new Date().toISOString();
+  const region_code = region_code_raw || region_name;
   const { data, error } = await supabase
     .from('gold_index_cities')
     .insert({
