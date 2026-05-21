@@ -859,9 +859,14 @@ export async function reverseGeocodeGoldIndex({ lat, lng }) {
   const addr = data?.address || {};
   const city = addr.city || addr.town || addr.village || addr.county || addr.municipality || '';
   const region = addr.state || '';
+  const street = [addr.road || addr.pedestrian || addr.footway || '', addr.house_number || '']
+    .map((s) => String(s).trim())
+    .filter(Boolean)
+    .join(', ');
   return {
     city,
     region,
+    street,
     lat: parseFloat(data.lat ?? lat),
     lng: parseFloat(data.lon ?? lng),
     displayName: data.display_name || '',

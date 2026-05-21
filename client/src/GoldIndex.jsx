@@ -899,12 +899,17 @@ export function GoldIndex({ formatMoney, toast }) {
         if (nearest && minD <= 0.5) match = nearest;
       }
 
+      // Prefilled "Адрес точки" — best-effort, from geocoder.
+      const prefillAddress = (geo?.street && String(geo.street).trim())
+        || (geo?.displayName ? String(geo.displayName).split(',').slice(0, 2).map((s) => s.trim()).filter(Boolean).join(', ') : '')
+        || '';
+
       cancelQuickDrag();
       if (match) {
         if (!geo?.city) {
           toast(`Геокодер недоступен — выбрали ближайший город: ${match.city_name}`, 'success');
         }
-        setCompDraft(match.id, { lat, lng });
+        setCompDraft(match.id, { lat, lng, ...(prefillAddress ? { address: prefillAddress } : {}) });
         setQuickModalClosing(false);
         setQuickAddModal({ cityId: match.id, cityName: match.city_name, regionName: match.region_name, lat, lng });
       } else if (geo?.city && geo?.region) {
@@ -921,7 +926,7 @@ export function GoldIndex({ formatMoney, toast }) {
           geocoded_label: geo.displayName || null,
         });
         await load();
-        setCompDraft(newCityId, { lat, lng });
+        setCompDraft(newCityId, { lat, lng, ...(prefillAddress ? { address: prefillAddress } : {}) });
         setQuickModalClosing(false);
         setQuickAddModal({ cityId: newCityId, cityName, regionName: geo.region || '', lat, lng });
       } else {
@@ -936,6 +941,7 @@ export function GoldIndex({ formatMoney, toast }) {
           lat, lng,
           prefillCityName: geo?.city || '',
           prefillRegionName: geo?.region || '',
+          prefillAddress,
         });
       }
     } catch (e2) {
@@ -965,9 +971,9 @@ export function GoldIndex({ formatMoney, toast }) {
   function pickExistingCityFromCreateModal(cityId) {
     const city = (data?.cities || []).find((c) => c.id === cityId);
     if (!city || !createCityModal) return;
-    const { lat, lng } = createCityModal;
+    const { lat, lng, prefillAddress } = createCityModal;
     closeCreateCityModal(false);
-    setCompDraft(city.id, { lat, lng });
+    setCompDraft(city.id, { lat, lng, ...(prefillAddress ? { address: prefillAddress } : {}) });
     setQuickModalClosing(false);
     setQuickAddModal({
       cityId: city.id,
@@ -984,7 +990,7 @@ export function GoldIndex({ formatMoney, toast }) {
     const regionName = (createCityDraft.region_name || '').trim();
     if (!cityName) { toast('Укажите название города', 'error'); return; }
     if (!regionName) { toast('Укажите регион', 'error'); return; }
-    const { lat, lng } = createCityModal;
+    const { lat, lng, prefillAddress } = createCityModal;
     setCreateCitySaving(true);
     try {
       const norm = (s) => (s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
@@ -1000,7 +1006,7 @@ export function GoldIndex({ formatMoney, toast }) {
       await load();
       toast(`Город «${cityName}» создан`, 'success');
       closeCreateCityModal(false);
-      setCompDraft(newCityId, { lat, lng });
+      setCompDraft(newCityId, { lat, lng, ...(prefillAddress ? { address: prefillAddress } : {}) });
       setQuickModalClosing(false);
       setQuickAddModal({ cityId: newCityId, cityName, regionName, lat, lng });
     } catch (err) {
