@@ -2860,6 +2860,7 @@ export function GoldIndex({ formatMoney, toast }) {
           --gold-soft: rgba(184,134,11,0.1);
           color-scheme: light;
 
+          position: relative;
           width: min(680px, 100%);
           background: #faf8f4;
           border-radius: 24px;
@@ -2868,6 +2869,96 @@ export function GoldIndex({ formatMoney, toast }) {
           max-height: min(90dvh, 820px);
           animation: gi-sheet-in 0.24s cubic-bezier(0.2,0.8,0.2,1);
           will-change: transform;
+        }
+
+        /* ── Inline loading overlay for a modal (covers the sheet) ────────── */
+        .gi-modal-loading {
+          position: absolute;
+          inset: 0;
+          z-index: 10;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 18px;
+          background: rgba(250, 248, 244, 0.92);
+          -webkit-backdrop-filter: blur(4px);
+          backdrop-filter: blur(4px);
+          border-radius: inherit;
+          animation: gi-modal-loading-in 0.18s ease;
+          pointer-events: all;
+          color: #5c4310;
+        }
+        @keyframes gi-modal-loading-in { from { opacity: 0; } to { opacity: 1; } }
+        .gi-modal-loading-spinner {
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          border: 4px solid rgba(184,134,11,0.18);
+          border-top-color: #b8860b;
+          animation: gi-modal-loading-spin 0.8s linear infinite;
+        }
+        @keyframes gi-modal-loading-spin {
+          to { transform: rotate(360deg); }
+        }
+        .gi-modal-loading-text {
+          font-size: 1.05rem;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+          color: #1c1814;
+          text-align: center;
+          padding: 0 24px;
+        }
+        .gi-modal-loading-hint {
+          font-size: 0.85rem;
+          color: rgba(28,24,20,0.55);
+          text-align: center;
+          padding: 0 24px;
+          max-width: 320px;
+          line-height: 1.4;
+        }
+
+        /* ── Global full-screen busy overlay ───────────────────────────────── */
+        .gi-busy-overlay {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          width: 100%;
+          height: 100%;
+          height: 100dvh;
+          z-index: 9500;
+          background: rgba(6, 4, 2, 0.5);
+          -webkit-backdrop-filter: blur(3px);
+          backdrop-filter: blur(3px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+          animation: gi-overlay-in 0.2s ease;
+        }
+        .gi-busy-card {
+          background: #faf8f4;
+          border-radius: 18px;
+          padding: 28px 28px 24px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 14px;
+          width: min(360px, 100%);
+          box-shadow: 0 24px 60px rgba(0,0,0,0.32);
+          color: #1c1814;
+          animation: gi-sheet-in 0.22s cubic-bezier(0.2,0.8,0.2,1);
+        }
+        .gi-busy-title {
+          font-size: 1.08rem;
+          font-weight: 600;
+          color: #1c1814;
+          text-align: center;
+        }
+        .gi-busy-hint {
+          font-size: 0.85rem;
+          color: rgba(28,24,20,0.6);
+          text-align: center;
+          line-height: 1.45;
         }
         @keyframes gi-sheet-in {
           from { transform: translateY(12px) scale(0.985); opacity: 0; }
@@ -3144,6 +3235,13 @@ export function GoldIndex({ formatMoney, toast }) {
         return (
           <div className="gi-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget && !quickModalSaving) closeQuickAddModal(); }}>
             <div className={`gi-modal-sheet${quickModalClosing ? ' gi-modal-sheet--closing' : ''}`}>
+              {quickModalSaving && (
+                <div className="gi-modal-loading" onClick={(e) => e.stopPropagation()}>
+                  <div className="gi-modal-loading-spinner" />
+                  <div className="gi-modal-loading-text">Сохраняем точку…</div>
+                  <div className="gi-modal-loading-hint">Записываем данные в базу и обновляем карту. Не закрывайте окно.</div>
+                </div>
+              )}
               {/* Header */}
               <div className="gi-modal-header">
                 <div>
@@ -3253,6 +3351,13 @@ export function GoldIndex({ formatMoney, toast }) {
         return (
           <div className="gi-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget && !editModalSaving) cancelEditCompetitor(); }}>
             <div className={`gi-modal-sheet gi-edit-modal-sheet${editModalClosing ? ' gi-modal-sheet--closing' : ''}`} onClick={(e) => e.stopPropagation()}>
+              {editModalSaving && (
+                <div className="gi-modal-loading" onClick={(e) => e.stopPropagation()}>
+                  <div className="gi-modal-loading-spinner" />
+                  <div className="gi-modal-loading-text">Сохраняем изменения…</div>
+                  <div className="gi-modal-loading-hint">Обновляем данные конкурента. Это займёт пару секунд.</div>
+                </div>
+              )}
               <div className="gi-modal-header">
                 <div className="gi-modal-title-block">
                   <div className="gi-modal-title">Редактировать конкурента</div>
@@ -3366,6 +3471,13 @@ export function GoldIndex({ formatMoney, toast }) {
           >
             <div className={`gi-modal-sheet gi-edit-modal-sheet${createCityClosing ? ' gi-modal-sheet--closing' : ''}`}
               onClick={(e) => e.stopPropagation()}>
+              {createCitySaving && (
+                <div className="gi-modal-loading" onClick={(e) => e.stopPropagation()}>
+                  <div className="gi-modal-loading-spinner" />
+                  <div className="gi-modal-loading-text">Создаём город…</div>
+                  <div className="gi-modal-loading-hint">Сохраняем «{(createCityDraft.city_name || '').trim() || '…'}» и сразу откроем форму добавления точки.</div>
+                </div>
+              )}
               <div className="gi-modal-header">
                 <div className="gi-modal-title-block">
                   <div className="gi-modal-title">Город не найден</div>
@@ -3472,6 +3584,20 @@ export function GoldIndex({ formatMoney, toast }) {
           </div>
         );
       })(), document.body)}
+
+      {/* ── Global full-screen busy overlay (between "Это здесь" and modal) ── */}
+      {quickDragConfirmBusy && !quickAddModal && !createCityModal && createPortal(
+        <div className="gi-busy-overlay">
+          <div className="gi-busy-card">
+            <div className="gi-modal-loading-spinner" />
+            <div className="gi-busy-title">Определяем место…</div>
+            <div className="gi-busy-hint">
+              Получаем адрес и привязываем точку к городу. Это может занять до 10 секунд.
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </section>
   );
 }
