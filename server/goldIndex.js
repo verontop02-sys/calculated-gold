@@ -295,8 +295,6 @@ export async function createGoldIndexCity(supabase, body, createdBy) {
     if (Number.isFinite(n) && n >= 0) population = n;
   }
   const notes = body?.notes != null ? String(body.notes).trim() || null : null;
-  const address = body?.address != null ? String(body.address).trim() || null : null;
-  const comment = body?.comment != null ? String(body.comment).trim() || null : null;
   const street = body?.street != null ? String(body.street).trim() || null : null;
   const building = body?.building != null ? String(body.building).trim() || null : null;
   const address_note = body?.address_note != null ? String(body.address_note).trim() || null : null;
@@ -304,6 +302,8 @@ export async function createGoldIndexCity(supabase, body, createdBy) {
     body?.geocoded_label != null ? String(body.geocoded_label).trim() || null : null;
   const now = new Date().toISOString();
   const region_code = region_code_raw || region_name;
+  // NB: `address` / `comment` here intentionally live only on competitors,
+  // not on cities — the `gold_index_cities` table doesn't have those columns.
   const { data, error } = await supabase
     .from('gold_index_cities')
     .insert({
@@ -318,8 +318,6 @@ export async function createGoldIndexCity(supabase, body, createdBy) {
       geocoded_label,
       population: Number.isFinite(population) ? population : null,
       notes,
-      address,
-      comment,
       created_by: createdBy || null,
       updated_at: now,
     })
