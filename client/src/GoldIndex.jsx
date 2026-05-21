@@ -181,11 +181,13 @@ export function GoldIndex({ formatMoney, toast }) {
   useEffect(() => {
     if (!anyModalOpen) {
       document.body.classList.remove('gi-modal-open');
+      document.documentElement.classList.remove('gi-modal-open');
       document.documentElement.style.removeProperty('--gi-vv-bottom');
       return undefined;
     }
     const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
     document.body.classList.add('gi-modal-open');
+    document.documentElement.classList.add('gi-modal-open');
     document.body.style.top = `-${scrollY}px`;
 
     const onVvResize = () => {
@@ -202,6 +204,7 @@ export function GoldIndex({ formatMoney, toast }) {
       window.visualViewport?.removeEventListener('resize', onVvResize);
       window.visualViewport?.removeEventListener('scroll', onVvResize);
       document.body.classList.remove('gi-modal-open');
+      document.documentElement.classList.remove('gi-modal-open');
       document.body.style.top = '';
       document.documentElement.style.removeProperty('--gi-vv-bottom');
       window.scrollTo(0, scrollY);
@@ -2728,18 +2731,31 @@ export function GoldIndex({ formatMoney, toast }) {
           .gi-modal-close { width: 34px; height: 34px; }
         }
 
-        /* Hard scroll-lock: position: fixed keeps background visually frozen on iOS/Android */
+        /* Scroll-lock the page when a modal is open. We keep it simple: overflow hidden
+           on html+body, plus an inline top offset that mirrors current scroll position
+           (set from JS). This avoids layout shift while ensuring the background does
+           not scroll behind the modal on iOS/Android. */
+        html.gi-modal-open,
+        body.gi-modal-open {
+          overflow: hidden !important;
+          overscroll-behavior: contain !important;
+          touch-action: none !important;
+        }
         body.gi-modal-open {
           position: fixed;
           left: 0;
           right: 0;
           width: 100%;
-          overflow: hidden;
         }
 
         /* ── Centered modal — shared ───────────────────────────────────────── */
         .gi-modal-overlay {
-          position: fixed; inset: 0; z-index: 9000;
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          width: 100vw;
+          height: 100vh;
+          height: 100dvh;
+          z-index: 9000;
           background: rgba(6,4,2,0.62);
           -webkit-backdrop-filter: blur(4px);
           backdrop-filter: blur(4px);
@@ -2957,73 +2973,76 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-edit-modal-sheet { max-height: min(94dvh, 94vh); }
 
         /* ── Mobile: modal becomes a true full-screen sheet ─────────────────── */
-        @media (max-width: 700px) {
+        @media (max-width: 768px) {
           .gi-modal-overlay {
-            align-items: stretch;
-            justify-content: stretch;
-            padding: 0;
-            background: rgba(6,4,2,0.55);
+            padding: 0 !important;
+            background: #faf8f4 !important;
+            -webkit-backdrop-filter: none !important;
+            backdrop-filter: none !important;
+            display: block !important;
           }
           .gi-modal-sheet,
           .gi-edit-modal-sheet {
-            width: 100vw;
-            max-width: 100vw;
-            height: 100vh;     /* fallback */
-            height: 100dvh;
-            max-height: 100vh;
-            max-height: 100dvh;
-            border-radius: 0;
-            box-shadow: none;
-            animation: gi-sheet-in-mobile 0.22s ease;
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: 100% !important;
+            max-height: 100% !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            display: flex !important;
+            flex-direction: column !important;
+            animation: gi-sheet-in-mobile 0.2s ease !important;
           }
           @keyframes gi-sheet-in-mobile {
-            from { transform: translateY(20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
           }
           .gi-modal-sheet--closing {
-            animation: gi-sheet-out-mobile 0.16s ease forwards;
+            animation: gi-sheet-out-mobile 0.16s ease forwards !important;
           }
           @keyframes gi-sheet-out-mobile {
-            from { transform: translateY(0); opacity: 1; }
-            to { transform: translateY(12px); opacity: 0; }
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(8px); }
           }
-          .gi-modal-sheet::before { display: none; }
+          .gi-modal-sheet::before { display: none !important; }
 
           .gi-modal-header {
-            padding: 14px 16px 12px;
-            position: sticky; top: 0;
-            background: #faf8f4;
-            z-index: 2;
+            padding: 14px 16px 12px !important;
+            background: #faf8f4 !important;
+            flex-shrink: 0 !important;
           }
-          .gi-modal-city { font-size: 1.05rem; }
-          .gi-modal-region { font-size: 0.75rem; }
-          .gi-modal-title { font-size: 1rem; }
-          .gi-modal-subtitle { font-size: 0.75rem; }
+          .gi-modal-city { font-size: 1.05rem !important; }
+          .gi-modal-region { font-size: 0.75rem !important; }
+          .gi-modal-title { font-size: 1rem !important; }
+          .gi-modal-subtitle { font-size: 0.75rem !important; }
 
           .gi-modal-body {
-            padding: 14px 16px 16px;
-            gap: 10px;
-            flex: 1 1 auto;
+            padding: 14px 16px 16px !important;
+            gap: 10px !important;
+            flex: 1 1 auto !important;
+            overflow-y: auto !important;
+            min-height: 0 !important;
           }
-          .gi-modal-body .gi-comp-edit-row { flex-direction: column; }
-          .gi-modal-body .gi-comp-edit-row .field { min-width: 0; width: 100%; }
+          .gi-modal-body .gi-comp-edit-row { flex-direction: column !important; }
+          .gi-modal-body .gi-comp-edit-row .field { min-width: 0 !important; width: 100% !important; }
 
           .gi-modal-footer {
-            position: sticky; bottom: 0;
-            background: #faf8f4;
-            padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px) + var(--gi-vv-bottom, 0px));
-            flex-direction: column;
-            align-items: stretch;
-            gap: 8px;
-            z-index: 2;
-            box-shadow: 0 -8px 16px -8px rgba(0,0,0,0.06);
+            padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px) + var(--gi-vv-bottom, 0px)) !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 8px !important;
+            flex-shrink: 0 !important;
+            box-shadow: 0 -8px 16px -8px rgba(0,0,0,0.08) !important;
+            background: #faf8f4 !important;
           }
           .gi-modal-save,
           .gi-modal-cancel,
           .gi-modal-footer .btn-ghost.small {
-            width: 100%;
-            max-width: none;
-            min-height: 48px;
+            width: 100% !important;
+            max-width: none !important;
+            min-height: 48px !important;
           }
 
           .gi-drag-confirm-panel {
