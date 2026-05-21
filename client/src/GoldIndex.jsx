@@ -2753,8 +2753,8 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-modal-overlay {
           position: fixed;
           top: 0; left: 0; right: 0; bottom: 0;
-          width: 100vw;
-          height: 100vh;
+          width: 100%;
+          height: 100%;
           height: 100dvh;
           z-index: 9000;
           background: rgba(6,4,2,0.62);
