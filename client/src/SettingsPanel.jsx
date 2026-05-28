@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
 import { useToast } from './ToastContext.jsx';
 import { isAdminOrSuperProfile, isSuperAdminRole, isUserManagerRole, roleLabel } from './roles.js';
+import { SkeletonCard, SkeletonRow } from './Skeleton.jsx';
+import { EmptyState } from './EmptyState.jsx';
 
 const ROLES_STAFF_FULL = ['courier', 'seller', 'admin', 'super_admin'];
 const ROLES_FIELD_ONLY = ['courier', 'seller'];
@@ -186,28 +188,34 @@ export function SettingsPanel({ user }) {
   }
 
   if (isSuper && !settings) {
-    return (
-      <div className="settings settings-boot glass">
-        {err ? (
+    if (err) {
+      return (
+        <div className="settings settings-boot glass">
           <div style={{ textAlign: 'center' }}>
             <p className="err-msg" style={{ marginBottom: 16 }}>{err}</p>
             <button type="button" className="btn-ghost" onClick={() => load()}>Повторить</button>
           </div>
-        ) : (
-          <>
-            <div className="spinner" />
-            <p className="muted">Загрузка настроек…</p>
-          </>
-        )}
+        </div>
+      );
+    }
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <SkeletonCard rows={3} />
+        <SkeletonCard rows={5} />
+        <SkeletonCard rows={3} />
       </div>
     );
   }
 
   if (!isSuper && userListStatus === 'loading') {
     return (
-      <div className="settings settings-boot glass">
-        <div className="spinner" />
-        <p className="muted">Загрузка…</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <SkeletonCard rows={2} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonRow key={i} leftWidth="55%" rightWidth="25%" withAvatar />
+          ))}
+        </div>
       </div>
     );
   }
@@ -326,11 +334,21 @@ export function SettingsPanel({ user }) {
         {usersNote && <p className="users-note muted small block-desc">{usersNote}</p>}
 
         {userListStatus === 'loading' && (
-          <p className="muted small" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14 }}>
-            <span className="spinner inline" /> Загрузка пользователей…
-          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonRow key={i} leftWidth="55%" rightWidth="25%" withAvatar />
+            ))}
+          </div>
         )}
 
+        {users.length === 0 && userListStatus !== 'loading' && (
+          <EmptyState
+            compact
+            icon="users"
+            title="Пока вы здесь один"
+            description="Создайте первого курьера или продавца ниже — он сможет оформлять выкупы и заходить в систему по своей почте."
+          />
+        )}
         {users.length > 0 && (
           <ul className="user-list">
             {users.map((u) => (
@@ -458,56 +476,67 @@ export function SettingsPanel({ user }) {
           </p>
           {fieldLogErr && <p className="muted small">{fieldLogErr}</p>}
           {fieldLog?.rows?.length > 0 && (
-            <div className="fd-log-wrap">
-              <table className="fd-log-table">
+            <div className="cg-table-wrap cg-table-wrap--scroll">
+              <table className="cg-table cg-table--compact">
                 <thead>
                   <tr>
                     <th>Создано</th>
-                    <th>Статус</th>
-                    <th>Сумма ₽</th>
+                    <th className="center">Статус</th>
+                    <th className="num">Сумма ₽</th>
                     <th>Кто отправил</th>
                     <th>Сделка</th>
-                    <th />
+                    <th className="center" />
                   </tr>
                 </thead>
                 <tbody>
-                  {fieldLog.rows.map((r) => (
-                    <tr key={r.id}>
-                      <td className="mono-nums">{new Date(r.created_at).toLocaleString('ru-RU')}</td>
-                      <td>{r.status}</td>
-                      <td className="mono-nums">{r.total_rub}</td>
-                      <td>{r.creator_email || '—'}</td>
-                      <td className="mono-nums">{r.scrap_deal_id ? `${String(r.scrap_deal_id).slice(0, 8)}…` : '—'}</td>
-                      <td>
-                        {r.status === 'pending' ? (
-                          <button
-                            type="button"
-                            className="btn-ghost small"
-                            onClick={async () => {
-                              try {
-                                await api.fieldDealSessionCancel(r.id);
-                                toast?.('Сессия отменена', 'success');
-                                const d = await api.fieldDealSessions({ limit: 35 });
-                                setFieldLog(d);
-                              } catch (e) {
-                                toast?.(e?.message || 'Не удалось отменить', 'error');
-                              }
-                            }}
-                          >
-                            Отменить
-                          </button>
-                        ) : (
-                          ''
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {fieldLog.rows.map((r) => {
+                    const statusBadge =
+                      r.status === 'confirmed' ? 'ok' : r.status === 'pending' ? 'gold' : r.status === 'cancelled' ? 'danger' : '';
+                    return (
+                      <tr key={r.id}>
+                        <td className="num">{new Date(r.created_at).toLocaleString('ru-RU')}</td>
+                        <td className="center">
+                          {statusBadge ? <span className={`badge ${statusBadge}`}>{r.status}</span> : r.status}
+                        </td>
+                        <td className="num">{r.total_rub}</td>
+                        <td>{r.creator_email || '—'}</td>
+                        <td className="num">{r.scrap_deal_id ? `${String(r.scrap_deal_id).slice(0, 8)}…` : '—'}</td>
+                        <td className="center">
+                          {r.status === 'pending' ? (
+                            <button
+                              type="button"
+                              className="btn-ghost small"
+                              onClick={async () => {
+                                try {
+                                  await api.fieldDealSessionCancel(r.id);
+                                  toast?.('Сессия отменена', 'success');
+                                  const d = await api.fieldDealSessions({ limit: 35 });
+                                  setFieldLog(d);
+                                } catch (e) {
+                                  toast?.(e?.message || 'Не удалось отменить', 'error');
+                                }
+                              }}
+                            >
+                              Отменить
+                            </button>
+                          ) : (
+                            ''
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
           {fieldLog && (!fieldLog.rows || fieldLog.rows.length === 0) && !fieldLogErr && (
-            <p className="muted small">Пока нет сессий.</p>
+            <EmptyState
+              compact
+              icon="history"
+              title="Сессий ещё не было"
+              description="Сюда попадают истории подтверждения сделок курьерами по SMS-коду."
+            />
           )}
         </div>
       )}
@@ -548,11 +577,7 @@ export function SettingsPanel({ user }) {
         .btn-ghost.danger { color: var(--danger); }
         .btn-ghost.small { padding: 7px 12px; font-size: 0.8rem; }
         .new-user { display: flex; flex-direction: column; gap: 10px; }
-        .fd-log-wrap { overflow-x: auto; margin-top: 8px; }
-        .fd-log-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-        .fd-log-table th,
-        .fd-log-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--stroke); }
-        .fd-log-table th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+        /* Базовые стили таблицы — глобальный класс .cg-table в index.css */
         .err-msg { color: var(--danger); font-size: 0.9rem; margin: 12px 0 0; text-align: center; padding: 10px 12px; border-radius: var(--radius-sm); background: rgba(248, 113, 113, 0.08); border: 1px solid rgba(248, 113, 113, 0.25); }
         @media (max-width: 400px) {
           .user-row { flex-direction: column; align-items: stretch; }

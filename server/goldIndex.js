@@ -273,6 +273,91 @@ export async function buildGoldIndexOverview(supabase) {
   };
 }
 
+/**
+ * Облегчённая обезличенная сводка для клиентского режима калькулятора.
+ * Доступна всем авторизованным пользователям (продавцам, курьерам и т.д.):
+ *   - список городов с агрегированными ценами конкурентов по пробам;
+ *   - количество конкурентов в выборке и дата последнего замера;
+ *   - название/адрес/координаты конкурентов скрыты.
+ *
+ * Используется в калькуляторе для сравнения «наша сумма vs среднее по городу».
+ */
+export async function buildGoldIndexPublicSummary(supabase) {
+  const settings = await loadSettingsMerged(supabase);
+  const goldRubPerGram = await loadGoldRubPerGram(supabase);
+
+  const { data: cities, error: cErr } = await supabase
+    .from('gold_index_cities')
+    .select('id, region_code, region_name, city_name, lat, lng, population')
+    .order('region_name', { ascending: true })
+    .order('city_name', { ascending: true });
+  if (cErr) throw cErr;
+
+  const cityIds = (cities || []).map((c) => c.id);
+  let comps = [];
+  if (cityIds.length) {
+    let { data: rows, error: compErr } = await supabase
+      .from('gold_index_competitors')
+      .select('id, city_id, probes, measured_at')
+      .in('city_id', cityIds);
+    if (compErr) throw compErr;
+    comps = rows || [];
+  }
+  const byCity = new Map();
+  for (const co of comps) {
+    if (!byCity.has(co.city_id)) byCity.set(co.city_id, []);
+    byCity.get(co.city_id).push(co);
+  }
+
+  const out = (cities || []).map((c) => {
+    const list = byCity.get(c.id) || [];
+    // Соберём цены по пробам: для каждой пробы — массив цен у разных конкурентов.
+    const byProbe = new Map();
+    let lastMeasuredIso = null;
+    for (const co of list) {
+      if (co.measured_at) {
+        if (!lastMeasuredIso || String(co.measured_at) > lastMeasuredIso) {
+          lastMeasuredIso = String(co.measured_at);
+        }
+      }
+      const { rows } = computeCompetitorMetrics(co.probes, goldRubPerGram, settings);
+      for (const r of rows) {
+        if (!Number.isFinite(r.marketRubPerGram) || r.marketRubPerGram <= 0) continue;
+        if (!byProbe.has(r.probe)) byProbe.set(r.probe, []);
+        byProbe.get(r.probe).push(r.marketRubPerGram);
+      }
+    }
+    const avgByProbe = {};
+    const minByProbe = {};
+    const maxByProbe = {};
+    for (const [probe, prices] of byProbe.entries()) {
+      const sum = prices.reduce((s, x) => s + x, 0);
+      avgByProbe[probe] = sum / prices.length;
+      minByProbe[probe] = Math.min(...prices);
+      maxByProbe[probe] = Math.max(...prices);
+    }
+    return {
+      id: c.id,
+      regionCode: c.region_code,
+      regionName: c.region_name,
+      cityName: c.city_name,
+      lat: c.lat,
+      lng: c.lng,
+      population: c.population || 0,
+      competitorsCount: list.length,
+      lastMeasuredAt: lastMeasuredIso,
+      avgByProbe,
+      minByProbe,
+      maxByProbe,
+    };
+  });
+
+  return {
+    goldRubPerGram,
+    cities: out,
+  };
+}
+
 export async function createGoldIndexCity(supabase, body, createdBy) {
   const region_code_raw = String(body?.region_code || '').trim();
   const region_name = String(body?.region_name || '').trim();

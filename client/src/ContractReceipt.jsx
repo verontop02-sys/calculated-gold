@@ -122,6 +122,25 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
 
   const rowTotal = useMemo(() => sumRows(rows), [rows]);
 
+  // Транслируем сводку текущего договора наружу — для боковой панели страницы.
+  useEffect(() => {
+    const filled = rows.filter(
+      (r) => r.itemName || r.weightGross || r.weightNet || r.priceRub,
+    ).length;
+    const totalGross = rows.reduce((s, r) => s + (parseFloat(String(r.weightGross || '').replace(',', '.')) || 0), 0);
+    const totalNet = rows.reduce((s, r) => s + (parseFloat(String(r.weightNet || '').replace(',', '.')) || 0), 0);
+    window.dispatchEvent(new CustomEvent('cg:contract-summary', {
+      detail: {
+        rowsCount: rows.length,
+        filledRowsCount: filled,
+        totalRub: rowTotal,
+        totalGross,
+        totalNet,
+        sellerName: '',
+      },
+    }));
+  }, [rows, rowTotal]);
+
   useEffect(() => {
     let alive = true;
     api

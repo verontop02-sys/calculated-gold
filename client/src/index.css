@@ -1,18 +1,32 @@
 /* Темы: data-theme на <html> — localStorage cg-theme + index.html */
 
 :root[data-theme='dark'] {
-  --bg-deep: #0a0908;
-  --bg-panel: rgba(26, 22, 18, 0.78);
-  --bg-panel-solid: #16120e;
-  --bg-elevated: rgba(36, 30, 24, 0.95);
+  --bg-deep: #0c0a08;
+  --bg-panel: rgba(28, 23, 18, 0.78);
+  --bg-panel-solid: #18130e;
+  --bg-elevated: rgba(38, 31, 24, 0.96);
+  --surface: rgba(36, 30, 24, 0.6);
+  --surface-elevated: #1d1812;
+  --sidebar-bg: linear-gradient(180deg, #1a140e 0%, #120e09 100%);
+  --sidebar-stroke: rgba(212, 175, 55, 0.18);
   --stroke: rgba(212, 175, 55, 0.28);
+  --stroke-soft: rgba(212, 175, 55, 0.14);
   --stroke-strong: rgba(212, 175, 55, 0.5);
   --gold: #e8c547;
+  --gold-soft-bg: rgba(232, 197, 71, 0.10);
   --gold-dim: #9a7b2c;
   --gold-glow: rgba(232, 197, 71, 0.42);
   --gold-soft: rgba(232, 197, 71, 0.12);
+  --emerald: #4ade80;
+  --emerald-soft: rgba(74, 222, 128, 0.14);
+  --emerald-strong: #22c55e;
+  --crimson: #fb7185;
+  --crimson-soft: rgba(251, 113, 133, 0.12);
+  --crimson-strong: #ef4444;
   --text: #faf6ef;
+  --text-strong: #fffaf0;
   --text-muted: rgba(250, 246, 239, 0.58);
+  --text-dim: rgba(250, 246, 239, 0.38);
   --danger: #fb7185;
   --ok: #4ade80;
   --warn-bg: rgba(250, 204, 21, 0.12);
@@ -21,37 +35,53 @@
   --input-bg: rgba(0, 0, 0, 0.38);
   --spinner-track: rgba(255, 255, 255, 0.12);
   --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(212, 175, 55, 0.08) inset;
+  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.55);
   --bg-gradient:
     radial-gradient(ellipse 130% 90% at 50% -15%, rgba(232, 197, 71, 0.16), transparent 55%),
     radial-gradient(ellipse 70% 45% at 100% 100%, rgba(120, 90, 40, 0.22), transparent),
-    linear-gradient(180deg, #120f0c 0%, #0a0908 45%, #070605 100%);
+    linear-gradient(180deg, #140f0a 0%, #0c0a08 45%, #070605 100%);
 }
 
 :root[data-theme='light'] {
-  --bg-deep: #f8f6f2;
-  --bg-panel: rgba(255, 255, 255, 0.92);
+  --bg-deep: #f7f3eb;
+  --bg-panel: rgba(255, 253, 247, 0.94);
   --bg-panel-solid: #ffffff;
-  --bg-elevated: #fffefb;
+  --bg-elevated: #fffdf6;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --sidebar-bg: linear-gradient(180deg, #fdf8ec 0%, #f6efdc 100%);
+  --sidebar-stroke: rgba(140, 110, 40, 0.16);
   --stroke: rgba(140, 110, 40, 0.18);
-  --stroke-strong: rgba(140, 110, 40, 0.32);
-  --gold: #b8860b;
-  --gold-dim: #8a6a18;
-  --gold-glow: rgba(184, 134, 11, 0.22);
-  --gold-soft: rgba(184, 134, 11, 0.1);
+  --stroke-soft: rgba(140, 110, 40, 0.10);
+  --stroke-strong: rgba(140, 110, 40, 0.36);
+  --gold: #a67708;
+  --gold-soft-bg: rgba(166, 119, 8, 0.08);
+  --gold-dim: #7d5806;
+  --gold-glow: rgba(166, 119, 8, 0.22);
+  --gold-soft: rgba(166, 119, 8, 0.1);
+  --emerald: #1e6b4f;
+  --emerald-soft: rgba(30, 107, 79, 0.12);
+  --emerald-strong: #146b48;
+  --crimson: #9b3a3a;
+  --crimson-soft: rgba(155, 58, 58, 0.10);
+  --crimson-strong: #8b2a2a;
   --text: #1c1814;
-  --text-muted: rgba(28, 24, 20, 0.55);
-  --danger: #dc2626;
-  --ok: #15803d;
+  --text-strong: #0e0a06;
+  --text-muted: rgba(28, 24, 20, 0.6);
+  --text-dim: rgba(28, 24, 20, 0.4);
+  --danger: #9b3a3a;
+  --ok: #1e6b4f;
   --warn-bg: rgba(250, 204, 21, 0.2);
   --warn-border: rgba(180, 140, 40, 0.35);
   --warn-text: #854d0e;
   --input-bg: rgba(255, 255, 255, 0.95);
   --spinner-track: rgba(28, 24, 20, 0.12);
-  --shadow-card: 0 10px 40px rgba(60, 40, 20, 0.08), 0 0 0 1px rgba(140, 110, 40, 0.1);
+  --shadow-card: 0 10px 40px rgba(60, 40, 20, 0.08), 0 0 0 1px rgba(140, 110, 40, 0.10);
+  --shadow-pop: 0 20px 60px rgba(60, 40, 20, 0.18);
   --bg-gradient:
-    radial-gradient(ellipse 130% 80% at 50% -10%, rgba(232, 197, 120, 0.35), transparent 50%),
-    radial-gradient(ellipse 80% 50% at 100% 0%, rgba(255, 220, 160, 0.25), transparent),
-    linear-gradient(180deg, #fdfcfa 0%, #f8f6f2 50%, #f3f0ea 100%);
+    radial-gradient(ellipse 130% 80% at 50% -10%, rgba(232, 197, 120, 0.30), transparent 50%),
+    radial-gradient(ellipse 80% 50% at 100% 0%, rgba(255, 220, 160, 0.22), transparent),
+    linear-gradient(180deg, #fdfaf2 0%, #f7f3eb 50%, #f2ecde 100%);
 }
 
 :root {
@@ -59,6 +89,84 @@
   --radius-sm: 10px;
   --font-display: 'Cormorant Garamond', Georgia, serif;
   --font-ui: 'Outfit', system-ui, sans-serif;
+
+  /* === ТИПОГРАФИЧЕСКАЯ ШКАЛА ===
+     На больших экранах — масштаб «увереннее», на мобиле — компактнее.
+     Используем clamp(min, fluid, max) — плавно меняется без переключений. */
+  --fz-display: clamp(1.6rem, 1.2rem + 1.6vw, 2.25rem);  /* hero / display */
+  --fz-h1: clamp(1.35rem, 1.1rem + 1vw, 1.7rem);          /* page heading */
+  --fz-h2: clamp(1.15rem, 1rem + 0.6vw, 1.35rem);         /* section heading */
+  --fz-h3: clamp(0.98rem, 0.9rem + 0.3vw, 1.08rem);       /* card heading */
+  --fz-body: 0.92rem;
+  --fz-body-sm: 0.84rem;
+  --fz-small: 0.76rem;
+  --fz-micro: 0.68rem;
+
+  /* line-heights — связаны со шрифтом и предназначением */
+  --lh-tight: 1.12;        /* для display */
+  --lh-snug: 1.22;         /* для заголовков */
+  --lh-normal: 1.45;       /* для основного текста */
+  --lh-loose: 1.6;         /* для длинного описательного текста */
+
+  /* letter-spacing */
+  --ls-tight: -0.012em;
+  --ls-normal: 0;
+  --ls-wide: 0.04em;
+  --ls-uppercase: 0.08em;
+
+  /* стандартные spacing-токены — для отступов в карточках */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+}
+
+html { font-size: 16px; }
+@media (min-width: 1400px) { html { font-size: 16.5px; } }
+@media (max-width: 480px)  { html { font-size: 15.5px; } }
+
+body {
+  font-size: var(--fz-body);
+  line-height: var(--lh-normal);
+  letter-spacing: var(--ls-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+}
+
+/* отполированные заголовки по умолчанию */
+h1, h2, h3, h4 {
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--text-strong);
+}
+h1 { font-size: var(--fz-h1); line-height: var(--lh-snug); letter-spacing: var(--ls-tight); font-weight: 600; }
+h2 { font-size: var(--fz-h2); line-height: var(--lh-snug); letter-spacing: var(--ls-tight); font-weight: 600; }
+h3 { font-size: var(--fz-h3); line-height: var(--lh-snug); font-weight: 600; }
+
+p { margin: 0; line-height: var(--lh-normal); }
+small { font-size: var(--fz-small); line-height: var(--lh-normal); }
+.muted { color: var(--text-muted); }
+.small { font-size: var(--fz-small); }
+
+/* uppercase-метки (KPI labels, kicker'ы) */
+.upcase, .kicker {
+  text-transform: uppercase;
+  letter-spacing: var(--ls-uppercase);
+  font-size: var(--fz-micro);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* тонкая отстройка чисел: моноширинные tabular цифры везде, где есть mono-nums */
+.mono-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
 }
 
 *,
@@ -77,6 +185,7 @@ html {
 
 body {
   margin: 0;
+  min-height: 100vh;
   min-height: 100dvh;
   font-family: var(--font-ui);
   font-weight: 400;
@@ -93,6 +202,7 @@ body {
 }
 
 #root {
+  min-height: 100vh;
   min-height: 100dvh;
   width: 100%;
   max-width: 100%;
@@ -101,7 +211,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
@@ -118,24 +229,68 @@ button:disabled {
 }
 
 input,
-select {
+select,
+textarea {
   background: var(--input-bg);
   border: 1px solid var(--stroke);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   width: 100%;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fz-body);
+  line-height: var(--lh-normal);
+  transition: border-color 220ms var(--ease-out), box-shadow 240ms var(--ease-out), background 200ms var(--ease-out);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 92px;
+  line-height: 1.5;
+  font-family: var(--font-ui);
 }
 
 input:focus,
-select:focus {
-  border-color: var(--stroke-strong);
+select:focus,
+textarea:focus {
+  border-color: var(--gold);
   box-shadow: 0 0 0 3px var(--gold-glow);
+}
+
+input:hover:not(:focus):not(:disabled),
+select:hover:not(:focus):not(:disabled),
+textarea:hover:not(:focus):not(:disabled) {
+  border-color: var(--stroke-strong);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 ::placeholder {
   color: var(--text-muted);
+  opacity: 1; /* Firefox делает 0.54 по умолчанию */
+}
+
+/* Safari/iOS: убираем «системный inner shadow» у textarea и автозум при фокусе */
+textarea,
+input[type='text'],
+input[type='email'],
+input[type='tel'],
+input[type='number'],
+input[type='date'],
+input[type='search'] {
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-text-fill-color: var(--text);
+}
+@supports (-webkit-touch-callout: none) {
+  /* iOS: размер шрифта меньше 16px вызывает автозум при фокусе */
+  input, select, textarea { font-size: max(16px, var(--fz-body)); }
 }
 
 .glass {
@@ -355,14 +510,459 @@ select:focus {
 }
 
 .badge.danger {
-  background: rgba(248, 113, 113, 0.12);
-  color: var(--danger);
-  border: 1px solid rgba(248, 113, 113, 0.3);
+  background: var(--crimson-soft);
+  color: var(--crimson);
+  border: 1px solid var(--crimson);
+}
+
+.badge.ok {
+  background: var(--emerald-soft);
+  color: var(--emerald);
+  border: 1px solid var(--emerald);
+}
+
+.badge.gold {
+  background: var(--gold-soft);
+  color: var(--gold);
+  border: 1px solid var(--stroke-strong);
+}
+
+.tone-ok { color: var(--emerald); }
+.tone-bad { color: var(--crimson); }
+.tone-gold { color: var(--gold); }
+
+/* ───── Двухколоночный layout страницы с боковой панелью виджетов ───── */
+.cg-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
+  align-items: start;
+}
+.cg-page__main { min-width: 0; }
+.cg-page__side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: sticky;
+  top: 100px;
+  min-width: 0;
+}
+
+/* Универсальные карточки для правой колонки */
+.cg-side-card {
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  position: relative;
+}
+.cg-side-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+  gap: 8px;
+}
+.cg-side-card__title {
+  font-family: var(--font-display);
+  font-size: var(--fz-h3);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.22;
+}
+.cg-side-card__label {
+  font-size: var(--fz-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.cg-side-card__value {
+  font-family: var(--font-display);
+  font-size: clamp(1.55rem, 1.2rem + 1.2vw, 1.95rem);
+  font-weight: 600;
+  color: var(--gold);
+  letter-spacing: -0.012em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 24px var(--gold-glow);
+  margin: 4px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  line-height: 1.05;
+}
+.cg-side-card__per { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+.cg-side-card__sub { font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; }
+
+.cg-side-card--accent {
+  background: linear-gradient(135deg, var(--gold-soft) 0%, var(--surface) 80%);
+  border-color: var(--stroke-strong);
+}
+.cg-side-card--emerald {
+  background: var(--emerald-soft);
+  border-color: var(--emerald);
+}
+.cg-side-card--emerald .cg-side-card__title { color: var(--emerald); }
+
+.cg-side-card__rows { display: flex; flex-direction: column; gap: 8px; }
+.cg-side-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.86rem;
+}
+.cg-side-row__k { color: var(--text-muted); }
+.cg-side-row__v { font-weight: 600; text-align: right; }
+
+.cg-side-card__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.cg-side-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cg-side-stat__k {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.cg-side-stat__v {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cg-side-card--hint {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.cg-side-card__hint-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--emerald);
+  border: 1px solid var(--emerald);
+}
+.cg-side-card__hint-text {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+/* Tablet: одна колонка, виджеты в ряд */
+@media (max-width: 1100px) {
+  .cg-page { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .cg-page__side {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .cg-page__side { grid-template-columns: 1fr; gap: 10px; }
+  .cg-side-card { padding: 14px 16px; }
+  .cg-side-card__value { font-size: 1.55rem; }
 }
 
 @keyframes badgePulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.65; }
+}
+
+/* ============================================================================
+   ЕДИНАЯ СИСТЕМА АНИМАЦИЙ
+   Все длительности и easing-кривые держим здесь. Главный принцип: апельсиновое
+   замедление (Apple easeOutExpo) — резкий старт, очень мягкое затухание.
+   Это даёт восприятие плавности без задержек.
+   ============================================================================ */
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);           /* easeOutQuint — самый «бархатный» финиш */
+  --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);/* мягкий выход */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.32, 0.64, 1);     /* лёгкий подскок без перелёта */
+  --t-fast: 260ms;
+  --t-base: 560ms;
+  --t-slow: 820ms;
+}
+
+/* ── базовые keyframes ── */
+/* Сдвиги намеренно малы (6px) — большое перемещение создаёт ощущение «дёрнулось». */
+@keyframes cgFadeUp {
+  from { opacity: 0; transform: translate3d(0, 6px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes cgFadeDown {
+  from { opacity: 0; transform: translate3d(0, -6px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes cgFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes cgScaleIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes cgSlideInLeft {
+  from { opacity: 0; transform: translate3d(-8px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes cgSlideInRight {
+  from { opacity: 0; transform: translate3d(8px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes cgPopIn {
+  0% { opacity: 0; transform: scale(0.92); }
+  60% { opacity: 1; transform: scale(1.01); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* ── классы появления ── */
+.cg-anim-fade-up { animation: cgFadeUp var(--t-base) var(--ease-out) backwards; }
+.cg-anim-fade-down { animation: cgFadeDown var(--t-base) var(--ease-out) backwards; }
+.cg-anim-fade { animation: cgFadeIn var(--t-base) var(--ease-out) backwards; }
+.cg-anim-scale { animation: cgScaleIn var(--t-base) var(--ease-out) backwards; }
+.cg-anim-slide-l { animation: cgSlideInLeft var(--t-base) var(--ease-out) backwards; }
+.cg-anim-slide-r { animation: cgSlideInRight var(--t-base) var(--ease-out) backwards; }
+.cg-anim-pop { animation: cgPopIn 480ms var(--ease-spring) backwards; }
+
+/* шаги задержки */
+.cg-anim-d-0 { animation-delay: 0ms; }
+.cg-anim-d-1 { animation-delay: 100ms; }
+.cg-anim-d-2 { animation-delay: 200ms; }
+.cg-anim-d-3 { animation-delay: 300ms; }
+.cg-anim-d-4 { animation-delay: 400ms; }
+.cg-anim-d-5 { animation-delay: 500ms; }
+.cg-anim-d-6 { animation-delay: 600ms; }
+
+/* stagger — «волна» по детям. Шаг 80ms — заметно, но не утомляет. */
+.cg-stagger > * {
+  animation: cgFadeUp var(--t-base) var(--ease-out) backwards;
+}
+.cg-stagger > *:nth-child(1) { animation-delay: 60ms; }
+.cg-stagger > *:nth-child(2) { animation-delay: 140ms; }
+.cg-stagger > *:nth-child(3) { animation-delay: 220ms; }
+.cg-stagger > *:nth-child(4) { animation-delay: 300ms; }
+.cg-stagger > *:nth-child(5) { animation-delay: 380ms; }
+.cg-stagger > *:nth-child(6) { animation-delay: 460ms; }
+.cg-stagger > *:nth-child(7) { animation-delay: 540ms; }
+.cg-stagger > *:nth-child(8) { animation-delay: 620ms; }
+.cg-stagger > *:nth-child(n + 9) { animation-delay: 700ms; }
+
+/* ── hover ── */
+.cg-hover-lift {
+  transition: transform 260ms var(--ease-out), box-shadow 260ms var(--ease-out), border-color 220ms;
+}
+.cg-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-pop);
+}
+.cg-hover-glow {
+  transition: box-shadow 240ms var(--ease-out), border-color 220ms;
+}
+.cg-hover-glow:hover {
+  box-shadow: 0 0 0 3px var(--gold-glow);
+  border-color: var(--gold);
+}
+
+/* ── глобальные переходы интерактивных элементов ── */
+button,
+a,
+input[type='checkbox'],
+input[type='radio'],
+.cg-side-card,
+.an-kpi-card,
+.cg-empty {
+  transition:
+    background 220ms var(--ease-out),
+    color 220ms var(--ease-out),
+    border-color 220ms var(--ease-out),
+    box-shadow 260ms var(--ease-out),
+    transform 220ms var(--ease-out),
+    opacity 220ms var(--ease-out);
+}
+
+/* GPU promotion на ключевых анимируемых блоках */
+.cg-side-card,
+.an-kpi-card,
+.an-insight,
+.gold-index__city,
+.cg-anim-fade-up,
+.cg-stagger > * {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.cg-side-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--stroke-strong);
+}
+
+/* Мягкий тап только для «обычных» кнопок — не трогаем Recharts/Leaflet/тоггл, и пр.
+   В Safari агрессивный transform на SVG-кнопках может вызывать «прыжки» tooltip-ов. */
+button:active:not(:disabled):not(.recharts-default-tooltip):not(.leaflet-control button):not(.theme-toggle):not(.no-tap) {
+  transform: scale(0.985);
+  transition-duration: 80ms;
+}
+.cg-no-press:active,
+.no-tap:active { transform: none !important; }
+
+/* Safari iOS: убрать highlight при тапе на кнопках и ссылках */
+a, button, [role='button'] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Safari iOS: не давать тексту автоматически увеличиваться */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================================
+   ЕДИНЫЙ СТИЛЬ ТАБЛИЦ
+   Класс cg-table используется везде: TeamPerformance, Analytics, SettingsPanel.
+   Сохраняем существующие классы (analytics-op-table и пр.) как алиасы.
+   ============================================================================ */
+.cg-table-wrap {
+  border-radius: 14px;
+  border: 1px solid var(--stroke-soft);
+  background: var(--surface);
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+}
+.cg-table-wrap--scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  min-width: 0;
+}
+.cg-table-wrap--scroll::after {
+  /* мягкий fade-индикатор горизонтального скролла */
+  content: '';
+  position: sticky;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--surface));
+  margin-left: -16px;
+  display: block;
+}
+
+.cg-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: var(--text);
+}
+.cg-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, var(--bg-panel-solid) 0%, var(--surface) 100%);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 11px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--stroke-strong);
+  white-space: nowrap;
+}
+.cg-table thead th.num,
+.cg-table thead th.mono-nums,
+.cg-table thead th[align="right"] { text-align: right; }
+.cg-table thead th.center { text-align: center; }
+
+.cg-table tbody td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--stroke-soft);
+  vertical-align: middle;
+  color: var(--text);
+}
+.cg-table tbody td.num,
+.cg-table tbody td.mono-nums,
+.cg-table tbody td[align="right"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+.cg-table tbody td.center { text-align: center; }
+.cg-table tbody tr:last-child td { border-bottom: none; }
+
+/* зебра — мягкая. fallback для Safari <16.2 без color-mix */
+.cg-table tbody tr:nth-child(even) td {
+  background: var(--gold-soft);
+  background: color-mix(in srgb, var(--bg-panel-solid) 35%, transparent);
+}
+.cg-table tbody tr {
+  transition: background 0.12s ease;
+}
+.cg-table tbody tr:hover td {
+  background: var(--gold-soft);
+}
+
+.cg-table--compact thead th,
+.cg-table--compact tbody td { padding: 8px 10px; font-size: 0.83rem; }
+
+/* Заголовок-секции таблицы (поверх wrap) */
+.cg-table-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--stroke-soft);
+  background: var(--bg-panel-solid);
+}
+.cg-table-title__l { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cg-table-title__h {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.cg-table-title__sub {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 600px) {
+  .cg-table thead th,
+  .cg-table tbody td { padding: 9px 10px; }
+  .cg-table { font-size: 0.82rem; }
 }
 
 .theme-toggle {
@@ -447,6 +1047,16 @@ select:focus {
 }
 
 /* Splash / profile loading (до монтирования основного layout в App.jsx) */
+.shell {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
 .load-card {
   margin-top: 30vh;
   padding: 28px;

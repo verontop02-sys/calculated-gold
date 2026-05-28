@@ -13,6 +13,8 @@ import {
 } from 'recharts';
 import { api } from './api.js';
 import { isUserManagerRole, roleLabel } from './roles.js';
+import { SkeletonStats, SkeletonChart, SkeletonTable } from './Skeleton.jsx';
+import { EmptyState } from './EmptyState.jsx';
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -242,7 +244,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
 
   return (
     <div className="team-page">
-      <header className="team-hero glass">
+      <header className="team-hero glass cg-anim-fade-up">
         <div className="team-hero-top">
           <div>
             <p className="team-kicker">REAKTIVO PRO · учёт сделок</p>
@@ -376,8 +378,10 @@ export function TeamPerformance({ formatMoney, toast, user }) {
       {err && <div className="glass analytics-err">{err}</div>}
 
       {loading && !totals && (
-        <div className="glass team-skeleton">
-          <p className="muted">Загружаем KPI…</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <SkeletonStats count={4} />
+          <SkeletonChart height={200} />
+          <SkeletonTable rows={4} cols={5} />
         </div>
       )}
 
@@ -386,7 +390,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
           <p className="team-period-line muted small">{periodLabel ? `Период в отчёте: ${periodLabel}` : ''}</p>
           <section className="team-kpi-section" aria-label="Ключевые показатели">
             <h3 className="team-section-title">Ключевые показатели за период</h3>
-            <div className="team-kpi-grid">
+            <div className="team-kpi-grid cg-stagger">
               <article className="team-kpi-card">
                 <span className="team-kpi-icon" aria-hidden>
                   ◆
@@ -419,47 +423,46 @@ export function TeamPerformance({ formatMoney, toast, user }) {
       )}
 
       {totals && !loading && totals.deals === 0 && (
-        <div className="glass team-empty">
-          <p className="team-empty-title">За этот период пока нет сделок</p>
-          <p className="muted small">
-            Когда сотрудники скачают PDF по договорам, здесь появятся цифры. Проверьте даты или расширьте период.
-          </p>
-        </div>
+        <EmptyState
+          icon="users"
+          title="За этот период сделок нет"
+          description="Когда сотрудники скачают PDF по договорам, здесь появятся цифры. Проверьте даты или расширьте период."
+        />
       )}
 
       {hasRows && !loading && (
-        <section className="glass team-table-card">
+        <section className="glass team-table-card cg-anim-fade-up cg-anim-d-2">
           <div className="team-table-head">
             <h3 className="analytics-h3 team-table-title">Рейтинг по обороту</h3>
             <p className="muted small team-table-desc">
               Сортировка по сумме (выше — больше выручка по договорам за период). Доля — от оборота в этом отчёте.
             </p>
           </div>
-          <div className="analytics-op-table-wrap">
-            <table className="analytics-op-table team-table">
+          <div className="cg-table-wrap cg-table-wrap--scroll">
+            <table className="cg-table team-table">
               <thead>
                 <tr>
-                  <th className="mono-nums">Место</th>
+                  <th className="center">Место</th>
                   <th>Сотрудник</th>
-                  <th className="mono-nums">Сделок</th>
-                  <th className="mono-nums">Оборот</th>
-                  <th className="mono-nums">Вес лом / чист., г</th>
-                  <th className="mono-nums">Доля</th>
+                  <th className="num">Сделок</th>
+                  <th className="num">Оборот</th>
+                  <th className="num">Вес лом / чист., г</th>
+                  <th className="num">Доля</th>
                 </tr>
               </thead>
               <tbody>
                 {data.operators.map((row) => (
                   <tr key={row.operatorId == null ? 'none' : String(row.operatorId)}>
-                    <td className="mono-nums team-rank-cell">{rankBadge(row.rank)}</td>
+                    <td className="center team-rank-cell">{rankBadge(row.rank)}</td>
                     <td>
                       <span className={tierClass(row.tier)}>{row.email || '—'}</span>
                     </td>
-                    <td className="mono-nums">{row.deals}</td>
-                    <td className="mono-nums">{formatMoney(row.sumRub)}</td>
-                    <td className="mono-nums small-digits">
+                    <td className="num">{row.deals}</td>
+                    <td className="num">{formatMoney(row.sumRub)}</td>
+                    <td className="num small-digits">
                       {(row.weightGrossSum ?? 0).toFixed(2)} / {(row.weightNetSum ?? 0).toFixed(3)}
                     </td>
-                    <td className="mono-nums">{row.shareRubPct}%</td>
+                    <td className="num">{row.shareRubPct}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -469,7 +472,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
       )}
 
       {chartSeries.length > 0 && totals && (
-        <section className="glass analytics-chart-card team-chart-card">
+        <section className="glass analytics-chart-card team-chart-card cg-anim-fade-up cg-anim-d-3">
           <h3 className="analytics-h3">Динамика оборота по дням</h3>
           <p className="muted small an-h3-sub">Сумма в ₽ по календарным дням в рамках фильтра.</p>
           <div className="analytics-chart-h">
@@ -487,6 +490,9 @@ export function TeamPerformance({ formatMoney, toast, user }) {
                   strokeWidth={2.5}
                   dot={false}
                   activeDot={{ r: 5 }}
+                  animationDuration={1500}
+                  animationEasing="ease-out"
+                  animationBegin={350}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -495,7 +501,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
       )}
 
       {weekSeries.length > 0 && totals && (
-        <section className="glass analytics-chart-card team-week-section">
+        <section className="glass analytics-chart-card team-week-section cg-anim-fade-up cg-anim-d-4">
           <h3 className="analytics-h3">Сводка по неделям</h3>
           <p className="muted small an-h3-sub">
             Неделя с понедельника (ISO). Столбцы — оборот за неделю; цвет к предыдущей неделе в этом отчёте (зелёный
@@ -527,7 +533,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
                     return [`${formatMoney(value)}${tail}`, 'Оборот'];
                   }}
                 />
-                <Bar dataKey="sumRub" name="Оборот" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="sumRub" name="Оборот" radius={[4, 4, 0, 0]} animationDuration={1200} animationEasing="ease-out" animationBegin={400}>
                   {weekSeries.map((entry, i) => (
                     <Cell key={entry.weekStart || i} fill={WEEK_BAR[entry.barTone] || WEEK_BAR.neu} />
                   ))}
@@ -535,29 +541,29 @@ export function TeamPerformance({ formatMoney, toast, user }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="analytics-op-table-wrap">
-            <table className="analytics-op-table team-week-table">
+          <div className="cg-table-wrap cg-table-wrap--scroll">
+            <table className="cg-table cg-table--compact team-week-table">
               <thead>
                 <tr>
                   <th>Неделя с</th>
-                  <th className="mono-nums">Сделок</th>
-                  <th className="mono-nums">Оборот</th>
-                  <th className="mono-nums">к пред.</th>
-                  <th className="mono-nums">Лом, г</th>
-                  <th className="mono-nums">Чист., г</th>
+                  <th className="num">Сделок</th>
+                  <th className="num">Оборот</th>
+                  <th className="num">к пред.</th>
+                  <th className="num">Лом, г</th>
+                  <th className="num">Чист., г</th>
                 </tr>
               </thead>
               <tbody>
                 {weekSeries.map((w) => (
                   <tr key={w.weekStart}>
                     <td>{w.label}</td>
-                    <td className="mono-nums">{w.deals}</td>
-                    <td className="mono-nums">{formatMoney(w.sumRub)}</td>
-                    <td className="mono-nums">
+                    <td className="num">{w.deals}</td>
+                    <td className="num">{formatMoney(w.sumRub)}</td>
+                    <td className="num">
                       <WeekDeltaCell deltaPct={w.deltaPct} />
                     </td>
-                    <td className="mono-nums">{(w.weightGrossSum ?? 0).toFixed(2)}</td>
-                    <td className="mono-nums">{(w.weightNetSum ?? 0).toFixed(3)}</td>
+                    <td className="num">{(w.weightGrossSum ?? 0).toFixed(2)}</td>
+                    <td className="num">{(w.weightNetSum ?? 0).toFixed(3)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -583,25 +589,26 @@ export function TeamPerformance({ formatMoney, toast, user }) {
           flex-wrap: wrap;
         }
         .team-kicker {
-          font-size: 0.68rem;
+          font-size: var(--fz-micro);
           text-transform: uppercase;
           letter-spacing: 0.14em;
           color: var(--gold, #b8860b);
-          margin: 0 0 6px;
-          font-weight: 600;
+          margin: 0 0 8px;
+          font-weight: 700;
         }
         .team-title {
           font-family: var(--font-display, inherit);
-          font-size: 1.45rem;
-          font-weight: 700;
+          font-size: clamp(1.3rem, 1.1rem + 1vw, 1.6rem);
+          font-weight: 600;
           margin: 0 0 8px;
-          line-height: 1.2;
+          line-height: 1.15;
+          letter-spacing: -0.014em;
           color: var(--text, #faf8f4);
         }
         .team-subtitle {
           margin: 0;
-          font-size: 0.92rem;
-          line-height: 1.45;
+          font-size: var(--fz-body-sm);
+          line-height: 1.5;
           color: var(--text-muted, #a8a29e);
           max-width: 52ch;
         }
@@ -778,53 +785,11 @@ export function TeamPerformance({ formatMoney, toast, user }) {
           line-height: 1.3;
         }
         .team-filter-hint { margin: 12px 0 0; line-height: 1.4; }
-        /* Таблицы и график на этой вкладке */
-        .team-page .analytics-op-table-wrap {
-          width: 100%;
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-          min-width: 0;
-        }
-        .team-page .analytics-op-table {
-          width: 100%;
-          max-width: 100%;
-          table-layout: fixed;
-          border-collapse: collapse;
-          font-size: 0.86rem;
-        }
-        .team-page .analytics-op-table.team-table td:nth-child(2),
-        .team-page .analytics-op-table.team-table th:nth-child(2) {
+        /* Специфика только этой вкладки. Базовые стили таблиц — в index.css (.cg-table). */
+        .team-page .team-table td:nth-child(2),
+        .team-page .team-table th:nth-child(2) {
           word-break: break-word;
           overflow-wrap: anywhere;
-        }
-        .team-page .analytics-op-table th,
-        .team-page .analytics-op-table td {
-          text-align: left;
-          padding: 8px 10px;
-          border-bottom: 1px solid var(--stroke, rgba(255,255,255,0.08));
-        }
-        .team-page .analytics-op-table th {
-          font-size: 0.75rem;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
-          color: var(--text-muted);
-        }
-        .team-page .analytics-op-table tr:last-child td {
-          border-bottom: none;
-        }
-        .team-page .team-table th.mono-nums,
-        .team-page .team-table td.mono-nums {
-          text-align: right;
-        }
-        .team-page .team-table th:first-child,
-        .team-page .team-table td:first-child {
-          text-align: center;
-        }
-        .team-page .team-table td:first-child.mono-nums {
-          text-align: center;
-        }
-        .team-page .team-table th:nth-child(2),
-        .team-page .team-table td:nth-child(2) {
           text-align: left;
         }
         .team-page .analytics-chart-card {
@@ -876,14 +841,13 @@ export function TeamPerformance({ formatMoney, toast, user }) {
             white-space: normal;
             word-break: break-word;
           }
-          .team-page .analytics-op-table {
-            table-layout: auto;
+          .team-page .cg-table {
             min-width: 520px;
             font-size: 0.78rem;
           }
-          .team-page .analytics-op-table th,
-          .team-page .analytics-op-table td {
-            padding: 7px 8px;
+          .team-page .cg-table th,
+          .team-page .cg-table td {
+            padding: 8px 8px;
           }
           .team-page .analytics-chart-h {
             height: 200px;

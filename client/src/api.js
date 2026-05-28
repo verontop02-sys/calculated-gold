@@ -361,6 +361,8 @@ export const api = {
     request(`/field-deal-sessions/${encodeURIComponent(String(id))}/cancel`, { method: 'POST' }),
   /** Индекс золота (только super_admin на сервере). */
   goldIndexOverview: () => request('/gold-index/overview'),
+  /** Облегчённая агрегированная сводка для всех ролей (клиентский режим калькулятора). */
+  goldIndexPublicSummary: () => request('/gold-index/public-summary'),
   goldIndexHistory: (opts = {}) => {
     const q = new URLSearchParams();
     if (opts.cityId) q.set('cityId', String(opts.cityId));

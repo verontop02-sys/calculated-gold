@@ -50,3 +50,14 @@ export function roleLabel(role) {
   const k = normalizeRoleKey(role);
   return ROLE_LABELS[k] || role;
 }
+
+/** Курьер (роль «courier» или пусто) — выездной сотрудник без админ-функций. */
+export function isCourierRole(role) {
+  const k = normalizeRoleKey(role);
+  return k === 'courier' || k === '';
+}
+
+/** Продавец-офисник — оформляет договоры, но без админ-настроек. */
+export function isSellerRole(role) {
+  return normalizeRoleKey(role) === 'seller';
+}

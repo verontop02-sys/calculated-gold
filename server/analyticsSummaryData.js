@@ -6,11 +6,19 @@ export const SCRAP_DEALS_ANALYTICS_COLS =
 
 /**
  * Сводка для вкладки «Аналитика» (JSON и PDF).
+ *
+ * Если viewer — менеджер (admin / super_admin), видит все сделки.
+ * Если нет — отфильтрует выборку по operator_id = viewerUserId, чтобы курьер/продавец
+ * видел только свои сделки.
+ *
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {string} fromD Y-M-D
  * @param {string} toD Y-M-D
+ * @param {{ viewerIsManager?: boolean, viewerUserId?: string|null }} [opts]
  */
-export async function computeAnalyticsSummaryData(supabase, fromD, toD) {
+export async function computeAnalyticsSummaryData(supabase, fromD, toD, opts = {}) {
+  const viewerIsManager = opts.viewerIsManager !== false; // по умолчанию — менеджер (обратная совместимость)
+  const viewerUserId = opts.viewerUserId || null;
   const now = new Date();
   const toDefault = String(toD || '').trim() || now.toISOString().slice(0, 10);
   const fromDefault =
@@ -18,12 +26,19 @@ export async function computeAnalyticsSummaryData(supabase, fromD, toD) {
   const fromIso = new Date(`${fromDefault}T00:00:00.000Z`).toISOString();
   const toIso = new Date(`${toDefault}T23:59:59.999Z`).toISOString();
 
-  const { data: dealsData, error } = await supabase
+  let query = supabase
     .from('scrap_deals')
     .select(SCRAP_DEALS_ANALYTICS_COLS)
     .gte('created_at', fromIso)
     .lte('created_at', toIso)
     .order('created_at', { ascending: true });
+
+  // Курьер / продавец видит только свои сделки.
+  if (!viewerIsManager && viewerUserId) {
+    query = query.eq('operator_id', viewerUserId);
+  }
+
+  const { data: dealsData, error } = await query;
   if (error) throw error;
   const list = dealsData || [];
   const sumRub = list.reduce((s, r) => s + (Number(r.total_rub) || 0), 0);
@@ -141,6 +156,7 @@ export async function computeAnalyticsSummaryData(supabase, fromD, toD) {
 
   return {
     period: { from: fromDefault, to: toDefault },
+    viewerScope: viewerIsManager ? 'all' : 'self',
     totals: {
       deals: countDeals,
       sumRub,

@@ -13,7 +13,9 @@
     "start": "npm run start -w server",
     "deploy": "npm run build && firebase deploy",
     "deploy:hosting": "npm run build && firebase deploy --only hosting",
-    "deploy:supabase-cbr": "npx supabase functions deploy cbr-quote --project-ref glhfrchbzmxxlftswfck"
+    "deploy:supabase-cbr": "npx supabase functions deploy cbr-quote --project-ref glhfrchbzmxxlftswfck",
+    "docs:architecture-pdf": "node scripts/generate-architecture-pdf.mjs",
+    "docs:sidebar-pdf": "node scripts/generate-sidebar-presentation-pdf.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

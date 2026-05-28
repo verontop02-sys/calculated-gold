@@ -23,6 +23,7 @@ import {
 } from './fieldDealSession.js';
 import {
   buildGoldIndexOverview,
+  buildGoldIndexPublicSummary,
   createGoldIndexCity,
   updateGoldIndexCity,
   deleteGoldIndexCity,
@@ -690,6 +691,17 @@ async function teamPerformanceOptsFromRequest(req) {
   };
 }
 
+/** Скоуп просмотра аналитики: курьер/продавец видит только свои сделки, менеджер — все. */
+async function analyticsScopeFromRequest(req) {
+  const role = await getRequesterRole(req);
+  const emailBypass = hasPanelFullAccessByEmail(req.user);
+  const isMgr = emailBypass || isUserManagerRole(role);
+  return {
+    viewerIsManager: isMgr,
+    viewerUserId: req.user.id,
+  };
+}
+
 // ── SSE: real-time price stream ────────────────────────────────────────────
 const sseClients = new Set();
 
@@ -877,6 +889,17 @@ app.get(
   asyncHandler(requireSuperAdmin),
   asyncHandler(async (_req, res) => {
     const data = await buildGoldIndexOverview(supabase);
+    res.json(data);
+  })
+);
+
+// Облегчённая обезличенная сводка для всех авторизованных пользователей
+// (используется в клиентском режиме калькулятора для сравнения «наша сумма vs рынок»).
+app.get(
+  '/api/gold-index/public-summary',
+  asyncHandler(async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const data = await buildGoldIndexPublicSummary(supabase);
     res.json(data);
   })
 );
@@ -1452,7 +1475,8 @@ app.get(
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     const fromD = String(req.query.from || '').trim();
     const toD = String(req.query.to || '').trim();
-    const data = await computeAnalyticsSummaryData(supabase, fromD, toD);
+    const scope = await analyticsScopeFromRequest(req);
+    const data = await computeAnalyticsSummaryData(supabase, fromD, toD, scope);
     res.json(data);
   })
 );
@@ -1465,12 +1489,14 @@ app.get(
     const toD = String(req.query.to || '').trim();
     const g = String(req.query.group || 'day').toLowerCase();
     const group = g === 'week' || g === 'month' ? g : 'day';
-    const data = await computeAnalyticsSummaryData(supabase, fromD, toD);
+    const scope = await analyticsScopeFromRequest(req);
+    const data = await computeAnalyticsSummaryData(supabase, fromD, toD, scope);
     const sectionsQ = String(req.query.sections || '');
     const buf = await buildAnalyticsReportPdfBuffer(data, group, sectionsQ);
     const p = data.period || {};
     const safe = (s) => String(s || 'x').replace(/[^\d-]/g, '') || 'period';
-    const fname = `analitika-${safe(p.from)}_${safe(p.to)}.pdf`;
+    const scopeTag = data.viewerScope === 'self' ? '-my' : '';
+    const fname = `analitika${scopeTag}-${safe(p.from)}_${safe(p.to)}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
     res.send(buf);

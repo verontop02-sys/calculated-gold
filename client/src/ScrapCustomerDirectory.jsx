@@ -218,7 +218,11 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
           {busy && <span className="muted small sc-dir-busy">…</span>}
         </div>
         <div className="sc-dir-list">
-          {list.length === 0 && !busy && <p className="muted sc-dir-empty">Нет записей</p>}
+          {list.length === 0 && !busy && (
+            <p className="muted sc-dir-empty" style={{ textAlign: 'center', padding: '14px 8px' }}>
+              Ничего не нашли. Попробуйте часть номера или другую фамилию.
+            </p>
+          )}
           {list.map((c) => {
             const hist = dealsById[c.id];
             const showHist = openHistoryId === c.id;
@@ -328,10 +332,16 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
                 )}
                 {showHist && !isEdit && (
                   <div className="sc-dir-hist">
-                    {hist?.loading && <p className="muted small">Загрузка сделок…</p>}
+                    {hist?.loading && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '4px 0' }}>
+                        {[0,1].map((i) => (
+                          <span key={i} aria-hidden style={{ display: 'block', width: i === 0 ? '90%' : '70%', height: 14, borderRadius: 6, background: 'linear-gradient(90deg, var(--gold-soft) 0%, rgba(212,175,55,0.22) 50%, var(--gold-soft) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease infinite' }} />
+                        ))}
+                      </div>
+                    )}
                     {hist?.err && <p className="err-text small">{hist.err}</p>}
                     {hist && !hist.loading && !hist.err && (hist.deals || []).length === 0 && (
-                      <p className="muted small">Сделок пока нет.</p>
+                      <p className="muted small" style={{ padding: '8px 4px' }}>У этого клиента ещё нет сделок.</p>
                     )}
                     {hist &&
                       !hist.loading &&

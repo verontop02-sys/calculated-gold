@@ -9,6 +9,8 @@ import {
   Cell,
 } from 'recharts';
 import { api } from './api.js';
+import { SkeletonStats, SkeletonMap, SkeletonCard, SkeletonChart } from './Skeleton.jsx';
+import { EmptyState } from './EmptyState.jsx';
 
 // ── GeoJSON helpers ──────────────────────────────────────────────────────────
 const GEO_URL = '/russia-regions.geojson';
@@ -1409,7 +1411,14 @@ export function GoldIndex({ formatMoney, toast }) {
         </div>
       </div>
 
-      {loading && data == null && <p className="muted">Загрузка…</p>}
+      {loading && data == null && (
+        <div className="gi-skel" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <SkeletonStats count={4} />
+          <SkeletonMap height={400} />
+          <SkeletonChart height={180} />
+          <SkeletonCard rows={4} />
+        </div>
+      )}
       {refreshing && data && (
         <p className="muted small" style={{ marginBottom: 8 }}>
           Обновление…
@@ -1419,7 +1428,7 @@ export function GoldIndex({ formatMoney, toast }) {
 
       {data && (
         <>
-          <div className="gi-stats-grid">
+          <div className="gi-stats-grid cg-stagger">
             <div className="gi-stat-card">
               <div className="gi-stat-icon">⚡</div>
               <div>
@@ -1556,7 +1565,7 @@ export function GoldIndex({ formatMoney, toast }) {
                       contentStyle={{ borderRadius: 10, border: '1px solid #e8c547', fontSize: 12 }}
                       labelFormatter={() => 'Индекс'}
                     />
-                    <Bar dataKey="ratio" radius={[6, 6, 0, 0]}>
+                    <Bar dataKey="ratio" radius={[6, 6, 0, 0]} animationDuration={1200} animationEasing="ease-out" animationBegin={350}>
                       {regionsChart.map((r, i) => {
                         const colorKey = r.ratio < 1.5 ? 'green' : r.ratio < 2.5 ? 'yellow' : r.ratio < 3.5 ? 'orange' : 'red';
                         return <Cell key={i} fill={COLOR_HEX[colorKey]} />;
@@ -1595,9 +1604,8 @@ export function GoldIndex({ formatMoney, toast }) {
             </div>
 
             {chartBusy && (
-              <div className="gi-chart-empty">
-                <span className="gi-chart-empty-icon">⏳</span>
-                <span>Загружаем данные…</span>
+              <div style={{ padding: 8 }}>
+                <SkeletonChart height={220} />
               </div>
             )}
 
@@ -1621,7 +1629,7 @@ export function GoldIndex({ formatMoney, toast }) {
                         labelFormatter={() => `Проба ${chartProbe}`}
                         contentStyle={{ borderRadius: 10, border: '1px solid #e8c547', fontSize: 12 }}
                       />
-                      <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]} animationDuration={1200} animationEasing="ease-out" animationBegin={350}>
                         {snapshot.map((_, i) => (
                           <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                         ))}
@@ -1879,9 +1887,25 @@ export function GoldIndex({ formatMoney, toast }) {
             </form>
           )}
 
+          {filteredCities.length === 0 && cities.length === 0 && (
+            <EmptyState
+              icon="cities"
+              title="Городов пока нет"
+              description="Добавьте первый город — нажмите «Указать место» на карте, кнопку «✈ Добавить точку» или используйте текущую геолокацию. Появится метка, по которой соберём цены конкурентов."
+            />
+          )}
+          {filteredCities.length === 0 && cities.length > 0 && (
+            <EmptyState
+              compact
+              icon="search"
+              title="Под фильтр ничего не подошло"
+              description="Попробуйте сбросить фильтр или выбрать другой регион."
+            />
+          )}
+
           <div className="gold-index__cities">
             {filteredCities.map((c, idx) => (
-              <div key={c.id} id={`gi-city-${c.id}`} className="gold-index__city" style={{ animationDelay: `${Math.min(idx * 40, 300)}ms` }}>
+              <div key={c.id} id={`gi-city-${c.id}`} className="gold-index__city" style={{ animationDelay: `${Math.min(idx * 50, 400)}ms` }}>
                 <button type="button" className="gold-index__city-head" onClick={() => toggleExpand(c.id)}>
                   <span
                     className="gold-index__dot"
@@ -2057,7 +2081,12 @@ export function GoldIndex({ formatMoney, toast }) {
                     </div>
 
                     {(c.competitors || []).length === 0 ? (
-                      <p className="muted small gi-no-comp">Конкурентов пока нет — добавьте ниже.</p>
+                      <EmptyState
+                        compact
+                        icon="users"
+                        title="В этом городе пока нет точек"
+                        description="Добавьте первого конкурента ниже — укажите название и цены по пробам."
+                      />
                     ) : (
                       <div className="gi-comp-list">
                         {(c.competitors || []).map((co) => (
@@ -2223,9 +2252,17 @@ export function GoldIndex({ formatMoney, toast }) {
                       </summary>
                       <div style={{ marginTop: 8 }}>
                         {historyBusyByCity[c.id] ? (
-                          <p className="muted small">Загрузка…</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <SkeletonCard rows={2} showTitle={false} padded={false} />
+                            <SkeletonCard rows={2} showTitle={false} padded={false} />
+                          </div>
                         ) : (historyByCity[c.id] || []).length === 0 ? (
-                          <p className="muted small">Изменений пока нет.</p>
+                          <EmptyState
+                            compact
+                            icon="history"
+                            title="История пуста"
+                            description="Изменения по этому городу появятся здесь после первого редактирования."
+                          />
                         ) : (
                           <div className="gi-history-list">
                             {(historyByCity[c.id] || []).map((h) => (
@@ -2295,10 +2332,22 @@ export function GoldIndex({ formatMoney, toast }) {
           display: flex; align-items: center; gap: 10px;
           background: var(--input-bg); border: 1px solid var(--stroke);
           border-radius: 12px; padding: 11px 13px;
-          transition: box-shadow 0.15s, border-color 0.15s;
+          transition:
+            box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1),
+            border-color 260ms cubic-bezier(0.16, 1, 0.3, 1),
+            transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+          will-change: transform;
         }
-        .gi-stat-card:hover { border-color: rgba(232,197,71,0.4); box-shadow: 0 2px 10px rgba(184,134,11,0.08); }
-        .gi-stat-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1; }
+        .gi-stat-card:hover {
+          border-color: var(--gold);
+          box-shadow: 0 8px 24px var(--gold-glow);
+          transform: translateY(-2px);
+        }
+        .gi-stat-card:hover .gi-stat-icon { transform: scale(1.12); }
+        .gi-stat-icon {
+          font-size: 1.4rem; flex-shrink: 0; line-height: 1;
+          transition: transform 360ms cubic-bezier(0.34, 1.45, 0.64, 1);
+        }
         .gi-stat-label { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px; }
         .gi-stat-value { font-size: 1rem; font-weight: 700; line-height: 1.2; }
         .gi-stat-unit { font-size: 0.72rem; font-weight: 400; color: var(--text-muted); margin-left: 2px; }
@@ -2452,8 +2501,8 @@ export function GoldIndex({ formatMoney, toast }) {
 
         /* ── animations ─────────────────────────────────── */
         @keyframes gi-slide-up {
-          from { opacity: 0; transform: translateY(14px); }
-          to   { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; transform: translate3d(0, 8px, 0); }
+          to   { opacity: 1; transform: translate3d(0, 0, 0); }
         }
         @keyframes gi-fade-in {
           from { opacity: 0; }
@@ -2469,18 +2518,21 @@ export function GoldIndex({ formatMoney, toast }) {
         .gold-index__city {
           padding: 0; overflow: hidden;
           border: 1px solid var(--stroke); border-radius: 14px; background: var(--input-bg);
-          animation: gi-slide-up 0.28s ease both;
-          transition: box-shadow 0.2s, border-color 0.2s;
+          animation: gi-slide-up 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+          transition: box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1), border-color 240ms;
         }
-        .gold-index__city:hover { box-shadow: 0 2px 14px rgba(0,0,0,0.1); }
+        .gold-index__city:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.10); border-color: var(--stroke-strong); }
         .gold-index__city-head {
           width: 100%; display: flex; align-items: center; gap: 10px;
           padding: clamp(10px,2vw,14px) clamp(12px,2vw,16px);
           background: transparent; border: none; color: inherit; cursor: pointer; text-align: left;
-          transition: background 0.15s;
+          transition: background 240ms cubic-bezier(0.16, 1, 0.3, 1);
         }
         .gold-index__city-head:hover { background: var(--hover-bg,rgba(232,197,71,0.06)); }
-        .gold-index__dot { width: 12px; height: 12px; border-radius: 999px; flex-shrink: 0; transition: transform 0.2s; }
+        .gold-index__dot {
+          width: 12px; height: 12px; border-radius: 999px; flex-shrink: 0;
+          transition: transform 320ms cubic-bezier(0.34, 1.45, 0.64, 1);
+        }
         .gold-index__city-head:hover .gold-index__dot { transform: scale(1.25); }
         .gold-index__city-title { flex: 1; min-width: 0; overflow: hidden; }
         .gold-index__city-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }

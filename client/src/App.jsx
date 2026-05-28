@@ -4,14 +4,38 @@ import { supabase } from './supabase.js';
 import { useToast } from './ToastContext.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
 import { Login } from './Login.jsx';
-import { Calculator } from './Calculator.jsx';
-import { ContractReceipt } from './ContractReceipt.jsx';
+import { CalculatorPage } from './CalculatorPage.jsx';
+import { ContractPage } from './ContractPage.jsx';
 import { Analytics } from './Analytics.jsx';
 import { TeamPerformance } from './TeamPerformance.jsx';
-import { Clients } from './Clients.jsx';
-import { SettingsPanel } from './SettingsPanel.jsx';
+import { ClientsPage } from './ClientsPage.jsx';
+import { SettingsPage } from './SettingsPage.jsx';
 import { GoldIndex } from './GoldIndex.jsx';
+import { Sidebar } from './Sidebar.jsx';
+import { MobileNav } from './MobileNav.jsx';
 import { isSuperAdminRole, isUserManagerRole } from './roles.js';
+
+const TAB_TITLES = {
+  calc: 'Калькулятор',
+  contract: 'Договор',
+  clients: 'Клиенты',
+  analytics: 'Аналитика',
+  team: 'Команда и KPI',
+  'gold-index': 'Индекс золота',
+  settings: 'Настройки',
+};
+
+const TAB_SUBTITLES = {
+  calc: 'Расчёт выкупа и переход к оформлению',
+  contract: 'Договор-квитанция, PDF и email',
+  clients: 'База клиентов, поиск и история сделок',
+  analytics: 'KPI, графики и выгрузка PDF',
+  team: 'Сотрудники, рейтинг и динамика по дням',
+  'gold-index': 'Цены конкурентов по городам, карта',
+  settings: 'Политика выкупа, пользователи и доступы',
+};
+
+function tabSubtitle(tab) { return TAB_SUBTITLES[tab] || ''; }
 
 function formatMoney(n) {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -130,6 +154,14 @@ export default function App() {
   const lastSignedInUidRef = useRef(null);
   const [profileHintIdx, setProfileHintIdx] = useState(0);
   const [profilePatientNote, setProfilePatientNote] = useState(false);
+  const [sidebarPinned, setSidebarPinned] = useState(() => {
+    try {
+      const v = localStorage.getItem('cg_sidebar_pinned');
+      // По умолчанию sidebar закреплён раскрытым — так контент стабильно сдвинут
+      // и иконки/подписи не наезжают на topbar при наведении.
+      return v == null ? true : v === '1';
+    } catch { return true; }
+  });
 
   // Вкладка котировки — на пользователя; иначе после смены аккаунта в том же браузере тянется чужой xaut/moex из React state
   useEffect(() => {
@@ -351,6 +383,18 @@ export default function App() {
       .finally(() => { staleRefreshingRef.current = false; });
   }, [quoteTab, price?.stale, price?.goldRubPerGram, loadPrice, user]);
 
+  // Если активный tab оказался запрещён для текущей роли — мягко вернёмся на «Калькулятор».
+  // ВАЖНО: этот useEffect должен быть ДО early-returns, иначе сломаются Rules of Hooks.
+  useEffect(() => {
+    if (!user) return;
+    const role = user.role;
+    if ((tab === 'team' || tab === 'settings') && !isUserManagerRole(role)) {
+      setTab('calc');
+    } else if (tab === 'gold-index' && !isSuperAdminRole(role)) {
+      setTab('calc');
+    }
+  }, [user, tab]);
+
   if (!authReady) {
     return (
       <div className="shell">
@@ -405,431 +449,387 @@ export default function App() {
     return <Login />;
   }
 
+  function handleSignOut() {
+    supabase.auth.signOut();
+  }
+
+  function handleNav(next) {
+    if (next === 'contract') setContractMounted(true);
+    if (next === 'team' && !isUserManagerRole(user.role)) return;
+    if (next === 'settings' && !isUserManagerRole(user.role)) return;
+    if (next === 'gold-index' && !isSuperAdminRole(user.role)) return;
+    setTab(next);
+    requestAnimationFrame(() => {
+      document.querySelector('.cg-shell__content')?.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
   return (
-    <div
-      className={`shell${
-        tab === 'contract' || tab === 'analytics' || tab === 'team' || tab === 'clients' || tab === 'gold-index'
-          ? ' shell--wide'
-          : ''
-      }${tab === 'team' ? ' shell--team-kpi' : ''}`}
-    >
-      <header className="topbar glass">
-        <div className="brand">
-          <span className="brand-mark">
-            <img src="/logo_reactivo1.png" alt="REAKTIVO PRO" />
-          </span>
-          <div>
-            <h1 className="brand-title">
-              REAKTIVO <span className="brand-title-pro">PRO</span>
-            </h1>
-            <p className="brand-sub muted">Закрытая панель оценки</p>
-          </div>
-        </div>
-        <div className="topbar-right">
-          <ThemeToggle />
-          <span className="user-pill">{user.email}</span>
-          <button type="button" className="btn-ghost" onClick={() => supabase.auth.signOut()}>
-            Выйти
-          </button>
-        </div>
-      </header>
+    <div className={`cg-shell${sidebarPinned ? ' cg-shell--pinned' : ''}`}>
+      <Sidebar
+        tab={tab}
+        onChange={handleNav}
+        user={user}
+        onSignOut={handleSignOut}
+        onPinnedChange={setSidebarPinned}
+      />
 
-      <section className={`rate-banner glass${priceLoading ? ' is-loading' : ''}${price?.stale && !priceLoading ? ' is-stale' : ''}`}>
-        <div className="quote-tabs" role="tablist" aria-label="Источник котировки">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={quoteTab === 'moex'}
-            className={quoteTab === 'moex' ? 'quote-tab active' : 'quote-tab'}
-            onClick={() => persistQuoteTab('moex')}
-            title="Переключить на котировку Мосбиржи (GLDRUBF)"
-          >
-            Мосбиржа
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={quoteTab === 'xaut'}
-            className={quoteTab === 'xaut' ? 'quote-tab active' : 'quote-tab'}
-            onClick={() => persistQuoteTab('xaut')}
-            title="Переключить на XAUT в долларах (через курс ЦБ)"
-          >
-            XAUT USD
-          </button>
-        </div>
-        <div className="rate-banner-row">
-        <div className="rate-main">
-          <span className="rate-label muted">{rateBannerTitle(price)}</span>
-          <p className="rate-value mono-nums">
-            {priceLoading ? (
-              <>
-                <span className="skeleton-line rate-skel" />
-                <span className="per"> / г</span>
-              </>
-            ) : (
-              <>
-                {price?.goldRubPerGram != null ? formatMoney(price.goldRubPerGram) : '—'}
-                <span className="per"> / г</span>
-              </>
-            )}
-          </p>
-          {!priceLoading && price?.goldRubPerGram != null && rateBannerSubtitle(price) && (
-            <span className="muted small">
-              {rateBannerSubtitle(price)}
-            </span>
-          )}
-          {priceLoading && <span className="muted small">Получаем курс…</span>}
-        </div>
-        <div className="rate-meta">
-          {price?.stale && !priceLoading && (
-            <span className="badge warn" title="Данные из кэша, идёт обновление">
-              {staleRefreshingRef.current ? <><span className="spinner inline" style={{width:'0.6em',height:'0.6em',borderWidth:'1.5px'}} /> Обновляем</> : 'Кэш'}
-            </span>
-          )}
-          {priceErr && !priceLoading && !price?.goldRubPerGram && <span className="badge danger" title={priceErr}>Ошибка обновления</span>}
-          {user && (
-            <button
-              type="button"
-              className="rate-refresh-btn"
-              disabled={refreshBusy || priceLoading}
-              onClick={handleRefreshPrice}
-              title="Запросить свежий курс с биржи"
-            >
-              {refreshBusy ? (
-                <>
-                  <span className="spinner inline" /> Обновление…
-                </>
-              ) : (
-                <>
-                  <span className="rate-refresh-btn__icon" aria-hidden>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                      <path d="M3 3v5h5" />
-                      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-                      <path d="M16 21h5v-5" />
-                    </svg>
+      <div className="cg-shell__main">
+        <header className="cg-topbar">
+          <div className="cg-topbar__title">
+            <h1 className="cg-topbar__heading">{TAB_TITLES[tab] || 'Панель'}</h1>
+            <p className="cg-topbar__sub muted">{tabSubtitle(tab)}</p>
+          </div>
+
+          <div className="cg-topbar__rate">
+            <div className="cg-quote-tabs" role="tablist" aria-label="Источник котировки">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={quoteTab === 'moex'}
+                className={`cg-quote-tab${quoteTab === 'moex' ? ' cg-quote-tab--active' : ''}`}
+                onClick={() => persistQuoteTab('moex')}
+                title="Котировка Мосбиржи (GLDRUBF)"
+              >
+                Мосбиржа
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={quoteTab === 'xaut'}
+                className={`cg-quote-tab${quoteTab === 'xaut' ? ' cg-quote-tab--active' : ''}`}
+                onClick={() => persistQuoteTab('xaut')}
+                title="XAUT (Tether Gold) в долларах × курс ЦБ"
+              >
+                XAUT
+              </button>
+            </div>
+
+            <div className={`cg-rate${priceLoading ? ' cg-rate--loading' : ''}${price?.stale && !priceLoading ? ' cg-rate--stale' : ''}`}>
+              <div className="cg-rate__main">
+                <span className="cg-rate__label muted">{rateBannerTitle(price)}</span>
+                <p className="cg-rate__value mono-nums">
+                  {priceLoading ? (
+                    <>
+                      <span className="skeleton-line cg-rate__skel" />
+                      <span className="cg-rate__per"> / г</span>
+                    </>
+                  ) : (
+                    <>
+                      {price?.goldRubPerGram != null ? formatMoney(price.goldRubPerGram) : '—'}
+                      <span className="cg-rate__per"> / г</span>
+                    </>
+                  )}
+                </p>
+                {!priceLoading && price?.goldRubPerGram != null && rateBannerSubtitle(price) && (
+                  <span className="muted small cg-rate__sub">{rateBannerSubtitle(price)}</span>
+                )}
+                {priceLoading && <span className="muted small cg-rate__sub">Получаем курс…</span>}
+              </div>
+
+              <div className="cg-rate__actions">
+                {price?.stale && !priceLoading && (
+                  <span className="badge warn" title="Кэш, идёт обновление">
+                    {staleRefreshingRef.current ? <><span className="spinner inline" style={{width:'0.6em',height:'0.6em',borderWidth:'1.5px'}} /> Обновляем</> : 'Кэш'}
                   </span>
-                  Обновить сейчас
-                </>
-              )}
-            </button>
-          )}
-        </div>
-        </div>
-      </section>
-
-      <nav className="tabs glass" role="tablist">
-        <button type="button" role="tab" aria-selected={tab === 'calc'} className={tab === 'calc' ? 'tab active' : 'tab'} onClick={() => setTab('calc')}>
-          Калькулятор
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'contract'}
-          className={tab === 'contract' ? 'tab active' : 'tab'}
-          onClick={() => {
-            setContractMounted(true);
-            setTab('contract');
-          }}
-        >
-          Договор
-        </button>
-        <button type="button" role="tab" aria-selected={tab === 'clients'} className={tab === 'clients' ? 'tab active' : 'tab'} onClick={() => setTab('clients')}>
-          Клиенты
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'analytics'}
-          className={tab === 'analytics' ? 'tab active' : 'tab'}
-          onClick={() => setTab('analytics')}
-        >
-          Аналитика
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'team'}
-          className={tab === 'team' ? 'tab active' : 'tab'}
-          onClick={() => setTab('team')}
-        >
-          Команда и KPI
-        </button>
-        {isSuperAdminRole(user.role) && (
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'gold-index'}
-            className={tab === 'gold-index' ? 'tab active' : 'tab'}
-            onClick={() => setTab('gold-index')}
-          >
-            Индекс золота
-          </button>
-        )}
-        {isUserManagerRole(user.role) && (
-          <button type="button" role="tab" aria-selected={tab === 'settings'} className={tab === 'settings' ? 'tab active' : 'tab'} onClick={() => setTab('settings')}>
-            {isSuperAdminRole(user.role) ? 'Настройки и доступы' : 'Пользователи'}
-          </button>
-        )}
-      </nav>
-
-      <main className="main-content">
-        <div hidden={tab !== 'calc'}>
-          <Calculator
-            formatMoney={formatMoney}
-            price={price}
-            userUid={user.uid}
-            onGoToContract={(payload) => {
-              setContractMounted(true);
-              setContractPrefill(payload);
-              setTab('contract');
-            }}
-          />
-        </div>
-        {contractMounted && (
-          <div hidden={tab !== 'contract'}>
-            <ContractReceipt
-              formatMoney={formatMoney}
-              prefill={contractPrefill}
-              onConsumedPrefill={() => setContractPrefill(null)}
-              toast={toast}
-              price={price}
-              user={user}
-            />
+                )}
+                {priceErr && !priceLoading && !price?.goldRubPerGram && <span className="badge danger" title={priceErr}>Ошибка</span>}
+                <button
+                  type="button"
+                  className="cg-rate__refresh"
+                  disabled={refreshBusy || priceLoading}
+                  onClick={handleRefreshPrice}
+                  title="Запросить свежий курс с биржи"
+                >
+                  {refreshBusy ? (
+                    <>
+                      <span className="spinner inline" /> <span className="cg-rate__refresh-label">Обновление…</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                        <path d="M3 3v5h5" />
+                        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                        <path d="M16 21h5v-5" />
+                      </svg>
+                      <span className="cg-rate__refresh-label">Обновить</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
-        )}
-        {tab === 'clients' && <Clients formatMoney={formatMoney} toast={toast} />}
-        {tab === 'analytics' && <Analytics formatMoney={formatMoney} toast={toast} />}
-        {tab === 'team' && user && (
-          <TeamPerformance formatMoney={formatMoney} toast={toast} user={user} />
-        )}
-        {tab === 'gold-index' && isSuperAdminRole(user.role) && (
-          <GoldIndex formatMoney={formatMoney} toast={toast} />
-        )}
-        {tab === 'settings' && isUserManagerRole(user.role) && <SettingsPanel user={user} />}
-      </main>
+
+          <div className="cg-topbar__actions">
+            <ThemeToggle />
+          </div>
+        </header>
+
+        <main className="cg-shell__content" key={tab}>
+          <div className={`cg-section-anim cg-section cg-section--${tab}`}>
+            <div hidden={tab !== 'calc'}>
+              <CalculatorPage
+                formatMoney={formatMoney}
+                price={price}
+                userUid={user.uid}
+                onGoToContract={(payload) => {
+                  setContractMounted(true);
+                  setContractPrefill(payload);
+                  setTab('contract');
+                }}
+              />
+            </div>
+            {contractMounted && (
+              <div hidden={tab !== 'contract'}>
+                <ContractPage
+                  formatMoney={formatMoney}
+                  prefill={contractPrefill}
+                  onConsumedPrefill={() => setContractPrefill(null)}
+                  toast={toast}
+                  price={price}
+                  user={user}
+                />
+              </div>
+            )}
+            {tab === 'clients' && <ClientsPage formatMoney={formatMoney} toast={toast} />}
+            {tab === 'analytics' && <Analytics formatMoney={formatMoney} toast={toast} />}
+            {tab === 'team' && user && isUserManagerRole(user.role) && (
+              <TeamPerformance formatMoney={formatMoney} toast={toast} user={user} />
+            )}
+            {tab === 'gold-index' && isSuperAdminRole(user.role) && (
+              <GoldIndex formatMoney={formatMoney} toast={toast} />
+            )}
+            {tab === 'settings' && isUserManagerRole(user.role) && (
+              <SettingsPage user={user} formatMoney={formatMoney} price={price} />
+            )}
+          </div>
+        </main>
+
+        <MobileNav
+          tab={tab}
+          onChange={handleNav}
+          user={user}
+          onSignOut={handleSignOut}
+        />
+      </div>
 
 
       <style>{`
-        .shell {
-          max-width: 520px;
-          margin: 0 auto;
-          padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+        /* Shell: sidebar (fixed left) + main content with padding-left */
+        .cg-shell {
+          min-height: 100dvh;
+          width: 100%;
+          background: var(--bg-deep);
+          background-image: var(--bg-gradient);
+        }
+        .cg-shell__main {
+          padding-left: 64px;
           min-height: 100dvh;
           display: flex;
           flex-direction: column;
-          gap: 14px;
-          width: 100%;
+          transition: padding-left 0.22s cubic-bezier(0.4, 0.2, 0.2, 1);
         }
-        .shell.shell--wide { max-width: 820px; }
-        .shell.shell--wide.shell--team-kpi { max-width: 960px; }
-        .topbar {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          padding: 14px 16px;
-          gap: 12px;
-          flex-wrap: wrap;
+        .cg-shell--pinned .cg-shell__main { padding-left: 232px; }
+        @media (max-width: 900px) {
+          .cg-shell__main { padding-left: 0 !important; }
         }
-        .brand { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 auto; }
-        .brand > div:last-child { min-width: 0; flex: 1; }
-        .brand-mark { width: 56px; height: 56px; border-radius: 14px; background: #fff; border: 1px solid var(--stroke); box-shadow: 0 2px 12px rgba(0,0,0,0.12); flex-shrink: 0; overflow: hidden; display: block; }
-        .brand-mark img { width: 100%; height: 100%; object-fit: contain; object-position: center; padding: 6px; box-sizing: border-box; display: block; }
-        .brand-title {
+
+        /* Topbar */
+        .cg-topbar {
+          display: grid;
+          grid-template-columns: 1fr auto auto;
+          align-items: center;
+          gap: 16px;
+          padding: 18px 28px;
+          border-bottom: 1px solid var(--sidebar-stroke);
+          background: var(--bg-panel);
+          -webkit-backdrop-filter: blur(18px);
+          backdrop-filter: blur(18px);
+          position: sticky;
+          top: 0;
+          z-index: 30;
+        }
+        .cg-topbar__title { min-width: 0; }
+        .cg-topbar__heading {
           font-family: var(--font-display);
-          font-size: 1.35rem;
+          font-size: clamp(1.2rem, 1rem + 1vw, 1.55rem);
           font-weight: 600;
           margin: 0;
-          line-height: 1.2;
-          letter-spacing: 0.06em;
-          word-break: break-word;
-          text-transform: uppercase;
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 0.35em;
+          color: var(--text-strong);
+          letter-spacing: -0.012em;
+          line-height: 1.18;
         }
-        .brand-title-pro {
-          font-size: 0.62em;
-          font-weight: 700;
-          letter-spacing: 0.14em;
-          padding: 0.2em 0.45em 0.22em;
-          border-radius: 6px;
+        .cg-topbar__sub {
+          margin: 3px 0 0;
+          font-size: 0.83rem;
+          color: var(--text-muted);
+          line-height: 1.4;
+          letter-spacing: 0.005em;
+        }
+        .cg-topbar__actions { display: flex; align-items: center; gap: 12px; }
+
+        /* Rate widget (inline in topbar) */
+        .cg-topbar__rate {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 8px 12px;
+          border-radius: 16px;
+          background: var(--surface);
+          border: 1px solid var(--stroke);
+          box-shadow: 0 2px 16px rgba(0,0,0,0.04);
+        }
+        .cg-quote-tabs {
+          display: flex;
+          gap: 4px;
+          padding: 3px;
+          border-radius: 10px;
+          background: var(--input-bg);
+          border: 1px solid var(--stroke-soft);
+        }
+        .cg-quote-tab {
+          padding: 6px 12px;
+          border-radius: 7px;
+          border: none;
+          background: transparent;
+          color: var(--text-muted);
+          font-size: 0.74rem;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+          cursor: pointer;
+          transition: background 0.18s, color 0.18s;
+        }
+        .cg-quote-tab:hover:not(.cg-quote-tab--active) { color: var(--text); }
+        .cg-quote-tab--active {
           background: var(--gold-soft);
-          border: 1px solid var(--stroke-strong);
           color: var(--gold);
+          box-shadow: 0 1px 4px var(--gold-glow);
+        }
+
+        .cg-rate { display: flex; align-items: center; gap: 14px; }
+        .cg-rate__main { display: flex; flex-direction: column; min-width: 0; }
+        .cg-rate__label {
+          font-size: 0.62rem;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
           line-height: 1;
         }
-        .brand-sub { margin: 2px 0 0; font-size: 0.75rem; }
-        .topbar-right {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          justify-content: flex-end;
-          gap: 8px;
-          flex: 1 1 auto;
-          min-width: 0;
-        }
-        .user-pill {
-          font-size: 0.78rem;
-          padding: 8px 12px;
-          border-radius: 999px;
-          background: var(--gold-soft);
-          border: 1px solid var(--stroke);
-          max-width: min(200px, 42vw);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-        .rate-banner { padding: 16px 18px; display: flex; flex-wrap: wrap; flex-direction: column; align-items: stretch; gap: 10px; }
-        .quote-tabs {
-          display: flex;
-          gap: 6px;
-          width: 100%;
-          padding: 5px;
-          border-radius: 14px;
-          background: var(--input-bg);
-          border: 1px solid var(--stroke);
-          box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
-        }
-        .quote-tab {
-          flex: 1;
-          min-width: 0;
-          padding: 10px 12px;
-          border-radius: 10px;
-          border: 1px solid var(--stroke);
-          background: var(--bg-panel-solid);
-          color: var(--text-muted);
-          font-size: 0.82rem;
-          font-weight: 600;
-          letter-spacing: 0.02em;
-          cursor: pointer;
-          transition: background 0.18s, color 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.12s;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
-        }
-        .quote-tab:hover:not(.active) {
-          border-color: var(--stroke-strong);
-          color: var(--text);
-          background: var(--bg-elevated);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        }
-        .quote-tab:active {
-          transform: scale(0.98);
-        }
-        .quote-tab:focus-visible {
-          outline: 2px solid var(--gold);
-          outline-offset: 2px;
-        }
-        .quote-tab.active {
-          background: var(--gold-soft);
+        .cg-rate__value {
+          font-family: var(--font-display);
+          font-size: 1.55rem;
+          font-weight: 700;
+          margin: 2px 0 0;
           color: var(--gold);
-          border-color: var(--stroke-strong);
-          box-shadow: 0 2px 14px var(--gold-glow), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+          text-shadow: 0 0 30px var(--gold-glow);
+          line-height: 1.05;
+          display: flex;
+          align-items: baseline;
+          gap: 3px;
         }
-        .rate-banner-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; width: 100%; }
-        .rate-main { min-width: 0; flex: 1 1 200px; }
-        .rate-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; display: block; margin-bottom: 4px; }
-        .rate-value { font-family: var(--font-display); font-size: 2rem; font-weight: 600; margin: 0; color: var(--gold); text-shadow: 0 0 40px var(--gold-glow); min-height: 2.4rem; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-        .rate-skel { display: inline-block; min-width: min(160px, 50vw); height: 2rem; vertical-align: middle; }
-        .rate-banner.is-loading .rate-value { text-shadow: none; }
-        .rate-value .per { font-size: 1rem; color: var(--text-muted); font-weight: 500; }
-        .rate-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex-shrink: 0; }
-        .badge { font-size: 0.7rem; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.06em; }
-        .badge.warn { background: rgba(250, 204, 21, 0.15); color: #facc15; border: 1px solid rgba(250, 204, 21, 0.35); }
-        .badge.danger { background: rgba(248, 113, 113, 0.12); color: var(--danger); border: 1px solid rgba(248, 113, 113, 0.35); }
-        .tabs { display: flex; flex-wrap: wrap; padding: 6px; gap: 6px; }
-        .tab {
-          flex: 1 1 22%;
-          min-width: 0;
-          padding: 11px 10px;
-          border-radius: 12px;
-          font-size: 0.88rem;
-          font-weight: 500;
-          color: var(--text-muted);
-          transition: background 0.2s, color 0.2s;
-          line-height: 1.25;
-          text-align: center;
-          hyphens: auto;
-          -webkit-hyphens: auto;
-        }
-        .tab { border: 1px solid transparent; }
-        .tab.active { background: var(--gold-soft); color: var(--gold); border: 1px solid var(--stroke-strong); }
-        .main-content { flex: 1; min-width: 0; }
-        .footer { text-align: center; padding-top: 8px; padding-bottom: env(safe-area-inset-bottom); }
-        .muted { color: var(--text-muted); }
-        .small { font-size: 0.78rem; }
-        .cache-age { opacity: 0.7; }
-        .rate-banner.is-stale .rate-value { opacity: 0.75; }
-        .rate-refresh-btn {
+        .cg-rate--loading .cg-rate__value { text-shadow: none; }
+        .cg-rate--stale .cg-rate__value { opacity: 0.7; }
+        .cg-rate__per { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; }
+        .cg-rate__skel { display: inline-block; min-width: 90px; height: 1.45rem; vertical-align: middle; }
+        .cg-rate__sub { font-size: 0.7rem; margin-top: 1px; line-height: 1.1; }
+        .cg-rate__actions { display: flex; align-items: center; gap: 6px; }
+        .cg-rate__refresh {
           display: inline-flex;
           align-items: center;
-          justify-content: center;
-          gap: 7px;
-          padding: 9px 16px;
+          gap: 6px;
+          padding: 7px 12px;
           border-radius: 999px;
           border: 1px solid var(--stroke-strong);
           background: var(--gold-soft);
           color: var(--gold);
-          font-size: 0.8rem;
+          font-size: 0.74rem;
           font-weight: 600;
-          letter-spacing: 0.02em;
           cursor: pointer;
-          transition: background 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.12s, color 0.15s;
           white-space: nowrap;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+          transition: background 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.12s;
         }
-        .rate-refresh-btn__icon {
-          display: flex;
-          flex-shrink: 0;
-          opacity: 0.92;
-        }
-        .rate-refresh-btn:hover:not(:disabled) {
+        .cg-rate__refresh:hover:not(:disabled) {
           border-color: var(--gold);
-          box-shadow: 0 2px 14px var(--gold-glow);
-          color: var(--gold);
+          box-shadow: 0 2px 12px var(--gold-glow);
         }
-        .rate-refresh-btn:active:not(:disabled) {
-          transform: scale(0.97);
-        }
-        .rate-refresh-btn:focus-visible {
-          outline: 2px solid var(--gold);
-          outline-offset: 2px;
-        }
-        .rate-refresh-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-          box-shadow: none;
-        }
-        .btn-ghost.small { padding: 8px 14px; font-size: 0.82rem; }
+        .cg-rate__refresh:active:not(:disabled) { transform: scale(0.96); }
+        .cg-rate__refresh:disabled { opacity: 0.55; cursor: not-allowed; }
+        .cg-rate__refresh:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
-        @media (max-width: 480px) {
-          .topbar {
-            flex-direction: column;
-            align-items: stretch;
-            padding: 14px 14px;
-          }
-          .brand { flex: none; }
-          .topbar-right {
-            justify-content: space-between;
-            width: 100%;
-            flex-wrap: wrap;
+        /* Content */
+        .cg-shell__content {
+          flex: 1;
+          padding: 28px 28px 32px;
+          overflow-y: auto;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .cg-section {
+          margin: 0 auto;
+          width: 100%;
+        }
+        /* Каждый раздел получает оптимальную ширину контента */
+        .cg-section--calc { max-width: 1100px; }
+        .cg-section--contract { max-width: 1300px; }
+        .cg-section--clients { max-width: 1300px; }
+        .cg-section--analytics { max-width: 1200px; }
+        .cg-section--team { max-width: 1100px; }
+        .cg-section--gold-index { max-width: 1400px; }
+        .cg-section--settings { max-width: 1200px; }
+        .cg-section-anim {
+          animation: cgSectionIn 680ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+          will-change: transform, opacity;
+          backface-visibility: hidden;
+        }
+        @keyframes cgSectionIn {
+          from { opacity: 0; transform: translate3d(0, 6px, 0); }
+          to { opacity: 1; transform: translate3d(0, 0, 0); }
+        }
+
+        /* Reset legacy styles from разделы, which expected .shell wrapper */
+        .muted { color: var(--text-muted); }
+        .small { font-size: 0.78rem; }
+
+        /* Responsive — tablet */
+        @media (max-width: 1100px) {
+          .cg-topbar { padding: 14px 18px; gap: 12px; }
+          .cg-shell__content { padding: 22px 18px 28px; }
+          .cg-rate__value { font-size: 1.35rem; }
+          .cg-rate__refresh-label { display: none; }
+          .cg-rate__refresh { width: 32px; height: 32px; padding: 0; justify-content: center; }
+        }
+
+        /* Responsive — mobile */
+        @media (max-width: 900px) {
+          .cg-shell { flex-direction: column; }
+          .cg-topbar {
+            grid-template-columns: 1fr auto;
+            grid-template-areas:
+              "title actions"
+              "rate rate";
+            padding: 12px 14px;
             gap: 10px;
           }
-          .user-pill {
-            order: -1;
-            flex: 1 0 100%;
-            min-width: 0;
-            max-width: 100%;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+          .cg-topbar__title { grid-area: title; }
+          .cg-topbar__actions { grid-area: actions; }
+          .cg-topbar__rate { grid-area: rate; padding: 6px 8px; gap: 8px; flex-wrap: nowrap; }
+          /* clamp в основном правиле уже учитывает мобилу */
+          .cg-topbar__sub { display: none; }
+          .cg-shell__content {
+            padding: 16px 14px calc(96px + env(safe-area-inset-bottom, 0));
           }
-          .topbar-right .theme-toggle { flex-shrink: 0; }
-          .topbar-right .btn-ghost { flex-shrink: 0; white-space: nowrap; margin-left: auto; }
-          .rate-value { font-size: 1.65rem; }
-          .rate-banner { flex-direction: column; align-items: stretch; }
-          .rate-meta { justify-content: flex-start; }
-          .tab { font-size: 0.8rem; padding: 10px 8px; }
+          .cg-quote-tab { padding: 5px 10px; font-size: 0.72rem; }
+          .cg-rate__value { font-size: 1.25rem; }
+          .cg-rate__sub { display: none; }
+        }
+
+        @media (max-width: 520px) {
+          /* clamp адаптивен */
+          .cg-quote-tabs { display: none; }
+          .cg-rate__label { display: none; }
+          .cg-rate__value { font-size: 1.05rem; }
+          .cg-rate { gap: 8px; }
+          .cg-topbar__rate { padding: 5px 8px; }
         }
       `}</style>
     </div>

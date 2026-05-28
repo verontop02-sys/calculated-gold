@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
+import { SkeletonRow, SkeletonCard } from './Skeleton.jsx';
+import { EmptyState } from './EmptyState.jsx';
 
 const PAGE = 80;
 
@@ -118,6 +120,13 @@ export function Clients({ formatMoney, toast }) {
 
   const canLoadMore = list.length < total;
 
+  // Транслируем выбор клиента наружу, чтобы боковая панель страницы
+  // могла показать персональную сводку.
+  useEffect(() => {
+    const detail = { customer: selected, deals, total };
+    window.dispatchEvent(new CustomEvent('cg:clients-selection', { detail }));
+  }, [selected, deals, total]);
+
   async function onDownloadPdf(d) {
     if (!d?.id) return;
     setPdfBusyId(d.id);
@@ -170,13 +179,28 @@ export function Clients({ formatMoney, toast }) {
           onChange={(e) => setQ(e.target.value)}
           autoComplete="off"
         />
-        {listBusy && <span className="muted small">загрузка…</span>}
       </div>
       <div className="clients-grid">
         <div className="clients-col">
           <div className="clients-col-label muted small">Список ({list.length} из {total})</div>
           <div className="clients-list">
-            {list.length === 0 && !listBusy && <p className="muted">Нет записей</p>}
+            {listBusy && list.length === 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <SkeletonRow key={i} leftWidth="70%" rightWidth="40%" withAvatar />
+                ))}
+              </div>
+            )}
+            {list.length === 0 && !listBusy && (
+              <EmptyState
+                compact
+                icon={q ? 'search' : 'clients'}
+                title={q ? 'Никого не нашли' : 'Здесь пока пусто'}
+                description={q
+                  ? 'Попробуйте другой запрос или часть номера телефона.'
+                  : 'Клиенты появляются автоматически при скачивании PDF в разделе «Договор».'}
+              />
+            )}
             {list.map((c) => {
               const active = selected?.id === c.id;
               return (
@@ -199,7 +223,13 @@ export function Clients({ formatMoney, toast }) {
           )}
         </div>
         <div className="clients-detail">
-          {!selected && <p className="muted clients-placeholder">Выберите клиента слева</p>}
+          {!selected && (
+            <EmptyState
+              icon="users"
+              title="Выберите клиента слева"
+              description="После выбора здесь появится карточка с контактами и историей сделок."
+            />
+          )}
           {selected && (
             <>
               <div className="clients-card">
@@ -216,10 +246,20 @@ export function Clients({ formatMoney, toast }) {
               </div>
               <div className="clients-deals-head">
                 <span className="muted small">Сделки / договоры</span>
-                {dealsBusy && <span className="muted small">загрузка…</span>}
               </div>
+              {dealsBusy && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <SkeletonCard rows={2} showTitle={false} />
+                  <SkeletonCard rows={2} showTitle={false} />
+                </div>
+              )}
               {!dealsBusy && (!deals || deals.length === 0) && (
-                <p className="muted small">Пока нет сделок по этой карточке</p>
+                <EmptyState
+                  compact
+                  icon="deals"
+                  title="У клиента пока нет сделок"
+                  description="Сделка появится здесь, когда вы скачаете PDF договора с этим клиентом."
+                />
               )}
               {deals && deals.length > 0 && (
                 <ul className="clients-deal-list" aria-label="Сделки по клиенту">
@@ -346,15 +386,29 @@ export function Clients({ formatMoney, toast }) {
           color: inherit;
           cursor: pointer;
           font: inherit;
+          transition: background 260ms cubic-bezier(0.16, 1, 0.3, 1),
+            border-color 260ms cubic-bezier(0.16, 1, 0.3, 1),
+            transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
         }
         .clients-row:hover {
-          background: rgba(255,255,255,0.04);
+          background: var(--gold-soft);
+          border-color: var(--stroke-soft);
+          transform: translateX(2px);
         }
         .clients-row--active {
-          border-color: rgba(184, 134, 11, 0.45);
-          background: rgba(184, 134, 11, 0.08);
-          box-shadow: inset 3px 0 0 var(--gold, #b8860b);
+          border-color: var(--stroke-strong);
+          background: var(--gold-soft);
+          box-shadow: inset 3px 0 0 var(--gold);
         }
+        .clients-list .clients-row {
+          animation: cgFadeUp 380ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+        }
+        .clients-list .clients-row:nth-child(1) { animation-delay: 30ms; }
+        .clients-list .clients-row:nth-child(2) { animation-delay: 70ms; }
+        .clients-list .clients-row:nth-child(3) { animation-delay: 110ms; }
+        .clients-list .clients-row:nth-child(4) { animation-delay: 150ms; }
+        .clients-list .clients-row:nth-child(5) { animation-delay: 190ms; }
+        .clients-list .clients-row:nth-child(n + 6) { animation-delay: 230ms; }
         .clients-row-name { font-weight: 500; }
         .clients-more { width: 100%; margin-top: 10px; }
         .clients-placeholder { margin: 24px 0; }

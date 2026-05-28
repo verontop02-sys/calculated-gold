@@ -18,7 +18,7 @@ function quoteRowLabel(price) {
   return 'По курсу ЦБ (чистое золото)';
 }
 
-export function Calculator({ formatMoney, price, userUid, onGoToContract }) {
+export function Calculator({ formatMoney, price, userUid, onGoToContract, onShowClient }) {
   const lsKeys = useMemo(() => calcLocalKeys(userUid), [userUid]);
 
   const [settings, setSettings] = useState(null);
@@ -276,6 +276,26 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract }) {
               <span className="result-mid muted small">ориентир: {formatMoney(result.midRub)}</span>
             </div>
             <div className="result-actions">
+              {onShowClient && (
+                <button
+                  type="button"
+                  className="btn-show-client"
+                  onClick={() => {
+                    const w = parseFloat(String(weight).replace(',', '.'));
+                    onShowClient({
+                      weight: Number.isFinite(w) ? w : null,
+                      purity: parseInt(purity, 10),
+                    });
+                  }}
+                  title="Полноэкранный режим для показа клиенту"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  Показать клиенту
+                </button>
+              )}
               <button
                 type="button"
                 className={`btn-copy${copied ? ' btn-copy--done' : ''}`}
@@ -395,6 +415,30 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract }) {
           box-shadow: 0 4px 20px var(--gold-glow);
         }
         .btn-contract:active { transform: scale(0.99); }
+
+        .btn-show-client {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          padding: 12px 16px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--emerald);
+          background: var(--emerald-soft);
+          color: var(--emerald);
+          font-size: 0.9rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.12s, box-shadow 0.18s, background 0.18s;
+        }
+        .btn-show-client:hover {
+          background: var(--emerald);
+          color: #fff;
+          box-shadow: 0 4px 20px rgba(30, 107, 79, 0.3);
+        }
+        .btn-show-client:active { transform: scale(0.98); }
+        .btn-show-client:focus-visible { outline: 2px solid var(--emerald); outline-offset: 2px; }
 
         @media (max-width: 380px) {
           .calc-card { padding: 18px 14px 20px; }
