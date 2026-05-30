@@ -833,6 +833,60 @@ app.post(
   })
 );
 
+/**
+ * Публичная котировка выкупа для внешнего сайта (без авторизации).
+ * Возвращает текущую цену биржи и стоимость выкупа за 1 грамм по ходовым пробам
+ * с учётом политики выкупа (процент от биржи + поправки по пробе).
+ * CORS открыт для любого домена — данные обезличены и предназначены для витрины.
+ */
+app.get(
+  '/api/public/buyback-quote',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=60');
+
+    const quote = String(req.query.quote || 'moex').toLowerCase();
+    let cache;
+    if (quote === 'xaut') {
+      cache = await getKv(KV_XAUT);
+      if (!cache?.goldRubPerGram) cache = await refreshXautPriceCache(false);
+    } else {
+      cache = await getPriceCache();
+      if (!cache?.goldRubPerGram) cache = await refreshPriceCache(false);
+    }
+    const goldRubPerGram = cache?.goldRubPerGram ?? null;
+    const settings = await getSettings();
+
+    // Какие пробы отдаём: ходовые + всё, что настроено в системе.
+    const probes = [...new Set([585, 750, 999, ...(settings.purityOrder || [])].map(Number))]
+      .filter((p) => Number.isFinite(p) && p > 0 && p <= 1000)
+      .sort((a, b) => a - b);
+
+    const perGram = {};
+    if (goldRubPerGram) {
+      for (const p of probes) {
+        const r = calculateBuybackRange({
+          weightGrams: 1,
+          purityPerThousand: p,
+          goldRubPerGram,
+          settings,
+        });
+        if (r.ok) perGram[p] = Math.round(r.midRub);
+      }
+    }
+
+    res.json({
+      currency: 'RUB',
+      goldRubPerGram,
+      source: quote === 'xaut' ? 'xaut' : (cache?.source ?? 'cbr'),
+      buybackPercentOfScrap: Number(settings.buybackPercentOfScrap) || null,
+      rangeHalfWidthPercent: Number(settings.rangeHalfWidthPercent) || 0,
+      perGram,
+      updatedAt: cache?.cachedAt ?? null,
+    });
+  })
+);
+
 app.use('/api', asyncHandler(authMiddleware));
 
 app.get(

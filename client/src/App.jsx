@@ -477,8 +477,13 @@ export default function App() {
       <div className="cg-shell__main">
         <header className="cg-topbar">
           <div className="cg-topbar__title">
-            <h1 className="cg-topbar__heading">{TAB_TITLES[tab] || 'Панель'}</h1>
-            <p className="cg-topbar__sub muted">{tabSubtitle(tab)}</p>
+            <span className="cg-topbar__logo" aria-hidden>
+              <img src="/logo_reactivo1.png" alt="REAKTIVO PRO" />
+            </span>
+            <div className="cg-topbar__title-text">
+              <h1 className="cg-topbar__heading">{TAB_TITLES[tab] || 'Панель'}</h1>
+              <p className="cg-topbar__sub muted">{tabSubtitle(tab)}</p>
+            </div>
           </div>
 
           <div className="cg-topbar__rate">
@@ -650,7 +655,11 @@ export default function App() {
           top: 0;
           z-index: 30;
         }
-        .cg-topbar__title { min-width: 0; }
+        .cg-topbar__title { min-width: 0; display: flex; align-items: center; gap: 12px; }
+        .cg-topbar__title-text { min-width: 0; }
+        /* Лого в топбаре — только на мобиле (на ПК лого живёт в сайдбаре) */
+        .cg-topbar__logo { display: none; }
+        .cg-topbar__logo img { width: 100%; height: 100%; object-fit: contain; padding: 4px; box-sizing: border-box; }
         .cg-topbar__heading {
           font-family: var(--font-display);
           font-size: clamp(1.2rem, 1rem + 1vw, 1.55rem);
@@ -812,9 +821,21 @@ export default function App() {
           }
           .cg-topbar__title { grid-area: title; }
           .cg-topbar__actions { grid-area: actions; }
-          .cg-topbar__rate { grid-area: rate; padding: 6px 8px; gap: 8px; flex-wrap: nowrap; }
+          .cg-topbar__rate { grid-area: rate; padding: 6px 10px; gap: 10px; flex-wrap: nowrap; }
           /* clamp в основном правиле уже учитывает мобилу */
           .cg-topbar__sub { display: none; }
+          /* Лого возвращаем в шапку — сайдбар на мобиле скрыт */
+          .cg-topbar__logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px; height: 34px;
+            border-radius: 9px;
+            background: #fff;
+            border: 1px solid var(--stroke);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+          }
           .cg-shell__content {
             padding: 16px 14px calc(96px + env(safe-area-inset-bottom, 0));
           }
@@ -824,12 +845,13 @@ export default function App() {
         }
 
         @media (max-width: 520px) {
-          /* clamp адаптивен */
-          .cg-quote-tabs { display: none; }
+          /* Биржу оставляем доступной и на узких экранах — компактнее */
+          .cg-topbar__rate { padding: 5px 8px; gap: 8px; }
+          .cg-quote-tabs { padding: 2px; gap: 2px; }
+          .cg-quote-tab { padding: 5px 8px; font-size: 0.68rem; }
+          .cg-rate { gap: 8px; }
           .cg-rate__label { display: none; }
           .cg-rate__value { font-size: 1.05rem; }
-          .cg-rate { gap: 8px; }
-          .cg-topbar__rate { padding: 5px 8px; }
         }
       `}</style>
     </div>

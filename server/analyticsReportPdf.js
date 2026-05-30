@@ -115,9 +115,12 @@ function b64Png(buf) {
   return `data:image/png;base64,${buf.toString('base64')}`;
 }
 
-/** A4 ширина в pt минус симметричные поля — одна линия для таблиц и графиков. */
-const PAGE_MARGIN_X = 40;
-const CONTENT_W = Math.round(595.28 - 2 * PAGE_MARGIN_X);
+/** A4 ландшафт: ширина в pt минус симметричные поля — дашборд в две колонки. */
+const PAGE_MARGIN_X = 32;
+const PAGE_W_LANDSCAPE = 841.89;
+const CONTENT_W = Math.round(PAGE_W_LANDSCAPE - 2 * PAGE_MARGIN_X);
+const COL_GAP = 18;
+const HALF_W = Math.round((CONTENT_W - COL_GAP) / 2);
 
 const pdfTableLayoutKpi = {
   hLineWidth(i, node) {
@@ -146,10 +149,10 @@ const pdfTableLayoutData = {
     if (i === 0 || i === node.table.widths.length) return 0.85;
     return 0.35;
   },
-  paddingLeft: () => 10,
-  paddingRight: () => 10,
-  paddingTop: () => 6,
-  paddingBottom: () => 6,
+  paddingLeft: () => 9,
+  paddingRight: () => 9,
+  paddingTop: () => 4.5,
+  paddingBottom: () => 4.5,
   hLineColor: () => '#c9c0b4',
   vLineColor: () => '#c9c0b4',
   fillColor: (i) => {
@@ -196,11 +199,13 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
   const series = timeSeriesForGroup(data, g);
   const agg = groupLabelRu(g);
 
-  const chartW = CONTENT_W;
-  const chartH = 198;
+  // Ландшафт: графики половинной ширины, чтобы вставали по два в ряд (дашборд).
+  // По высоте ландшафт уже портрета, поэтому графики делаем ниже и шире.
+  const chartW = HALF_W;
+  const chartH = 138;
   const bufBar =
     s.probe && byProbe.length > 0
-      ? await renderBarChartPng({ rows: byProbe, width: chartW * 2, height: chartH * 2 })
+      ? await renderBarChartPng({ rows: byProbe, width: CONTENT_W * 2, height: 132 * 2 })
       : null;
   const bufMoney =
     s.series && series.length > 0
@@ -283,104 +288,62 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
   }
 
   if (t && t.deals > 0) {
-    /* Сначала динамика (графики), затем сотрудники и пробы — плотнее по страницам, без принудительного разрыва после KPI */
-    if (s.series && series.length > 0) {
-      content.push(
-        { text: 'ДИНАМИКА ПО ПЕРИОДУ (АГРЕГАЦИЯ ПО ' + groupLabelRu(g).toUpperCase() + ')', style: 'sectionHead', margin: [0, 0, 0, 3] },
-        {
-          text: 'График сумм и веса (1-я строка договора) по выбранной группировке — как на экране «Аналитика».',
-          style: 'sectionDesc',
-          margin: [0, 0, 0, 8],
-        }
-      );
-      if (images.gMon) {
-        content.push({ text: 'Денежный поток', style: 'chartName', margin: [0, 0, 0, 4] });
-        content.push({ image: 'gMon', width: chartW, margin: [0, 0, 0, 6] });
-        const sumP = series.reduce((a, r) => a + (Number(r.sumRub) || 0), 0);
-        const avgD = (sumP / (series.length || 1)) || 0;
-        content.push({
-          text: `Итого за период: ${fmtRub(t.sumRub)}. Ср. сделка: ${fmtRub(t.deals ? t.sumRub / t.deals : 0)}. Ср. по сегментам: ${fmtRub(avgD)} (${agg}).`,
-          style: 'sectionDesc',
-          margin: [0, 0, 0, 8],
-        });
-      }
-      if (images.gWet) {
-        content.push({ text: 'Вес (первая строка)', style: 'chartName', margin: [0, 4, 0, 4] });
-        content.push({ image: 'gWet', width: chartW, margin: [0, 0, 0, 6] });
-        const wg0 = t.firstRowWeightGrossSum != null ? Number(t.firstRowWeightGrossSum) : 0;
-        const wn0 = t.firstRowWeightNetSum != null ? Number(t.firstRowWeightNetSum) : 0;
-        content.push({
-          text: `Суммарно за период (1-я позиция): бр. ${fmtNum(wg0, 2)} г, чист. ${fmtNum(wn0, 3)} г.`,
-          style: 'sectionDesc',
-          margin: [0, 0, 0, 8],
-        });
-      }
-      content.push({ text: 'Свод по сегментам', style: 'tableCaption', margin: [0, 2, 0, 5] });
-      const tsBody = [
-        [th('Период'), th('Сделок', { alignment: 'right' }), th('Сумма, ₽', { alignment: 'right' }), th('Бр., г', { alignment: 'right' }), th('Чист., г', { alignment: 'right' })],
-        ...series.map((r) => [
-          { text: r.x, fontSize: 8, color: '#1c1917' },
-          { text: String(r.count), fontSize: 8, alignment: 'right' },
-          { text: fmtRub(r.sumRub), fontSize: 8, alignment: 'right' },
-          { text: r.weightGross != null ? fmtNum(r.weightGross, 2) : '—', fontSize: 8, alignment: 'right' },
-          { text: r.weightNet != null ? fmtNum(r.weightNet, 3) : '—', fontSize: 8, alignment: 'right' },
-        ]),
-      ];
-      content.push(
-        fullWidthTable(
+    /* Ландшафт-дашборд: графики по два в ряд, таблицы — широкие. */
+
+    // Ряд 1: денежный поток + вес (два графика рядом).
+    if (s.series && series.length > 0 && (images.gMon || images.gWet)) {
+      const sumP = series.reduce((a, r) => a + (Number(r.sumRub) || 0), 0);
+      const avgD = (sumP / (series.length || 1)) || 0;
+      const wg0 = t.firstRowWeightGrossSum != null ? Number(t.firstRowWeightGrossSum) : 0;
+      const wn0 = t.firstRowWeightNetSum != null ? Number(t.firstRowWeightNetSum) : 0;
+
+      content.push({
+        text: 'ДИНАМИКА ПО ПЕРИОДУ (АГРЕГАЦИЯ ПО ' + groupLabelRu(g).toUpperCase() + ')',
+        style: 'sectionHead',
+        margin: [0, 0, 0, 6],
+      });
+      content.push({
+        columnGap: COL_GAP,
+        columns: [
           {
-            widths: ['*', 'auto', '*', '*', '*'],
-            body: tsBody,
+            width: '*',
+            stack: images.gMon
+              ? [
+                  { text: 'Денежный поток', style: 'chartName', margin: [0, 0, 0, 4] },
+                  { image: 'gMon', width: chartW, margin: [0, 0, 0, 4] },
+                  {
+                    text: `Итого: ${fmtRub(t.sumRub)} · ср. сделка ${fmtRub(t.deals ? t.sumRub / t.deals : 0)} · ср. ${fmtRub(avgD)} (${agg})`,
+                    style: 'sectionDesc',
+                  },
+                ]
+              : [{ text: '' }],
           },
-          pdfTableLayoutData,
-          [0, 0, 0, 12]
-        )
-      );
+          {
+            width: '*',
+            stack: images.gWet
+              ? [
+                  { text: 'Вес (первая строка)', style: 'chartName', margin: [0, 0, 0, 4] },
+                  { image: 'gWet', width: chartW, margin: [0, 0, 0, 4] },
+                  {
+                    text: `Суммарно: бр. ${fmtNum(wg0, 2)} г · чист. ${fmtNum(wn0, 3)} г`,
+                    style: 'sectionDesc',
+                  },
+                ]
+              : [{ text: '' }],
+          },
+        ],
+        margin: [0, 0, 0, 14],
+      });
     }
 
-    if (s.operators && byOp.length > 0) {
-      content.push(
-        { text: 'СОТРУДНИКИ (КТО СКАЧАЛ PDF ПО СДЕЛКЕ)', style: 'sectionHead', margin: [0, 10, 0, 3] },
-        { text: 'E-mail в строке. Без сделки в учёт: «без учётки».', style: 'sectionDesc', margin: [0, 0, 0, 6] }
-      );
-      const opBody = [
-        [th('Учёт / e-mail'), th('Сделок', { alignment: 'right' }), th('Сумма', { alignment: 'right' })],
-        ...byOp.map((r) => [
-          { text: r.email || '—', fontSize: 8, color: '#1c1917' },
-          { text: String(r.deals), fontSize: 8, alignment: 'right' },
-          { text: fmtRub(r.sumRub), fontSize: 8, alignment: 'right' },
-        ]),
-      ];
-      content.push(
-        fullWidthTable(
-          {
-            widths: ['*', 'auto', '*'],
-            body: opBody,
-          },
-          pdfTableLayoutData,
-          [0, 0, 0, 12]
-        )
-      );
-    }
-
+    // Ряд 2: проба — диаграмма на всю ширину + таблица.
     if (s.probe && byProbe.length > 0) {
-      content.push(
-        { text: 'СДЕЛОК ПО ПРОБЕ (ПЕРВАЯ СТРОКА В ДОГОВОРЕ)', style: 'sectionHead', margin: [0, 10, 0, 3] },
-        {
-          text: 'Сколько сделок, суммарный вес 1-й позиции (лом / чист., г) и стоимость сделок по этой пробе в периоде.',
-          style: 'sectionDesc',
-          margin: [0, 0, 0, 6],
-        }
-      );
-      if (images.gBar) {
-        content.push({ image: 'gBar', width: chartW, margin: [0, 0, 0, 8] });
-      }
       const probeW = (r) => {
         const gN = Number(r?.weightGrossSum);
         const nN = Number(r?.weightNetSum);
-        const g = Number.isFinite(gN) ? fmtNum(gN, 2) : '—';
-        const n = Number.isFinite(nN) ? fmtNum(nN, 3) : '—';
-        return { text: `${g} / ${n}`, fontSize: 8, alignment: 'right' };
+        const gg = Number.isFinite(gN) ? fmtNum(gN, 2) : '—';
+        const nn = Number.isFinite(nN) ? fmtNum(nN, 3) : '—';
+        return { text: `${gg} / ${nn}`, fontSize: 8, alignment: 'right' };
       };
       const pbBody = [
         [th('Проба'), th('Сделок', { alignment: 'right' }), th('Вес, г (лом/чист.)', { alignment: 'right' }), th('Сумма, ₽', { alignment: 'right' })],
@@ -391,22 +354,60 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
           { text: fmtRub(r.sumRub), fontSize: 8, alignment: 'right' },
         ]),
       ];
+      content.push({ text: 'СДЕЛОК ПО ПРОБЕ (ПЕРВАЯ СТРОКА В ДОГОВОРЕ)', style: 'sectionHead', margin: [0, 0, 0, 6] });
+      if (images.gBar) {
+        content.push({ image: 'gBar', width: CONTENT_W, fit: [CONTENT_W, 132], margin: [0, 0, 0, 6] });
+      }
       content.push(
-        fullWidthTable(
-          {
-            widths: ['auto', 'auto', '*', '*'],
-            body: pbBody,
-          },
-          pdfTableLayoutData,
-          [0, 0, 0, 10]
-        )
+        fullWidthTable({ widths: ['auto', 'auto', '*', '*'], body: pbBody }, pdfTableLayoutData, [0, 0, 0, 14])
+      );
+    }
+
+    // Ряд 3: сотрудники — широкая таблица (переносится по страницам аккуратно).
+    if (s.operators && byOp.length > 0) {
+      const opBody = [
+        [th('Учёт / e-mail'), th('Сделок', { alignment: 'right' }), th('Сумма', { alignment: 'right' })],
+        ...byOp.map((r) => [
+          { text: r.email || '—', fontSize: 8, color: '#1c1917' },
+          { text: String(r.deals), fontSize: 8, alignment: 'right' },
+          { text: fmtRub(r.sumRub), fontSize: 8, alignment: 'right' },
+        ]),
+      ];
+      content.push({ text: 'СОТРУДНИКИ (КТО СКАЧАЛ PDF)', style: 'sectionHead', margin: [0, 0, 0, 6] });
+      content.push(
+        fullWidthTable({ widths: ['*', 'auto', 'auto'], body: opBody }, pdfTableLayoutData, [0, 0, 0, 12])
+      );
+    }
+
+    // Ряд 4: свод по сегментам — широкая таблица.
+    if (s.series && series.length > 0) {
+      const tsBody = [
+        [th('Период'), th('Сделок', { alignment: 'right' }), th('Сумма, ₽', { alignment: 'right' }), th('Бр., г', { alignment: 'right' }), th('Чист., г', { alignment: 'right' })],
+        ...series.map((r) => [
+          { text: r.x, fontSize: 8, color: '#1c1917' },
+          { text: String(r.count), fontSize: 8, alignment: 'right' },
+          { text: fmtRub(r.sumRub), fontSize: 8, alignment: 'right' },
+          { text: r.weightGross != null ? fmtNum(r.weightGross, 2) : '—', fontSize: 8, alignment: 'right' },
+          { text: r.weightNet != null ? fmtNum(r.weightNet, 3) : '—', fontSize: 8, alignment: 'right' },
+        ]),
+      ];
+      content.push({ text: 'СВОД ПО СЕГМЕНТАМ', style: 'sectionHead', margin: [0, 0, 0, 6] });
+      content.push(
+        fullWidthTable({ widths: ['*', 'auto', '*', '*', '*'], body: tsBody }, pdfTableLayoutData, [0, 0, 0, 8])
       );
     }
   }
 
+  // Убираем нижний отступ у последнего блока — иначе pdfmake иногда добавляет пустую страницу.
+  const lastNode = content[content.length - 1];
+  if (lastNode && Array.isArray(lastNode.margin)) {
+    lastNode.margin = [lastNode.margin[0], lastNode.margin[1], lastNode.margin[2], 0];
+  }
+
   const docDefinition = {
     pageSize: 'A4',
-    pageMargins: [PAGE_MARGIN_X, 42, PAGE_MARGIN_X, 50],
+    pageOrientation: 'landscape',
+    pageMargins: [PAGE_MARGIN_X, 34, PAGE_MARGIN_X, 32],
     defaultStyle: { font: 'Roboto', fontSize: 8.5, color: '#1c1917' },
     styles: {
       reportTitle: { fontSize: 17, bold: true, color: '#0f0d0a', characterSpacing: 0.15 },

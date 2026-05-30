@@ -38,9 +38,12 @@ const fmtDateRu = (iso) => {
 
 const th = (text, opt = {}) => ({ text, fillColor: '#e8e4dd', bold: true, fontSize: 7.5, color: '#2a2420', ...opt });
 
-/** A4 контентная ширина (pt) — как в аналитике: графики и таблицы на одну линию. */
-const PAGE_MARGIN_X = 40;
-const CONTENT_W = Math.round(595.28 - 2 * PAGE_MARGIN_X);
+/** A4 ландшафт — дашборд: графики по два в ряд. */
+const PAGE_MARGIN_X = 32;
+const PAGE_W_LANDSCAPE = 841.89;
+const CONTENT_W = Math.round(PAGE_W_LANDSCAPE - 2 * PAGE_MARGIN_X);
+const COL_GAP = 18;
+const HALF_W = Math.round((CONTENT_W - COL_GAP) / 2);
 
 function b64Png(buf) {
   if (!buf || !buf.length) return null;
@@ -74,10 +77,10 @@ const pdfTableLayoutData = {
     if (i === 0 || i === node.table.widths.length) return 0.85;
     return 0.35;
   },
-  paddingLeft: () => 10,
-  paddingRight: () => 10,
-  paddingTop: () => 6,
-  paddingBottom: () => 6,
+  paddingLeft: () => 9,
+  paddingRight: () => 9,
+  paddingTop: () => 4.5,
+  paddingBottom: () => 4.5,
   hLineColor: () => '#c9c0b4',
   vLineColor: () => '#c9c0b4',
   fillColor: (i) => {
@@ -144,8 +147,8 @@ export async function buildTeamPerformancePdfBuffer(data) {
   const weeks = Array.isArray(data.byWeek) ? data.byWeek : [];
   const dailyRows = Array.isArray(data.dailyRows) ? data.dailyRows : [];
 
-  const chartW = CONTENT_W;
-  const chartH = 198;
+  const chartW = HALF_W;
+  const chartH = 138;
   const { labels: dayLabels, values: dayValues } = dailyTurnoverSeries(dailyRows);
   const weekLabels = weeks.map((w) => {
     const s = String(w.weekStart || '').slice(0, 10);
@@ -241,22 +244,31 @@ export async function buildTeamPerformancePdfBuffer(data) {
     );
 
     if (images.teamDay || images.teamWeek) {
-      content.push(
-        { text: 'ДИНАМИКА ОБОРОТА', style: 'sectionHead', margin: [0, 4, 0, 3] },
-        {
-          text: 'Как на экране «Команда и KPI»: по дням и по неделям (неделя с понедельника).',
-          style: 'sectionDesc',
-          margin: [0, 0, 0, 8],
-        }
-      );
-      if (images.teamDay) {
-        content.push({ text: 'По дням', style: 'chartName', margin: [0, 0, 0, 4] });
-        content.push({ image: 'teamDay', width: chartW, margin: [0, 0, 0, 10] });
-      }
-      if (images.teamWeek) {
-        content.push({ text: 'По неделям', style: 'chartName', margin: [0, 0, 0, 4] });
-        content.push({ image: 'teamWeek', width: chartW, margin: [0, 0, 0, 10] });
-      }
+      content.push({ text: 'ДИНАМИКА ОБОРОТА', style: 'sectionHead', margin: [0, 4, 0, 6] });
+      content.push({
+        columnGap: COL_GAP,
+        columns: [
+          {
+            width: '*',
+            stack: images.teamDay
+              ? [
+                  { text: 'По дням', style: 'chartName', margin: [0, 0, 0, 4] },
+                  { image: 'teamDay', width: chartW },
+                ]
+              : [{ text: '' }],
+          },
+          {
+            width: '*',
+            stack: images.teamWeek
+              ? [
+                  { text: 'По неделям (ISO, пн)', style: 'chartName', margin: [0, 0, 0, 4] },
+                  { image: 'teamWeek', width: chartW },
+                ]
+              : [{ text: '' }],
+          },
+        ],
+        margin: [0, 0, 0, 14],
+      });
     }
 
     const opBody = [
@@ -334,9 +346,16 @@ export async function buildTeamPerformancePdfBuffer(data) {
     }
   }
 
+  // Убираем нижний отступ у последнего блока — иначе pdfmake иногда добавляет пустую страницу.
+  const lastNode = content[content.length - 1];
+  if (lastNode && Array.isArray(lastNode.margin)) {
+    lastNode.margin = [lastNode.margin[0], lastNode.margin[1], lastNode.margin[2], 0];
+  }
+
   const docDefinition = {
     pageSize: 'A4',
-    pageMargins: [PAGE_MARGIN_X, 40, PAGE_MARGIN_X, 50],
+    pageOrientation: 'landscape',
+    pageMargins: [PAGE_MARGIN_X, 34, PAGE_MARGIN_X, 32],
     defaultStyle: { font: 'Roboto', fontSize: 8.5, color: '#1c1917' },
     styles: {
       reportTitle: { fontSize: 17, bold: true, color: '#0f0d0a', characterSpacing: 0.2 },

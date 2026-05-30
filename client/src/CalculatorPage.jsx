@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Calculator } from './Calculator.jsx';
 import { ClientPresentation } from './ClientPresentation.jsx';
 import { api } from './api.js';
+import { calculateBuybackRange, mergeSettings } from './calc.js';
 
 /**
  * Двухколоночный дашборд для калькулятора.
@@ -40,6 +41,21 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract }) 
   const goldRub = price?.goldRubPerGram;
   const buybackRub = goldRub && buyPct ? Math.round(goldRub * (buyPct / 100)) : null;
 
+  // Выкуп за 1 грамм изделия указанной пробы (с учётом политики и поправок по пробе).
+  const perGram = useMemo(() => {
+    if (!goldRub || !settings) return {};
+    const calc = (purity) => {
+      const r = calculateBuybackRange({
+        weightGrams: 1,
+        purityPerThousand: purity,
+        goldRubPerGram: goldRub,
+        settings: mergeSettings(settings),
+      });
+      return r.ok ? Math.round(r.midRub) : null;
+    };
+    return { 585: calc(585), 750: calc(750) };
+  }, [goldRub, settings]);
+
   const todaySum = todayStats?.totals?.sumRub ?? null;
   const todayDeals = todayStats?.totals?.deals ?? null;
 
@@ -65,6 +81,24 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract }) 
           </div>
           <div className="cg-side-card__sub">
             {buyPct != null ? `${buyPct}% от ${goldRub ? formatMoney(goldRub) : '—'} (биржа)` : 'Настройте политику в «Настройки»'}
+          </div>
+
+          {/* Выкуп за грамм по ходовым пробам */}
+          <div className="cg-pergram">
+            <div className="cg-pergram__item">
+              <span className="cg-pergram__probe">585</span>
+              <span className="cg-pergram__val mono-nums">
+                {perGram[585] != null ? formatMoney(perGram[585]) : '—'}
+                <span className="cg-pergram__per"> / г</span>
+              </span>
+            </div>
+            <div className="cg-pergram__item">
+              <span className="cg-pergram__probe">750</span>
+              <span className="cg-pergram__val mono-nums">
+                {perGram[750] != null ? formatMoney(perGram[750]) : '—'}
+                <span className="cg-pergram__per"> / г</span>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -139,6 +173,37 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract }) 
       <style>{`
         .cg-calc-page__main { max-width: 600px; }
         @media (max-width: 1100px) { .cg-calc-page__main { max-width: none; } }
+
+        .cg-pergram {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-top: 14px;
+          padding-top: 12px;
+          border-top: 1px solid var(--stroke);
+        }
+        .cg-pergram__item {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          padding: 8px 10px;
+          border-radius: var(--radius-sm);
+          background: var(--bg-panel-solid, rgba(255,255,255,0.5));
+          border: 1px solid var(--stroke-soft, var(--stroke));
+        }
+        .cg-pergram__probe {
+          font-size: 0.64rem;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          color: var(--text-muted);
+        }
+        .cg-pergram__val {
+          font-size: 0.98rem;
+          font-weight: 700;
+          color: var(--gold);
+          line-height: 1.1;
+        }
+        .cg-pergram__per { font-size: 0.66rem; color: var(--text-muted); font-weight: 500; }
       `}</style>
     </div>
   );
