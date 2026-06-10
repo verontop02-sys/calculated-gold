@@ -1839,6 +1839,17 @@ app.use((err, _req, res, _next) => {
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Calculated Gold API listening on ${PORT}`);
   console.log(`CORS origins: ${corsOrigins.join(', ')}`);
+
+  // Keep-alive: пингуем собственный публичный эндпоинт каждые 10 минут,
+  // чтобы Render не усыплял бесплатный Web Service.
+  if (!isDev) {
+    const selfUrl = `http://localhost:${PORT}/api/public/buyback-quote`;
+    setInterval(() => {
+      fetch(selfUrl, { signal: AbortSignal.timeout(15_000) })
+        .then(() => console.log('[keep-alive] ping ok'))
+        .catch((e) => console.warn('[keep-alive] ping failed:', e?.message));
+    }, 10 * 60 * 1000); // каждые 10 минут
+  }
 });
 
 server.on('error', (err) => {
