@@ -3,6 +3,7 @@ import { api } from './api.js';
 import { mergeSettings, calculateBuybackRange } from './calc.js';
 import { ScrapCustomerDirectory } from './ScrapCustomerDirectory.jsx';
 import { isUserManagerRole } from './roles.js';
+import { PageHint } from './PageHint.jsx';
 
 function emptyRow() {
   return {
@@ -12,8 +13,11 @@ function emptyRow() {
     weightGross: '',
     weightNet: '',
     priceRub: '',
+    photoFile: null,   // File | null
+    photoUrl: '',      // Object URL для превью
   };
 }
+
 
 function parseRowPrice(v) {
   if (v == null || v === '') return 0;
@@ -327,7 +331,60 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   }
 
   function removeRow(i) {
-    setRows((prev) => (prev.length <= 1 ? prev : prev.filter((_, j) => j !== i)));
+    setRows((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter((_, j) => j !== i);
+      if (prev[i]?.photoUrl) URL.revokeObjectURL(prev[i].photoUrl);
+      return next;
+    });
+  }
+
+  /** Полная очистка формы — для оформления следующего клиента. */
+  function resetForm() {
+    setRows((prev) => {
+      for (const r of prev) if (r?.photoUrl) URL.revokeObjectURL(r.photoUrl);
+      return [emptyRow(), emptyRow(), emptyRow()];
+    });
+    setContractNo('');
+    setSellerName('');
+    setPhone('');
+    setPassportLine('');
+    setAddress('');
+    setAppraiserName('');
+    setCustomerId(null);
+    setSearchQ('');
+    setSearchHits([]);
+    setFieldCourierUid('');
+    firstCalcRef.current = false;
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function finishAndReset() {
+    setSmsOpen(false);
+    resetForm();
+    toast?.('Готово. Форма очищена для следующего клиента', 'success');
+  }
+
+  function handlePhotoChange(i, file) {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setRows((prev) =>
+      prev.map((r, j) => {
+        if (j !== i) return r;
+        if (r.photoUrl) URL.revokeObjectURL(r.photoUrl);
+        return { ...r, photoFile: file, photoUrl: url };
+      }),
+    );
+  }
+
+  function removePhoto(i) {
+    setRows((prev) =>
+      prev.map((r, j) => {
+        if (j !== i) return r;
+        if (r.photoUrl) URL.revokeObjectURL(r.photoUrl);
+        return { ...r, photoFile: null, photoUrl: '' };
+      }),
+    );
   }
 
   /** Копирует металл, пробу и (если пусто) наименование из 1-й позиции — удобно для 2–3 строк */
@@ -408,7 +465,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           return new Date().toLocaleDateString('ru-RU');
         }
       })();
-      const blob = await api.scrapContractPdf({
+      const { blob, dealId } = await api.scrapContractPdf({
         contractNo: contractNo.trim(),
         customerId: customerId || undefined,
         sellerName: fn,
@@ -438,6 +495,20 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       a.remove();
       URL.revokeObjectURL(url);
       toast?.('PDF сформирован', 'success');
+
+      // Асинхронно загружаем фотографии изделий (не блокируем PDF-скачивание)
+      if (dealId) {
+        rows.forEach((r, i) => {
+          if (!r.photoFile) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const base64 = ev.target?.result;
+            if (!base64) return;
+            api.dealPhotoUpload(dealId, i, base64, r.photoFile.type).catch(() => {});
+          };
+          reader.readAsDataURL(r.photoFile);
+        });
+      }
     } catch (e) {
       toast?.(e?.message || 'Ошибка PDF', 'error');
     } finally {
@@ -516,14 +587,18 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         }}
         toast={toast}
       />
-      <div className="glass contract-hero">
+      <div className="contract-hero">
         <h2 className="contract-title">Договор-квитанция</h2>
-        <p className="muted contract-lead">
+        <p className="contract-lead">
           Заполните данные продавца и позиции. Сумма из калькулятора подставляется автоматически при переходе с расчёта.
         </p>
       </div>
 
-      <div className="glass contract-card" ref={searchBoxRef}>
+      <PageHint id="contract" title="Как оформить договор">
+        Найдите клиента по телефону или заполните вручную. Для золота укажите пробу и вес — стоимость подставится сама. К каждой позиции можно приложить <b>фото изделия</b>. Кнопка <b>«Скачать PDF»</b> сохраняет сделку в учёт и клиента в базу.
+      </PageHint>
+
+      <div className="contract-card" ref={searchBoxRef}>
         <div className="contract-search-header">
           <h3 className="contract-h3">Поиск клиента</h3>
           <button type="button" className="btn-ghost small" onClick={() => setBaseOpen(true)}>
@@ -556,7 +631,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         )}
       </div>
 
-      <div className="glass contract-card">
+      <div className="contract-card">
         <h3 className="contract-h3">Реквизиты договора</h3>
         <p className="muted small" style={{ margin: '0 0 10px' }}>
           Дата в печатной форме вручную. Номер — только цифры.
@@ -578,7 +653,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         </div>
       </div>
 
-      <div className="glass contract-card">
+      <div className="contract-card">
         <h3 className="contract-h3">Продавец</h3>
         <div className="contract-fields contract-seller-grid">
           <label className="field">
@@ -614,32 +689,27 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         </button>
       </div>
 
-      <div className="glass contract-card">
+      <div className="contract-card">
         <div className="contract-table-head">
           <div>
             <h3 className="contract-h3">Позиции (лом)</h3>
             <p className="muted small contract-pos-hint">
-              Каждая позиция — отдельный блок. Для <strong>золота</strong> после ввода пробы и общего веса подставляются чистая масса и
-              ориентир «стоимости» по тому же курсу и настройкам, что в калькуляторе. Серебро и другое вручную. Из калькулятора в договор
-              уходит одна <strong>позиция 1</strong>; в остальных — «Как в 1-й» или ввод.
+              Для <strong>золота</strong> — проба и вес, стоимость подставится автоматически. Серебро и другие металлы вводятся вручную.
             </p>
           </div>
-          <button type="button" className="btn-ghost small" onClick={addRow}>
-            + Позиция
-          </button>
         </div>
         <div className="contract-positions">
           {rows.map((r, i) => (
             <div key={i} className="contract-row-card">
               <div className="contract-row-toolbar">
-                <span className="contract-row-num mono-nums">№ {i + 1}</span>
+                <span className="contract-row-num mono-nums">Позиция {i + 1}</span>
                 <div className="contract-row-actions">
                   {i > 0 && (
                     <button type="button" className="btn-row-tool" onClick={() => applyFirstRowTemplate(i)}>
                       Как в 1-й
                     </button>
                   )}
-                  <button type="button" className="btn-row-tool" onClick={() => duplicateRow(i)} title="Дублировать строку">
+                  <button type="button" className="btn-row-tool" onClick={() => duplicateRow(i)} title="Дублировать">
                     Дублировать
                   </button>
                   <button
@@ -649,72 +719,111 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
                     onClick={() => removeRow(i)}
                     disabled={rows.length <= 1}
                   >
-                    ×
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
                 </div>
               </div>
-              <label className="field contract-row-full">
-                <span className="field-label">Наименование изделия</span>
-                <input
-                  value={r.itemName}
-                  onChange={(e) => updateRow(i, { itemName: e.target.value })}
-                  placeholder="Например: лом ювелирных изделий"
-                />
-              </label>
-              <div className="contract-row-two">
-                <label className="field">
-                  <span className="field-label">Металл</span>
-                  <input value={r.metal} onChange={(e) => patchRowAndMaybeCalc(i, { metal: e.target.value })} />
-                </label>
-                <label className="field">
-                  <span className="field-label">Проба</span>
-                  <input
-                    className="mono-nums"
-                    inputMode="numeric"
-                    value={r.probe}
-                    onChange={(e) => patchRowAndMaybeCalc(i, { probe: e.target.value })}
-                  />
-                </label>
-              </div>
-              <div className="contract-row-three">
-                <label className="field">
-                  <span className="field-label">Вес общ., г</span>
-                  <input
-                    className="mono-nums"
-                    inputMode="decimal"
-                    value={r.weightGross}
-                    onChange={(e) => patchRowAndMaybeCalc(i, { weightGross: e.target.value })}
-                  />
-                </label>
-                <label className="field">
-                  <span className="field-label">Вес чист., г</span>
-                  <input
-                    className="mono-nums"
-                    inputMode="decimal"
-                    value={r.weightNet}
-                    onChange={(e) => updateRow(i, { weightNet: e.target.value })}
-                  />
-                </label>
-                <label className="field">
-                  <span className="field-label">Стоимость, ₽</span>
-                  <input
-                    className="mono-nums"
-                    inputMode="decimal"
-                    value={r.priceRub}
-                    onChange={(e) => updateRow(i, { priceRub: e.target.value })}
-                  />
-                </label>
+
+              <div className="contract-row-body">
+                <div className="contract-row-fields">
+                  <label className="field contract-row-full">
+                    <span className="field-label">Наименование изделия</span>
+                    <input
+                      value={r.itemName}
+                      onChange={(e) => updateRow(i, { itemName: e.target.value })}
+                      placeholder="Лом ювелирных изделий"
+                    />
+                  </label>
+                  <div className="contract-row-two">
+                    <label className="field">
+                      <span className="field-label">Металл</span>
+                      <input value={r.metal} onChange={(e) => patchRowAndMaybeCalc(i, { metal: e.target.value })} />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">Проба</span>
+                      <input
+                        className="mono-nums"
+                        inputMode="numeric"
+                        value={r.probe}
+                        onChange={(e) => patchRowAndMaybeCalc(i, { probe: e.target.value })}
+                        placeholder="585"
+                      />
+                    </label>
+                  </div>
+                  <div className="contract-row-three">
+                    <label className="field">
+                      <span className="field-label">Вес общ., г</span>
+                      <input
+                        className="mono-nums"
+                        inputMode="decimal"
+                        value={r.weightGross}
+                        onChange={(e) => patchRowAndMaybeCalc(i, { weightGross: e.target.value })}
+                      />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">Вес чист., г</span>
+                      <input
+                        className="mono-nums"
+                        inputMode="decimal"
+                        value={r.weightNet}
+                        onChange={(e) => updateRow(i, { weightNet: e.target.value })}
+                      />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">Стоимость, ₽</span>
+                      <input
+                        className="mono-nums"
+                        inputMode="decimal"
+                        value={r.priceRub}
+                        onChange={(e) => updateRow(i, { priceRub: e.target.value })}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="contract-row-photo">
+                  {r.photoUrl ? (
+                    <div className="crp-preview-wrap">
+                      <img src={r.photoUrl} alt="Фото изделия" className="crp-preview" />
+                      <button type="button" className="crp-remove" onClick={() => removePhoto(i)} title="Удалить фото">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="crp-upload" title="Загрузить фото изделия">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="crp-file-input"
+                        onChange={(e) => handlePhotoChange(i, e.target.files?.[0])}
+                      />
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="3"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <path d="M21 15l-5-5L5 21"/>
+                      </svg>
+                      <span>Фото</span>
+                    </label>
+                  )}
+                </div>
               </div>
             </div>
           ))}
         </div>
+
+        <button type="button" className="contract-add-pos-btn" onClick={addRow}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Добавить позицию
+        </button>
+
         <div className="contract-total">
-          <span className="muted">Итого по строкам</span>
+          <span className="muted">Итого по всем позициям</span>
           <span className="contract-total-value mono-nums">{formatMoney(rowTotal)}</span>
         </div>
       </div>
 
-      <div className="glass contract-card">
+      <div className="contract-card">
         <label className="field">
           <span className="field-label">Эксперт-оценщик (ФИО)</span>
           <input value={appraiserName} onChange={(e) => setAppraiserName(e.target.value)} placeholder="Кто принял товар" />
@@ -722,7 +831,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       </div>
 
       {isUserManagerRole(user?.role) && fieldStaff.length > 0 && (
-        <div className="glass contract-card">
+        <div className="contract-card">
           <label className="field">
             <span className="field-label">Сделку после СМС учитывать за сотрудника</span>
             <select
@@ -757,223 +866,340 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         >
           {smsBusy ? 'Отправка…' : 'Ссылка + СМС клиенту'}
         </button>
+        <button
+          type="button"
+          className="contract-reset-btn"
+          disabled={pdfBusy || smsBusy}
+          onClick={() => {
+            if (rowTotal > 0 || sellerName.trim()) {
+              if (!window.confirm('Очистить форму и начать новый договор? Несохранённые данные пропадут.')) return;
+            }
+            resetForm();
+            toast?.('Форма очищена', 'success');
+          }}
+          title="Очистить всё и начать новый договор"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          Новый договор
+        </button>
       </div>
 
       {smsOpen && (
         <div className="contract-sms-overlay" role="dialog" aria-modal="true" aria-label="Ссылка для клиента">
-          <div className="glass contract-sms-modal">
-            <h3 className="contract-h3">Ссылка для подтверждения</h3>
-            <p className="muted small">Отправьте клиенту эту ссылку (или откройте на его телефоне). После ввода кода сделка зафиксируется в системе.</p>
-            <textarea className="contract-sms-link mono-nums" readOnly rows={3} value={smsLink} />
-            <div className="contract-sms-actions">
+          <div className="contract-sms-modal">
+            <div className="csm-icon" aria-hidden>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            </div>
+            <h3 className="csm-title">Ссылка отправлена клиенту</h3>
+            <p className="csm-sub">Клиент откроет ссылку на телефоне и подтвердит сделку кодом из СМС. После подтверждения она автоматически попадёт в учёт и аналитику.</p>
+
+            <div className="csm-steps">
+              <div className="csm-step"><span className="csm-step__n">1</span> Клиент открывает ссылку</div>
+              <div className="csm-step"><span className="csm-step__n">2</span> Вводит код из СМС</div>
+              <div className="csm-step"><span className="csm-step__n">3</span> Сделка сохранена ✓</div>
+            </div>
+
+            <div className="csm-link-row">
+              <input className="csm-link mono-nums" readOnly value={smsLink} onFocus={(e) => e.target.select()} />
               <button
                 type="button"
-                className="btn-primary"
-                onClick={() => {
-                  if (smsLink) navigator.clipboard?.writeText(smsLink).then(() => toast?.('Скопировано', 'success')).catch(() => {});
-                }}
+                className="csm-copy"
+                onClick={() => { if (smsLink) navigator.clipboard?.writeText(smsLink).then(() => toast?.('Ссылка скопирована', 'success')).catch(() => {}); }}
+                title="Копировать ссылку"
               >
-                Копировать ссылку
-              </button>
-              <button type="button" className="btn-ghost" onClick={() => setSmsOpen(false)}>
-                Закрыть
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               </button>
             </div>
+
             {smsDev && (
-              <p className="muted small" style={{ marginTop: 12 }}>
-                Тест: код <span className="mono-nums">{smsDev}</span> (только при FIELD_DEAL_RETURN_CODE=1 на сервере)
-              </p>
+              <p className="csm-dev">Тест-код: <span className="mono-nums">{smsDev}</span> (только при FIELD_DEAL_RETURN_CODE=1)</p>
             )}
+
+            <div className="csm-actions">
+              <button type="button" className="csm-btn csm-btn--ghost" onClick={() => setSmsOpen(false)}>
+                Оставить открытым
+              </button>
+              <button type="button" className="csm-btn csm-btn--done" onClick={finishAndReset}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Готово, новый клиент
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       <style>{`
-        .contract-page { display: flex; flex-direction: column; gap: 14px; animation: fadeIn 0.35s ease; }
-        .contract-hero { padding: 20px 18px; }
-        .contract-title { font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; margin: 0 0 8px; }
-        .contract-lead { margin: 0; font-size: 0.88rem; line-height: 1.45; }
-        .contract-card { padding: 18px 16px; }
-        .contract-h3 { font-size: 0.95rem; font-weight: 600; margin: 0 0 10px; }
-        .contract-hint { margin: 0 0 12px; line-height: 1.4; }
+        /* ── Contract page ── */
+        .contract-page {
+          display: flex; flex-direction: column; gap: 16px;
+          animation: ctIn 440ms cubic-bezier(0.22,1,0.36,1) both;
+          will-change: transform, opacity;
+        }
+        @keyframes ctIn {
+          from { opacity:0; transform: translate3d(0,14px,0); }
+          to   { opacity:1; transform: translate3d(0,0,0); }
+        }
+
+        /* Hero */
+        .contract-hero { padding: 22px 22px 18px; border-radius: 18px; }
+        .contract-title {
+          font-family: var(--font-display);
+          font-size: clamp(1.3rem, 3vw, 1.6rem);
+          font-weight: 700; margin: 0 0 6px; letter-spacing: -0.02em;
+        }
+        .contract-lead { margin: 0; font-size: 0.9rem; line-height: 1.5; color: var(--text-muted); }
+
+        /* Cards */
+        .contract-card {
+          padding: 22px 20px;
+          border-radius: 18px;
+          border: 1px solid var(--stroke-soft);
+          background: var(--bg-panel-solid);
+          transition: box-shadow 260ms;
+        }
+        .contract-card:focus-within { box-shadow: 0 0 0 2px var(--accent-soft); }
+        .contract-h3 {
+          font-family: var(--font-display); font-size: 1rem; font-weight: 700;
+          margin: 0 0 14px; letter-spacing: -0.01em;
+        }
+        .contract-hint { margin: 0 0 14px; line-height: 1.45; }
+
+        /* Search */
         .contract-search-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
         .contract-search-header .contract-h3 { margin: 0; }
-        .contract-search-wrap { position: relative; }
+        .contract-search-wrap { position: relative; margin-top: 2px; }
         .contract-search-input { width: 100%; }
-        .contract-search-busy { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+        .contract-search-busy { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: 0.78rem; }
         .contract-search-list {
-          list-style: none; margin: 10px 0 0; padding: 0;
-          border-radius: var(--radius-sm); border: 1px solid var(--stroke);
+          list-style: none; margin: 8px 0 0; padding: 0;
+          border-radius: 14px; border: 1px solid var(--stroke-soft);
           background: var(--bg-elevated); max-height: 220px; overflow: auto;
+          box-shadow: var(--shadow-pop);
         }
         .contract-search-item {
-          width: 100%; text-align: left; padding: 10px 12px;
+          width: 100%; text-align: left; padding: 11px 14px;
           border: none; background: transparent; cursor: pointer;
           display: flex; flex-direction: column; gap: 2px;
-          border-bottom: 1px solid var(--stroke);
+          border-bottom: 1px solid var(--stroke-soft);
+          transition: background 160ms;
         }
         .contract-search-item:last-child { border-bottom: none; }
-        .contract-search-item:hover { background: var(--gold-soft); }
+        .contract-search-item:hover { background: var(--accent-soft); }
         .contract-search-name { font-weight: 600; font-size: 0.9rem; }
-        .contract-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-        }
+
+        /* Grid layouts */
+        .contract-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .contract-grid-one { grid-template-columns: 1fr; }
-        @media (max-width: 520px) {
-          .contract-grid { grid-template-columns: 1fr; }
-        }
+        @media (max-width: 520px) { .contract-grid { grid-template-columns: 1fr; } }
         .contract-fields { display: flex; flex-direction: column; gap: 12px; }
-        .contract-seller-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px 14px;
-          align-items: start;
-        }
+        .contract-seller-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; align-items: start; }
         .contract-span-2 { grid-column: 1 / -1; }
         @media (max-width: 560px) {
           .contract-seller-grid { grid-template-columns: 1fr; }
           .contract-span-2 { grid-column: 1; }
         }
-        .contract-fields textarea,
-        .contract-address-text {
-          resize: vertical;
-          min-height: 72px;
-          font-family: inherit;
-          line-height: 1.45;
+        .contract-fields textarea, .contract-address-text {
+          resize: vertical; min-height: 72px; font-family: inherit; line-height: 1.45;
         }
         .contract-address-text { font-size: 0.9rem; }
         .contract-save-btn { margin-top: 14px; width: 100%; }
-        .contract-table-head {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 12px;
-          margin-bottom: 12px;
-        }
-        .contract-table-head .contract-h3 { margin: 0 0 6px; }
-        .contract-pos-hint { margin: 0; line-height: 1.45; max-width: 42rem; }
-        .contract-pos-hint strong { color: var(--gold); font-weight: 600; }
-        .btn-ghost.small { font-size: 0.78rem; padding: 6px 10px; flex-shrink: 0; }
-        .contract-positions { display: flex; flex-direction: column; gap: 12px; }
+
+        /* Positions */
+        .contract-table-head { margin-bottom: 16px; }
+        .contract-table-head .contract-h3 { margin: 0 0 4px; }
+        .contract-pos-hint { margin: 0; line-height: 1.45; max-width: 44rem; font-size: 0.85rem; }
+        .contract-pos-hint strong { color: var(--accent); font-weight: 600; }
+
+        .contract-positions { display: flex; flex-direction: column; gap: 14px; }
+
         .contract-row-card {
-          border: 1px solid var(--stroke);
-          border-radius: var(--radius-sm);
-          padding: 12px 12px 14px;
-          background: var(--input-bg);
+          border: 1px solid var(--stroke-soft);
+          border-radius: 16px;
+          padding: 16px 16px 18px;
+          background: var(--bg-elevated);
+          transition: box-shadow 240ms;
+          animation: ctIn 400ms cubic-bezier(0.22,1,0.36,1) both;
         }
+        .contract-row-card:focus-within { box-shadow: 0 0 0 2px var(--accent-soft); }
+
         .contract-row-toolbar {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-          margin-bottom: 10px;
-          flex-wrap: wrap;
+          display: flex; align-items: center; justify-content: space-between;
+          gap: 8px; margin-bottom: 14px; flex-wrap: wrap;
         }
-        .contract-row-num { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); font-weight: 600; }
+        .contract-row-num {
+          font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.14em;
+          color: var(--text-muted); font-weight: 700; font-family: var(--font-display);
+        }
         .contract-row-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
         .btn-row-tool {
-          border: 1px solid var(--stroke);
-          background: var(--surface);
-          color: var(--text-muted);
-          font-size: 0.72rem;
-          padding: 5px 10px;
-          border-radius: 8px;
-          cursor: pointer;
-          font-weight: 600;
+          border: 1px solid var(--stroke-soft); background: var(--bg-panel-solid);
+          color: var(--text-muted); font-size: 0.72rem; padding: 5px 12px;
+          border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 160ms;
         }
-        .btn-row-tool:hover { border-color: var(--gold); color: var(--gold); }
-        .contract-row-full { margin-bottom: 10px; }
+        .btn-row-tool:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+        .btn-icon {
+          border: none; background: transparent; color: var(--text-muted); cursor: pointer;
+          line-height: 1; padding: 6px; border-radius: 8px; display: flex; align-items: center;
+          transition: color 160ms, background 160ms;
+        }
+        .btn-icon:hover:not(:disabled) { color: var(--crimson); background: var(--crimson-soft); }
+        .btn-icon:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* Row body: fields + photo side by side */
+        .contract-row-body {
+          display: grid;
+          grid-template-columns: 1fr 112px;
+          gap: 14px;
+          align-items: start;
+        }
+        @media (max-width: 600px) {
+          .contract-row-body { grid-template-columns: 1fr; }
+        }
+        .contract-row-fields { display: flex; flex-direction: column; gap: 10px; }
+
         .contract-row-full input { width: 100%; }
         .contract-row-two {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px 12px;
-          margin-bottom: 10px;
+          display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px;
         }
         .contract-row-three {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 10px 12px;
+          display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px 12px;
         }
-        @media (max-width: 520px) {
+        @media (max-width: 500px) {
           .contract-row-two { grid-template-columns: 1fr; }
-          .contract-row-three { grid-template-columns: 1fr; }
+          .contract-row-three { grid-template-columns: 1fr 1fr; }
         }
         .contract-row-two .field input,
         .contract-row-three .field input { width: 100%; }
-        .btn-icon {
-          border: none;
-          background: transparent;
-          color: var(--text-muted);
-          cursor: pointer;
-          font-size: 1.1rem;
-          line-height: 1;
-          padding: 4px 8px;
-          border-radius: 6px;
+
+        /* Photo upload */
+        .contract-row-photo { display: flex; align-items: flex-start; }
+        .crp-upload {
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          gap: 6px; width: 100%; aspect-ratio: 1 / 1;
+          border: 1.5px dashed var(--stroke-soft); border-radius: 14px;
+          background: var(--bg-panel-solid); cursor: pointer;
+          color: var(--text-muted); font-size: 0.7rem; font-weight: 600;
+          transition: border-color 200ms, background 200ms, color 200ms;
+          padding: 8px;
         }
-        .btn-icon:hover:not(:disabled) { color: var(--danger); background: rgba(248,113,113,0.08); }
-        .btn-icon:disabled { opacity: 0.35; cursor: not-allowed; }
+        .crp-upload:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+        .crp-file-input { display: none; }
+        .crp-preview-wrap {
+          position: relative; width: 100%; aspect-ratio: 1 / 1; border-radius: 14px; overflow: hidden;
+        }
+        .crp-preview { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .crp-remove {
+          position: absolute; top: 6px; right: 6px;
+          border: none; background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
+          color: #fff; border-radius: 50%; width: 26px; height: 26px;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer; transition: background 160ms;
+        }
+        .crp-remove:hover { background: var(--crimson); }
+
+        /* Add position button */
+        .contract-add-pos-btn {
+          display: flex; align-items: center; gap: 8px; justify-content: center;
+          width: 100%; margin-top: 14px; padding: 13px 16px;
+          border: 1.5px dashed var(--stroke-soft); border-radius: 14px;
+          background: transparent; color: var(--text-muted);
+          font-size: 0.9rem; font-weight: 600; cursor: pointer;
+          transition: all 200ms cubic-bezier(0.22,1,0.36,1);
+        }
+        .contract-add-pos-btn:hover {
+          border-color: var(--accent); color: var(--accent);
+          background: var(--accent-soft);
+          transform: translateY(-1px);
+        }
+
+        /* Total */
         .contract-total {
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
-          margin-top: 14px;
-          padding-top: 12px;
-          border-top: 1px solid var(--stroke);
+          display: flex; justify-content: space-between; align-items: baseline;
+          margin-top: 18px; padding-top: 14px;
+          border-top: 1px solid var(--stroke-soft);
         }
-        .contract-total-value { font-size: 1.15rem; font-weight: 700; color: var(--gold); }
-        .contract-actions {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          padding-bottom: 8px;
+        .contract-total-value {
+          font-size: 1.25rem; font-weight: 700;
+          color: var(--accent);
+          font-family: var(--font-display);
         }
-        .contract-pdf-btn,
-        .contract-sms-btn {
-          flex: 1 1 200px;
-          min-width: 0;
-          padding: 14px 16px;
-          font-size: 0.95rem;
+
+        /* Actions */
+        .contract-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-bottom: 8px; }
+        .contract-pdf-btn, .contract-sms-btn {
+          flex: 1 1 200px; min-width: 0; padding: 14px 16px; font-size: 0.95rem;
         }
+
+        /* SMS overlay → completion modal */
         .contract-sms-overlay {
-          position: fixed;
-          inset: 0;
-          z-index: 80;
-          background: rgba(0, 0, 0, 0.55);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 16px;
+          position: fixed; inset: 0; z-index: 80;
+          background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
+          display: flex; align-items: center; justify-content: center; padding: 16px;
+          animation: ctFade 240ms ease both;
         }
+        @keyframes ctFade { from { opacity: 0; } }
         .contract-sms-modal {
-          width: 100%;
-          max-width: 420px;
-          padding: 20px 18px 22px;
-          border-radius: 16px;
+          width: 100%; max-width: 440px; padding: 28px 24px 24px;
+          border-radius: 22px; border: 1px solid var(--stroke-soft);
+          background: var(--bg-panel-solid);
+          box-shadow: var(--shadow-pop);
+          text-align: center;
+          animation: ctIn 380ms cubic-bezier(0.22,1,0.36,1) both;
         }
-        .contract-sms-link {
-          width: 100%;
-          margin-top: 12px;
-          padding: 10px 12px;
-          font-size: 0.78rem;
-          border-radius: 10px;
-          border: 1px solid var(--stroke);
-          background: var(--input-bg);
-          color: var(--text);
-          resize: vertical;
+        .csm-icon {
+          width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 16px;
+          display: flex; align-items: center; justify-content: center;
+          background: var(--emerald-soft); color: var(--emerald);
+          animation: csmPop 460ms cubic-bezier(0.34,1.56,0.64,1) both;
         }
-        .contract-sms-actions {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          margin-top: 14px;
+        @keyframes csmPop { from { transform: scale(0.5); opacity: 0; } }
+        .csm-title { font-family: var(--font-display); font-size: 1.2rem; font-weight: 700; margin: 0 0 8px; color: var(--text-strong); }
+        .csm-sub { font-size: 0.85rem; line-height: 1.5; color: var(--text-muted); margin: 0 0 18px; }
+        .csm-steps { display: flex; flex-direction: column; gap: 8px; text-align: left; margin-bottom: 18px; }
+        .csm-step { display: flex; align-items: center; gap: 10px; font-size: 0.84rem; color: var(--text); }
+        .csm-step__n {
+          width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+          background: var(--accent-soft); color: var(--accent); font-size: 0.72rem; font-weight: 700;
         }
-        .contract-sms-select {
-          width: 100%;
-          margin-top: 4px;
+        .csm-link-row { display: flex; gap: 8px; margin-bottom: 6px; }
+        .csm-link {
+          flex: 1; min-width: 0; padding: 10px 12px; font-size: 0.78rem;
+          border-radius: 11px; border: 1px solid var(--stroke-soft);
+          background: var(--bg-elevated); color: var(--text);
         }
+        .csm-copy {
+          flex-shrink: 0; width: 42px; border-radius: 11px;
+          border: 1px solid var(--stroke-soft); background: var(--bg-elevated);
+          color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
+          transition: all 160ms;
+        }
+        .csm-copy:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+        .csm-dev { font-size: 0.74rem; color: var(--text-dim); margin: 8px 0 0; }
+        .csm-actions { display: flex; gap: 10px; margin-top: 18px; }
+        .csm-btn {
+          flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+          padding: 13px; border-radius: 12px; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+          transition: all 180ms cubic-bezier(0.22,1,0.36,1);
+        }
+        .csm-btn--ghost { border: 1px solid var(--stroke-soft); background: transparent; color: var(--text-muted); }
+        .csm-btn--ghost:hover { border-color: var(--text-muted); color: var(--text); }
+        .csm-btn--done { border: none; background: linear-gradient(135deg, var(--emerald), var(--emerald-strong)); color: #fff; box-shadow: 0 4px 16px var(--emerald-soft); }
+        .csm-btn--done:hover { transform: translateY(-1px); }
+
+        .contract-sms-select { width: 100%; margin-top: 4px; }
+        .btn-ghost.small { font-size: 0.78rem; padding: 6px 12px; flex-shrink: 0; }
+
+        /* Reset / new contract button */
+        .contract-reset-btn {
+          display: inline-flex; align-items: center; gap: 7px; justify-content: center;
+          flex: 0 0 auto; padding: 14px 18px; border-radius: 12px;
+          border: 1px solid var(--stroke-soft); background: transparent;
+          color: var(--text-muted); font-size: 0.9rem; font-weight: 600; cursor: pointer;
+          transition: all 180ms cubic-bezier(0.22,1,0.36,1);
+        }
+        .contract-reset-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+        .contract-reset-btn:disabled { opacity: 0.45; cursor: not-allowed; }
       `}</style>
     </div>
   );

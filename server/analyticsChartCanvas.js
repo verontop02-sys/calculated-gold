@@ -207,8 +207,8 @@ export async function renderDualLineChartPng(p = {}) {
     nameA = 'лом, г',
     nameB = 'чист., г',
     cap = 'Вес, г — динамика (1-я позиция)',
-    colorA = '#34d399',
-    colorB = '#8b5cf6',
+    colorA = '#12824f',
+    colorB = '#e02d5f',
   } = p;
   const loa = a.filter((x) => Number.isFinite(x)).length ? Math.min(...a) : 0;
   const hia = a.filter((x) => Number.isFinite(x)).length ? Math.max(...a) : 0;
@@ -380,8 +380,8 @@ export async function renderBarChartPng({ rows = [], cap = 'Сделок по п
     const bh = (v / t1) * chartH;
     const y0 = pt + chartH - bh;
     const g = ctx.createLinearGradient(x, y0, x, y0 + bh);
-    g.addColorStop(0, '#d4a20d');
-    g.addColorStop(1, '#7c5a0a');
+    g.addColorStop(0, '#f0437a');
+    g.addColorStop(1, '#c22052');
     ctx.fillStyle = g;
     const bw = barW;
     const barY = y0;

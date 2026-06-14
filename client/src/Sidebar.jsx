@@ -11,7 +11,7 @@ import { isSuperAdminRole, isUserManagerRole, roleLabel } from './roles.js';
  * Состояние «свёрнут/развёрнут» сохраняется в localStorage,
  * плюс автоматически расширяется при наведении (CSS-only).
  */
-export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange }) {
+export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpenProfile }) {
   const [pinned, setPinned] = useState(() => {
     try {
       const v = localStorage.getItem('cg_sidebar_pinned');
@@ -38,10 +38,18 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange }) {
   const analyticsItems = [
     { key: 'analytics', label: 'Аналитика', icon: <IconChart /> },
     ...(isAdmin ? [{ key: 'team', label: 'Команда и KPI', icon: <IconTeam /> }] : []),
+    ...(isAdmin ? [{ key: 'employees', label: 'Сделки сотрудников', icon: <IconEmployees /> }] : []),
     ...(isSuper ? [{ key: 'gold-index', label: 'Индекс золота', icon: <IconMap /> }] : []),
   ];
 
   const groups = [
+    {
+      key: 'overview',
+      title: 'Обзор',
+      items: [
+        { key: 'dashboard', label: 'Дашборд', icon: <IconDashboard /> },
+      ],
+    },
     {
       key: 'deals',
       title: 'Сделки',
@@ -106,7 +114,12 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange }) {
       </nav>
 
       <div className="cg-sidebar__footer">
-        <div className="cg-sidebar__user">
+        <button
+          type="button"
+          className="cg-sidebar__user"
+          onClick={onOpenProfile}
+          title="Открыть профиль"
+        >
           <span className="cg-sidebar__user-avatar" aria-hidden>
             {(user?.email || '?').slice(0, 1).toUpperCase()}
           </span>
@@ -114,7 +127,10 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange }) {
             <span className="cg-sidebar__user-email" title={user?.email}>{user?.email}</span>
             <span className="cg-sidebar__user-role">{roleLabel(user?.role)}</span>
           </div>
-        </div>
+          <span className="cg-sidebar__user-chevron" aria-hidden>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </span>
+        </button>
         <div className="cg-sidebar__footer-actions">
           <button
             type="button"
@@ -143,6 +159,16 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange }) {
 }
 
 // ── Inline SVG icons ─────────────────────────────────────────────────────────
+function IconDashboard() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="9" rx="1.5" />
+      <rect x="14" y="3" width="7" height="5" rx="1.5" />
+      <rect x="14" y="12" width="7" height="9" rx="1.5" />
+      <rect x="3" y="16" width="7" height="5" rx="1.5" />
+    </svg>
+  );
+}
 function IconCalc() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -188,6 +214,16 @@ function IconTeam() {
     </svg>
   );
 }
+function IconEmployees() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <rect x="15" y="3" width="7" height="9" rx="1.5" />
+      <path d="M17.5 6h2M17.5 8.5h2" />
+    </svg>
+  );
+}
 function IconMap() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -229,109 +265,114 @@ function IconLogout() {
 }
 
 const SIDEBAR_CSS = `
-/* Sidebar — фиксированный по высоте, всегда занимает 64px в layout.
-   Если "pinned" — занимает 232px стабильно.
-   При hover (на collapsed) — расширяется поверх контента, без layout shift. */
+/* ─── Sidebar — Premium redesign (Stage 7) ─────────────────────────────────
+   Collapsed: 60px icon rail.
+   Pinned/hover: 240px full nav — Codename-style.
+   Active item: accent left bar + accent text, no background fill.
+   ─────────────────────────────────────────────────────────────────────────── */
 .cg-sidebar {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 64px;
+  top: 0; left: 0;
+  width: 60px;
   height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: var(--sidebar-bg);
-  border-right: 1px solid var(--sidebar-stroke);
+  background: var(--bg-panel-solid);
+  border-right: 1px solid var(--stroke-soft);
   transition: width 0.22s cubic-bezier(0.4, 0.2, 0.2, 1), box-shadow 0.22s;
   z-index: 50;
   overflow: hidden;
 }
-.cg-sidebar--pinned { width: 232px; }
+.cg-sidebar--pinned { width: 240px; }
 .cg-sidebar:not(.cg-sidebar--pinned):hover {
-  width: 232px;
-  box-shadow: var(--shadow-pop);
+  width: 240px;
+  box-shadow: 4px 0 24px rgba(0,0,0,0.08);
 }
 
-/* Brand */
+/* ── Brand ── */
 .cg-sidebar__brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 14px;
-  border-bottom: 1px solid var(--sidebar-stroke);
-  min-height: 72px;
+  gap: 10px;
+  padding: 0 10px;
+  height: 60px;
+  border-bottom: 1px solid var(--stroke-soft);
+  flex-shrink: 0;
 }
 .cg-sidebar__brand-mark {
-  width: 36px; height: 36px;
-  border-radius: 10px;
-  background: #fff;
-  border: 1px solid var(--stroke);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  width: 34px; height: 34px;
+  border-radius: 9px;
+  background: var(--accent);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
+  box-shadow: 0 2px 8px var(--accent-glow);
 }
-.cg-sidebar__brand-mark img { width: 100%; height: 100%; object-fit: contain; padding: 4px; box-sizing: border-box; }
+.cg-sidebar__brand-mark img {
+  width: 26px; height: 26px; object-fit: contain;
+  filter: brightness(0) invert(1);
+}
 .cg-sidebar__brand-text {
   display: flex; flex-direction: column;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity 0.18s;
+  transition: opacity 0.15s;
   min-width: 0;
 }
 .cg-sidebar--pinned .cg-sidebar__brand-text,
 .cg-sidebar:hover .cg-sidebar__brand-text { opacity: 1; }
 .cg-sidebar__brand-title {
-  font-family: var(--font-display);
-  font-size: 1rem;
+  font-size: 0.88rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--text);
+  letter-spacing: 0.05em;
+  color: var(--text-strong);
+  line-height: 1.2;
 }
 .cg-sidebar__brand-title b {
-  color: var(--gold);
+  color: var(--accent);
   font-weight: 700;
-  font-size: 0.72em;
-  background: var(--gold-soft);
-  border: 1px solid var(--stroke-strong);
+  font-size: 0.7em;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft);
   padding: 1px 5px;
   border-radius: 4px;
   margin-left: 4px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
 }
 .cg-sidebar__brand-sub {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  letter-spacing: 0.02em;
-  margin-top: 2px;
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin-top: 1px;
 }
 
-/* Nav */
+/* ── Nav ── */
 .cg-sidebar__nav {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 10px 8px;
+  padding: 8px 6px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--stroke) transparent;
 }
-.cg-sidebar__nav::-webkit-scrollbar { width: 6px; }
-.cg-sidebar__nav::-webkit-scrollbar-thumb { background: var(--stroke); border-radius: 3px; }
+.cg-sidebar__nav::-webkit-scrollbar { width: 4px; }
+.cg-sidebar__nav::-webkit-scrollbar-thumb { background: var(--stroke); border-radius: 2px; }
 
-.cg-sidebar__group { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
-.cg-sidebar__group:first-child { margin-top: 0; }
+.cg-sidebar__group { display: flex; flex-direction: column; gap: 1px; margin-top: 16px; }
+.cg-sidebar__group:first-child { margin-top: 4px; }
 .cg-sidebar__group-title {
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-dim);
-  padding: 10px 14px 4px;
+  padding: 0 12px 6px;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity 0.18s;
-  height: 24px;
+  transition: opacity 0.15s;
+  pointer-events: none;
 }
 .cg-sidebar--pinned .cg-sidebar__group-title,
 .cg-sidebar:hover .cg-sidebar__group-title { opacity: 1; }
@@ -340,50 +381,39 @@ const SIDEBAR_CSS = `
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  font-size: 0.88rem;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 0.84rem;
   font-weight: 500;
   color: var(--text-muted);
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
   cursor: pointer;
-  transition:
-    background 280ms cubic-bezier(0.16, 1, 0.3, 1),
-    color 280ms cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 240ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: color 200ms ease, background 200ms ease;
   width: 100%;
   text-align: left;
 }
 .cg-sidebar__item:hover {
-  background: var(--gold-soft);
   color: var(--text);
+  background: var(--stroke-soft);
 }
-.cg-sidebar__item:hover .cg-sidebar__item-icon {
-  transform: scale(1.1);
-  color: var(--gold);
-}
-.cg-sidebar__item:active { transform: scale(0.98); }
-.cg-sidebar__item:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: -2px;
-}
+.cg-sidebar__item:active { opacity: 0.8; }
+.cg-sidebar__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
+
+/* Active: only left bar + colored text — no fill */
 .cg-sidebar__item--active {
-  background: var(--gold-soft);
-  color: var(--gold);
-  border-color: var(--stroke-strong);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
-.cg-sidebar__item--active .cg-sidebar__item-icon { color: var(--gold); }
+.cg-sidebar__item--active .cg-sidebar__item-icon { color: var(--accent); }
+
 .cg-sidebar__item-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
   flex-shrink: 0;
-  color: currentColor;
-  transition: transform 320ms cubic-bezier(0.34, 1.45, 0.64, 1), color 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  color: inherit;
+  transition: color 200ms ease;
 }
 .cg-sidebar__item-label {
   white-space: nowrap;
@@ -391,7 +421,8 @@ const SIDEBAR_CSS = `
   text-overflow: ellipsis;
   flex: 1;
   opacity: 0;
-  transition: opacity 0.18s;
+  transition: opacity 0.15s;
+  letter-spacing: -0.01em;
 }
 .cg-sidebar--pinned .cg-sidebar__item-label,
 .cg-sidebar:hover .cg-sidebar__item-label { opacity: 1; }
@@ -401,108 +432,128 @@ const SIDEBAR_CSS = `
   left: 0; top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 22px;
-  border-radius: 0 4px 4px 0;
-  background: var(--gold);
-  box-shadow: 0 0 12px var(--gold-glow);
-  animation: cgFadeIn 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  height: 20px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  animation: cgFadeIn 280ms ease;
 }
 
-/* Footer */
+/* ── Footer ── */
 .cg-sidebar__footer {
-  border-top: 1px solid var(--sidebar-stroke);
-  padding: 10px;
+  border-top: 1px solid var(--stroke-soft);
+  padding: 8px 6px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  flex-shrink: 0;
 }
 .cg-sidebar__user {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 6px 8px;
+  border-radius: 10px;
   min-width: 0;
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.16s, border-color 0.16s;
 }
+.cg-sidebar__user:hover {
+  background: var(--accent-soft);
+  border-color: var(--stroke-soft);
+}
+.cg-sidebar__user:hover .cg-sidebar__user-avatar {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.cg-sidebar__user-chevron {
+  margin-left: auto; flex-shrink: 0; color: var(--text-muted);
+  opacity: 0; transition: opacity 0.15s, transform 0.16s;
+}
+.cg-sidebar--pinned .cg-sidebar__user-chevron,
+.cg-sidebar:hover .cg-sidebar__user-chevron { opacity: 1; }
+.cg-sidebar__user:hover .cg-sidebar__user-chevron { color: var(--accent); transform: translateX(2px); }
 .cg-sidebar__user-avatar {
-  width: 32px; height: 32px;
+  width: 30px; height: 30px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
-  color: #1c1108;
+  background: var(--stroke);
+  color: var(--text);
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px var(--gold-glow);
+  border: 1.5px solid var(--stroke-strong);
 }
 .cg-sidebar__user-text {
   display: flex; flex-direction: column;
   min-width: 0;
   opacity: 0;
-  transition: opacity 0.18s;
+  transition: opacity 0.15s;
 }
 .cg-sidebar--pinned .cg-sidebar__user-text,
 .cg-sidebar:hover .cg-sidebar__user-text { opacity: 1; }
 .cg-sidebar__user-email {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--text);
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .cg-sidebar__user-role {
-  font-size: 0.66rem;
-  color: var(--gold);
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 0.64rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
 .cg-sidebar__footer-actions {
-  display: flex;
-  gap: 6px;
-  align-items: stretch;
+  display: flex; gap: 4px; align-items: stretch;
 }
 .cg-sidebar__pin {
-  width: 36px; height: 36px;
-  border-radius: 8px;
+  width: 34px; height: 34px;
+  border-radius: 7px;
   border: 1px solid var(--stroke);
-  background: var(--input-bg);
-  color: var(--text-muted);
+  background: transparent;
+  color: var(--text-dim);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.18s, color 0.18s, border-color 0.18s;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
 }
-.cg-sidebar__pin:hover { color: var(--gold); border-color: var(--stroke-strong); }
-.cg-sidebar__pin:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.cg-sidebar__pin:hover { color: var(--text); border-color: var(--stroke-strong); background: var(--stroke-soft); }
+.cg-sidebar__pin:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .cg-sidebar__logout {
-  display: flex; align-items: center; gap: 8px;
-  padding: 0 12px;
-  border-radius: 8px;
+  display: flex; align-items: center; gap: 7px;
+  padding: 0 10px;
+  border-radius: 7px;
   border: 1px solid var(--stroke);
-  background: var(--input-bg);
-  color: var(--text-muted);
-  font-size: 0.8rem;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
   flex: 1;
-  min-width: 36px;
-  transition: background 0.18s, color 0.18s, border-color 0.18s;
+  min-width: 34px;
+  height: 34px;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
 }
 .cg-sidebar__logout:hover {
   color: var(--crimson);
-  border-color: var(--crimson);
+  border-color: var(--crimson-soft);
   background: var(--crimson-soft);
 }
 .cg-sidebar__logout-label {
   white-space: nowrap;
   opacity: 0;
-  transition: opacity 0.18s;
+  transition: opacity 0.15s;
 }
 .cg-sidebar--pinned .cg-sidebar__logout-label,
 .cg-sidebar:hover .cg-sidebar__logout-label { opacity: 1; }
 
-/* Mobile — hidden */
-@media (max-width: 900px) {
-  .cg-sidebar { display: none; }
-}
+@media (max-width: 900px) { .cg-sidebar { display: none; } }
 `;

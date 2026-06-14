@@ -17,6 +17,7 @@ import {
 import { api } from './api.js';
 import { SkeletonStats, SkeletonChart, SkeletonTable } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
+import { PageHint } from './PageHint.jsx';
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 function downloadBlob(blob, filename) {
@@ -141,6 +142,29 @@ export function Analytics({ formatMoney, toast }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfSec, setPdfSec] = useState({ summary: true, operators: true, probe: true, series: true });
   const reqIdRef = useRef(0);
+
+  // ── AI (Grok) по выбранному периоду ──
+  const [aiQ, setAiQ] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiAnswer, setAiAnswer] = useState(null);
+  const [aiErr, setAiErr] = useState(null);
+
+  const askAi = useCallback(async (preset) => {
+    const question = String(preset ?? aiQ).trim();
+    if (!question || aiBusy) return;
+    setAiQ(question);
+    setAiBusy(true);
+    setAiErr(null);
+    setAiAnswer(null);
+    try {
+      const r = await api.aiAsk(question, from, to);
+      setAiAnswer(r?.answer || '');
+    } catch (e) {
+      setAiErr(e?.message || 'AI не ответил, попробуйте ещё раз');
+    } finally {
+      setAiBusy(false);
+    }
+  }, [aiQ, aiBusy, from, to]);
 
   // Параллельно тянем выбранный период и зеркальный период «до него» — для дельт.
   const load = useCallback(async () => {
@@ -289,6 +313,39 @@ export function Analytics({ formatMoney, toast }) {
       }
     }
 
+    // Крупнейшая сделка периода (приходит с сервера).
+    if (data?.maxDeal && data.maxDeal.totalRub > 0) {
+      const md = data.maxDeal;
+      out.push({
+        k: 'max-deal',
+        icon: '◇',
+        title: 'Крупнейшая сделка',
+        value: formatMoney(md.totalRub),
+        sub: [
+          md.sellerName,
+          md.probe ? `${md.probe} пр.` : null,
+          md.createdAt ? humanDateShort(String(md.createdAt).slice(0, 10)) : null,
+        ].filter(Boolean).join(' · ') || 'детали в базе клиентов',
+        tone: 'gold',
+      });
+    }
+
+    // Весь лом / чистое золото, прошедшие через программу за период.
+    {
+      const wg = numish(t.firstRowWeightGrossSum);
+      const wn = numish(t.firstRowWeightNetSum);
+      if (wg != null && wg > 0) {
+        out.push({
+          k: 'gold-total',
+          icon: '⚖',
+          title: 'Золота через программу',
+          value: `${wg.toFixed(1)} г`,
+          sub: `чистого ≈ ${wn != null ? wn.toFixed(1) : '—'} г · лом по договорам`,
+          tone: 'emerald',
+        });
+      }
+    }
+
     if (byProbe.length) {
       const top = [...byProbe].sort((a, b) => (b.count || 0) - (a.count || 0))[0];
       if (top) {
@@ -413,6 +470,9 @@ export function Analytics({ formatMoney, toast }) {
 
   return (
     <div className="analytics-page">
+      <PageHint id="analytics" title="Как читать аналитику">
+        Выберите период вверху — все цифры и графики пересчитаются. <b>Каналы оформления</b> показывают долю отделения и доставки. Кнопка <b>PDF-отчёт</b> выгрузит сводку с графиками. Строка <b>AI-аналитик</b> ответит на вопросы по данным периода.
+      </PageHint>
       {/* HERO: период, оборот, дельта */}
       <div className="an-hero">
         <div className="an-hero__top">
@@ -595,8 +655,8 @@ export function Analytics({ formatMoney, toast }) {
                         stroke="var(--gold)"
                         strokeWidth={1.5}
                         fill={`url(#spark-${k.id})`}
-                        animationDuration={1300}
-                        animationEasing="ease-out"
+                        animationDuration={1700}
+                        animationEasing="ease"
                         animationBegin={420}
                       />
                     </AreaChart>
@@ -608,22 +668,112 @@ export function Analytics({ formatMoney, toast }) {
         </div>
       )}
 
-      {/* INSIGHTS — авто-аналитика */}
+      {/* INSIGHTS — акцентные карточки периода */}
       {insights.length > 0 && !loading && (
-        <div className="an-insights cg-stagger">
-          {insights.map((ins) => (
+        <div className="an-insights">
+          {insights.map((ins, idx) => (
             <div
               key={ins.k}
               className={`an-insight an-insight--${ins.tone}`}
+              style={{ '--idx': idx }}
             >
-              <div className="an-insight__icon" aria-hidden>{ins.icon}</div>
-              <div className="an-insight__body">
-                <div className="an-insight__title">{ins.title}</div>
-                <div className="an-insight__value mono-nums">{ins.value}</div>
-                <div className="an-insight__sub muted">{ins.sub}</div>
-              </div>
+              <div className="an-insight__chip" aria-hidden>{ins.icon}</div>
+              <div className="an-insight__label">{ins.title}</div>
+              <div className="an-insight__value mono-nums">{ins.value}</div>
+              <div className="an-insight__sub">{ins.sub}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Каналы: отделение vs доставка */}
+      {!loading && t && data?.channels && (t.deals > 0) && (
+        <div className="an-channels an-anim">
+          <h3 className="analytics-h3" style={{ margin: '0 0 4px' }}>Каналы оформления</h3>
+          <p className="muted small" style={{ margin: '0 0 14px' }}>
+            Сделки в отделении (скачан PDF) против доставки (курьер, подтверждение по СМС).
+          </p>
+          <div className="an-ch-grid">
+            {[
+              { key: 'office', label: 'В отделении', icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
+              ) },
+              { key: 'delivery', label: 'Доставка / курьер', icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="1.5"/><path d="M16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+              ) },
+            ].map(({ key, label, icon }) => {
+              const ch = data.channels[key] || { deals: 0, sumRub: 0, weightGross: 0, weightNet: 0 };
+              const pct = t.sumRub > 0 ? Math.round((ch.sumRub / t.sumRub) * 100) : 0;
+              return (
+                <div key={key} className={`an-ch an-ch--${key}`}>
+                  <div className="an-ch__head">
+                    <span className="an-ch__chip" aria-hidden>{icon}</span>
+                    <span className="an-ch__label">{label}</span>
+                    <span className="an-ch__pct">{pct}%</span>
+                  </div>
+                  <div className="an-ch__value mono-nums">{formatMoney(ch.sumRub)}</div>
+                  <div className="an-ch__bar"><div className="an-ch__bar-fill" style={{ width: `${pct}%` }} /></div>
+                  <div className="an-ch__meta">
+                    <span>{ch.deals} сд.</span>
+                    <span>{(ch.weightGross || 0).toFixed(2)} г лом</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* AI Grok по выбранному периоду */}
+      {!loading && t && (
+        <div className="an-ai an-anim">
+          <div className="an-ai-head">
+            <span className="an-ai-badge" aria-hidden>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                <path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2z" />
+                <path d="M19 15l.9 2.6L22.5 18.5l-2.6.9L19 22l-.9-2.6-2.6-.9 2.6-.9L19 15z" opacity="0.7" />
+              </svg>
+            </span>
+            <div>
+              <h3 className="analytics-h3" style={{ margin: 0 }}>AI-аналитик Grok</h3>
+              <p className="muted small" style={{ margin: '2px 0 0' }}>
+                Анализ и прогнозы по данным за {humanDateShort(from)} — {humanDateShort(to)}
+              </p>
+            </div>
+          </div>
+          <form className="an-ai-row" onSubmit={(e) => { e.preventDefault(); askAi(); }}>
+            <input
+              className="an-ai-input"
+              type="text"
+              value={aiQ}
+              onChange={(e) => setAiQ(e.target.value)}
+              placeholder="Например: что выделяется в этом периоде и на что обратить внимание?"
+              maxLength={600}
+              disabled={aiBusy}
+            />
+            <button type="submit" className="an-ai-send" disabled={aiBusy || !aiQ.trim()}>
+              {aiBusy ? 'Думает…' : 'Спросить'}
+            </button>
+          </form>
+          <div className="an-ai-chips">
+            {['Проанализируй этот период', 'Что с динамикой по пробам?', 'Дай прогноз на следующий период'].map((s) => (
+              <button key={s} type="button" className="an-ai-chip" onClick={() => askAi(s)} disabled={aiBusy}>
+                {s}
+              </button>
+            ))}
+          </div>
+          {(aiBusy || aiAnswer || aiErr) && (
+            <div className="an-ai-result">
+              {aiBusy && (
+                <div className="an-ai-thinking">
+                  Grok анализирует период
+                  <span className="an-ai-dot" /><span className="an-ai-dot" /><span className="an-ai-dot" />
+                </div>
+              )}
+              {!aiBusy && aiErr && <div className="an-ai-err">{aiErr}</div>}
+              {!aiBusy && !aiErr && aiAnswer && <div className="an-ai-answer">{aiAnswer}</div>}
+            </div>
+          )}
         </div>
       )}
 
@@ -675,8 +825,8 @@ export function Analytics({ formatMoney, toast }) {
                       strokeWidth={2.5}
                       fill="url(#an-money-grad)"
                       activeDot={{ r: 5, fill: 'var(--gold)', stroke: 'var(--bg-deep)', strokeWidth: 2 }}
-                      animationDuration={1500}
-                      animationEasing="ease-out"
+                      animationDuration={1900}
+                      animationEasing="ease"
                       animationBegin={350}
                     />
                   </AreaChart>
@@ -745,9 +895,21 @@ export function Analytics({ formatMoney, toast }) {
               <div className="analytics-chart-h an-chart-tall">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={moneySeries} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--stroke-soft, #333)" opacity={0.5} />
-                    <XAxis dataKey="x" tick={{ fontSize: 11 }} stroke="var(--text-muted)" />
-                    <YAxis yAxisId="g" tick={{ fontSize: 10 }} stroke="var(--text-muted)" allowDecimals />
+                    <defs>
+                      <linearGradient id="an-wgross-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--emerald)" stopOpacity={0.42} />
+                        <stop offset="65%" stopColor="var(--emerald)" stopOpacity={0.12} />
+                        <stop offset="100%" stopColor="var(--emerald)" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="an-wnet-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.38} />
+                        <stop offset="65%" stopColor="var(--accent)" stopOpacity={0.1} />
+                        <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 7" stroke="var(--stroke-soft, #333)" vertical={false} />
+                    <XAxis dataKey="x" tick={{ fontSize: 11 }} stroke="var(--text-muted)" axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="g" tick={{ fontSize: 10 }} stroke="var(--text-muted)" axisLine={false} tickLine={false} allowDecimals />
                     <Tooltip
                       content={({ active, payload, label }) => {
                         if (!active || !payload?.length) return null;
@@ -762,8 +924,8 @@ export function Analytics({ formatMoney, toast }) {
                         );
                       }}
                     />
-                    <Line yAxisId="g" type="monotone" dataKey="weightGross" stroke="#6ee7b7" strokeWidth={2.2} dot={false} animationDuration={1400} animationEasing="ease-out" animationBegin={300} />
-                    <Line yAxisId="g" type="monotone" dataKey="weightNet" stroke="#c084fc" strokeWidth={2.2} dot={false} animationDuration={1400} animationEasing="ease-out" animationBegin={520} />
+                    <Area yAxisId="g" type="monotone" dataKey="weightGross" stroke="var(--emerald)" strokeWidth={2.4} fill="url(#an-wgross-grad)" dot={false} activeDot={{ r: 4, fill: 'var(--emerald)' }} animationDuration={1500} animationEasing="ease" animationBegin={300} />
+                    <Area yAxisId="g" type="monotone" dataKey="weightNet" stroke="var(--accent)" strokeWidth={2.4} fill="url(#an-wnet-grad)" dot={false} activeDot={{ r: 4, fill: 'var(--accent)' }} animationDuration={1500} animationEasing="ease" animationBegin={520} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -841,7 +1003,7 @@ export function Analytics({ formatMoney, toast }) {
                         );
                       }}
                     />
-                    <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={28} animationDuration={1200} animationEasing="ease-out" animationBegin={350}>
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={28} animationDuration={1700} animationEasing="ease" animationBegin={350}>
                       {sparkData.map((entry, i) => (
                         <Cell key={i} fill={entry.count > 0 ? 'var(--gold)' : 'var(--stroke-soft)'} />
                       ))}
@@ -1174,63 +1336,249 @@ const ANALYTICS_CSS = `
 }
 
 /* INSIGHTS */
+/* Свечение основных линий графиков — как на дашборде */
+.analytics-chart-card .recharts-area-curve,
+.analytics-chart-card .recharts-line-curve {
+  filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+
+/* ── AI Grok ── */
+.an-ai {
+  border-radius: 16px;
+  padding: 18px 20px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--bg-panel-solid), var(--bg-panel-solid)) padding-box,
+    linear-gradient(120deg, color-mix(in srgb, var(--accent) 45%, var(--stroke-soft)), var(--stroke-soft) 38%, var(--stroke-soft) 62%, color-mix(in srgb, var(--accent) 30%, var(--stroke-soft))) border-box;
+  box-shadow: var(--shadow-card);
+}
+.an-ai-head { display: flex; align-items: center; gap: 11px; margin-bottom: 13px; }
+.an-ai-badge {
+  width: 32px; height: 32px;
+  border-radius: 10px;
+  background: var(--accent-grad);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+.an-ai-row { display: flex; gap: 8px; }
+.an-ai-input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 15px;
+  border-radius: 11px;
+  border: 1px solid var(--stroke);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.88rem;
+  font-family: var(--font-ui);
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.an-ai-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.an-ai-input::placeholder { color: var(--text-dim); }
+.an-ai-send {
+  padding: 0 20px;
+  border-radius: 11px;
+  border: none;
+  background: var(--accent-grad);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px var(--accent-glow);
+  transition: filter 0.18s, transform 0.15s, opacity 0.18s;
+}
+.an-ai-send:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+.an-ai-send:disabled { opacity: 0.55; cursor: not-allowed; }
+.an-ai-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
+.an-ai-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke-soft);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.16s, color 0.16s, background 0.16s;
+}
+.an-ai-chip:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.an-ai-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.an-ai-result {
+  margin-top: 13px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--stroke-soft);
+  animation: anAiIn 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes anAiIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.an-ai-thinking { display: flex; align-items: center; gap: 4px; font-size: 0.84rem; color: var(--text-muted); }
+.an-ai-dot {
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: anAiDot 1.2s ease-in-out infinite;
+}
+.an-ai-dot:nth-child(2) { animation-delay: 0.15s; }
+.an-ai-dot:nth-child(3) { animation-delay: 0.3s; }
+.an-ai-dot:first-of-type { margin-left: 6px; }
+@keyframes anAiDot {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+.an-ai-answer { font-size: 0.875rem; line-height: 1.6; color: var(--text); white-space: pre-wrap; }
+.an-ai-err { font-size: 0.84rem; color: var(--crimson); }
+@media (max-width: 640px) {
+  .an-ai-row { flex-direction: column; }
+  .an-ai-send { padding: 11px 20px; }
+}
+
+/* ── Каналы: отделение vs доставка ── */
+.an-channels {
+  background: var(--bg-panel-solid);
+  border: 1px solid var(--stroke-soft);
+  border-radius: 18px;
+  padding: 20px;
+}
+.an-ch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 560px) { .an-ch-grid { grid-template-columns: 1fr; } }
+.an-ch {
+  padding: 16px; border-radius: 16px;
+  border: 1px solid var(--stroke-soft); background: var(--bg-elevated);
+  display: flex; flex-direction: column; gap: 10px;
+  transition: box-shadow 220ms, transform 220ms;
+}
+.an-ch:hover { box-shadow: var(--shadow-pop); transform: translateY(-2px); }
+.an-ch__head { display: flex; align-items: center; gap: 10px; }
+.an-ch__chip {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.an-ch--office .an-ch__chip { background: var(--accent-soft); color: var(--accent); }
+.an-ch--delivery .an-ch__chip { background: var(--emerald-soft); color: var(--emerald); }
+.an-ch__label { font-size: 0.86rem; font-weight: 600; flex: 1; min-width: 0; }
+.an-ch__pct { font-size: 0.82rem; font-weight: 700; color: var(--text-muted); }
+.an-ch__value { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; font-family: var(--font-display); color: var(--text-strong); }
+.an-ch__bar { height: 6px; border-radius: 999px; background: var(--surface); overflow: hidden; }
+.an-ch__bar-fill { height: 100%; border-radius: 999px; transition: width 600ms cubic-bezier(0.22,1,0.36,1); }
+.an-ch--office .an-ch__bar-fill { background: var(--accent-grad); }
+.an-ch--delivery .an-ch__bar-fill { background: linear-gradient(135deg, var(--emerald), var(--emerald-strong)); }
+.an-ch__meta { display: flex; justify-content: space-between; font-size: 0.74rem; color: var(--text-muted); }
+
+/* ── Инсайты (акцентные карточки периода) ── */
 .an-insights {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
 }
 .an-insight {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: var(--surface);
+  flex-direction: column;
+  gap: 0;
+  padding: 18px 18px 16px;
+  border-radius: 16px;
+  background: var(--bg-panel-solid);
   border: 1px solid var(--stroke-soft);
   min-width: 0;
+  position: relative;
+  overflow: hidden;
+  animation: dxIn 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--idx, 0) * 50ms);
+  will-change: transform, opacity;
   transition:
-    transform 260ms var(--ease-out),
-    box-shadow 260ms var(--ease-out),
-    border-color 220ms var(--ease-out);
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms;
 }
 .an-insight:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(0,0,0,0.10);
-  border-color: var(--stroke-strong);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-pop);
 }
-.an-insight--gold { border-left: 3px solid var(--gold); }
-.an-insight--emerald { border-left: 3px solid var(--emerald); }
-.an-insight--neutral { border-left: 3px solid var(--stroke-strong); }
-.an-insight__icon {
-  width: 36px; height: 36px;
-  border-radius: 10px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--gold-soft);
-  color: var(--gold);
-  font-size: 1.05rem;
+
+/* фоновое свечение в углу по тону */
+.an-insight::before {
+  content: '';
+  position: absolute;
+  top: -40%; right: -20%;
+  width: 70%; height: 80%;
+  border-radius: 50%;
+  filter: blur(38px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms;
+}
+.an-insight:hover::before { opacity: 1; }
+.an-insight--gold::before  { background: var(--gold-soft); }
+.an-insight--emerald::before { background: var(--emerald-soft); }
+.an-insight--neutral::before { background: var(--stroke-soft); }
+
+/* тёмная тема — lightly tinted background per tone */
+:root[data-theme='dark'] .an-insight--gold {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 9%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 55%);
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--stroke-soft));
+}
+:root[data-theme='dark'] .an-insight--emerald {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--emerald) 7%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 55%);
+  border-color: color-mix(in srgb, var(--emerald) 18%, var(--stroke-soft));
+}
+
+.an-insight__chip {
+  width: 30px; height: 30px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.92rem;
   flex-shrink: 0;
+  margin-bottom: 14px;
+  position: relative;
 }
-.an-insight--emerald .an-insight__icon { background: var(--emerald-soft); color: var(--emerald); }
-.an-insight--neutral .an-insight__icon { background: var(--bg-panel-solid); color: var(--text); }
-.an-insight__body { min-width: 0; flex: 1; }
-.an-insight__title {
-  font-size: var(--fz-micro);
+.an-insight--gold    .an-insight__chip { background: var(--gold-soft); color: var(--gold); }
+.an-insight--emerald .an-insight__chip { background: var(--emerald-soft); color: var(--emerald); }
+.an-insight--neutral .an-insight__chip { background: var(--stroke-soft); color: var(--text-muted); }
+
+.an-insight__label {
+  font-size: 0.67rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
+  letter-spacing: 0.1em;
   font-weight: 700;
-  margin-bottom: 3px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .an-insight__value {
   font-family: var(--font-display);
-  font-size: 1.08rem;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.22;
-  letter-spacing: -0.012em;
+  font-size: clamp(1.15rem, 0.9rem + 0.9vw, 1.55rem);
+  font-weight: 700;
+  color: var(--text-strong);
+  line-height: 1.15;
+  letter-spacing: -0.018em;
   word-break: break-word;
+  margin-bottom: 6px;
 }
-.an-insight__sub { font-size: var(--fz-small); margin-top: 3px; line-height: 1.4; }
+.an-insight--gold    .an-insight__value { color: var(--accent); }
+.an-insight--emerald .an-insight__value { color: var(--emerald); }
+
+.an-insight__sub {
+  font-size: 0.73rem;
+  color: var(--text-dim);
+  line-height: 1.45;
+  margin-top: auto;
+}
+
+@media (max-width: 900px) {
+  .an-insights { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 540px) {
+  .an-insights { grid-template-columns: 1fr; gap: 8px; }
+  .an-insight { padding: 15px 15px 13px; }
+}
 
 /* GRID — 2 columns on wide screens */
 .an-grid {
@@ -1352,8 +1700,8 @@ const ANALYTICS_CSS = `
   width: 8px; height: 8px; border-radius: 50%;
   display: inline-block;
 }
-.an-leg-pill--gross::before { background: #6ee7b7; box-shadow: 0 0 6px #6ee7b7; }
-.an-leg-pill--net::before { background: #c084fc; box-shadow: 0 0 6px #c084fc; }
+.an-leg-pill--gross::before { background: var(--emerald); box-shadow: 0 0 6px var(--emerald); }
+.an-leg-pill--net::before { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 
 .analytics-err { padding: 12px 16px; color: var(--crimson, #d63b3b); font-size: 0.9rem; }
 .small-digits { font-size: 0.95rem; }

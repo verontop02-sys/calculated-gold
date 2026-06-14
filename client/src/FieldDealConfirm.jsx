@@ -106,9 +106,9 @@ export function FieldDealConfirm({ token }) {
 
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 0' }}>
-            <span className="cg-skel" aria-hidden style={{ display: 'inline-block', width: '80%', height: 14, borderRadius: 6, background: 'linear-gradient(90deg, var(--gold-soft) 0%, rgba(212,175,55,0.22) 50%, var(--gold-soft) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease infinite' }} />
-            <span className="cg-skel" aria-hidden style={{ display: 'inline-block', width: '60%', height: 14, borderRadius: 6, background: 'linear-gradient(90deg, var(--gold-soft) 0%, rgba(212,175,55,0.22) 50%, var(--gold-soft) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease infinite' }} />
-            <span className="cg-skel" aria-hidden style={{ display: 'inline-block', width: '70%', height: 14, borderRadius: 6, background: 'linear-gradient(90deg, var(--gold-soft) 0%, rgba(212,175,55,0.22) 50%, var(--gold-soft) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease infinite' }} />
+            <span className="cg-skel" aria-hidden style={{ display: 'inline-block', width: '80%', height: 14, borderRadius: 6, background: 'linear-gradient(90deg, var(--stroke-soft) 0%, var(--stroke) 50%, var(--stroke-soft) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease infinite' }} />
+            <span className="cg-skel" aria-hidden style={{ display: 'inline-block', width: '60%', height: 14, borderRadius: 6, background: 'linear-gradient(90deg, var(--stroke-soft) 0%, var(--stroke) 50%, var(--stroke-soft) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease infinite' }} />
+            <span className="cg-skel" aria-hidden style={{ display: 'inline-block', width: '70%', height: 14, borderRadius: 6, background: 'linear-gradient(90deg, var(--stroke-soft) 0%, var(--stroke) 50%, var(--stroke-soft) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease infinite' }} />
           </div>
         )}
         {!loading && err && !info && <p className="fd-err">{err}</p>}

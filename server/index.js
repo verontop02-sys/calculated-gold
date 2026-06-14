@@ -116,7 +116,7 @@ async function resolveCustomerIdByPhone(phone) {
 }
 
 async function recordScrapDealFromPdf({ req, body, totalRub }) {
-  await insertScrapDealRow(supabase, { operatorUserId: req.user?.id || null, body, totalRub });
+  return insertScrapDealRow(supabase, { operatorUserId: req.user?.id || null, body, totalRub });
 }
 
 /** Email → полный доступ к API (если роль из profiles по какой-то причине не подтягивается). Render: PANEL_FULL_ACCESS_EMAILS=a@b.com,c@d.com */
@@ -897,6 +897,39 @@ app.get(
   })
 );
 
+// Личный профиль: статистика и последние сделки текущего пользователя (всегда строго свои).
+app.get(
+  '/api/profile/me',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    const role = await getRequesterRole(req);
+    const uid = req.user.id;
+    const sel = 'id, contract_no, total_rub, seller_name, first_probe, first_weight_gross, first_weight_net, created_at, rows';
+    const { data: deals, error } = await supabase
+      .from('scrap_deals')
+      .select(sel)
+      .eq('operator_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(300);
+    if (error) throw error;
+    const list = deals || [];
+    const totalRub = list.reduce((s, d) => s + (Number(d.total_rub) || 0), 0);
+    const totalGross = list.reduce((s, d) => s + (Number(d.first_weight_gross) || 0), 0);
+    const totalNet = list.reduce((s, d) => s + (Number(d.first_weight_net) || 0), 0);
+    const dealsCount = list.length;
+    const avg = dealsCount > 0 ? Math.round(totalRub / dealsCount) : 0;
+    const maxDeal = list.reduce((m, d) => (Number(d.total_rub) > (m?.total_rub || 0) ? d : m), null);
+    // first/last activity
+    const firstDealAt = dealsCount > 0 ? list[list.length - 1].created_at : null;
+    const lastDealAt = dealsCount > 0 ? list[0].created_at : null;
+    res.json({
+      user: { uid, email: req.user.email, role },
+      stats: { dealsCount, totalRub, totalGross, totalNet, avg, firstDealAt, lastDealAt, maxDealRub: maxDeal?.total_rub || 0 },
+      recent: list.slice(0, 12),
+    });
+  })
+);
+
 app.post(
   '/api/field-deal-sessions',
   asyncHandler(async (req, res) => {
@@ -1371,10 +1404,14 @@ app.get(
       const merged = sortCustomersByNameRu([...map.values()]);
       return res.json({ customers: merged.slice(offset, offset + limit), total: merged.length });
     }
+    const sort = String(req.query.sort || 'alpha').trim();
+    let orderCol = 'full_name';
+    let orderAsc = true;
+    if (sort === 'newest') { orderCol = 'created_at'; orderAsc = false; }
     const { data, count, error } = await supabase
       .from('scrap_customers')
       .select(SCRAP_CUST_LIST_SEL, { count: 'exact' })
-      .order('full_name', { ascending: true })
+      .order(orderCol, { ascending: orderAsc })
       .range(offset, offset + limit - 1);
     if (error) throw error;
     res.json({ customers: data || [], total: count ?? 0 });
@@ -1441,6 +1478,120 @@ app.get(
       return res.status(400).json({ error: 'Укажите customerId или phone' });
     }
     return res.json({ deals: [], total: 0 });
+  })
+);
+
+// Все сделки конкретного сотрудника (страница «Сделки сотрудников», только руководитель).
+app.get(
+  '/api/operator-deals',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    const operatorId = String(req.query.operatorId || '').trim();
+    const limit = Math.min(500, Math.max(1, parseInt(String(req.query.limit || '200'), 10) || 200));
+    const sel =
+      'id, contract_no, total_rub, seller_name, phone, first_probe, first_weight_gross, first_weight_net, created_at, operator_id, "rows"';
+    let q = supabase
+      .from('scrap_deals')
+      .select(sel)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (operatorId === 'none') q = q.is('operator_id', null);
+    else if (operatorId && /^[0-9a-f-]{36}$/i.test(operatorId)) q = q.eq('operator_id', operatorId);
+    const { data, error } = await q;
+    if (error) throw error;
+    const deals = data || [];
+    const totalRub = deals.reduce((s, d) => s + (Number(d.total_rub) || 0), 0);
+    const totalGross = deals.reduce((s, d) => s + (Number(d.first_weight_gross) || 0), 0);
+    const totalNet = deals.reduce((s, d) => s + (Number(d.first_weight_net) || 0), 0);
+    res.json({
+      deals,
+      stats: { dealsCount: deals.length, totalRub, totalGross, totalNet },
+    });
+  })
+);
+
+// Лента последних сделок (дашборд). Курьер/продавец видит только свои.
+app.get(
+  '/api/scrap-deals-recent',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    const limit = Math.min(20, Math.max(1, parseInt(String(req.query.limit || '6'), 10) || 6));
+    const scope = await analyticsScopeFromRequest(req);
+    let q = supabase
+      .from('scrap_deals')
+      .select('id, contract_no, total_rub, seller_name, first_probe, first_weight_gross, created_at, operator_id')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (!scope.viewerIsManager) q = q.eq('operator_id', scope.viewerUserId);
+    const { data, error } = await q;
+    if (error) throw error;
+    res.json({ deals: data || [] });
+  })
+);
+
+// Получить детали одной сделки (для дравера в дашборде и т.д.)
+app.get(
+  '/api/scrap-deals/:id/detail',
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Некорректный id' });
+    const scope = await analyticsScopeFromRequest(req);
+    let q = supabase
+      .from('scrap_deals')
+      .select('id, contract_no, total_rub, seller_name, phone, passport_line, address, appraiser_name, first_probe, first_weight_gross, first_weight_net, created_at, operator_id, rows')
+      .eq('id', id);
+    if (!scope.viewerIsManager) q = q.eq('operator_id', scope.viewerUserId);
+    const { data, error } = await q.maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Сделка не найдена' });
+    res.json({ deal: data });
+  })
+);
+
+// Загрузить фото изделия для позиции сделки и сохранить URL в rows JSON
+app.post(
+  '/api/deal-photos/upload',
+  express.json({ limit: '15mb' }),
+  asyncHandler(async (req, res) => {
+    const { dealId, rowIdx, base64, mimeType } = req.body || {};
+    if (!dealId || !/^[0-9a-f-]{36}$/i.test(String(dealId))) {
+      return res.status(400).json({ error: 'Некорректный dealId' });
+    }
+    if (!base64 || typeof base64 !== 'string') {
+      return res.status(400).json({ error: 'Нет данных изображения' });
+    }
+    const scope = await analyticsScopeFromRequest(req);
+    let q = supabase.from('scrap_deals').select('rows, operator_id').eq('id', dealId);
+    if (!scope.viewerIsManager) q = q.eq('operator_id', scope.viewerUserId);
+    const { data: deal, error: fetchErr } = await q.maybeSingle();
+    if (fetchErr) throw fetchErr;
+    if (!deal) return res.status(404).json({ error: 'Сделка не найдена' });
+
+    const rawBase64 = base64.replace(/^data:[^;]+;base64,/, '');
+    const buf = Buffer.from(rawBase64, 'base64');
+    const ext = (mimeType || 'image/jpeg').split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+    const fileName = `${dealId}/row-${rowIdx ?? 0}-${Date.now()}.${ext}`;
+
+    const { error: upErr } = await supabase.storage
+      .from('deal-photos')
+      .upload(fileName, buf, { contentType: mimeType || 'image/jpeg', upsert: true });
+    if (upErr) throw new Error(`Ошибка загрузки фото: ${upErr.message}`);
+
+    const { data: urlData } = supabase.storage.from('deal-photos').getPublicUrl(fileName);
+    const photoUrl = urlData?.publicUrl || '';
+
+    const rows = Array.isArray(deal.rows) ? deal.rows : [];
+    const updatedRows = rows.map((r, i) =>
+      i === (rowIdx ?? 0) ? { ...r, photoUrl } : r,
+    );
+    const { error: patchErr } = await supabase
+      .from('scrap_deals')
+      .update({ rows: updatedRows })
+      .eq('id', dealId);
+    if (patchErr) throw patchErr;
+
+    res.json({ ok: true, photoUrl });
   })
 );
 
@@ -1554,6 +1705,89 @@ app.get(
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
     res.send(buf);
+  })
+);
+
+// ── AI (Grok / x.ai): вопросы по текущей аналитике и прогнозам ───────────────
+const GROK_API_KEY = process.env.GROK_API_KEY || '';
+const GROK_MODEL = process.env.GROK_MODEL || 'grok-3-mini';
+
+const AI_SYSTEM_PROMPT = [
+  'Ты — встроенный AI-аналитик панели REAKTIVO PRO (скупка золота и лома в России).',
+  'Тебе передают агрегированную сводку сделок за период (JSON) и текущий курс золота.',
+  'Отвечай на русском, кратко и по делу: 3–6 пунктов или 2–4 коротких абзаца.',
+  'Опирайся только на переданные цифры; если данных мало — честно скажи об этом.',
+  'Суммы пиши в рублях с разделителями тысяч, проценты — с одним знаком после запятой.',
+  'Прогнозы помечай как оценку, не как гарантию. Не используй markdown-разметку (#, *, `):',
+  'обычный текст, пункты начинай с «— ».',
+].join(' ');
+
+app.post(
+  '/api/ai/ask',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    if (!GROK_API_KEY) {
+      return res.status(503).json({ error: 'AI не настроен: задайте GROK_API_KEY на сервере' });
+    }
+    const question = String(req.body?.question || '').trim().slice(0, 600);
+    if (!question) return res.status(400).json({ error: 'Задайте вопрос' });
+    const fromD = String(req.body?.from || '').trim();
+    const toD = String(req.body?.to || '').trim();
+
+    const scope = await analyticsScopeFromRequest(req);
+    const data = await computeAnalyticsSummaryData(supabase, fromD, toD, scope);
+    let goldRubPerGram = null;
+    try {
+      goldRubPerGram = (await getPriceCache())?.goldRubPerGram ?? null;
+    } catch {}
+
+    // Компактный контекст: только то, что нужно для ответа.
+    const ctx = {
+      period: data.period,
+      totals: data.totals,
+      byDay: data.byDay,
+      byProbe: (data.byProbe || []).map((x) => ({ probe: x.probe, count: x.count, sumRub: x.sumRub })),
+      byOperator: (data.byOperator || []).map((o) => ({ email: o.email, deals: o.deals, sumRub: o.sumRub })),
+      goldRubPerGram,
+    };
+
+    let r;
+    try {
+      r = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${GROK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: GROK_MODEL,
+          messages: [
+            { role: 'system', content: AI_SYSTEM_PROMPT },
+            {
+              role: 'user',
+              content: `Сводка за период (JSON):\n${JSON.stringify(ctx)}\n\nВопрос: ${question}`,
+            },
+          ],
+          temperature: 0.3,
+          max_tokens: 800,
+        }),
+        signal: AbortSignal.timeout(90_000),
+      });
+    } catch (e) {
+      const msg = e?.name === 'TimeoutError' || e?.name === 'AbortError'
+        ? 'AI не ответил за отведённое время, попробуйте ещё раз'
+        : 'Не удалось связаться с AI-сервисом';
+      return res.status(502).json({ error: msg });
+    }
+    const j = await r.json().catch(() => null);
+    if (!r.ok) {
+      const raw = j?.error?.message || j?.error || `Grok API: HTTP ${r.status}`;
+      console.warn('[ai/ask] Grok error:', raw);
+      return res.status(502).json({ error: typeof raw === 'string' ? raw : 'Ошибка AI-сервиса' });
+    }
+    const answer = String(j?.choices?.[0]?.message?.content || '').trim();
+    if (!answer) return res.status(502).json({ error: 'AI вернул пустой ответ, попробуйте переформулировать' });
+    res.json({ answer, model: GROK_MODEL });
   })
 );
 
@@ -1680,13 +1914,15 @@ app.post(
       return res.status(400).json({ error: 'Укажите итоговую сумму или стоимость по строкам' });
     }
     const buf = await buildScrapContractPdfBuffer({ ...body, totalRub: total });
+    let dealId = null;
     try {
-      await recordScrapDealFromPdf({ req, body, totalRub: total });
+      dealId = await recordScrapDealFromPdf({ req, body, totalRub: total });
     } catch (e) {
       console.error('[scrap_deals insert]', e?.message || e);
     }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="dogovor-kvitanciya.pdf"');
+    if (dealId) res.setHeader('X-Deal-Id', dealId);
     res.send(buf);
   })
 );

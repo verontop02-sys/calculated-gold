@@ -1,10 +1,42 @@
 import { createRequire } from 'module';
 import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import { readFileSync } from 'fs';
 import { renderLineChartPng, renderDualLineChartPng, renderBarChartPng } from './analyticsChartCanvas.js';
 
 const require = createRequire(import.meta.url);
 const pdfMake = require('pdfmake');
 const pdfmakeRoot = dirname(require.resolve('pdfmake/package.json'));
+
+// Логотип REAKTIVO для шапки отчёта (грузим один раз, base64).
+const __dirname = dirname(fileURLToPath(import.meta.url));
+let LOGO_DATA_URI = null;
+(() => {
+  const candidates = [
+    join(__dirname, '..', 'client', 'public', 'logo_reactivo1.png'),
+    join(__dirname, '..', 'logo_reactivo1.png'),
+  ];
+  for (const p of candidates) {
+    try {
+      const buf = readFileSync(p);
+      if (buf?.length) { LOGO_DATA_URI = `data:image/png;base64,${buf.toString('base64')}`; break; }
+    } catch { /* следующий путь */ }
+  }
+})();
+
+// Палитра отчёта (Stage 7): фирменный красный + нейтральные серые.
+const C = {
+  accent: '#e02d5f',
+  accentDim: '#b51e4a',
+  ink: '#16181d',
+  inkSoft: '#3d3830',
+  muted: '#6b655a',
+  hairline: '#e6e2dc',
+  headFill: '#f4eef0',
+  rowEven: '#faf9fa',
+  rowOdd: '#ffffff',
+  thFill: '#f0e8eb',
+};
 
 pdfMake.setFonts({
   Roboto: {
@@ -124,44 +156,36 @@ const HALF_W = Math.round((CONTENT_W - COL_GAP) / 2);
 
 const pdfTableLayoutKpi = {
   hLineWidth(i, node) {
-    if (i === 0 || i === node.table.body.length) return 0.85;
+    if (i === 0 || i === node.table.body.length) return 1;
     return 0.4;
   },
-  vLineWidth(i, node) {
-    if (i === 0 || i === node.table.widths.length) return 0.85;
-    return 0.4;
-  },
-  paddingLeft: () => 10,
-  paddingRight: () => 10,
-  paddingTop: () => 7,
-  paddingBottom: () => 7,
-  hLineColor: () => '#c9c0b4',
-  vLineColor: () => '#c9c0b4',
-  fillColor: (i) => (i % 2 === 0 ? '#f4f0e8' : '#faf8f4'),
+  vLineWidth() { return 0; },
+  paddingLeft: () => 12,
+  paddingRight: () => 12,
+  paddingTop: () => 9,
+  paddingBottom: () => 9,
+  hLineColor: (i, node) => (i === 0 || i === node.table.body.length ? C.accent : C.hairline),
+  fillColor: (i) => (i % 2 === 0 ? C.headFill : C.rowOdd),
 };
 
 const pdfTableLayoutData = {
   hLineWidth(i, node) {
-    if (i === 0 || i === node.table.body.length) return 0.85;
+    if (i === 0 || i === node.table.body.length) return 0.8;
     return 0.35;
   },
-  vLineWidth(i, node) {
-    if (i === 0 || i === node.table.widths.length) return 0.85;
-    return 0.35;
-  },
-  paddingLeft: () => 9,
-  paddingRight: () => 9,
-  paddingTop: () => 4.5,
-  paddingBottom: () => 4.5,
-  hLineColor: () => '#c9c0b4',
-  vLineColor: () => '#c9c0b4',
+  vLineWidth() { return 0; },
+  paddingLeft: () => 10,
+  paddingRight: () => 10,
+  paddingTop: () => 5,
+  paddingBottom: () => 5,
+  hLineColor: () => C.hairline,
   fillColor: (i) => {
-    if (i === 0) return '#ebe4d8';
-    return i % 2 === 1 ? '#faf8f4' : '#f4f0e8';
+    if (i === 0) return C.thFill;
+    return i % 2 === 1 ? C.rowOdd : C.rowEven;
   },
 };
 
-const th = (text, opt = {}) => ({ text, fillColor: '#e3dcd0', bold: true, fontSize: 7.5, color: '#2a2420', ...opt });
+const th = (text, opt = {}) => ({ text, fillColor: C.thFill, bold: true, fontSize: 7.5, color: C.accentDim, ...opt });
 
 /** Таблица на всю ширину контентной области (как графики). */
 function fullWidthTable(table, layout, margin = [0, 0, 0, 12]) {
@@ -216,7 +240,7 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
           values: series.map((r) => (Number.isFinite(r.sumRub) ? r.sumRub : 0)),
           caption: `Денежный поток, ₽ (по ${agg})`,
           yUnit: '₽',
-          color: '#b8860b',
+          color: C.accent,
           isCurrency: true,
         })
       : null;
@@ -232,13 +256,15 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
       : null;
 
   const images = {};
+  if (LOGO_DATA_URI) images.brandLogo = LOGO_DATA_URI;
   if (b64Png(bufBar)) images.gBar = b64Png(bufBar);
   if (b64Png(bufMoney)) images.gMon = b64Png(bufMoney);
   if (b64Png(bufW)) images.gWet = b64Png(bufW);
 
   const content = [];
 
-  content.push({
+  const headerStack = {
+    width: '*',
     stack: [
       { text: 'ОТЧЁТ ПО АНАЛИТИКЕ', style: 'reportTitle', margin: [0, 0, 0, 4] },
       {
@@ -246,9 +272,24 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
         style: 'reportSub',
         margin: [0, 0, 0, 3],
       },
-      { text: 'Calculated Gold  ·  скупка лома (по сделкам с PDF в «Договоре»)', style: 'brandLine', margin: [0, 0, 0, 2] },
+      { text: 'REAKTIVO PRO  ·  скупка лома (по сделкам с PDF в «Договоре»)', style: 'brandLine', margin: [0, 0, 0, 2] },
       { text: `сформировано: ${nowStr}`, style: 'muted' },
     ],
+  };
+
+  content.push({
+    columns: LOGO_DATA_URI
+      ? [
+          headerStack,
+          { width: 'auto', image: 'brandLogo', fit: [120, 44], alignment: 'right', margin: [0, 2, 0, 0] },
+        ]
+      : [headerStack],
+    columnGap: 12,
+    margin: [0, 0, 0, 6],
+  });
+  // Акцентная линия-разделитель под шапкой.
+  content.push({
+    canvas: [{ type: 'line', x1: 0, y1: 0, x2: CONTENT_W, y2: 0, lineWidth: 2, lineColor: C.accent }],
     margin: [0, 0, 0, 10],
   });
   content.push({
@@ -284,6 +325,36 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
           [0, 0, 0, 12]
         )
       );
+
+      // Каналы: отделение vs доставка.
+      const ch = data.channels;
+      if (ch && (ch.office || ch.delivery)) {
+        const off = ch.office || { deals: 0, sumRub: 0 };
+        const del = ch.delivery || { deals: 0, sumRub: 0 };
+        content.push({ text: 'КАНАЛЫ ОФОРМЛЕНИЯ', style: 'sectionHead', margin: [0, 0, 0, 6] });
+        content.push(
+          fullWidthTable(
+            {
+              widths: ['*', 'auto', 'auto'],
+              body: [
+                [th('Канал'), th('Сделок', { alignment: 'right' }), th('Сумма', { alignment: 'right' })],
+                [
+                  { text: 'В отделении', fontSize: 8.5, color: C.ink },
+                  { text: String(off.deals), fontSize: 8.5, alignment: 'right' },
+                  { text: fmtRub(off.sumRub), fontSize: 8.5, alignment: 'right' },
+                ],
+                [
+                  { text: 'Доставка / курьер', fontSize: 8.5, color: C.ink },
+                  { text: String(del.deals), fontSize: 8.5, alignment: 'right' },
+                  { text: fmtRub(del.sumRub), fontSize: 8.5, alignment: 'right' },
+                ],
+              ],
+            },
+            pdfTableLayoutData,
+            [0, 0, 0, 12]
+          )
+        );
+      }
     }
   }
 
@@ -408,25 +479,25 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
     pageSize: 'A4',
     pageOrientation: 'landscape',
     pageMargins: [PAGE_MARGIN_X, 34, PAGE_MARGIN_X, 32],
-    defaultStyle: { font: 'Roboto', fontSize: 8.5, color: '#1c1917' },
+    defaultStyle: { font: 'Roboto', fontSize: 8.5, color: C.ink },
     styles: {
-      reportTitle: { fontSize: 17, bold: true, color: '#0f0d0a', characterSpacing: 0.15 },
-      reportSub: { fontSize: 11, color: '#3d3830' },
-      brandLine: { fontSize: 8, color: '#6b5a2e' },
-      kpiLab: { fontSize: 7, color: '#5c5348' },
-      kpiVal: { fontSize: 10, bold: true, color: '#8a6d1b' },
-      body: { fontSize: 9.5, color: '#1c1917' },
-      muted: { fontSize: 7.2, color: '#6b655a' },
-      hint: { fontSize: 7, color: '#5c5650', lineHeight: 1.25 },
-      sectionHead: { fontSize: 9, bold: true, color: '#0f0d0a', lineHeight: 1.2 },
-      sectionDesc: { fontSize: 7, color: '#4a4440', lineHeight: 1.3 },
-      chartName: { fontSize: 8, bold: true, color: '#2a2018' },
-      tableCaption: { fontSize: 7.5, bold: true, color: '#5c5348' },
+      reportTitle: { fontSize: 17, bold: true, color: C.ink, characterSpacing: 0.15 },
+      reportSub: { fontSize: 11, color: C.inkSoft },
+      brandLine: { fontSize: 8, color: C.accentDim },
+      kpiLab: { fontSize: 7, color: C.muted },
+      kpiVal: { fontSize: 10, bold: true, color: C.accent },
+      body: { fontSize: 9.5, color: C.ink },
+      muted: { fontSize: 7.2, color: C.muted },
+      hint: { fontSize: 7, color: C.muted, lineHeight: 1.25 },
+      sectionHead: { fontSize: 9, bold: true, color: C.ink, lineHeight: 1.2 },
+      sectionDesc: { fontSize: 7, color: C.inkSoft, lineHeight: 1.3 },
+      chartName: { fontSize: 8, bold: true, color: C.accentDim },
+      tableCaption: { fontSize: 7.5, bold: true, color: C.muted },
     },
     footer: (cur, tot) => ({
       margin: [PAGE_MARGIN_X, 6, PAGE_MARGIN_X, 0],
       columns: [
-        { text: 'Calculated Gold · аналитика', color: '#9a9288', fontSize: 6.5 },
+        { text: 'REAKTIVO PRO · аналитика', color: '#9a9288', fontSize: 6.5 },
         { text: `стр. ${cur} / ${tot}`, alignment: 'right', color: '#9a9288', fontSize: 6.5 },
       ],
     }),

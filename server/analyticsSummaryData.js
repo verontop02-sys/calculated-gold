@@ -2,7 +2,7 @@ import { dealProbeN, dealWeightGross, dealWeightNet } from './dealWeights.js';
 
 /** Колонки scrap_deals для сводок (jsonb `rows` в кавычках — ROWS зарезервировано в SQL). */
 export const SCRAP_DEALS_ANALYTICS_COLS =
-  'id, total_rub, first_probe, first_weight_gross, first_weight_net, created_at, customer_id, phone_normalized, seller_name, operator_id, contract_no, appraiser_name, "rows"';
+  'id, total_rub, first_probe, first_weight_gross, first_weight_net, created_at, customer_id, phone_normalized, seller_name, operator_id, contract_no, appraiser_name, source, "rows"';
 
 /**
  * Сводка для вкладки «Аналитика» (JSON и PDF).
@@ -26,19 +26,23 @@ export async function computeAnalyticsSummaryData(supabase, fromD, toD, opts = {
   const fromIso = new Date(`${fromDefault}T00:00:00.000Z`).toISOString();
   const toIso = new Date(`${toDefault}T23:59:59.999Z`).toISOString();
 
-  let query = supabase
-    .from('scrap_deals')
-    .select(SCRAP_DEALS_ANALYTICS_COLS)
-    .gte('created_at', fromIso)
-    .lte('created_at', toIso)
-    .order('created_at', { ascending: true });
+  const runQuery = (cols) => {
+    let q = supabase
+      .from('scrap_deals')
+      .select(cols)
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso)
+      .order('created_at', { ascending: true });
+    // Курьер / продавец видит только свои сделки.
+    if (!viewerIsManager && viewerUserId) q = q.eq('operator_id', viewerUserId);
+    return q;
+  };
 
-  // Курьер / продавец видит только свои сделки.
-  if (!viewerIsManager && viewerUserId) {
-    query = query.eq('operator_id', viewerUserId);
+  let { data: dealsData, error } = await runQuery(SCRAP_DEALS_ANALYTICS_COLS);
+  // Совместимость: миграция `source` ещё не применена — берём без неё.
+  if (error && error.code === '42703') {
+    ({ data: dealsData, error } = await runQuery(SCRAP_DEALS_ANALYTICS_COLS.replace(', source', '')));
   }
-
-  const { data: dealsData, error } = await query;
   if (error) throw error;
   const list = dealsData || [];
   const sumRub = list.reduce((s, r) => s + (Number(r.total_rub) || 0), 0);
@@ -154,6 +158,35 @@ export async function computeAnalyticsSummaryData(supabase, fromD, toD, opts = {
     }))
     .sort((a, b) => b.sumRub - a.sumRub);
 
+  // Разрез «отделение vs доставка» (источник сделки).
+  const channels = {
+    office: { deals: 0, sumRub: 0, weightGross: 0, weightNet: 0 },
+    delivery: { deals: 0, sumRub: 0, weightGross: 0, weightNet: 0 },
+  };
+  for (const r of list) {
+    const ch = r.source === 'delivery' ? channels.delivery : channels.office;
+    ch.deals += 1;
+    ch.sumRub += Number(r.total_rub) || 0;
+    ch.weightGross += dealWeightGross(r);
+    ch.weightNet += dealWeightNet(r);
+  }
+
+  // Крупнейшая сделка периода (для акцентной карточки в аналитике).
+  let maxDeal = null;
+  for (const r of list) {
+    const v = Number(r.total_rub) || 0;
+    if (!maxDeal || v > maxDeal.totalRub) {
+      maxDeal = {
+        totalRub: v,
+        sellerName: r.seller_name || null,
+        contractNo: r.contract_no || null,
+        createdAt: r.created_at || null,
+        probe: dealProbeN(r) || null,
+        weightGross: dealWeightGross(r) || null,
+      };
+    }
+  }
+
   return {
     period: { from: fromDefault, to: toDefault },
     viewerScope: viewerIsManager ? 'all' : 'self',
@@ -164,6 +197,8 @@ export async function computeAnalyticsSummaryData(supabase, fromD, toD, opts = {
       firstRowWeightGrossSum: weightGross,
       firstRowWeightNetSum: weightNet,
     },
+    maxDeal,
+    channels,
     byDay,
     byWeek,
     byMonth,

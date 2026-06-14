@@ -173,7 +173,11 @@ async function requestBlob(path, options = {}) {
     } catch {}
     throw new Error(msg);
   }
-  return res.blob();
+  const blob = await res.blob();
+  if (opt.returnHeaders) {
+    return { blob, headers: res.headers };
+  }
+  return blob;
 }
 
 /**
@@ -292,13 +296,18 @@ export const api = {
     request(`/scrap-customers/search?q=${encodeURIComponent(q)}`),
   saveScrapCustomer: (body) => request('/scrap-customers', { method: 'POST', body: JSON.stringify(body) }),
   deleteScrapCustomer: (id) => request(`/scrap-customers/${id}`, { method: 'DELETE' }),
-  scrapContractPdf: (body) => requestBlob('/scrap-contract/pdf', { method: 'POST', body }),
+  /** PDF договора: возвращает { blob, dealId } */
+  scrapContractPdf: async (body) => {
+    const { blob, headers } = await requestBlob('/scrap-contract/pdf', { method: 'POST', body, returnHeaders: true });
+    return { blob, dealId: headers.get('x-deal-id') || null };
+  },
   /** Полный список клиентов (панель «База»). q — поиск, limit/offset — пагинация. */
   scrapCustomersList: (params = {}) => {
     const q = new URLSearchParams();
     if (params.q) q.set('q', String(params.q));
     if (params.limit != null) q.set('limit', String(params.limit));
     if (params.offset != null) q.set('offset', String(params.offset));
+    if (params.sort) q.set('sort', String(params.sort));
     const s = q.toString();
     return request(`/scrap-customers${s ? `?${s}` : ''}`);
   },
@@ -311,9 +320,32 @@ export const api = {
     if (params.offset != null) q.set('offset', String(params.offset));
     return request(`/scrap-deals?${q.toString()}`);
   },
+  /** Лента последних сделок для дашборда (курьер/продавец — только свои). */
+  scrapDealsRecent: (limit = 6) => request(`/scrap-deals-recent?limit=${limit}`),
+  /** Детали одной сделки (включая rows с photoUrl). */
+  scrapDealDetail: (id) => request(`/scrap-deals/${encodeURIComponent(String(id))}/detail`),
+  /** Личный профиль: статистика и последние сделки текущего пользователя. */
+  profileMe: () => request('/profile/me'),
+  /** Все сделки конкретного сотрудника (только руководитель). operatorId | 'none'. */
+  operatorDeals: (operatorId, limit = 200) =>
+    request(`/operator-deals?operatorId=${encodeURIComponent(String(operatorId || ''))}&limit=${limit}`),
+  /** Загрузить фото позиции в сделку (base64 → Supabase Storage). */
+  dealPhotoUpload: (dealId, rowIdx, base64, mimeType) =>
+    request('/deal-photos/upload', {
+      method: 'POST',
+      body: JSON.stringify({ dealId, rowIdx, base64, mimeType }),
+      timeout: 60_000,
+    }),
   /** PDF договора по id сохранённой сделки. */
   scrapDealPdf: (id) => requestBlob(`/scrap-deals/${encodeURIComponent(String(id))}/pdf`, { method: 'GET' }),
   deleteScrapDeal: (id) => request(`/scrap-deals/${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
+  /** Строка AI (Grok): вопрос по аналитике за период Y-M-D. */
+  aiAsk: (question, from, to) =>
+    request('/ai/ask', {
+      method: 'POST',
+      body: JSON.stringify({ question, from, to }),
+      timeout: 120_000,
+    }),
   /** Сводка для вкладки «Аналитика» (Y-M-D). */
   analyticsSummary: (from, to) => {
     const q = new URLSearchParams();

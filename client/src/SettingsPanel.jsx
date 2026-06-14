@@ -4,6 +4,7 @@ import { useToast } from './ToastContext.jsx';
 import { isAdminOrSuperProfile, isSuperAdminRole, isUserManagerRole, roleLabel } from './roles.js';
 import { SkeletonCard, SkeletonRow } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
+import { PageHint } from './PageHint.jsx';
 
 const ROLES_STAFF_FULL = ['courier', 'seller', 'admin', 'super_admin'];
 const ROLES_FIELD_ONLY = ['courier', 'seller'];
@@ -190,7 +191,7 @@ export function SettingsPanel({ user }) {
   if (isSuper && !settings) {
     if (err) {
       return (
-        <div className="settings settings-boot glass">
+        <div className="settings settings-boot st-block">
           <div style={{ textAlign: 'center' }}>
             <p className="err-msg" style={{ marginBottom: 16 }}>{err}</p>
             <button type="button" className="btn-ghost" onClick={() => load()}>Повторить</button>
@@ -234,10 +235,20 @@ export function SettingsPanel({ user }) {
 
   return (
     <div className="settings">
+      <PageHint id="settings" title="Настройки и доступы">
+        {isSuper
+          ? 'Политика выкупа и поправки по пробам применяются у всех мгновенно. Здесь же управление пользователями и ролями.'
+          : 'Создавайте курьеров и продавцов и управляйте их доступом. Политика выкупа настраивается супер-администратором.'}
+      </PageHint>
       {isSuper && settings && (
         <>
-          <div className="glass block">
-            <h2 className="block-title">Политика выкупа</h2>
+          <div className="st-block st-in" style={{ '--d': '0ms' }}>
+            <div className="st-block-head">
+              <span className="st-icon st-icon--accent" aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </span>
+              <h2 className="block-title">Политика выкупа</h2>
+            </div>
             <p className="muted small block-desc">
               Процент от стоимости чистого золота по курсу в верхней панели. Коридор — симметричный разброс вокруг ориентира.
             </p>
@@ -281,8 +292,13 @@ export function SettingsPanel({ user }) {
             </button>
           </div>
 
-          <div className="glass block">
-            <h2 className="block-title">Поправки по пробам, %</h2>
+          <div className="st-block st-in" style={{ '--d': '60ms' }}>
+            <div className="st-block-head">
+              <span className="st-icon st-icon--emerald" aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
+              </span>
+              <h2 className="block-title">Поправки по пробам, %</h2>
+            </div>
             <p className="muted small block-desc">Дополнительный множитель к сумме: +2 означает +2% к расчёту для этой пробы.</p>
             <div className="grid-adj">
               {probs.map((p) => (
@@ -317,8 +333,13 @@ export function SettingsPanel({ user }) {
       )}
 
       {/* Доступы */}
-      <div className="glass block">
-        <h2 className="block-title">Доступы</h2>
+      <div className="st-block st-in" style={{ '--d': '120ms' }}>
+        <div className="st-block-head">
+          <span className="st-icon st-icon--accent" aria-hidden>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </span>
+          <h2 className="block-title">Доступы</h2>
+        </div>
         <p className="muted small block-desc">
           {isSuper ? (
             <>
@@ -468,8 +489,13 @@ export function SettingsPanel({ user }) {
       </div>
 
       {isUserManagerRole(user?.role) && (
-        <div className="glass block">
-          <h2 className="block-title">Подтверждения по СМС (поле)</h2>
+        <div className="st-block st-in" style={{ '--d': '180ms' }}>
+          <div className="st-block-head">
+            <span className="st-icon st-icon--accent" aria-hidden>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            </span>
+            <h2 className="block-title">Подтверждения по СМС (поле)</h2>
+          </div>
           <p className="muted small block-desc">
             Сессии со ссылкой для клиента: после ввода кода сделка попадает в «Сделки» и аналитику. Отменить можно только
             ожидающую сессию.
@@ -544,41 +570,93 @@ export function SettingsPanel({ user }) {
       {err && <p className="err-msg">{err}</p>}
 
       <style>{`
-        .settings { display: flex; flex-direction: column; gap: 14px; animation: fadeIn 0.35s ease; }
+        .settings { display: flex; flex-direction: column; gap: 16px; }
         .settings-boot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 48px 24px; text-align: center; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .block { padding: 20px 18px 22px; }
-        .block-title { font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; margin: 0 0 6px; }
-        .block-desc { margin: 0 0 16px; line-height: 1.45; }
-        .block-desc strong { color: var(--gold); font-weight: 600; }
-        .users-note { color: var(--warn-text) !important; background: var(--warn-bg); padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--warn-border); }
+
+        /* Entrance — только opacity + transform (GPU, без репейнтов) */
+        .st-in {
+          animation: stIn 440ms cubic-bezier(0.22,1,0.36,1) both;
+          animation-delay: var(--d, 0ms);
+          will-change: transform, opacity;
+        }
+        @keyframes stIn {
+          from { opacity: 0; transform: translate3d(0,14px,0); }
+          to { opacity: 1; transform: translate3d(0,0,0); }
+        }
+
+        /* Block card */
+        .st-block {
+          background: var(--bg-panel-solid);
+          border: 1px solid var(--stroke-soft);
+          border-radius: 18px;
+          padding: 22px 20px;
+          min-width: 0;
+        }
+        .st-block-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+        .st-icon {
+          width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .st-icon--accent { background: var(--accent-soft); color: var(--accent); }
+        .st-icon--emerald { background: var(--emerald-soft); color: var(--emerald); }
+        .block-title { font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; margin: 0; letter-spacing: -0.01em; color: var(--text-strong); }
+        .block-desc { margin: 0 0 18px; line-height: 1.5; font-size: 0.84rem; color: var(--text-muted); }
+        .block-desc strong { color: var(--accent); font-weight: 600; }
+        .users-note { color: var(--warn-text) !important; background: var(--warn-bg); padding: 10px 12px; border-radius: 12px; border: 1px solid var(--warn-border); }
+
+        /* Fields */
         .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-        .field-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
-        .save-btn { width: 100%; transition: background 0.3s, box-shadow 0.3s, color 0.2s; }
-        .save-btn--ok { background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%) !important; color: #0a1a0e !important; box-shadow: 0 4px 20px rgba(74,222,128,0.35) !important; }
+        .field-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); font-weight: 600; }
+        .settings .field input,
+        .settings .new-user input,
+        .settings .new-user select,
+        .adj-cell input {
+          padding: 11px 13px; border-radius: 11px; border: 1px solid var(--stroke-soft);
+          background: var(--bg-elevated); color: var(--text); font-family: inherit; font-size: 0.9rem;
+          transition: border-color 180ms, box-shadow 180ms;
+        }
+        .settings .field input:focus,
+        .settings .new-user input:focus,
+        .settings .new-user select:focus,
+        .adj-cell input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+        /* Save button */
+        .save-btn { width: 100%; transition: background 0.3s, box-shadow 0.3s, color 0.2s, transform 0.18s; }
+        .save-btn--ok { background: linear-gradient(135deg, var(--emerald) 0%, var(--emerald-strong) 100%) !important; color: #fff !important; box-shadow: 0 4px 20px var(--emerald-soft) !important; }
+
+        /* Probe adjustments grid */
         .grid-adj { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
         @media (min-width: 480px) { .grid-adj { grid-template-columns: repeat(3, 1fr); } }
-        .adj-cell { display: flex; flex-direction: column; gap: 4px; }
-        .adj-cell .prob { font-size: 0.75rem; color: var(--gold); font-weight: 500; }
-        .user-list { list-style: none; margin: 0 0 16px; padding: 0; }
-        .user-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--stroke); }
-        .user-row:last-child { border-bottom: none; }
-        .user-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-        .user-email { word-break: break-all; font-size: 0.9rem; }
+        @media (min-width: 720px) { .grid-adj { grid-template-columns: repeat(4, 1fr); } }
+        .adj-cell { display: flex; flex-direction: column; gap: 5px; }
+        .adj-cell .prob { font-size: 0.74rem; color: var(--accent); font-weight: 700; }
+        .adj-cell input { text-align: center; }
+
+        /* User list */
+        .user-list { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+        .user-row {
+          display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+          padding: 12px 14px; border-radius: 12px;
+          border: 1px solid var(--stroke-soft); background: var(--bg-elevated);
+          transition: box-shadow 200ms;
+        }
+        .user-row:hover { box-shadow: var(--shadow-pop); }
+        .user-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+        .user-email { word-break: break-all; font-size: 0.88rem; font-weight: 600; }
         .user-actions { flex-shrink: 0; display: flex; align-items: flex-start; }
-        .role-badge-btn { background: none; border: 1px dashed var(--stroke); border-radius: 999px; padding: 3px 10px; font-size: 0.75rem; cursor: pointer; transition: border-color 0.2s, color 0.2s; text-align: left; }
-        .role-badge-btn:hover:not(:disabled) { border-color: var(--stroke-strong); color: var(--text); }
+        .role-badge-btn { background: none; border: 1px dashed var(--stroke); border-radius: 999px; padding: 4px 12px; font-size: 0.74rem; cursor: pointer; transition: border-color 0.2s, color 0.2s; text-align: left; }
+        .role-badge-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
         .role-badge-btn:disabled { opacity: 0.5; cursor: default; }
         .role-change-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-        .role-chip { padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 500; border: 1px solid var(--stroke); background: transparent; color: var(--text-muted); cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
-        .role-chip:hover:not(:disabled):not(.role-chip--active) { background: var(--gold-soft); color: var(--text); border-color: var(--stroke-strong); }
-        .role-chip--active { background: var(--gold-soft); color: var(--gold); border-color: var(--stroke-strong); font-weight: 600; cursor: default; }
+        .role-chip { padding: 5px 12px; border-radius: 999px; font-size: 0.74rem; font-weight: 600; border: 1px solid var(--stroke-soft); background: transparent; color: var(--text-muted); cursor: pointer; transition: all 0.16s; }
+        .role-chip:hover:not(:disabled):not(.role-chip--active) { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+        .role-chip--active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; cursor: default; }
         .confirm-row { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-        .btn-ghost.danger { color: var(--danger); }
+        .btn-ghost.danger { color: var(--crimson); }
         .btn-ghost.small { padding: 7px 12px; font-size: 0.8rem; }
         .new-user { display: flex; flex-direction: column; gap: 10px; }
-        /* Базовые стили таблицы — глобальный класс .cg-table в index.css */
-        .err-msg { color: var(--danger); font-size: 0.9rem; margin: 12px 0 0; text-align: center; padding: 10px 12px; border-radius: var(--radius-sm); background: rgba(248, 113, 113, 0.08); border: 1px solid rgba(248, 113, 113, 0.25); }
+
+        .err-msg { color: var(--crimson); font-size: 0.88rem; margin: 12px 0 0; text-align: center; padding: 11px 14px; border-radius: 12px; background: var(--crimson-soft); border: 1px solid var(--crimson); }
         @media (max-width: 400px) {
           .user-row { flex-direction: column; align-items: stretch; }
           .user-actions { justify-content: flex-start; }

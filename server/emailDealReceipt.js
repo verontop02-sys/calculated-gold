@@ -46,14 +46,14 @@ function buildClientReceiptHtml({ contractNo, sellerName, totalRub, rows, phone,
         const price = r?.priceRub != null && Number(r.priceRub) > 0 ? formatMoney(r.priceRub) : '—';
         const name = String(r?.itemName || r?.item_name || '').trim() || '—';
         return `
-          <tr style="border-bottom:1px solid #f0e8d8;">
-            <td style="padding:9px 10px;font-size:13px;color:#3d2b0e;">${name}</td>
-            <td style="padding:9px 10px;font-size:13px;color:#3d2b0e;text-align:center;">${probeLabel}</td>
-            <td style="padding:9px 10px;font-size:13px;color:#3d2b0e;text-align:center;">${wg} / ${wn} г</td>
-            <td style="padding:9px 10px;font-size:13px;color:#3d2b0e;text-align:right;font-weight:600;">${price}</td>
+          <tr style="border-bottom:1px solid #ecedf1;">
+            <td style="padding:11px 12px;font-size:13px;color:#16181d;">${name}</td>
+            <td style="padding:11px 12px;font-size:13px;color:#16181d;text-align:center;">${probeLabel}</td>
+            <td style="padding:11px 12px;font-size:13px;color:#16181d;text-align:center;">${wg} / ${wn} г</td>
+            <td style="padding:11px 12px;font-size:13px;color:#16181d;text-align:right;font-weight:700;">${price}</td>
           </tr>`;
       }).join('')
-    : `<tr><td colspan="4" style="padding:14px 10px;color:#999;text-align:center;font-size:13px;">Нет позиций</td></tr>`;
+    : `<tr><td colspan="4" style="padding:14px 12px;color:#9aa0aa;text-align:center;font-size:13px;">Нет позиций</td></tr>`;
 
   return `<!DOCTYPE html>
 <html lang="ru">
@@ -62,40 +62,57 @@ function buildClientReceiptHtml({ contractNo, sellerName, totalRub, rows, phone,
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Чек по сделке REAKTIVO</title>
 </head>
-<body style="margin:0;padding:0;background:#f7f0e6;font-family:'Segoe UI',Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f0e6;padding:32px 0;">
+<body style="margin:0;padding:0;background:#f4f4f6;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:32px 0;">
   <tr>
     <td align="center">
-      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 20px rgba(0,0,0,0.08);">
+      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(20,22,40,0.10);">
 
         <!-- Header -->
         <tr>
-          <td style="background:linear-gradient(135deg,#b8860b 0%,#e8c547 50%,#b8860b 100%);padding:28px 32px;text-align:center;">
-            <p style="margin:0;font-size:22px;font-weight:800;color:#1a1000;letter-spacing:0.08em;text-transform:uppercase;">REAKTIVO PRO</p>
-            <p style="margin:6px 0 0;font-size:13px;color:#4a3000;opacity:0.85;">Ювелирный учёт &amp; аналитика</p>
+          <td style="background:linear-gradient(135deg,#f0437a 0%,#e02d5f 55%,#c22052 100%);padding:30px 32px;text-align:center;">
+            <p style="margin:0;font-size:23px;font-weight:800;color:#ffffff;letter-spacing:0.10em;">REAKTIVO <span style="opacity:0.85;">PRO</span></p>
+            <p style="margin:7px 0 0;font-size:13px;color:#ffffff;opacity:0.85;">Оценка и выкуп · ваш чек</p>
           </td>
         </tr>
 
         <!-- Title row -->
         <tr>
-          <td style="padding:24px 32px 8px;border-bottom:2px solid #f0e8d8;">
-            <p style="margin:0;font-size:18px;font-weight:700;color:#1a1000;">✅ Чек по сделке</p>
-            <p style="margin:4px 0 0;font-size:13px;color:#888;">Договор № ${contract} от ${dt}</p>
+          <td style="padding:24px 32px 12px;">
+            <p style="margin:0;font-size:18px;font-weight:700;color:#16181d;">Чек по сделке</p>
+            <p style="margin:5px 0 0;font-size:13px;color:#8a8f99;">Договор № ${contract} · ${dt}</p>
+          </td>
+        </tr>
+
+        <!-- Payout — green block -->
+        <tr>
+          <td style="padding:0 32px 18px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#12824f,#0f7a4a);border-radius:16px;">
+              <tr>
+                <td style="padding:20px 22px;">
+                  <p style="margin:0;font-size:12px;color:#d6f5e6;text-transform:uppercase;letter-spacing:0.08em;">Сумма к получению</p>
+                  <p style="margin:6px 0 0;font-size:30px;font-weight:800;color:#ffffff;letter-spacing:-0.02em;">${amount}</p>
+                </td>
+                <td style="padding:20px 22px;text-align:right;vertical-align:middle;">
+                  <span style="background:rgba(255,255,255,0.22);color:#ffffff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;letter-spacing:0.04em;">ПОДТВЕРЖДЕНО</span>
+                </td>
+              </tr>
+            </table>
           </td>
         </tr>
 
         <!-- Summary -->
         <tr>
-          <td style="padding:16px 32px 0;">
+          <td style="padding:0 32px 4px;">
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
-                <td style="width:50%;padding:0 8px 12px 0;vertical-align:top;">
-                  <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:0.06em;">Продавец</p>
-                  <p style="margin:4px 0 0;font-size:14px;font-weight:600;color:#1a1000;">${seller}</p>
+                <td style="width:50%;padding:0 8px 14px 0;vertical-align:top;">
+                  <p style="margin:0;font-size:11px;color:#9aa0aa;text-transform:uppercase;letter-spacing:0.06em;">Продавец</p>
+                  <p style="margin:4px 0 0;font-size:14px;font-weight:600;color:#16181d;">${seller}</p>
                 </td>
-                <td style="width:50%;padding:0 0 12px 8px;vertical-align:top;">
-                  <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:0.06em;">Телефон</p>
-                  <p style="margin:4px 0 0;font-size:14px;font-weight:600;color:#1a1000;">${phone || '—'}</p>
+                <td style="width:50%;padding:0 0 14px 8px;vertical-align:top;">
+                  <p style="margin:0;font-size:11px;color:#9aa0aa;text-transform:uppercase;letter-spacing:0.06em;">Телефон</p>
+                  <p style="margin:4px 0 0;font-size:14px;font-weight:600;color:#16181d;">${phone || '—'}</p>
                 </td>
               </tr>
             </table>
@@ -104,14 +121,14 @@ function buildClientReceiptHtml({ contractNo, sellerName, totalRub, rows, phone,
 
         <!-- Items table -->
         <tr>
-          <td style="padding:0 32px 16px;">
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:10px;overflow:hidden;border:1px solid #f0e8d8;">
+          <td style="padding:0 32px 20px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px;overflow:hidden;border:1px solid #ecedf1;">
               <thead>
-                <tr style="background:#fdf6e8;">
-                  <th style="padding:9px 10px;font-size:11px;color:#888;text-align:left;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Изделие</th>
-                  <th style="padding:9px 10px;font-size:11px;color:#888;text-align:center;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Проба</th>
-                  <th style="padding:9px 10px;font-size:11px;color:#888;text-align:center;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Вес брутто/нетто</th>
-                  <th style="padding:9px 10px;font-size:11px;color:#888;text-align:right;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Сумма</th>
+                <tr style="background:#f7f3f4;">
+                  <th style="padding:10px 12px;font-size:11px;color:#8a8f99;text-align:left;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Изделие</th>
+                  <th style="padding:10px 12px;font-size:11px;color:#8a8f99;text-align:center;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Проба</th>
+                  <th style="padding:10px 12px;font-size:11px;color:#8a8f99;text-align:center;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Вес бр./нетто</th>
+                  <th style="padding:10px 12px;font-size:11px;color:#8a8f99;text-align:right;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Сумма</th>
                 </tr>
               </thead>
               <tbody>${rowsHtml}</tbody>
@@ -119,27 +136,10 @@ function buildClientReceiptHtml({ contractNo, sellerName, totalRub, rows, phone,
           </td>
         </tr>
 
-        <!-- Total -->
-        <tr>
-          <td style="padding:0 32px 24px;">
-            <table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#fdf6e0,#fff9ec);border-radius:12px;border:2px solid #e8c547;">
-              <tr>
-                <td style="padding:16px 20px;">
-                  <p style="margin:0;font-size:13px;color:#888;">Итого к получению:</p>
-                  <p style="margin:4px 0 0;font-size:26px;font-weight:800;color:#b8860b;">${amount}</p>
-                </td>
-                <td style="padding:16px 20px;text-align:right;">
-                  <span style="background:#b8860b;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;letter-spacing:0.04em;">ПОДТВЕРЖДЕНО</span>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
         <!-- Footer -->
         <tr>
-          <td style="background:#fdf6e8;padding:16px 32px;text-align:center;border-top:1px solid #f0e8d8;">
-            <p style="margin:0;font-size:12px;color:#aaa;">Это автоматическое письмо системы REAKTIVO PRO. Не отвечайте на него.</p>
+          <td style="background:#faf9fa;padding:16px 32px;text-align:center;border-top:1px solid #ecedf1;">
+            <p style="margin:0;font-size:12px;color:#aab0ba;">Автоматическое письмо REAKTIVO PRO. Отвечать на него не нужно.</p>
           </td>
         </tr>
 
@@ -166,53 +166,53 @@ function buildOperatorReceiptHtml({ contractNo, sellerName, totalRub, dealId, da
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Подтверждённая сделка</title>
 </head>
-<body style="margin:0;padding:0;background:#f7f0e6;font-family:'Segoe UI',Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f0e6;padding:32px 0;">
+<body style="margin:0;padding:0;background:#f4f4f6;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:32px 0;">
   <tr>
     <td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 20px rgba(0,0,0,0.08);">
+      <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(20,22,40,0.10);">
         <!-- Header -->
         <tr>
-          <td style="background:linear-gradient(135deg,#b8860b 0%,#e8c547 50%,#b8860b 100%);padding:22px 28px;">
-            <p style="margin:0;font-size:20px;font-weight:800;color:#1a1000;letter-spacing:0.06em;">REAKTIVO PRO</p>
-            <p style="margin:4px 0 0;font-size:12px;color:#4a3000;opacity:0.8;">Новая подтверждённая сделка</p>
+          <td style="background:linear-gradient(135deg,#f0437a 0%,#e02d5f 55%,#c22052 100%);padding:24px 28px;">
+            <p style="margin:0;font-size:20px;font-weight:800;color:#ffffff;letter-spacing:0.07em;">REAKTIVO <span style="opacity:0.85;">PRO</span></p>
+            <p style="margin:4px 0 0;font-size:12px;color:#ffffff;opacity:0.85;">Новая подтверждённая сделка</p>
           </td>
         </tr>
         <!-- Body -->
         <tr>
           <td style="padding:24px 28px;">
-            <p style="margin:0 0 18px;font-size:15px;font-weight:600;color:#1a1000;">✅ Клиент подтвердил сделку кодом из СМС</p>
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:10px;border:1px solid #f0e8d8;overflow:hidden;">
-              <tr style="background:#fdf6e8;">
-                <td style="padding:10px 14px;font-size:12px;color:#888;font-weight:600;width:45%;">Договор №</td>
-                <td style="padding:10px 14px;font-size:13px;color:#1a1000;font-weight:600;">${contract}</td>
+            <p style="margin:0 0 18px;font-size:15px;font-weight:600;color:#16181d;">Клиент подтвердил сделку кодом из СМС</p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px;border:1px solid #ecedf1;overflow:hidden;">
+              <tr style="background:#f7f3f4;">
+                <td style="padding:11px 14px;font-size:12px;color:#8a8f99;font-weight:600;width:45%;">Договор №</td>
+                <td style="padding:11px 14px;font-size:13px;color:#16181d;font-weight:600;">${contract}</td>
               </tr>
-              <tr style="border-top:1px solid #f0e8d8;">
-                <td style="padding:10px 14px;font-size:12px;color:#888;font-weight:600;">Продавец</td>
-                <td style="padding:10px 14px;font-size:13px;color:#1a1000;">${seller}</td>
+              <tr style="border-top:1px solid #ecedf1;">
+                <td style="padding:11px 14px;font-size:12px;color:#8a8f99;font-weight:600;">Продавец</td>
+                <td style="padding:11px 14px;font-size:13px;color:#16181d;">${seller}</td>
               </tr>
-              <tr style="border-top:1px solid #f0e8d8;">
-                <td style="padding:10px 14px;font-size:12px;color:#888;font-weight:600;">Дата</td>
-                <td style="padding:10px 14px;font-size:13px;color:#1a1000;">${dt}</td>
+              <tr style="border-top:1px solid #ecedf1;">
+                <td style="padding:11px 14px;font-size:12px;color:#8a8f99;font-weight:600;">Дата</td>
+                <td style="padding:11px 14px;font-size:13px;color:#16181d;">${dt}</td>
               </tr>
-              <tr style="border-top:1px solid #f0e8d8;background:#fffbef;">
-                <td style="padding:12px 14px;font-size:12px;color:#888;font-weight:600;">Итого</td>
-                <td style="padding:12px 14px;font-size:18px;font-weight:800;color:#b8860b;">${amount}</td>
+              <tr style="border-top:1px solid #ecedf1;background:#eef7f1;">
+                <td style="padding:13px 14px;font-size:12px;color:#0f7a4a;font-weight:600;">Итого</td>
+                <td style="padding:13px 14px;font-size:18px;font-weight:800;color:#12824f;">${amount}</td>
               </tr>
-              <tr style="border-top:1px solid #f0e8d8;">
-                <td style="padding:10px 14px;font-size:12px;color:#888;font-weight:600;">ID сделки</td>
-                <td style="padding:10px 14px;font-size:12px;color:#aaa;font-family:monospace;">${shortId}…</td>
+              <tr style="border-top:1px solid #ecedf1;">
+                <td style="padding:11px 14px;font-size:12px;color:#8a8f99;font-weight:600;">ID сделки</td>
+                <td style="padding:11px 14px;font-size:12px;color:#aab0ba;font-family:monospace;">${shortId}…</td>
               </tr>
             </table>
-            <p style="margin:18px 0 0;font-size:13px;color:#666;line-height:1.5;">
-              📎 К письму прикреплён <strong>PDF-договор</strong>. Откройте его для просмотра или сохраните в архив.
+            <p style="margin:18px 0 0;font-size:13px;color:#6b655a;line-height:1.5;">
+              К письму прикреплён <strong style="color:#16181d;">PDF-договор</strong>. Откройте для просмотра или сохраните в архив.
             </p>
           </td>
         </tr>
         <!-- Footer -->
         <tr>
-          <td style="background:#fdf6e8;padding:14px 28px;border-top:1px solid #f0e8d8;text-align:center;">
-            <p style="margin:0;font-size:11px;color:#bbb;">Автоматическое уведомление REAKTIVO PRO. Не отвечайте на него.</p>
+          <td style="background:#faf9fa;padding:14px 28px;border-top:1px solid #ecedf1;text-align:center;">
+            <p style="margin:0;font-size:11px;color:#aab0ba;">Автоматическое уведомление REAKTIVO PRO. Отвечать не нужно.</p>
           </td>
         </tr>
       </table>

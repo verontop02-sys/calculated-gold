@@ -90,10 +90,10 @@ export function SettingsPage({ user, formatMoney, price }) {
               {[0,1,2].map((i) => (
                 <div key={i} className="cg-side-row">
                   <span className="cg-side-row__k">
-                    <span aria-hidden style={{ display: 'inline-block', width: 90, height: 12, borderRadius: 4, background: 'linear-gradient(90deg, var(--gold-soft) 0%, rgba(212,175,55,0.22) 50%, var(--gold-soft) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease infinite' }} />
+                    <span aria-hidden style={{ display: 'inline-block', width: 90, height: 12, borderRadius: 4, background: 'linear-gradient(90deg, var(--stroke-soft) 0%, var(--stroke) 50%, var(--stroke-soft) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease infinite' }} />
                   </span>
                   <span className="cg-side-row__v">
-                    <span aria-hidden style={{ display: 'inline-block', width: 70, height: 12, borderRadius: 4, background: 'linear-gradient(90deg, var(--gold-soft) 0%, rgba(212,175,55,0.22) 50%, var(--gold-soft) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease infinite' }} />
+                    <span aria-hidden style={{ display: 'inline-block', width: 70, height: 12, borderRadius: 4, background: 'linear-gradient(90deg, var(--stroke-soft) 0%, var(--stroke) 50%, var(--stroke-soft) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease infinite' }} />
                   </span>
                 </div>
               ))}

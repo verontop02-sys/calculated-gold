@@ -335,7 +335,7 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
                     {hist?.loading && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '4px 0' }}>
                         {[0,1].map((i) => (
-                          <span key={i} aria-hidden style={{ display: 'block', width: i === 0 ? '90%' : '70%', height: 14, borderRadius: 6, background: 'linear-gradient(90deg, var(--gold-soft) 0%, rgba(212,175,55,0.22) 50%, var(--gold-soft) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease infinite' }} />
+                          <span key={i} aria-hidden style={{ display: 'block', width: i === 0 ? '90%' : '70%', height: 14, borderRadius: 6, background: 'linear-gradient(90deg, var(--stroke-soft) 0%, var(--stroke) 50%, var(--stroke-soft) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease infinite' }} />
                         ))}
                       </div>
                     )}

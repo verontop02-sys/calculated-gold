@@ -11,6 +11,7 @@ import {
 import { api } from './api.js';
 import { SkeletonStats, SkeletonMap, SkeletonCard, SkeletonChart } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
+import { PageHint } from './PageHint.jsx';
 
 // ── GeoJSON helpers ──────────────────────────────────────────────────────────
 const GEO_URL = '/russia-regions.geojson';
@@ -47,7 +48,7 @@ function matchFeatureToRegion(props, regionList) {
   );
 }
 
-const CHART_COLORS = ['#e8c547', '#38bdf8', '#f87171', '#4ade80', '#a78bfa', '#fb923c', '#34d399'];
+const CHART_COLORS = ['#8b7cff', '#38bdf8', '#f87171', '#4ade80', '#f0437a', '#fb923c', '#34d399'];
 const COMMON_PROBES = ['375', '500', '585', '750', '875', '916', '999'];
 
 function downloadBlob(blob, filename) {
@@ -366,7 +367,7 @@ export function GoldIndex({ formatMoney, toast }) {
         if (!isMapAdd && !compTarget) return;
         const { lat, lng } = e.latlng;
         if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
-        const color = compTarget ? '#38bdf8' : '#e8c547';
+        const color = compTarget ? '#38bdf8' : '#8b7cff';
         const icon = L.divIcon({
           className: '',
           html: `<div style="width:16px;height:16px;background:${color};border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px ${color}66;animation:gi-pulse 1s infinite"></div>`,
@@ -450,7 +451,7 @@ export function GoldIndex({ formatMoney, toast }) {
 
       // Top-3 competitors in popup
       const compRowsHtml = competitors.slice(0, 3).map((co) =>
-        `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f0e6d0;">` +
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #e8e6f0;">` +
         `<span style="font-size:12px;color:#3d2b0e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px">${escapeHtml(co.companyName || '—')}</span>` +
         `<span style="font-size:12px;font-weight:700;color:${COLOR_HEX[co.colorKey] || '#888'};margin-left:8px">${fmtRatio(co.ratioAvg)}</span>` +
         `</div>`
@@ -467,8 +468,8 @@ export function GoldIndex({ formatMoney, toast }) {
         (() => {
           const bp = data?.settingsSnapshot?.buybackPercentOfScrap;
           const pct = calcPctOfExchange(c.ratioAvg, bp);
-          const pctColors = { green: '#166534', yellow: '#92620a', orange: '#9a3d0a', red: '#8c1c1c', neutral: '#5a4200' };
-          const pctBg = { green: 'rgba(34,197,94,0.12)', yellow: 'rgba(234,179,8,0.12)', orange: 'rgba(249,115,22,0.12)', red: 'rgba(239,68,68,0.12)', neutral: 'rgba(232,197,71,0.12)' };
+          const pctColors = { green: '#166534', yellow: '#92620a', orange: '#9a3d0a', red: '#8c1c1c', neutral: '#4a4470' };
+          const pctBg = { green: 'rgba(34,197,94,0.12)', yellow: 'rgba(234,179,8,0.12)', orange: 'rgba(249,115,22,0.12)', red: 'rgba(239,68,68,0.12)', neutral: 'rgba(139,124,255,0.12)' };
           const pk = pctColorKey(pct);
           return `<div style="display:flex;gap:10px;padding:0 14px 10px;flex-wrap:wrap">` +
           `<div><div style="font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.06em">Индекс</div>` +
@@ -480,13 +481,13 @@ export function GoldIndex({ formatMoney, toast }) {
           `</div>`;
         })() +
         // Competitors
-        (compRowsHtml ? `<div style="padding:0 14px 8px;border-top:1px solid #f0e6d0;padding-top:8px">${compRowsHtml}</div>` : '') +
-        (compCount > 3 ? `<div style="padding:0 14px 6px;font-size:11px;color:#b8860b">+ещё ${compCount - 3}</div>` : '') +
+        (compRowsHtml ? `<div style="padding:0 14px 8px;border-top:1px solid #e8e6f0;padding-top:8px">${compRowsHtml}</div>` : '') +
+        (compCount > 3 ? `<div style="padding:0 14px 6px;font-size:11px;color:#6a5ae0">+ещё ${compCount - 3}</div>` : '') +
         // Button
         `<div style="padding:8px 14px 12px">` +
         `<button class="gi-popup-detail-btn" data-city-id="${c.id}" style="width:100%;padding:8px 12px;` +
-        `background:linear-gradient(135deg,#b8860b,#e8c547);border:none;border-radius:8px;` +
-        `font-weight:700;cursor:pointer;font-size:13px;color:#1a0e00;letter-spacing:0.02em;` +
+        `background:linear-gradient(135deg,#a799ff,#6a5ae0);border:none;border-radius:8px;` +
+        `font-weight:700;cursor:pointer;font-size:13px;color:#fff;letter-spacing:0.02em;` +
         `transition:opacity 0.15s">Подробнее ↓</button>` +
         `</div>` +
         `</div>`;
@@ -560,13 +561,13 @@ export function GoldIndex({ formatMoney, toast }) {
           `<div>Индекс: <strong style="color:${coFill}">${fmtRatio(co.ratioAvg)}</strong></div>` +
           (co.measuredAt ? `<div style="color:#999;font-size:11px;margin-top:2px">Замер: ${co.measuredAt}</div>` : '') +
           `</div>` +
-          `<div style="padding:0 12px 10px;font-size:11px;color:#b8860b;display:flex;align-items:center;gap:4px">` +
+          `<div style="padding:0 12px 10px;font-size:11px;color:#6a5ae0;display:flex;align-items:center;gap:4px">` +
           `<span>✥</span><span>Перетащите маркер, чтобы уточнить место</span>` +
           `</div>` +
           `<div style="padding:0 12px 12px">` +
           `<button class="gi-popup-comp-detail-btn" data-city-id="${c.id}" data-comp-id="${co.id}" style="width:100%;padding:7px 10px;` +
-          `background:linear-gradient(135deg,#b8860b,#e8c547);border:none;border-radius:8px;` +
-          `font-weight:700;cursor:pointer;font-size:12px;color:#1a0e00;letter-spacing:0.02em;">Подробнее</button>` +
+          `background:linear-gradient(135deg,#a799ff,#6a5ae0);border:none;border-radius:8px;` +
+          `font-weight:700;cursor:pointer;font-size:12px;color:#fff;letter-spacing:0.02em;">Подробнее</button>` +
           `</div></div>`;
 
         coMk.bindPopup(coPopupHtml, { maxWidth: 240, className: 'gi-city-popup' });
@@ -1044,12 +1045,12 @@ export function GoldIndex({ formatMoney, toast }) {
             ">
               <div style="
                 width:36px;height:36px;
-                background:linear-gradient(135deg,#e8c547,#c8a020);
+                background:linear-gradient(135deg,#a799ff,#6a5ae0);
                 border:3px solid #fff;border-radius:50%;
                 display:flex;align-items:center;justify-content:center;
                 font-size:18px;line-height:1;
               ">📍</div>
-              <div style="width:3px;height:14px;background:#c8a020;"></div>
+              <div style="width:3px;height:14px;background:#6a5ae0;"></div>
               <div style="width:8px;height:4px;background:rgba(0,0,0,0.2);border-radius:50%;"></div>
             </div>`,
             iconSize: [36, 54], iconAnchor: [18, 54],
@@ -1375,6 +1376,9 @@ export function GoldIndex({ formatMoney, toast }) {
 
   return (
     <section className="gold-index glass">
+      <PageHint id="gold-index" title="Индекс золота по регионам">
+        Добавляйте города и цены конкурентов — на карте видно, где рынок дороже или дешевле вашего эталона выкупа. Индекс ≈ 1.0 значит «как в калькуляторе». Карта подстраивается под светлую и тёмную тему.
+      </PageHint>
       <div className="gold-index__head">
         <div>
           <h2 className="gold-index__title">Индекс золота</h2>
@@ -1430,7 +1434,9 @@ export function GoldIndex({ formatMoney, toast }) {
         <>
           <div className="gi-stats-grid cg-stagger">
             <div className="gi-stat-card">
-              <div className="gi-stat-icon">⚡</div>
+              <div className="gi-stat-icon gi-stat-icon--accent" aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
               <div>
                 <div className="gi-stat-label">Биржа (эталон)</div>
                 <div className="gi-stat-value mono-nums">
@@ -1439,21 +1445,27 @@ export function GoldIndex({ formatMoney, toast }) {
               </div>
             </div>
             <div className="gi-stat-card">
-              <div className="gi-stat-icon">🏷️</div>
+              <div className="gi-stat-icon gi-stat-icon--emerald" aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+              </div>
               <div>
                 <div className="gi-stat-label">Выкуп лома</div>
                 <div className="gi-stat-value">{data.settingsSnapshot?.buybackPercentOfScrap ?? '—'}<span className="gi-stat-unit">%</span></div>
               </div>
             </div>
             <div className="gi-stat-card">
-              <div className="gi-stat-icon">📍</div>
+              <div className="gi-stat-icon gi-stat-icon--accent" aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              </div>
               <div>
                 <div className="gi-stat-label">Городов</div>
                 <div className="gi-stat-value">{data.stats?.cityCount ?? 0}</div>
               </div>
             </div>
             <div className="gi-stat-card">
-              <div className="gi-stat-icon">👥</div>
+              <div className="gi-stat-icon gi-stat-icon--emerald" aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
               <div>
                 <div className="gi-stat-label">Охват населения</div>
                 <div className="gi-stat-value mono-nums">
@@ -1556,16 +1568,16 @@ export function GoldIndex({ formatMoney, toast }) {
               <div style={{ width: '100%', height: 210 }}>
                 <ResponsiveContainer>
                   <BarChart data={regionsChart} margin={{ top: 8, right: 8, left: 0, bottom: 40 }} barCategoryGap="25%">
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0e6d0" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#7a6540' }} interval={0} angle={-30} textAnchor="end" height={56} />
-                    <YAxis tick={{ fontSize: 10, fill: '#7a6540' }} axisLine={false} tickLine={false} domain={[0, 'auto']} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--stroke-soft)" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} interval={0} angle={-30} textAnchor="end" height={56} />
+                    <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} domain={[0, 'auto']} />
                     <Tooltip
-                      cursor={{ fill: 'rgba(232,197,71,0.08)' }}
+                      cursor={{ fill: 'var(--stroke-soft)' }}
                       formatter={(v, _, { payload }) => [fmtRatio(v), payload?.full || '']}
-                      contentStyle={{ borderRadius: 10, border: '1px solid #e8c547', fontSize: 12 }}
+                      contentStyle={{ borderRadius: 10, border: '1px solid var(--stroke)', background: 'var(--bg-elevated)', color: 'var(--text)', fontSize: 12 }}
                       labelFormatter={() => 'Индекс'}
                     />
-                    <Bar dataKey="ratio" radius={[6, 6, 0, 0]} animationDuration={1200} animationEasing="ease-out" animationBegin={350}>
+                    <Bar dataKey="ratio" radius={[6, 6, 0, 0]} animationDuration={1700} animationEasing="ease" animationBegin={350}>
                       {regionsChart.map((r, i) => {
                         const colorKey = r.ratio < 1.5 ? 'green' : r.ratio < 2.5 ? 'yellow' : r.ratio < 3.5 ? 'orange' : 'red';
                         return <Cell key={i} fill={COLOR_HEX[colorKey]} />;
@@ -1620,16 +1632,16 @@ export function GoldIndex({ formatMoney, toast }) {
                 <div style={{ width: '100%', height: 220 }}>
                   <ResponsiveContainer>
                     <BarChart data={snapshot} margin={{ top: 8, right: 12, left: 0, bottom: 36 }} barCategoryGap="30%">
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0e6d0" />
-                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#7a6540' }} interval={0} angle={-25} textAnchor="end" height={56} />
-                      <YAxis tick={{ fontSize: 10, fill: '#7a6540' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}к`} axisLine={false} tickLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--stroke-soft)" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} interval={0} angle={-25} textAnchor="end" height={56} />
+                      <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}к`} axisLine={false} tickLine={false} />
                       <Tooltip
-                        cursor={{ fill: 'rgba(232,197,71,0.08)' }}
+                        cursor={{ fill: 'var(--stroke-soft)' }}
                         formatter={(v, _, { payload }) => [`${new Intl.NumberFormat('ru-RU').format(v)} ₽/г`, payload?.full || '']}
                         labelFormatter={() => `Проба ${chartProbe}`}
-                        contentStyle={{ borderRadius: 10, border: '1px solid #e8c547', fontSize: 12 }}
+                        contentStyle={{ borderRadius: 10, border: '1px solid var(--stroke)', background: 'var(--bg-elevated)', color: 'var(--text)', fontSize: 12 }}
                       />
-                      <Bar dataKey="value" radius={[6, 6, 0, 0]} animationDuration={1200} animationEasing="ease-out" animationBegin={350}>
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]} animationDuration={1700} animationEasing="ease" animationBegin={350}>
                         {snapshot.map((_, i) => (
                           <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                         ))}
@@ -1653,15 +1665,15 @@ export function GoldIndex({ formatMoney, toast }) {
                         </linearGradient>
                       ))}
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0e6d0" />
-                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#7a6540' }} tickFormatter={(w) => w?.slice(5)} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--stroke-soft)" />
+                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={(w) => w?.slice(5)} />
                     <YAxis
-                      tick={{ fontSize: 10, fill: '#7a6540' }}
+                      tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
                       tickFormatter={(v) => `${(v / 1000).toFixed(0)}к`}
                       axisLine={false} tickLine={false}
                     />
                     <Tooltip
-                      contentStyle={{ borderRadius: 10, border: '1px solid #e8c547', fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}
+                      contentStyle={{ borderRadius: 10, border: '1px solid var(--stroke)', background: 'var(--bg-elevated)', color: 'var(--text)', fontSize: 12, boxShadow: 'var(--shadow-pop)' }}
                       formatter={(v, name) => {
                         const r = lineRegions.find((r) => r.regionCode === name);
                         return [`${new Intl.NumberFormat('ru-RU').format(v)} ₽/г`, r?.regionName || name];
@@ -2329,25 +2341,26 @@ export function GoldIndex({ formatMoney, toast }) {
           gap: 10px; margin-bottom: 12px;
         }
         .gi-stat-card {
-          display: flex; align-items: center; gap: 10px;
-          background: var(--input-bg); border: 1px solid var(--stroke);
-          border-radius: 12px; padding: 11px 13px;
+          display: flex; align-items: center; gap: 11px;
+          background: var(--bg-elevated); border: 1px solid var(--stroke-soft);
+          border-radius: 14px; padding: 13px 14px;
           transition:
-            box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1),
-            border-color 260ms cubic-bezier(0.16, 1, 0.3, 1),
-            transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1),
+            transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
           will-change: transform;
         }
         .gi-stat-card:hover {
-          border-color: var(--gold);
-          box-shadow: 0 8px 24px var(--gold-glow);
+          box-shadow: var(--shadow-pop);
           transform: translateY(-2px);
         }
-        .gi-stat-card:hover .gi-stat-icon { transform: scale(1.12); }
+        .gi-stat-card:hover .gi-stat-icon { transform: scale(1.08); }
         .gi-stat-icon {
-          font-size: 1.4rem; flex-shrink: 0; line-height: 1;
-          transition: transform 360ms cubic-bezier(0.34, 1.45, 0.64, 1);
+          width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+          transition: transform 320ms cubic-bezier(0.34, 1.45, 0.64, 1);
         }
+        .gi-stat-icon--accent { background: var(--accent-soft); color: var(--accent); }
+        .gi-stat-icon--emerald { background: var(--emerald-soft); color: var(--emerald); }
         .gi-stat-label { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px; }
         .gi-stat-value { font-size: 1rem; font-weight: 700; line-height: 1.2; }
         .gi-stat-unit { font-size: 0.72rem; font-weight: 400; color: var(--text-muted); margin-left: 2px; }
@@ -2362,19 +2375,35 @@ export function GoldIndex({ formatMoney, toast }) {
         /* ── map ───────────────────────────────────────── */
         .gold-index__map-wrap {
           position: relative; margin-bottom: 14px;
-          border-radius: 14px; overflow: hidden;
-          border: 1px solid var(--stroke);
+          border-radius: 16px; overflow: hidden;
+          border: 1px solid var(--stroke-soft);
         }
         .gold-index__map {
           width: 100%; height: min(420px, 55vh); z-index: 0;
+          background: var(--bg-elevated);
+          transition: background 240ms;
+        }
+        /* Тёмная тема: инвертируем светлые OSM-тайлы в тёмную карту (источник тот же — Крым корректно).
+           Маркеры и регионы рисуются в overlay-панах и фильтром не затрагиваются — цвета остаются точными. */
+        :root[data-theme='dark'] .gold-index__map .leaflet-tile-pane {
+          filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.92) saturate(0.8);
+        }
+        :root[data-theme='dark'] .gold-index__map { background: #0e1014; }
+        /* Зум-контролы под тему */
+        .gold-index__map .leaflet-control-zoom a {
+          background: var(--bg-panel-solid); color: var(--text);
+          border-color: var(--stroke-soft);
+        }
+        .gold-index__map .leaflet-control-zoom a:hover {
+          background: var(--accent-soft); color: var(--accent);
         }
         .gi-quick-add-btn {
           position: absolute; bottom: 12px; left: 12px; z-index: 500;
           display: inline-flex; align-items: center; gap: 7px;
           padding: 11px 20px; border-radius: 24px; border: none; cursor: pointer;
-          background: linear-gradient(135deg, #e8c547 0%, #c8a020 100%); color: #1a0e00;
+          background: var(--accent-grad); color: #fff;
           font-size: 14px; font-weight: 700; letter-spacing: 0.01em;
-          box-shadow: 0 4px 18px rgba(184,134,11,0.45);
+          box-shadow: 0 4px 18px rgba(106,90,224,0.45);
           -webkit-backdrop-filter: blur(6px);
           backdrop-filter: blur(6px);
           transition: all 0.18s;
@@ -2382,7 +2411,7 @@ export function GoldIndex({ formatMoney, toast }) {
           transform: translateZ(0);
           -webkit-transform: translateZ(0);
         }
-        .gi-quick-add-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(184,134,11,0.55); }
+        .gi-quick-add-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(106,90,224,0.55); }
         .gi-quick-add-btn:active:not(:disabled) { transform: translateY(0); }
         .gi-quick-add-btn:disabled { opacity: 0.7; cursor: default; }
         .gi-quick-add-btn--busy { animation: gi-pulse 1s infinite; }
@@ -2394,19 +2423,19 @@ export function GoldIndex({ formatMoney, toast }) {
           padding: 12px 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.22);
           -webkit-backdrop-filter: blur(8px);
           backdrop-filter: blur(8px);
-          border: 1.5px solid rgba(232,197,71,0.5);
+          border: 1.5px solid rgba(139,124,255,0.5);
           max-width: 220px;
           transform: translateZ(0);
           -webkit-transform: translateZ(0);
         }
-        .gi-drag-confirm-hint { font-size: 12px; color: #7a6540; font-weight: 500; line-height: 1.3; }
+        .gi-drag-confirm-hint { font-size: 12px; color: var(--text-muted); font-weight: 500; line-height: 1.3; }
         .gi-drag-confirm-btns { display: flex; gap: 8px; }
         .gi-drag-confirm-ok {
           flex: 1; padding: 10px 14px; border-radius: 14px; border: none; cursor: pointer;
-          background: linear-gradient(135deg,#e8c547,#c8a020); color: #1a0e00;
+          background: var(--accent-grad); color: #fff;
           font-size: 14px; font-weight: 700; transition: all 0.15s;
         }
-        .gi-drag-confirm-ok:hover:not(:disabled) { box-shadow: 0 3px 12px rgba(184,134,11,0.45); }
+        .gi-drag-confirm-ok:hover:not(:disabled) { box-shadow: 0 3px 12px rgba(106,90,224,0.45); }
         .gi-drag-confirm-ok:disabled { opacity: 0.65; cursor: default; }
         .gi-drag-confirm-cancel {
           width: 40px; height: 40px; border-radius: 12px; border: none; cursor: pointer;
@@ -2427,7 +2456,7 @@ export function GoldIndex({ formatMoney, toast }) {
           transform: translateZ(0);
           -webkit-transform: translateZ(0);
         }
-        .gi-map-add-btn:hover { background: #e8c547; box-shadow: 0 4px 14px rgba(184,134,11,0.4); }
+        .gi-map-add-btn:hover { background: var(--accent-strong); box-shadow: 0 4px 14px var(--accent-glow); }
         .gi-map-add-btn--active { background: #ef4444; color: #fff; }
         .gi-map-add-hint {
           position: absolute; top: 12px; left: 50%;
@@ -2442,15 +2471,15 @@ export function GoldIndex({ formatMoney, toast }) {
           animation: gi-fade-in 0.2s ease;
         }
         @keyframes gi-pulse {
-          0%,100% { box-shadow: 0 0 0 4px rgba(232,197,71,0.5); }
-          50% { box-shadow: 0 0 0 10px rgba(232,197,71,0.0); }
+          0%,100% { box-shadow: 0 0 0 4px rgba(139,124,255,0.5); }
+          50% { box-shadow: 0 0 0 10px rgba(139,124,255,0.0); }
         }
         .gold-index__chart {
           margin-bottom: 14px; background: var(--input-bg); border: 1px solid var(--stroke);
           border-radius: 14px; padding: 16px;
           box-shadow: 0 1px 4px rgba(0,0,0,0.04);
         }
-        .gi-price-chart { border-top: 3px solid #e8c547; }
+        .gi-price-chart { border-top: 3px solid var(--accent); }
         .gi-chart-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 6px; }
         .gi-chart-title-row { display: flex; flex-direction: column; gap: 2px; }
         .gi-chart-title { font-size: 0.95rem; font-weight: 700; color: var(--text); }
@@ -2472,12 +2501,12 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-add-city-btn {
           display: inline-flex; align-items: center; gap: 7px;
           padding: 9px 18px; border-radius: 10px; border: none; cursor: pointer;
-          background: linear-gradient(135deg,#b8860b,#e8c547);
+          background: var(--accent-grad);
           color: #1a0e00; font-weight: 700; font-size: 0.9rem;
           transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
-          box-shadow: 0 2px 8px rgba(184,134,11,0.25);
+          box-shadow: 0 2px 8px rgba(106,90,224,0.25);
         }
-        .gi-add-city-btn:hover { opacity: 0.88; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(184,134,11,0.35); }
+        .gi-add-city-btn:hover { opacity: 0.88; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(106,90,224,0.35); }
         .gi-add-city-btn:active { transform: translateY(0); }
         .gi-add-city-btn--active { background: var(--input-bg); color: var(--text); border: 1px solid var(--stroke); box-shadow: none; }
         .gi-add-city-icon { font-size: 1.1rem; font-weight: 300; line-height: 1; }
@@ -2490,7 +2519,7 @@ export function GoldIndex({ formatMoney, toast }) {
         }
         .gi-form-hint {
           display: flex; gap: 10px; align-items: flex-start;
-          background: rgba(232,197,71,0.08); border: 1px solid rgba(232,197,71,0.2);
+          background: rgba(139,124,255,0.08); border: 1px solid rgba(139,124,255,0.2);
           border-radius: 8px; padding: 10px 12px; margin-bottom: 14px;
           font-size: 0.83rem; line-height: 1.5; color: var(--text);
         }
@@ -2528,7 +2557,7 @@ export function GoldIndex({ formatMoney, toast }) {
           background: transparent; border: none; color: inherit; cursor: pointer; text-align: left;
           transition: background 240ms cubic-bezier(0.16, 1, 0.3, 1);
         }
-        .gold-index__city-head:hover { background: var(--hover-bg,rgba(232,197,71,0.06)); }
+        .gold-index__city-head:hover { background: var(--hover-bg,rgba(139,124,255,0.06)); }
         .gold-index__dot {
           width: 12px; height: 12px; border-radius: 999px; flex-shrink: 0;
           transition: transform 320ms cubic-bezier(0.34, 1.45, 0.64, 1);
@@ -2581,17 +2610,17 @@ export function GoldIndex({ formatMoney, toast }) {
           animation: gi-slide-up 0.2s ease both;
           transition: border-color 0.15s, box-shadow 0.15s;
         }
-        .gi-comp-card:hover { border-color: rgba(232,197,71,0.5); box-shadow: 0 2px 10px rgba(184,134,11,0.1); }
-        .gi-comp-card--editing { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(232,197,71,0.15); }
+        .gi-comp-card:hover { border-color: rgba(139,124,255,0.5); box-shadow: 0 2px 10px rgba(106,90,224,0.1); }
+        .gi-comp-card--editing { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(139,124,255,0.15); }
         .gi-comp-card--flash {
           animation: gi-comp-flash 1.4s ease-out;
-          border-color: rgba(232,197,71,0.95) !important;
-          box-shadow: 0 0 0 3px rgba(232,197,71,0.28), 0 6px 20px rgba(184,134,11,0.22) !important;
+          border-color: rgba(139,124,255,0.95) !important;
+          box-shadow: 0 0 0 3px rgba(139,124,255,0.28), 0 6px 20px rgba(106,90,224,0.22) !important;
         }
         @keyframes gi-comp-flash {
-          0%   { transform: translateY(-2px); box-shadow: 0 0 0 0 rgba(232,197,71,0.6), 0 0 0 rgba(0,0,0,0); }
-          45%  { transform: translateY(0); box-shadow: 0 0 0 8px rgba(232,197,71,0.08), 0 6px 20px rgba(184,134,11,0.18); }
-          100% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(232,197,71,0), 0 2px 10px rgba(184,134,11,0.1); }
+          0%   { transform: translateY(-2px); box-shadow: 0 0 0 0 rgba(139,124,255,0.6), 0 0 0 rgba(0,0,0,0); }
+          45%  { transform: translateY(0); box-shadow: 0 0 0 8px rgba(139,124,255,0.08), 0 6px 20px rgba(106,90,224,0.18); }
+          100% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(139,124,255,0), 0 2px 10px rgba(106,90,224,0.1); }
         }
         /* Top accent bar */
         .gi-comp-card-bar { height: 3px; width: 100%; }
@@ -2604,7 +2633,7 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-ratio--yellow { color: #92620a; background: rgba(234,179,8,0.12); }
         .gi-ratio--orange { color: #9a3d0a; background: rgba(249,115,22,0.12); }
         .gi-ratio--red    { color: #8c1c1c; background: rgba(239,68,68,0.12); }
-        .gi-ratio--neutral{ color: #5a4200; background: rgba(232,197,71,0.12); }
+        .gi-ratio--neutral{ color: var(--accent-dim); background: rgba(139,124,255,0.12); }
         .gi-comp-address { margin-top: 2px; font-size: 0.74rem; }
         .gi-meta-pill {
           display: inline-flex; align-items: center;
@@ -2638,11 +2667,11 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-pct--yellow { color: #92620a; background: rgba(234,179,8,0.14); }
         .gi-pct--orange { color: #9a3d0a; background: rgba(249,115,22,0.14); }
         .gi-pct--red    { color: #8c1c1c; background: rgba(239,68,68,0.14); }
-        .gi-pct--neutral{ color: #5a4200; background: rgba(232,197,71,0.14); }
+        .gi-pct--neutral{ color: var(--accent-dim); background: rgba(139,124,255,0.14); }
         .gi-city-head-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
         .gi-city-pct { font-size: 0.8rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
         /* ── location section in competitor form ───────── */
-        .gi-loc-section { margin-top: 8px; background: rgba(232,197,71,0.04); border: 1px solid var(--stroke); border-radius: 10px; padding: 10px 12px; }
+        .gi-loc-section { margin-top: 8px; background: rgba(139,124,255,0.04); border: 1px solid var(--stroke); border-radius: 10px; padding: 10px 12px; }
         .gi-loc-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 8px; }
         .gi-loc-btns-row { display: flex; gap: 8px; margin-bottom: 8px; }
         .gi-loc-btn {
@@ -2661,7 +2690,7 @@ export function GoldIndex({ formatMoney, toast }) {
           transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
         }
         .gi-comp-edit-row .field .input:focus {
-          border-color: #e8c547;
+          border-color: var(--accent);
           box-shadow: 0 0 0 3px rgba(232, 197, 71, 0.18);
           background: #fffef9;
         }
@@ -2709,8 +2738,8 @@ export function GoldIndex({ formatMoney, toast }) {
           background: transparent; color: var(--gold); font-weight: 600; font-size: 0.82rem;
           cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em;
         }
-        .gi-add-comp-toggle:hover { border-color: var(--gold); background: rgba(232,197,71,0.06); }
-        .gi-add-comp-toggle--open { border-style: solid; border-color: var(--gold); background: rgba(232,197,71,0.05); color: var(--text-muted); }
+        .gi-add-comp-toggle:hover { border-color: var(--gold); background: rgba(139,124,255,0.06); }
+        .gi-add-comp-toggle--open { border-style: solid; border-color: var(--gold); background: rgba(139,124,255,0.05); color: var(--text-muted); }
 
         /* ── new competitor form ────────────────────────── */
         .gi-new-comp { margin-top: 10px; animation: gi-expand 0.2s ease both; }
@@ -2748,7 +2777,7 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-city-popup .leaflet-popup-content-wrapper {
           border-radius: 12px; padding: 0; overflow: hidden;
           box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-          border: 1px solid rgba(184,134,11,0.15);
+          border: 1px solid rgba(106,90,224,0.15);
           animation: gi-fade-in 0.18s ease;
         }
         .gi-city-popup .leaflet-popup-content { margin: 0; }
@@ -2796,8 +2825,8 @@ export function GoldIndex({ formatMoney, toast }) {
 
           /* Stats */
           .gi-stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
-          .gi-stat-card { padding: 9px 11px; gap: 8px; }
-          .gi-stat-icon { font-size: 1.2rem; }
+          .gi-stat-card { padding: 10px 11px; gap: 9px; }
+          .gi-stat-icon { width: 32px; height: 32px; }
           .gi-stat-value { font-size: 0.92rem; }
 
           /* Charts */
@@ -2909,20 +2938,20 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-modal-sheet {
           /* Force light-theme CSS vars regardless of system/app dark mode */
           --input-bg: #ffffff;
-          --stroke: rgba(140,110,40,0.2);
-          --stroke-strong: rgba(140,110,40,0.38);
-          --text: #1c1814;
-          --text-muted: rgba(28,24,20,0.5);
-          --gold: #b8860b;
-          --gold-glow: rgba(184,134,11,0.22);
-          --gold-soft: rgba(184,134,11,0.1);
+          --stroke: rgba(20,22,30,0.12);
+          --stroke-strong: rgba(20,22,30,0.26);
+          --text: #16181d;
+          --text-muted: rgba(22,24,29,0.55);
+          --gold: #6a5ae0;
+          --gold-glow: rgba(106,90,224,0.22);
+          --gold-soft: rgba(106,90,224,0.1);
           color-scheme: light;
 
           position: relative;
           width: min(680px, 100%);
-          background: #faf8f4;
+          background: #fafafc;
           border-radius: 24px;
-          box-shadow: 0 -4px 0 rgba(232,197,71,0.25), 0 -12px 50px rgba(0,0,0,0.32);
+          box-shadow: 0 -4px 0 rgba(139,124,255,0.25), 0 -12px 50px rgba(0,0,0,0.32);
           display: flex; flex-direction: column;
           max-height: min(90dvh, 820px);
           animation: gi-sheet-in 0.24s cubic-bezier(0.2,0.8,0.2,1);
@@ -2952,8 +2981,8 @@ export function GoldIndex({ formatMoney, toast }) {
           width: 56px;
           height: 56px;
           border-radius: 50%;
-          border: 4px solid rgba(184,134,11,0.18);
-          border-top-color: #b8860b;
+          border: 4px solid rgba(106,90,224,0.18);
+          border-top-color: #6a5ae0;
           animation: gi-modal-loading-spin 0.8s linear infinite;
         }
         @keyframes gi-modal-loading-spin {
@@ -2994,7 +3023,7 @@ export function GoldIndex({ formatMoney, toast }) {
           animation: gi-overlay-in 0.2s ease;
         }
         .gi-busy-card {
-          background: #faf8f4;
+          background: #fafafc;
           border-radius: 18px;
           padding: 28px 28px 24px;
           display: flex;
@@ -3044,14 +3073,14 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-modal-header {
           display: flex; align-items: flex-start; justify-content: space-between;
           gap: 12px; padding: 14px 20px 16px;
-          border-bottom: 1px solid rgba(140,110,40,0.14);
+          border-bottom: 1px solid rgba(20,22,30,0.08);
           flex-shrink: 0;
         }
         .gi-modal-city { font-size: 1.25rem; font-weight: 800; color: #1a0e00; }
-        .gi-modal-region { font-size: 0.78rem; color: #b8860b; margin-top: 3px; }
+        .gi-modal-region { font-size: 0.78rem; color: #6a5ae0; margin-top: 3px; }
         .gi-modal-title-block { flex: 1; min-width: 0; }
         .gi-modal-title { font-size: 1.1rem; font-weight: 800; color: #1a0e00; line-height: 1.2; }
-        .gi-modal-subtitle { font-size: 0.78rem; color: #b8860b; margin-top: 4px; }
+        .gi-modal-subtitle { font-size: 0.78rem; color: #6a5ae0; margin-top: 4px; }
         .gi-modal-close {
           width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer;
           background: rgba(28,24,20,0.08); color: #6b5230;
@@ -3077,8 +3106,8 @@ export function GoldIndex({ formatMoney, toast }) {
           color: #1c1814 !important;
           /* WebKit uses -webkit-text-fill-color for actual rendered text — must override */
           -webkit-text-fill-color: #1c1814 !important;
-          caret-color: #b8860b !important;
-          border: 1.5px solid rgba(140,110,40,0.22) !important;
+          caret-color: #6a5ae0 !important;
+          border: 1.5px solid rgba(20,22,30,0.14) !important;
           border-radius: 12px !important;
           padding: 12px 14px !important;
           font-size: 15px !important;
@@ -3091,8 +3120,8 @@ export function GoldIndex({ formatMoney, toast }) {
         }
         .gi-modal-sheet input:focus,
         .gi-modal-sheet select:focus {
-          border-color: #b8860b !important;
-          box-shadow: 0 0 0 3px rgba(184,134,11,0.18) !important;
+          border-color: #6a5ae0 !important;
+          box-shadow: 0 0 0 3px rgba(106,90,224,0.18) !important;
           outline: none !important;
         }
         .gi-modal-sheet input::placeholder {
@@ -3104,13 +3133,13 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-modal-sheet input:-webkit-autofill:focus {
           -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
           -webkit-text-fill-color: #1c1814 !important;
-          caret-color: #b8860b !important;
+          caret-color: #6a5ae0 !important;
         }
 
         /* Field labels inside modal */
         .gi-modal-sheet .field-label {
           font-size: 0.7rem !important;
-          color: #b8860b !important;
+          color: #6a5ae0 !important;
           font-weight: 700 !important;
           text-transform: uppercase !important;
           letter-spacing: 0.07em !important;
@@ -3121,7 +3150,7 @@ export function GoldIndex({ formatMoney, toast }) {
 
         .gi-modal-probes-label {
           font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
-          letter-spacing: 0.07em; color: #b8860b; margin-bottom: -4px;
+          letter-spacing: 0.07em; color: #6a5ae0; margin-bottom: -4px;
         }
 
         /* Row layout for 2-column fields */
@@ -3132,14 +3161,14 @@ export function GoldIndex({ formatMoney, toast }) {
 
         /* Location section inside modal */
         .gi-modal-sheet .gi-loc-section {
-          background: rgba(184,134,11,0.06);
-          border: 1px solid rgba(184,134,11,0.16);
+          background: rgba(106,90,224,0.06);
+          border: 1px solid rgba(106,90,224,0.16);
           border-radius: 14px;
           padding: 12px 14px;
           margin-top: 2px;
         }
         .gi-modal-sheet .gi-loc-label {
-          color: #b8860b !important;
+          color: #6a5ae0 !important;
           font-size: 0.7rem !important;
           font-weight: 700 !important;
           text-transform: uppercase !important;
@@ -3148,11 +3177,11 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-modal-sheet .gi-loc-btn {
           background: #fff !important;
           color: #1c1814 !important;
-          border: 1.5px solid rgba(140,110,40,0.22) !important;
+          border: 1.5px solid rgba(20,22,30,0.14) !important;
         }
         .gi-modal-sheet .gi-loc-btn--active {
-          background: rgba(184,134,11,0.1) !important;
-          border-color: #b8860b !important;
+          background: rgba(106,90,224,0.1) !important;
+          border-color: #6a5ae0 !important;
           color: #7a5c0a !important;
         }
         .gi-modal-sheet .gi-loc-coords {
@@ -3165,9 +3194,9 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-modal-footer {
           display: flex; gap: 10px; align-items: center;
           padding: 14px 20px calc(22px + var(--gi-vv-bottom, 0px));
-          border-top: 1px solid rgba(140,110,40,0.12);
+          border-top: 1px solid rgba(20,22,30,0.07);
           flex-shrink: 0;
-          background: #faf8f4;
+          background: #fafafc;
         }
         @supports (padding-bottom: env(safe-area-inset-bottom)) {
           .gi-modal-footer {
@@ -3181,20 +3210,20 @@ export function GoldIndex({ formatMoney, toast }) {
           color: #1a1408; font-weight: 700; font-size: 1rem;
           border: none; border-radius: 16px; cursor: pointer;
           padding: 14px 20px;
-          box-shadow: 0 4px 18px rgba(184,134,11,0.38);
+          box-shadow: 0 4px 18px rgba(106,90,224,0.38);
           transition: filter 0.15s, transform 0.12s, box-shadow 0.15s;
           display: flex; align-items: center; justify-content: center; gap: 8px;
         }
         .gi-modal-save:hover:not(:disabled) {
           filter: brightness(1.06); transform: translateY(-1px);
-          box-shadow: 0 6px 24px rgba(184,134,11,0.48);
+          box-shadow: 0 6px 24px rgba(106,90,224,0.48);
         }
         .gi-modal-save:active:not(:disabled) { transform: translateY(0); }
         .gi-modal-save:disabled { opacity: 0.5; cursor: default; }
 
         .gi-modal-cancel {
           padding: 14px 18px; border-radius: 16px; border: none; cursor: pointer;
-          background: transparent; color: #7a6540;
+          background: transparent; color: var(--text-muted);
           font-size: 0.95rem; font-weight: 600;
           transition: color 0.15s, background 0.15s;
         }
@@ -3549,8 +3578,8 @@ export function GoldIndex({ formatMoney, toast }) {
               <div className="gi-modal-body">
                 <div style={{
                   padding: '12px 14px',
-                  background: 'rgba(184,134,11,0.08)',
-                  border: '1px solid rgba(184,134,11,0.25)',
+                  background: 'rgba(106,90,224,0.08)',
+                  border: '1px solid rgba(106,90,224,0.25)',
                   borderRadius: 12,
                   color: '#5c4310',
                   fontSize: 13.5,
@@ -3601,9 +3630,9 @@ export function GoldIndex({ formatMoney, toast }) {
                       display: 'flex', alignItems: 'center', gap: 10,
                       color: 'rgba(28,24,20,0.45)', fontSize: 12, marginBottom: 10,
                     }}>
-                      <div style={{ flex: 1, height: 1, background: 'rgba(140,110,40,0.18)' }} />
+                      <div style={{ flex: 1, height: 1, background: 'rgba(20,22,30,0.10)' }} />
                       <span>или</span>
-                      <div style={{ flex: 1, height: 1, background: 'rgba(140,110,40,0.18)' }} />
+                      <div style={{ flex: 1, height: 1, background: 'rgba(20,22,30,0.10)' }} />
                     </div>
                     <div className="gi-loc-label" style={{ marginBottom: 8 }}>Выбрать существующий город</div>
                     <select

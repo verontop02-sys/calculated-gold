@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   Cell,
@@ -15,6 +15,7 @@ import { api } from './api.js';
 import { isUserManagerRole, roleLabel } from './roles.js';
 import { SkeletonStats, SkeletonChart, SkeletonTable } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
+import { PageHint } from './PageHint.jsx';
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -50,12 +51,6 @@ function fmtRuDate(iso) {
   return `${d}.${m}.${y}`;
 }
 
-function tierClass(tier) {
-  if (tier === 'high') return 'team-tier-high';
-  if (tier === 'mid') return 'team-tier-mid';
-  return 'team-tier-low';
-}
-
 function rankBadge(rank) {
   if (rank === 1) return '🥇';
   if (rank === 2) return '🥈';
@@ -64,9 +59,9 @@ function rankBadge(rank) {
 }
 
 const WEEK_BAR = {
-  up: '#3d9a6a',
-  down: '#c96a4a',
-  neu: '#b8860b',
+  up: 'var(--emerald-strong, #3d9a6a)',
+  down: 'var(--crimson, #c96a4a)',
+  neu: 'var(--accent, #8b7cff)',
 };
 
 function WeekDeltaCell({ deltaPct }) {
@@ -241,185 +236,148 @@ export function TeamPerformance({ formatMoney, toast, user }) {
   }, [data?.byWeek]);
 
   const hasRows = data?.operators && data.operators.length > 0;
+  const PRESETS = [
+    { id: '7d', label: '7 дней' },
+    { id: '30d', label: '30 дней' },
+    { id: '90d', label: '90 дней' },
+    { id: 'month', label: 'Месяц' },
+    { id: 'ytd', label: 'С 1 янв.' },
+  ];
 
   return (
-    <div className="team-page">
-      <header className="team-hero glass cg-anim-fade-up">
-        <div className="team-hero-top">
-          <div>
-            <p className="team-kicker">REAKTIVO PRO · учёт сделок</p>
-            <h2 className="team-title">Панель команды и KPI</h2>
-            <p className="team-subtitle">
-              Цифры по выкупу лома: кто сколько оформил договоров и на какую сумму за период. Один экран — чтобы было
-              понятно и руководителю, и сотруднику.
+    <div className="tm-page">
+      <PageHint id="team" title="Команда и KPI">
+        Сделка засчитывается сотруднику, который скачал PDF договора. Выберите период и при необходимости отметьте конкретных людей. Рейтинг — по обороту, цвет строк задаёт зона мотивации.
+      </PageHint>
+      {/* ── Шапка ── */}
+      <header className="tm-head tm-in" style={{ '--d': '0ms' }}>
+        <div className="tm-head__top">
+          <div className="tm-head__titles">
+            <span className="tm-kicker">REAKTIVO PRO · команда</span>
+            <h2 className="tm-title">Команда и KPI</h2>
+            <p className="tm-subtitle">
+              Кто сколько оформил договоров и на какую сумму за период — на одном экране для руководителя и сотрудника.
             </p>
           </div>
-          <span className={`team-mode-badge ${isManager ? 'team-mode-badge--mgr' : ''}`}>
-            {isManager ? 'Руководитель · видно всю команду' : 'Личный кабинет · только ваши сделки'}
+          <span className={`tm-mode${isManager ? ' tm-mode--mgr' : ''}`}>
+            <span className="tm-mode__dot" aria-hidden />
+            {isManager ? 'Руководитель · вся команда' : 'Только мои сделки'}
           </span>
         </div>
 
-        <aside className="team-rules" aria-label="Правила расчёта">
-          <h3 className="team-rules-title">Как считается</h3>
-          <ol className="team-rules-list">
-            <li>
-              <strong>Сделка</strong> попадает в отчёт, когда по договору-квитанции нажали «Скачать PDF». Без PDF сделки в
-              статистике нет.
-            </li>
-            <li>
-              <strong>Сотрудник</strong> — учётная запись того, кто скачал PDF (e-mail в таблице ниже).
-            </li>
-            <li>
-              <strong>Вес</strong> — по первой заполненной строке таблицы в договоре (лом / чистая масса), как в
-              аналитике.
-            </li>
-            <li>
-              <strong>Доля суммы</strong> — доля оборота сотрудника в общем обороте по выбранному фильтру (не налоговая
-              база).
-            </li>
-          </ol>
-          {isManager && thresholds && (
-            <div className="team-tier-legend">
-              <span className="team-rules-title" style={{ marginBottom: 8, display: 'block' }}>
-                Подсветка строк (мотивация)
-              </span>
-              <div className="team-tier-chips">
-                <span className="team-chip team-chip-high">Высокая зона — от {formatMoney(thresholds.highSumRub)}</span>
-                <span className="team-chip team-chip-mid">Средняя — от {formatMoney(thresholds.midSumRub)}</span>
-                <span className="team-chip team-chip-low">Ниже порога — базовая зона</span>
-              </div>
-              <p className="muted small team-rules-note">
-                Подсветка строк — не «KPI плана», а пороги для цвета на экране: переменные окружения на сервере{' '}
-                <span className="team-env-name">TEAM_PERF_HIGH_SUM_RUB</span> и{' '}
-                <span className="team-env-name">TEAM_PERF_MID_SUM_RUB</span> (в т.ч. Render → Environment). После
-                смены значений перезапустите бэкенд. Автоначислений нет.
-              </p>
-            </div>
-          )}
-        </aside>
-
-        <div className="analytics-presets">
-          <span className="muted small">Период:</span>
-          <button type="button" className="an-pill" onClick={() => applyPreset('7d')}>
-            7 дн
-          </button>
-          <button type="button" className="an-pill" onClick={() => applyPreset('30d')}>
-            30 дн
-          </button>
-          <button type="button" className="an-pill" onClick={() => applyPreset('90d')}>
-            90 дн
-          </button>
-          <button type="button" className="an-pill" onClick={() => applyPreset('ytd')}>
-            С 1 янв.
-          </button>
-          <button type="button" className="an-pill" onClick={() => applyPreset('month')}>
-            1 мес назад
-          </button>
+        {/* Период */}
+        <div className="tm-presets">
+          {PRESETS.map((p) => (
+            <button key={p.id} type="button" className="tm-pill" onClick={() => applyPreset(p.id)}>
+              {p.label}
+            </button>
+          ))}
         </div>
-        <div className="analytics-filters team-toolbar">
-          <label className="field field-inline">
-            <span className="field-label">С</span>
+        <div className="tm-toolbar">
+          <label className="tm-date">
+            <span className="tm-date__label">С</span>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           </label>
-          <label className="field field-inline">
-            <span className="field-label">По</span>
+          <label className="tm-date">
+            <span className="tm-date__label">По</span>
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </label>
-          <button type="button" className="btn-ghost" onClick={load} disabled={loading}>
-            {loading ? 'Загрузка…' : 'Обновить данные'}
+          <button type="button" className="tm-btn tm-btn--ghost" onClick={load} disabled={loading}>
+            {loading ? 'Загрузка…' : 'Обновить'}
           </button>
           <button
             type="button"
-            className="btn-secondary team-btn-pdf"
+            className="tm-btn tm-btn--accent"
             onClick={exportPdf}
             disabled={loading || pdfBusy || !totals || totals.deals === 0}
             title={totals?.deals === 0 ? 'Нет сделок за период' : 'Таблица и KPI в PDF'}
           >
-            {pdfBusy ? 'Формируем PDF…' : 'Выгрузить PDF'}
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5 5-5"/><path d="M12 16V4"/></svg>
+            {pdfBusy ? 'Формируем…' : 'Выгрузить PDF'}
           </button>
         </div>
-
-        {isManager && (
-          <div className="glass team-filter-block">
-            <div className="team-filter-head">
-              <span className="team-filter-title">Фильтр сотрудников</span>
-              <button type="button" className="btn-ghost small" onClick={clearOperatorFilter}>
-                Показать всех
-              </button>
-            </div>
-            {staffErr && <p className="muted small">{staffErr}</p>}
-            {!staffErr && staff.length > 0 && (
-              <ul className="team-filter-list">
-                {staff.map((u) => (
-                  <li key={u.uid}>
-                    <label className="team-filter-row">
-                      <input
-                        type="checkbox"
-                        className="team-filter-cb"
-                        checked={selectedIds.has(u.uid)}
-                        onChange={() => toggleOperator(u.uid)}
-                      />
-                      <span className="team-filter-text">
-                        <span className="team-filter-email">{u.email}</span>
-                        <span className="team-filter-role">{roleLabel(u.role)}</span>
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="muted small team-filter-hint">
-              Не отмечайте никого — в отчёт попадают все. Отметьте конкретных людей, чтобы смотреть только их вклад.
-            </p>
-          </div>
-        )}
       </header>
 
-      {err && <div className="glass analytics-err">{err}</div>}
+      {/* ── Фильтр сотрудников (руководитель) ── */}
+      {isManager && (
+        <section className="tm-card tm-in" style={{ '--d': '60ms' }}>
+          <div className="tm-card__head">
+            <h3 className="tm-card__title">Фильтр сотрудников</h3>
+            {selectedIds.size > 0 && (
+              <button type="button" className="tm-btn tm-btn--ghost tm-btn--sm" onClick={clearOperatorFilter}>
+                Показать всех
+              </button>
+            )}
+          </div>
+          {staffErr && <p className="tm-muted">{staffErr}</p>}
+          {!staffErr && staff.length > 0 && (
+            <div className="tm-staff">
+              {staff.map((u) => {
+                const on = selectedIds.has(u.uid);
+                return (
+                  <button
+                    key={u.uid}
+                    type="button"
+                    className={`tm-staff__chip${on ? ' tm-staff__chip--on' : ''}`}
+                    onClick={() => toggleOperator(u.uid)}
+                  >
+                    <span className={`tm-staff__check${on ? ' tm-staff__check--on' : ''}`} aria-hidden>
+                      {on && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </span>
+                    <span className="tm-staff__text">
+                      <span className="tm-staff__email">{u.email}</span>
+                      <span className="tm-staff__role">{roleLabel(u.role)}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <p className="tm-hint">Никого не отмечено — в отчёт попадают все. Отметьте конкретных, чтобы смотреть только их вклад.</p>
+        </section>
+      )}
+
+      {err && <div className="tm-err tm-in">{err}</div>}
 
       {loading && !totals && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <SkeletonStats count={4} />
-          <SkeletonChart height={200} />
+          <SkeletonStats count={3} />
+          <SkeletonChart height={220} />
           <SkeletonTable rows={4} cols={5} />
         </div>
       )}
 
+      {/* ── KPI ── */}
       {totals && !loading && (
-        <>
-          <p className="team-period-line muted small">{periodLabel ? `Период в отчёте: ${periodLabel}` : ''}</p>
-          <section className="team-kpi-section" aria-label="Ключевые показатели">
-            <h3 className="team-section-title">Ключевые показатели за период</h3>
-            <div className="team-kpi-grid cg-stagger">
-              <article className="team-kpi-card">
-                <span className="team-kpi-icon" aria-hidden>
-                  ◆
-                </span>
-                <span className="team-kpi-label">Сделок</span>
-                <span className="team-kpi-value mono-nums">{totals.deals}</span>
-                <span className="team-kpi-hint muted">договоров с выгруженным PDF</span>
-              </article>
-              <article className="team-kpi-card team-kpi-card--accent">
-                <span className="team-kpi-icon" aria-hidden>
-                  ₽
-                </span>
-                <span className="team-kpi-label">Оборот</span>
-                <span className="team-kpi-value mono-nums">{formatMoney(totals.sumRub)}</span>
-                <span className="team-kpi-hint muted">сумма по выбранным сделкам</span>
-              </article>
-              <article className="team-kpi-card">
-                <span className="team-kpi-icon" aria-hidden>
-                  ⚖
-                </span>
-                <span className="team-kpi-label">Вес 1-й строки</span>
-                <span className="team-kpi-value mono-nums small-digits">
-                  {(totals.weightGrossSum ?? 0).toFixed(2)} / {(totals.weightNetSum ?? 0).toFixed(3)} г
-                </span>
-                <span className="team-kpi-hint muted">лом / чистый — как в договоре</span>
-              </article>
-            </div>
-          </section>
-        </>
+        <section className="tm-kpis tm-in" style={{ '--d': '120ms' }} aria-label="Ключевые показатели">
+          <article className="tm-kpi" style={{ '--i': 0 }}>
+            <span className="tm-kpi__chip tm-kpi__chip--accent" aria-hidden>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>
+            </span>
+            <span className="tm-kpi__label">Сделок</span>
+            <span className="tm-kpi__value mono-nums">{totals.deals}</span>
+            <span className="tm-kpi__hint">договоров с PDF</span>
+          </article>
+          <article className="tm-kpi tm-kpi--accent" style={{ '--i': 1 }}>
+            <span className="tm-kpi__chip tm-kpi__chip--accent" aria-hidden>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </span>
+            <span className="tm-kpi__label">Оборот</span>
+            <span className="tm-kpi__value mono-nums">{formatMoney(totals.sumRub)}</span>
+            <span className="tm-kpi__hint">сумма по сделкам</span>
+          </article>
+          <article className="tm-kpi" style={{ '--i': 2 }}>
+            <span className="tm-kpi__chip tm-kpi__chip--emerald" aria-hidden>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M3 12h18M3 18h12"/></svg>
+            </span>
+            <span className="tm-kpi__label">Вес 1-й строки</span>
+            <span className="tm-kpi__value tm-kpi__value--sm mono-nums">
+              {(totals.weightGrossSum ?? 0).toFixed(2)} / {(totals.weightNetSum ?? 0).toFixed(3)} г
+            </span>
+            <span className="tm-kpi__hint">лом / чистый</span>
+          </article>
+          {periodLabel && <p className="tm-period">Период: {periodLabel}</p>}
+        </section>
       )}
 
       {totals && !loading && totals.deals === 0 && (
@@ -430,100 +388,107 @@ export function TeamPerformance({ formatMoney, toast, user }) {
         />
       )}
 
+      {/* ── Рейтинг ── */}
       {hasRows && !loading && (
-        <section className="glass team-table-card cg-anim-fade-up cg-anim-d-2">
-          <div className="team-table-head">
-            <h3 className="analytics-h3 team-table-title">Рейтинг по обороту</h3>
-            <p className="muted small team-table-desc">
-              Сортировка по сумме (выше — больше выручка по договорам за период). Доля — от оборота в этом отчёте.
-            </p>
+        <section className="tm-card tm-in" style={{ '--d': '180ms' }}>
+          <div className="tm-card__head">
+            <div>
+              <h3 className="tm-card__title">Рейтинг по обороту</h3>
+              <p className="tm-card__sub">Сортировка по сумме · доля от оборота в этом отчёте</p>
+            </div>
           </div>
-          <div className="cg-table-wrap cg-table-wrap--scroll">
-            <table className="cg-table team-table">
-              <thead>
-                <tr>
-                  <th className="center">Место</th>
-                  <th>Сотрудник</th>
-                  <th className="num">Сделок</th>
-                  <th className="num">Оборот</th>
-                  <th className="num">Вес лом / чист., г</th>
-                  <th className="num">Доля</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.operators.map((row) => (
-                  <tr key={row.operatorId == null ? 'none' : String(row.operatorId)}>
-                    <td className="center team-rank-cell">{rankBadge(row.rank)}</td>
-                    <td>
-                      <span className={tierClass(row.tier)}>{row.email || '—'}</span>
-                    </td>
-                    <td className="num">{row.deals}</td>
-                    <td className="num">{formatMoney(row.sumRub)}</td>
-                    <td className="num small-digits">
-                      {(row.weightGrossSum ?? 0).toFixed(2)} / {(row.weightNetSum ?? 0).toFixed(3)}
-                    </td>
-                    <td className="num">{row.shareRubPct}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="tm-rank">
+            {data.operators.map((row) => (
+              <div key={row.operatorId == null ? 'none' : String(row.operatorId)} className={`tm-rank__row tm-rank__row--${row.tier}`}>
+                <span className={`tm-rank__badge tm-rank__badge--${row.rank <= 3 ? row.rank : 'n'}`}>
+                  {row.rank <= 3 ? rankBadge(row.rank) : row.rank}
+                </span>
+                <div className="tm-rank__main">
+                  <span className="tm-rank__email">{row.email || '—'}</span>
+                  <div className="tm-rank__meta">
+                    <span>{row.deals} сд.</span>
+                    <span>{(row.weightGrossSum ?? 0).toFixed(2)} / {(row.weightNetSum ?? 0).toFixed(3)} г</span>
+                  </div>
+                </div>
+                <div className="tm-rank__right">
+                  <span className="tm-rank__sum mono-nums">{formatMoney(row.sumRub)}</span>
+                  <div className="tm-rank__share">
+                    <div className="tm-rank__share-bar"><div className="tm-rank__share-fill" style={{ width: `${Math.min(100, row.shareRubPct)}%` }} /></div>
+                    <span className="tm-rank__share-pct">{row.shareRubPct}%</span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       )}
 
+      {/* ── График по дням ── */}
       {chartSeries.length > 0 && totals && (
-        <section className="glass analytics-chart-card team-chart-card cg-anim-fade-up cg-anim-d-3">
-          <h3 className="analytics-h3">Динамика оборота по дням</h3>
-          <p className="muted small an-h3-sub">Сумма в ₽ по календарным дням в рамках фильтра.</p>
-          <div className="analytics-chart-h">
+        <section className="tm-card tm-in" style={{ '--d': '240ms' }}>
+          <h3 className="tm-card__title">Динамика оборота по дням</h3>
+          <p className="tm-card__sub">Сумма в ₽ по календарным дням в рамках фильтра</p>
+          <div className="tm-chart-h">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartSeries} margin={{ top: 12, right: 12, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--stroke, #333)" opacity={0.6} />
-                <XAxis dataKey="x" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${Math.round(v / 1000)}k`)} />
-                <Tooltip formatter={(v) => (v != null ? formatMoney(v) : '')} labelFormatter={(l) => `Дата ${l}`} />
-                <Line
+              <AreaChart data={chartSeries} margin={{ top: 12, right: 12, left: 4, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="tmAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.5} />
+                    <stop offset="65%" stopColor="var(--accent)" stopOpacity={0.14} />
+                    <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 7" stroke="var(--stroke-soft)" vertical={false} />
+                <XAxis dataKey="x" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} tickFormatter={(v) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${Math.round(v / 1000)}k`)} />
+                <Tooltip
+                  contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--stroke-soft)', borderRadius: 12, boxShadow: 'var(--shadow-pop)' }}
+                  formatter={(v) => [v != null ? formatMoney(v) : '', 'Оборот']}
+                  labelFormatter={(l) => `Дата ${l}`}
+                />
+                <Area
                   type="monotone"
                   dataKey="sumRub"
                   name="Оборот"
-                  stroke="var(--gold, #b8860b)"
-                  strokeWidth={2.5}
+                  stroke="var(--accent)"
+                  strokeWidth={2.6}
+                  fill="url(#tmAreaGrad)"
                   dot={false}
-                  activeDot={{ r: 5 }}
-                  animationDuration={1500}
-                  animationEasing="ease-out"
-                  animationBegin={350}
+                  activeDot={{ r: 5, fill: 'var(--accent)' }}
+                  animationDuration={1300}
+                  animationEasing="ease"
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </section>
       )}
 
+      {/* ── По неделям ── */}
       {weekSeries.length > 0 && totals && (
-        <section className="glass analytics-chart-card team-week-section cg-anim-fade-up cg-anim-d-4">
-          <h3 className="analytics-h3">Сводка по неделям</h3>
-          <p className="muted small an-h3-sub">
-            Неделя с понедельника (ISO). Столбцы — оборот за неделю; цвет к предыдущей неделе в этом отчёте (зелёный
-            выше, оранжевый ниже). В таблице — те же цифры и % к пред. неделе.
+        <section className="tm-card tm-in" style={{ '--d': '300ms' }}>
+          <h3 className="tm-card__title">Сводка по неделям</h3>
+          <p className="tm-card__sub">
+            Столбцы — оборот за неделю; цвет к предыдущей неделе (зелёный выше, красный ниже).
           </p>
-          <div className="team-week-chart-h">
+          <div className="tm-chart-h tm-chart-h--week">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={weekSeries}
-                margin={{ top: 8, right: 8, left: 4, bottom: weekSeries.length > 6 ? 20 : 6 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--stroke, #333)" opacity={0.5} />
+              <BarChart data={weekSeries} margin={{ top: 8, right: 8, left: 4, bottom: weekSeries.length > 6 ? 20 : 6 }}>
+                <CartesianGrid strokeDasharray="3 7" stroke="var(--stroke-soft)" vertical={false} />
                 <XAxis
                   dataKey="label"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                  axisLine={false}
+                  tickLine={false}
                   interval={0}
                   angle={weekSeries.length > 6 ? -22 : 0}
                   textAnchor={weekSeries.length > 6 ? 'end' : 'middle'}
                   height={weekSeries.length > 6 ? 52 : 30}
                 />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${Math.round(v / 1000)}k`)} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} tickFormatter={(v) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${Math.round(v / 1000)}k`)} />
                 <Tooltip
+                  cursor={{ fill: 'var(--accent-soft)' }}
+                  contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--stroke-soft)', borderRadius: 12, boxShadow: 'var(--shadow-pop)' }}
                   labelFormatter={(label) => `Неделя с ${label}`}
                   formatter={(value, _name, item) => {
                     const pl = item?.payload;
@@ -533,7 +498,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
                     return [`${formatMoney(value)}${tail}`, 'Оборот'];
                   }}
                 />
-                <Bar dataKey="sumRub" name="Оборот" radius={[4, 4, 0, 0]} animationDuration={1200} animationEasing="ease-out" animationBegin={400}>
+                <Bar dataKey="sumRub" name="Оборот" radius={[6, 6, 0, 0]} animationDuration={1100} animationEasing="ease">
                   {weekSeries.map((entry, i) => (
                     <Cell key={entry.weekStart || i} fill={WEEK_BAR[entry.barTone] || WEEK_BAR.neu} />
                   ))}
@@ -541,407 +506,271 @@ export function TeamPerformance({ formatMoney, toast, user }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="cg-table-wrap cg-table-wrap--scroll">
-            <table className="cg-table cg-table--compact team-week-table">
-              <thead>
-                <tr>
-                  <th>Неделя с</th>
-                  <th className="num">Сделок</th>
-                  <th className="num">Оборот</th>
-                  <th className="num">к пред.</th>
-                  <th className="num">Лом, г</th>
-                  <th className="num">Чист., г</th>
-                </tr>
-              </thead>
-              <tbody>
-                {weekSeries.map((w) => (
-                  <tr key={w.weekStart}>
-                    <td>{w.label}</td>
-                    <td className="num">{w.deals}</td>
-                    <td className="num">{formatMoney(w.sumRub)}</td>
-                    <td className="num">
-                      <WeekDeltaCell deltaPct={w.deltaPct} />
-                    </td>
-                    <td className="num">{(w.weightGrossSum ?? 0).toFixed(2)}</td>
-                    <td className="num">{(w.weightNetSum ?? 0).toFixed(3)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="tm-week-list">
+            {weekSeries.map((w) => (
+              <div key={w.weekStart} className="tm-week">
+                <span className="tm-week__date">{w.label}</span>
+                <span className="tm-week__sum mono-nums">{formatMoney(w.sumRub)}</span>
+                <WeekDeltaCell deltaPct={w.deltaPct} />
+                <span className="tm-week__deals">{w.deals} сд.</span>
+              </div>
+            ))}
           </div>
         </section>
       )}
 
+      {/* ── Мотивация (упрощённый блок) ── */}
+      {isManager && thresholds && totals && !loading && (
+        <section className="tm-card tm-in" style={{ '--d': '360ms' }}>
+          <h3 className="tm-card__title">Мотивация · зоны подсветки</h3>
+          <p className="tm-card__sub">Пороги задают только цвет строк рейтинга. Автоначислений нет.</p>
+          <div className="tm-tiers">
+            <div className="tm-tier tm-tier--high">
+              <span className="tm-tier__dot" />
+              <div>
+                <div className="tm-tier__name">Высокая зона</div>
+                <div className="tm-tier__val">от {formatMoney(thresholds.highSumRub)}</div>
+              </div>
+            </div>
+            <div className="tm-tier tm-tier--mid">
+              <span className="tm-tier__dot" />
+              <div>
+                <div className="tm-tier__name">Средняя зона</div>
+                <div className="tm-tier__val">от {formatMoney(thresholds.midSumRub)}</div>
+              </div>
+            </div>
+            <div className="tm-tier tm-tier--low">
+              <span className="tm-tier__dot" />
+              <div>
+                <div className="tm-tier__name">Базовая зона</div>
+                <div className="tm-tier__val">ниже порога</div>
+              </div>
+            </div>
+          </div>
+          <p className="tm-hint">
+            Пороги — переменные окружения <code>TEAM_PERF_HIGH_SUM_RUB</code> и <code>TEAM_PERF_MID_SUM_RUB</code>. После смены — перезапуск бэкенда.
+          </p>
+        </section>
+      )}
+
       <style>{`
-        .team-page { display: flex; flex-direction: column; gap: 16px; padding-bottom: 24px; min-width: 0; }
-        .team-hero {
-          padding: 18px 18px 16px;
-          border-radius: 16px;
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
+        .tm-page { display: flex; flex-direction: column; gap: 16px; padding-bottom: 24px; min-width: 0; }
+
+        /* Entrance — только opacity + transform (GPU, без репейнтов) */
+        .tm-in {
+          animation: tmIn 440ms cubic-bezier(0.22,1,0.36,1) both;
+          animation-delay: var(--d, 0ms);
+          will-change: transform, opacity;
         }
-        .team-hero-top {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 14px;
-          flex-wrap: wrap;
+        @keyframes tmIn {
+          from { opacity: 0; transform: translate3d(0, 14px, 0); }
+          to { opacity: 1; transform: translate3d(0,0,0); }
         }
-        .team-kicker {
-          font-size: var(--fz-micro);
-          text-transform: uppercase;
-          letter-spacing: 0.14em;
-          color: var(--gold, #b8860b);
-          margin: 0 0 8px;
-          font-weight: 700;
-        }
-        .team-title {
-          font-family: var(--font-display, inherit);
-          font-size: clamp(1.3rem, 1.1rem + 1vw, 1.6rem);
-          font-weight: 600;
-          margin: 0 0 8px;
-          line-height: 1.15;
-          letter-spacing: -0.014em;
-          color: var(--text, #faf8f4);
-        }
-        .team-subtitle {
-          margin: 0;
-          font-size: var(--fz-body-sm);
-          line-height: 1.5;
-          color: var(--text-muted, #a8a29e);
-          max-width: 52ch;
-        }
-        .team-mode-badge {
-          flex-shrink: 0;
-          font-size: 0.72rem;
-          padding: 8px 12px;
-          border-radius: 999px;
-          border: 1px solid var(--stroke);
-          background: var(--input-bg, rgba(255,255,255,0.04));
-          color: var(--text-muted);
-          font-weight: 600;
-          letter-spacing: 0.02em;
-        }
-        .team-mode-badge--mgr {
-          border-color: rgba(184, 134, 11, 0.45);
-          background: var(--gold-soft, rgba(184, 134, 11, 0.12));
-          color: var(--gold, #d4a20d);
-        }
-        .team-rules {
-          margin: 4px 0 0;
-          padding: 14px 16px;
-          border-radius: 12px;
-          background: var(--input-bg, rgba(0,0,0,0.18));
-          border: 1px solid var(--stroke, rgba(255,255,255,0.06));
-        }
-        .team-rules-title {
-          margin: 0 0 10px;
-          font-size: 0.82rem;
-          font-weight: 700;
-          letter-spacing: 0.06em;
-          text-transform: uppercase;
-          color: var(--text-muted);
-        }
-        .team-rules-list {
-          margin: 0;
-          padding-left: 1.15rem;
-          font-size: 0.82rem;
-          line-height: 1.55;
-          color: var(--text-muted);
-        }
-        .team-rules-list li { margin-bottom: 8px; }
-        .team-rules-list strong { color: var(--text, #e7e2da); font-weight: 600; }
-        .team-rules-note { margin: 10px 0 0; line-height: 1.45; }
-        .team-tier-legend { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--stroke); }
-        .team-tier-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-        .team-chip {
-          font-size: 0.72rem;
-          padding: 6px 10px;
-          border-radius: 8px;
-          border: 1px solid var(--stroke);
-        }
-        .team-chip-high { border-color: rgba(184, 134, 11, 0.5); background: rgba(184, 134, 11, 0.1); color: var(--gold); }
-        .team-chip-mid { border-color: rgba(255,255,255,0.12); color: var(--text-muted); }
-        .team-chip-low { opacity: 0.85; color: var(--text-muted); }
-        .team-toolbar { flex-wrap: wrap; align-items: center; gap: 10px; }
-        .team-btn-pdf { font-weight: 600; }
-        /* Пресеты и поля дат — стили применяются здесь, чтобы вкладка работала без Analytics */
-        .team-page .analytics-presets {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 8px;
-          margin-bottom: 12px;
-        }
-        .team-page .an-pill {
-          border: 1px solid var(--stroke);
-          background: var(--input-bg);
-          color: var(--text);
-          font-size: 0.75rem;
-          padding: 5px 10px;
-          border-radius: 999px;
-          cursor: pointer;
-          font-weight: 600;
-        }
-        .team-page .an-pill:hover {
-          border-color: var(--gold);
-          color: var(--gold);
-        }
-        .team-page .analytics-filters {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: flex-end;
-          gap: 10px;
-        }
-        .team-page .field.field-inline {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-        .team-page .field.field-inline .field-label {
-          font-size: 0.7rem;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          color: var(--text-muted);
-        }
-        .team-page .field.field-inline input {
-          min-width: 9rem;
-        }
-        .team-filter-block {
-          padding: 14px 16px;
-          border-radius: 12px;
-          margin-top: 4px;
-        }
-        .team-filter-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-        .team-filter-title {
-          font-size: 0.78rem;
-          font-weight: 700;
-          letter-spacing: 0.04em;
-          color: var(--text-muted);
-        }
-        .team-filter-list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          max-height: min(52vh, 420px);
-          overflow-y: auto;
-          -webkit-overflow-scrolling: touch;
-        }
-        .team-filter-row {
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          width: 100%;
-          margin: 0;
-          padding: 10px 12px;
-          border-radius: 10px;
-          border: 1px solid var(--stroke, rgba(255,255,255,0.08));
-          background: var(--input-bg, rgba(255,255,255,0.03));
-          cursor: pointer;
-          box-sizing: border-box;
-        }
-        .team-filter-row:hover {
-          border-color: rgba(184, 134, 11, 0.35);
-          background: rgba(184, 134, 11, 0.06);
-        }
-        .team-filter-cb {
-          flex-shrink: 0;
-          width: 18px;
-          height: 18px;
-          margin: 2px 0 0;
-          accent-color: var(--gold, #b8860b);
-          cursor: pointer;
-        }
-        .team-filter-cb:focus {
-          outline: none;
-        }
-        .team-filter-cb:focus-visible {
-          outline: 2px solid var(--gold, #b8860b);
-          outline-offset: 2px;
-        }
-        .team-filter-text {
-          flex: 1;
+
+        /* Card base */
+        .tm-card {
+          background: var(--bg-panel-solid);
+          border: 1px solid var(--stroke-soft);
+          border-radius: 18px;
+          padding: 20px;
           min-width: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-          text-align: left;
         }
-        .team-filter-email {
-          font-size: 0.86rem;
-          font-weight: 600;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          color: var(--text, #e7e2da);
+        .tm-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+        .tm-card__title { font-family: var(--font-display); font-size: 1rem; font-weight: 700; margin: 0; letter-spacing: -0.01em; color: var(--text-strong); }
+        .tm-card__sub { margin: 4px 0 0; font-size: 0.82rem; color: var(--text-muted); line-height: 1.45; }
+        .tm-muted { font-size: 0.82rem; color: var(--text-muted); }
+        .tm-hint { margin: 12px 0 0; font-size: 0.76rem; color: var(--text-dim); line-height: 1.5; }
+        .tm-hint code { font-family: ui-monospace, monospace; font-size: 0.72rem; color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 5px; }
+
+        /* Head */
+        .tm-head {
+          background: var(--bg-panel-solid);
+          border: 1px solid var(--stroke-soft);
+          border-radius: 20px;
+          padding: 22px 22px 18px;
+          display: flex; flex-direction: column; gap: 16px;
+          position: relative; overflow: hidden;
         }
-        .team-filter-role {
-          font-size: 0.72rem;
-          color: var(--text-muted);
-          line-height: 1.3;
+        .tm-head::before {
+          content: ''; position: absolute; top: -120px; right: -60px;
+          width: 320px; height: 280px; border-radius: 50%;
+          background: radial-gradient(ellipse at center, var(--accent-soft), transparent 70%);
+          filter: blur(50px); pointer-events: none; z-index: 0;
         }
-        .team-filter-hint { margin: 12px 0 0; line-height: 1.4; }
-        /* Специфика только этой вкладки. Базовые стили таблиц — в index.css (.cg-table). */
-        .team-page .team-table td:nth-child(2),
-        .team-page .team-table th:nth-child(2) {
-          word-break: break-word;
-          overflow-wrap: anywhere;
-          text-align: left;
+        .tm-head__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; position: relative; z-index: 1; }
+        .tm-kicker { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.16em; color: var(--accent); font-weight: 700; }
+        .tm-title { font-family: var(--font-display); font-size: clamp(1.4rem, 1.1rem + 1.4vw, 2rem); font-weight: 700; margin: 6px 0 6px; letter-spacing: -0.02em; color: var(--text-strong); }
+        .tm-subtitle { margin: 0; font-size: 0.88rem; line-height: 1.5; color: var(--text-muted); max-width: 54ch; }
+        .tm-mode {
+          flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px;
+          font-size: 0.74rem; padding: 8px 14px; border-radius: 999px;
+          border: 1px solid var(--stroke-soft); background: var(--bg-elevated);
+          color: var(--text-muted); font-weight: 600;
         }
-        .team-page .analytics-chart-card {
-          padding: 16px;
+        .tm-mode__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
+        .tm-mode--mgr { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+        .tm-mode--mgr .tm-mode__dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+        /* Presets */
+        .tm-presets { display: flex; flex-wrap: wrap; gap: 6px; position: relative; z-index: 1; }
+        .tm-pill {
+          border: 1px solid var(--stroke-soft); background: var(--bg-elevated);
+          color: var(--text-muted); font-size: 0.78rem; font-weight: 600;
+          padding: 7px 14px; border-radius: 10px; cursor: pointer;
+          transition: all 180ms cubic-bezier(0.22,1,0.36,1);
         }
-        .team-page .analytics-h3 {
-          font-size: 0.95rem;
-          font-weight: 600;
-          margin: 0 0 4px;
+        .tm-pill:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
+
+        /* Toolbar */
+        .tm-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; position: relative; z-index: 1; }
+        .tm-date { display: flex; flex-direction: column; gap: 5px; }
+        .tm-date__label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); font-weight: 600; }
+        .tm-date input {
+          padding: 9px 12px; border-radius: 10px; border: 1px solid var(--stroke-soft);
+          background: var(--bg-elevated); color: var(--text); font-family: inherit; font-size: 0.86rem;
+          min-width: 9rem; transition: border-color 180ms, box-shadow 180ms;
         }
-        .team-page .an-h3-sub {
-          margin: 0 0 10px;
-          line-height: 1.4;
+        .tm-date input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+        .tm-btn {
+          display: inline-flex; align-items: center; gap: 7px; justify-content: center;
+          padding: 10px 16px; border-radius: 10px; font-size: 0.85rem; font-weight: 600;
+          cursor: pointer; border: 1px solid var(--stroke-soft); background: var(--bg-elevated);
+          color: var(--text); transition: all 180ms cubic-bezier(0.22,1,0.36,1);
         }
-        .team-page .analytics-chart-h {
-          width: 100%;
-          min-width: 0;
-          height: 220px;
+        .tm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .tm-btn--ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+        .tm-btn--accent { background: var(--accent-grad); border-color: transparent; color: #fff; box-shadow: 0 4px 16px var(--accent-glow); }
+        .tm-btn--accent:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 22px var(--accent-glow); }
+        .tm-btn--sm { padding: 6px 12px; font-size: 0.78rem; }
+
+        /* Staff filter */
+        .tm-staff { display: flex; flex-wrap: wrap; gap: 8px; }
+        .tm-staff__chip {
+          display: flex; align-items: center; gap: 9px;
+          padding: 9px 14px 9px 10px; border-radius: 12px;
+          border: 1px solid var(--stroke-soft); background: var(--bg-elevated);
+          cursor: pointer; transition: all 180ms cubic-bezier(0.22,1,0.36,1);
         }
-        @media (max-width: 640px) {
-          .team-page .team-hero {
-            padding: 14px 12px 12px;
-          }
-          .team-page .team-hero-top {
-            flex-direction: column;
-          }
-          .team-page .team-mode-badge {
-            align-self: flex-start;
-          }
-          .team-page .analytics-filters.team-toolbar {
-            flex-direction: column;
-            align-items: stretch;
-          }
-          .team-page .analytics-filters.team-toolbar .btn-ghost,
-          .team-page .analytics-filters.team-toolbar .btn-secondary {
-            width: 100%;
-          }
-          .team-page .field.field-inline input {
-            width: 100%;
-            min-width: 0;
-          }
-          .team-page .team-kpi-grid {
-            grid-template-columns: 1fr;
-          }
-          .team-page .team-filter-list {
-            max-height: min(60vh, 360px);
-          }
-          .team-page .team-filter-email {
-            white-space: normal;
-            word-break: break-word;
-          }
-          .team-page .cg-table {
-            min-width: 520px;
-            font-size: 0.78rem;
-          }
-          .team-page .cg-table th,
-          .team-page .cg-table td {
-            padding: 8px 8px;
-          }
-          .team-page .analytics-chart-h {
-            height: 200px;
-          }
+        .tm-staff__chip:hover { border-color: var(--accent); transform: translateY(-1px); }
+        .tm-staff__chip--on { border-color: var(--accent); background: var(--accent-soft); }
+        .tm-staff__check {
+          width: 18px; height: 18px; border-radius: 6px; flex-shrink: 0;
+          border: 1.5px solid var(--stroke-strong); background: transparent;
+          display: flex; align-items: center; justify-content: center; color: #fff;
+          transition: all 160ms;
         }
-        .team-period-line { margin: 0 0 4px; text-align: center; }
-        .team-kpi-section { margin-top: 4px; }
-        .team-section-title {
-          font-size: 0.78rem;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          color: var(--text-muted);
-          margin: 0 0 12px;
-          font-weight: 700;
+        .tm-staff__check--on { background: var(--accent); border-color: var(--accent); }
+        .tm-staff__text { display: flex; flex-direction: column; gap: 1px; text-align: left; min-width: 0; }
+        .tm-staff__email { font-size: 0.84rem; font-weight: 600; color: var(--text); }
+        .tm-staff__role { font-size: 0.7rem; color: var(--text-muted); }
+
+        /* Error */
+        .tm-err {
+          background: var(--crimson-soft); border: 1px solid var(--crimson);
+          color: var(--crimson); border-radius: 14px; padding: 14px 16px; font-size: 0.86rem;
         }
-        .team-kpi-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 12px;
+
+        /* KPI */
+        .tm-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; position: relative; }
+        .tm-kpi {
+          position: relative; overflow: hidden;
+          padding: 18px 18px 16px; border-radius: 16px;
+          border: 1px solid var(--stroke-soft); background: var(--bg-panel-solid);
+          display: flex; flex-direction: column; gap: 0;
+          animation: tmIn 440ms cubic-bezier(0.22,1,0.36,1) both;
+          animation-delay: calc(var(--i, 0) * 60ms + 120ms);
+          transition: transform 240ms cubic-bezier(0.22,1,0.36,1), box-shadow 240ms;
         }
-        .team-kpi-card {
-          position: relative;
-          padding: 16px 16px 14px;
-          border-radius: 14px;
-          border: 1px solid var(--stroke);
-          background: var(--bg-panel-solid, rgba(24,22,18,0.85));
-          box-shadow: 0 4px 24px rgba(0,0,0,0.12);
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          min-height: 118px;
+        .tm-kpi:hover { transform: translateY(-3px); box-shadow: var(--shadow-pop); }
+        .tm-kpi--accent { background: linear-gradient(145deg, var(--accent-soft), var(--bg-panel-solid) 65%); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+        .tm-kpi__chip {
+          width: 38px; height: 38px; border-radius: 11px; margin-bottom: 12px;
+          display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         }
-        .team-kpi-card--accent {
-          border-color: rgba(184, 134, 11, 0.35);
-          background: linear-gradient(145deg, rgba(184, 134, 11, 0.14), var(--bg-panel-solid, rgba(24,22,18,0.9)));
+        .tm-kpi__chip--accent { background: var(--accent-soft); color: var(--accent); }
+        .tm-kpi__chip--emerald { background: var(--emerald-soft); color: var(--emerald); }
+        .tm-kpi__label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); font-weight: 600; }
+        .tm-kpi__value { font-size: clamp(1.3rem, 1.1rem + 1vw, 1.7rem); font-weight: 800; color: var(--text-strong); letter-spacing: -0.03em; line-height: 1.1; margin-top: 4px; font-family: var(--font-display); }
+        .tm-kpi--accent .tm-kpi__value { color: var(--accent); }
+        .tm-kpi__value--sm { font-size: clamp(0.95rem, 0.85rem + 0.6vw, 1.2rem); }
+        .tm-kpi__hint { font-size: 0.72rem; color: var(--text-muted); margin-top: 6px; }
+        .tm-period { grid-column: 1 / -1; margin: 2px 0 0; font-size: 0.78rem; color: var(--text-muted); }
+        @media (max-width: 760px) { .tm-kpis { grid-template-columns: 1fr; } }
+
+        /* Rank list */
+        .tm-rank { display: flex; flex-direction: column; gap: 8px; }
+        .tm-rank__row {
+          display: flex; align-items: center; gap: 12px;
+          padding: 12px 14px; border-radius: 14px;
+          border: 1px solid var(--stroke-soft); background: var(--bg-elevated);
+          transition: box-shadow 200ms, transform 200ms;
         }
-        .team-kpi-icon {
-          font-size: 0.9rem;
-          opacity: 0.65;
-          margin-bottom: 2px;
+        .tm-rank__row:hover { box-shadow: var(--shadow-pop); transform: translateX(2px); }
+        .tm-rank__row--high { border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+        .tm-rank__badge {
+          width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 0.9rem; font-weight: 700; font-family: var(--font-display);
+          background: var(--surface); color: var(--text-muted);
         }
-        .team-kpi-label {
-          font-size: 0.72rem;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: var(--text-muted);
-          font-weight: 600;
+        .tm-rank__badge--1 { background: linear-gradient(135deg, #ffd86b, #f5a623); color: #5a3d00; font-size: 1.1rem; }
+        .tm-rank__badge--2 { background: linear-gradient(135deg, #e2e8f0, #b9c2cf); color: #3a3f47; font-size: 1.1rem; }
+        .tm-rank__badge--3 { background: linear-gradient(135deg, #f0b27a, #d98841); color: #4a2c0a; font-size: 1.1rem; }
+        .tm-rank__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+        .tm-rank__email { font-size: 0.88rem; font-weight: 600; color: var(--text); word-break: break-word; }
+        .tm-rank__meta { display: flex; gap: 10px; font-size: 0.74rem; color: var(--text-muted); flex-wrap: wrap; }
+        .tm-rank__right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; min-width: 120px; }
+        .tm-rank__sum { font-size: 0.95rem; font-weight: 700; color: var(--text-strong); font-family: var(--font-display); }
+        .tm-rank__share { display: flex; align-items: center; gap: 7px; width: 100%; }
+        .tm-rank__share-bar { flex: 1; height: 5px; border-radius: 999px; background: var(--surface); overflow: hidden; }
+        .tm-rank__share-fill { height: 100%; border-radius: 999px; background: var(--accent-grad); }
+        .tm-rank__share-pct { font-size: 0.72rem; color: var(--text-muted); min-width: 32px; text-align: right; }
+        @media (max-width: 560px) {
+          .tm-rank__row { flex-wrap: wrap; }
+          .tm-rank__right { width: 100%; align-items: stretch; min-width: 0; }
+          .tm-rank__share { width: 100%; }
         }
-        .team-kpi-value {
-          font-size: 1.35rem;
-          font-weight: 700;
-          color: var(--text, #faf8f4);
-          line-height: 1.15;
+
+        /* Charts */
+        .tm-chart-h { width: 100%; min-width: 0; height: 240px; margin-top: 12px; }
+        .tm-chart-h--week { height: 220px; }
+
+        /* Week list */
+        .tm-week-list { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+        .tm-week {
+          display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 12px;
+          padding: 9px 12px; border-radius: 10px; border-bottom: 1px solid var(--stroke-soft);
         }
-        .team-kpi-card--accent .team-kpi-value { color: var(--gold, #e8c547); }
-        .team-kpi-hint { font-size: 0.72rem; margin-top: auto; line-height: 1.35; }
-        .team-empty {
-          padding: 28px 20px;
-          text-align: center;
-          border-radius: 14px;
-        }
-        .team-empty-title { margin: 0 0 8px; font-weight: 600; font-size: 1.05rem; }
-        .team-skeleton { padding: 24px; text-align: center; border-radius: 14px; }
-        .team-table-card { padding: 16px 14px 18px; border-radius: 14px; }
-        .team-table-head { margin-bottom: 12px; }
-        .team-table-title { margin: 0 0 6px; }
-        .team-table-desc { margin: 0; max-width: 62ch; line-height: 1.4; }
-        .team-table thead th { font-size: 0.72rem; letter-spacing: 0.04em; }
-        .team-rank-cell { font-size: 1.05rem; vertical-align: middle; }
-        .team-chart-card .an-h3-sub { margin-top: -4px; }
-        .team-tier-high { font-weight: 600; color: var(--gold, #e8c547); }
-        .team-tier-mid { font-weight: 600; color: var(--text, #e7e2da); }
-        .team-tier-low { color: var(--text-muted, #a8a29e); }
-        .team-env-name {
-          font-family: ui-monospace, 'Cascadia Code', monospace;
-          font-size: 0.72rem;
-          color: var(--gold, #d4a20d);
-        }
-        .team-week-chart-h {
-          width: 100%;
-          min-width: 0;
-          height: 200px;
-          margin-bottom: 4px;
-        }
-        .team-week-delta { font-weight: 600; }
-        .team-week-delta--up { color: #6ee7a8; }
-        .team-week-delta--down { color: #f0a8a8; }
+        .tm-week:hover { background: var(--surface); }
+        .tm-week__date { font-size: 0.82rem; color: var(--text-muted); }
+        .tm-week__sum { font-size: 0.88rem; font-weight: 700; color: var(--text-strong); }
+        .tm-week__deals { font-size: 0.76rem; color: var(--text-muted); min-width: 48px; text-align: right; }
+        .team-week-delta { font-weight: 600; font-size: 0.8rem; min-width: 52px; text-align: right; }
+        .team-week-delta--up { color: var(--emerald); }
+        .team-week-delta--down { color: var(--crimson); }
         .team-week-delta--flat { color: var(--text-muted); }
-        .team-page .team-week-table td:first-child,
-        .team-page .team-week-table th:first-child {
-          word-break: break-word;
-          overflow-wrap: anywhere;
+
+        /* Motivation tiers */
+        .tm-tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .tm-tier {
+          display: flex; align-items: center; gap: 10px;
+          padding: 14px; border-radius: 14px;
+          border: 1px solid var(--stroke-soft); background: var(--bg-elevated);
         }
-        .team-page .team-week-table { min-width: 0; }
+        .tm-tier__dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        .tm-tier--high .tm-tier__dot { background: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+        .tm-tier--mid .tm-tier__dot { background: var(--text-muted); }
+        .tm-tier--low .tm-tier__dot { background: var(--text-dim); }
+        .tm-tier__name { font-size: 0.8rem; font-weight: 600; color: var(--text); }
+        .tm-tier__val { font-size: 0.76rem; color: var(--text-muted); margin-top: 2px; }
+        @media (max-width: 560px) { .tm-tiers { grid-template-columns: 1fr; } }
+
+        @media (max-width: 600px) {
+          .tm-head { padding: 18px 16px 14px; }
+          .tm-toolbar .tm-btn { flex: 1; }
+          .tm-date { flex: 1; }
+          .tm-date input { min-width: 0; width: 100%; }
+        }
       `}</style>
     </div>
   );

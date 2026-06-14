@@ -6,23 +6,25 @@ import { ThemeToggle } from './ThemeToggle.jsx';
  * Мобильная навигация: нижний bar с 4-5 ключевыми разделами + кнопка «Ещё»,
  * которая открывает drawer-меню с остальными пунктами, темой и выходом.
  */
-export function MobileNav({ tab, onChange, user, onSignOut }) {
+export function MobileNav({ tab, onChange, user, onSignOut, onOpenProfile }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const isSuper = isSuperAdminRole(user?.role);
   const isAdmin = isUserManagerRole(user?.role);
 
   // Основные пункты — те, что чаще всего нужны
   const primary = [
+    { key: 'dashboard', label: 'Дашборд', icon: <IconDashboard /> },
     { key: 'calc', label: 'Расчёт', icon: <IconCalc /> },
     { key: 'contract', label: 'Договор', icon: <IconContract /> },
     { key: 'clients', label: 'Клиенты', icon: <IconClients /> },
-    { key: 'analytics', label: 'Аналитика', icon: <IconChart /> },
   ];
 
   // Дополнительные — открываются в drawer.
   // Курьер и продавец «Команду и KPI» не видят — это управленческая сводка.
   const more = [
+    { key: 'analytics', label: 'Аналитика', icon: <IconChart /> },
     ...(isAdmin ? [{ key: 'team', label: 'Команда и KPI', icon: <IconTeam /> }] : []),
+    ...(isAdmin ? [{ key: 'employees', label: 'Сделки сотрудников', icon: <IconClients /> }] : []),
     ...(isSuper ? [{ key: 'gold-index', label: 'Индекс золота', icon: <IconMap /> }] : []),
     ...(isAdmin ? [{
       key: 'settings',
@@ -87,15 +89,19 @@ export function MobileNav({ tab, onChange, user, onSignOut }) {
           <div className="cg-drawer" onClick={(e) => e.stopPropagation()}>
             <div className="cg-drawer__handle" />
             <div className="cg-drawer__header">
-              <div className="cg-drawer__user">
+              <button
+                type="button"
+                className="cg-drawer__user cg-drawer__user--btn"
+                onClick={() => { setDrawerOpen(false); onOpenProfile?.(); }}
+              >
                 <span className="cg-drawer__avatar">
                   {(user?.email || '?').slice(0, 1).toUpperCase()}
                 </span>
                 <div className="cg-drawer__user-text">
                   <span className="cg-drawer__email" title={user?.email}>{user?.email}</span>
-                  <span className="cg-drawer__role">{roleLabel(user?.role)}</span>
+                  <span className="cg-drawer__role">{roleLabel(user?.role)} · открыть профиль ›</span>
                 </div>
-              </div>
+              </button>
               <button
                 type="button"
                 className="cg-drawer__close"
@@ -149,6 +155,16 @@ export function MobileNav({ tab, onChange, user, onSignOut }) {
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────────
+function IconDashboard() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="9" rx="1.5" />
+      <rect x="14" y="3" width="7" height="5" rx="1.5" />
+      <rect x="14" y="12" width="7" height="9" rx="1.5" />
+      <rect x="3" y="16" width="7" height="5" rx="1.5" />
+    </svg>
+  );
+}
 function IconCalc() {
   return (
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -338,6 +354,8 @@ const MOBNAV_CSS = `
   margin-bottom: 10px;
 }
 .cg-drawer__user { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.cg-drawer__user--btn { border: none; background: transparent; cursor: pointer; text-align: left; padding: 4px; border-radius: 12px; transition: background 0.16s; flex: 1; }
+.cg-drawer__user--btn:active { background: var(--accent-soft); }
 .cg-drawer__avatar {
   width: 40px; height: 40px;
   border-radius: 50%;

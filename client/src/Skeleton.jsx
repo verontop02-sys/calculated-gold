@@ -27,7 +27,7 @@ export function Skeleton({ w, h = 14, r = 6, style, className = '' }) {
         height: heightStyle,
         borderRadius: r,
         background:
-          'linear-gradient(90deg, var(--gold-soft) 0%, rgba(212,175,55,0.22) 50%, var(--gold-soft) 100%)',
+          'linear-gradient(90deg, var(--stroke-soft) 0%, var(--stroke) 50%, var(--stroke-soft) 100%)',
         backgroundSize: '200% 100%',
         animation: 'shimmer 1.4s ease infinite',
         verticalAlign: 'middle',
@@ -199,7 +199,7 @@ export function SkeletonMap({ height = 380 }) {
           flex: 1,
           borderRadius: 10,
           background:
-            'linear-gradient(135deg, var(--gold-soft) 0%, rgba(212,175,55,0.10) 50%, var(--gold-soft) 100%)',
+            'linear-gradient(135deg, var(--stroke-soft) 0%, var(--stroke) 50%, var(--stroke-soft) 100%)',
           backgroundSize: '200% 200%',
           animation: 'shimmer 1.8s ease infinite',
           position: 'relative',

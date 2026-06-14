@@ -11,26 +11,34 @@ import { TeamPerformance } from './TeamPerformance.jsx';
 import { ClientsPage } from './ClientsPage.jsx';
 import { SettingsPage } from './SettingsPage.jsx';
 import { GoldIndex } from './GoldIndex.jsx';
+import { Dashboard } from './Dashboard.jsx';
+import { EmployeeDeals } from './EmployeeDeals.jsx';
 import { Sidebar } from './Sidebar.jsx';
 import { MobileNav } from './MobileNav.jsx';
+import { Profile, getShowInstructions } from './Profile.jsx';
+import { Instructions } from './Instructions.jsx';
 import { isSuperAdminRole, isUserManagerRole } from './roles.js';
 
 const TAB_TITLES = {
+  dashboard: 'Дашборд',
   calc: 'Калькулятор',
   contract: 'Договор',
   clients: 'Клиенты',
   analytics: 'Аналитика',
   team: 'Команда и KPI',
+  employees: 'Сделки сотрудников',
   'gold-index': 'Индекс золота',
   settings: 'Настройки',
 };
 
 const TAB_SUBTITLES = {
+  dashboard: 'Курс, KPI и сводка по всем разделам',
   calc: 'Расчёт выкупа и переход к оформлению',
   contract: 'Договор-квитанция, PDF и email',
   clients: 'База клиентов, поиск и история сделок',
   analytics: 'KPI, графики и выгрузка PDF',
   team: 'Сотрудники, рейтинг и динамика по дням',
+  employees: 'Сделки сотрудников: суммы, фото и документы',
   'gold-index': 'Цены конкурентов по городам, карта',
   settings: 'Политика выкупа, пользователи и доступы',
 };
@@ -142,7 +150,7 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState(null);
   const [user, setUser] = useState(undefined);
   const [profileErr, setProfileErr] = useState(null);
-  const [tab, setTab] = useState('calc'); // calc | contract | clients | analytics | team | gold-index | settings
+  const [tab, setTab] = useState('dashboard'); // dashboard | calc | contract | clients | analytics | team | gold-index | settings
   const [contractPrefill, setContractPrefill] = useState(null);
   const [contractMounted, setContractMounted] = useState(false);
   const [quoteTab, setQuoteTab] = useState('moex');
@@ -152,8 +160,11 @@ export default function App() {
   const [refreshBusy, setRefreshBusy] = useState(false);
   const staleRefreshingRef = useRef(false);
   const lastSignedInUidRef = useRef(null);
+  const instructionsShownForUidRef = useRef(null);
   const [profileHintIdx, setProfileHintIdx] = useState(0);
   const [profilePatientNote, setProfilePatientNote] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [sidebarPinned, setSidebarPinned] = useState(() => {
     try {
       const v = localStorage.getItem('cg_sidebar_pinned');
@@ -171,6 +182,17 @@ export default function App() {
     const saved = localStorage.getItem(k);
     if (saved === 'moex' || saved === 'xaut') setQuoteTab(saved);
     else setQuoteTab('moex');
+  }, [user?.uid]);
+
+  // Обучающие подсказки при входе (один раз на сессию входа; отключаются в профиле)
+  useEffect(() => {
+    if (!user?.uid) return;
+    if (instructionsShownForUidRef.current === user.uid) return;
+    instructionsShownForUidRef.current = user.uid;
+    if (getShowInstructions()) {
+      const t = setTimeout(() => setInstructionsOpen(true), 700);
+      return () => clearTimeout(t);
+    }
   }, [user?.uid]);
 
   const loadMe = useCallback(async () => {
@@ -389,9 +411,9 @@ export default function App() {
     if (!user) return;
     const role = user.role;
     if ((tab === 'team' || tab === 'settings') && !isUserManagerRole(role)) {
-      setTab('calc');
+      setTab('dashboard');
     } else if (tab === 'gold-index' && !isSuperAdminRole(role)) {
-      setTab('calc');
+      setTab('dashboard');
     }
   }, [user, tab]);
 
@@ -460,7 +482,7 @@ export default function App() {
     if (next === 'gold-index' && !isSuperAdminRole(user.role)) return;
     setTab(next);
     requestAnimationFrame(() => {
-      document.querySelector('.cg-shell__content')?.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     });
   }
 
@@ -472,6 +494,7 @@ export default function App() {
         user={user}
         onSignOut={handleSignOut}
         onPinnedChange={setSidebarPinned}
+        onOpenProfile={() => setProfileOpen(true)}
       />
 
       <div className="cg-shell__main">
@@ -573,6 +596,14 @@ export default function App() {
 
         <main className="cg-shell__content" key={tab}>
           <div className={`cg-section-anim cg-section cg-section--${tab}`}>
+            {tab === 'dashboard' && (
+              <Dashboard
+                formatMoney={formatMoney}
+                price={price}
+                user={user}
+                onNavigate={handleNav}
+              />
+            )}
             <div hidden={tab !== 'calc'}>
               <CalculatorPage
                 formatMoney={formatMoney}
@@ -602,6 +633,9 @@ export default function App() {
             {tab === 'team' && user && isUserManagerRole(user.role) && (
               <TeamPerformance formatMoney={formatMoney} toast={toast} user={user} />
             )}
+            {tab === 'employees' && user && isUserManagerRole(user.role) && (
+              <EmployeeDeals formatMoney={formatMoney} toast={toast} />
+            )}
             {tab === 'gold-index' && isSuperAdminRole(user.role) && (
               <GoldIndex formatMoney={formatMoney} toast={toast} />
             )}
@@ -616,168 +650,187 @@ export default function App() {
           onChange={handleNav}
           user={user}
           onSignOut={handleSignOut}
+          onOpenProfile={() => setProfileOpen(true)}
         />
       </div>
 
+      <Profile
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        user={user}
+        formatMoney={formatMoney}
+        onSignOut={handleSignOut}
+        onReplayInstructions={() => setInstructionsOpen(true)}
+      />
+      <Instructions
+        open={instructionsOpen}
+        onClose={() => setInstructionsOpen(false)}
+      />
+
 
       <style>{`
-        /* Shell: sidebar (fixed left) + main content with padding-left */
+        /* ── Shell layout ─────────────────────────────────────────────────────── */
         .cg-shell {
           min-height: 100dvh;
           width: 100%;
           background: var(--bg-deep);
           background-image: var(--bg-gradient);
+          background-attachment: fixed;
         }
         .cg-shell__main {
-          padding-left: 64px;
+          padding-left: 60px;
           min-height: 100dvh;
           display: flex;
           flex-direction: column;
           transition: padding-left 0.22s cubic-bezier(0.4, 0.2, 0.2, 1);
         }
-        .cg-shell--pinned .cg-shell__main { padding-left: 232px; }
+        .cg-shell--pinned .cg-shell__main { padding-left: 240px; }
         @media (max-width: 900px) {
           .cg-shell__main { padding-left: 0 !important; }
         }
 
-        /* Topbar */
+        /* ── Topbar — Premium slim bar ────────────────────────────────────────── */
         .cg-topbar {
           display: grid;
           grid-template-columns: 1fr auto auto;
           align-items: center;
-          gap: 16px;
-          padding: 18px 28px;
-          border-bottom: 1px solid var(--sidebar-stroke);
-          background: var(--bg-panel);
-          -webkit-backdrop-filter: blur(18px);
-          backdrop-filter: blur(18px);
+          gap: 12px;
+          padding: 0 24px;
+          height: 60px;
+          border-bottom: 1px solid var(--stroke-soft);
+          background: var(--bg-panel-solid);
           position: sticky;
           top: 0;
           z-index: 30;
         }
-        .cg-topbar__title { min-width: 0; display: flex; align-items: center; gap: 12px; }
-        .cg-topbar__title-text { min-width: 0; }
-        /* Лого в топбаре — только на мобиле (на ПК лого живёт в сайдбаре) */
+        .cg-topbar__title { min-width: 0; display: flex; align-items: center; gap: 10px; }
+        .cg-topbar__title-text { min-width: 0; display: flex; align-items: baseline; gap: 10px; }
         .cg-topbar__logo { display: none; }
-        .cg-topbar__logo img { width: 100%; height: 100%; object-fit: contain; padding: 4px; box-sizing: border-box; }
+        .cg-topbar__logo img { width: 100%; height: 100%; object-fit: contain; filter: brightness(0) invert(1); }
         .cg-topbar__heading {
-          font-family: var(--font-display);
-          font-size: clamp(1.2rem, 1rem + 1vw, 1.55rem);
+          font-size: 0.95rem;
           font-weight: 600;
           margin: 0;
           color: var(--text-strong);
-          letter-spacing: -0.012em;
-          line-height: 1.18;
+          letter-spacing: -0.01em;
+          white-space: nowrap;
         }
         .cg-topbar__sub {
-          margin: 3px 0 0;
-          font-size: 0.83rem;
-          color: var(--text-muted);
-          line-height: 1.4;
-          letter-spacing: 0.005em;
+          margin: 0;
+          font-size: 0.78rem;
+          color: var(--text-dim);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
-        .cg-topbar__actions { display: flex; align-items: center; gap: 12px; }
+        .cg-topbar__actions { display: flex; align-items: center; gap: 8px; }
 
-        /* Rate widget (inline in topbar) */
+        /* ── Rate pill (right side of topbar) ──────────────────────────────────── */
         .cg-topbar__rate {
           display: flex;
           align-items: center;
-          gap: 12px;
-          padding: 8px 12px;
-          border-radius: 16px;
-          background: var(--surface);
-          border: 1px solid var(--stroke);
-          box-shadow: 0 2px 16px rgba(0,0,0,0.04);
+          gap: 8px;
         }
         .cg-quote-tabs {
           display: flex;
-          gap: 4px;
-          padding: 3px;
-          border-radius: 10px;
-          background: var(--input-bg);
+          gap: 2px;
+          padding: 2px;
+          border-radius: 8px;
+          background: var(--stroke-soft);
           border: 1px solid var(--stroke-soft);
         }
         .cg-quote-tab {
-          padding: 6px 12px;
-          border-radius: 7px;
+          padding: 4px 10px;
+          border-radius: 6px;
           border: none;
           background: transparent;
           color: var(--text-muted);
-          font-size: 0.74rem;
+          font-size: 0.72rem;
           font-weight: 600;
-          letter-spacing: 0.02em;
+          letter-spacing: 0.01em;
           cursor: pointer;
-          transition: background 0.18s, color 0.18s;
+          transition: background 0.15s, color 0.15s;
+          white-space: nowrap;
         }
         .cg-quote-tab:hover:not(.cg-quote-tab--active) { color: var(--text); }
         .cg-quote-tab--active {
-          background: var(--gold-soft);
-          color: var(--gold);
-          box-shadow: 0 1px 4px var(--gold-glow);
+          background: var(--bg-panel-solid);
+          color: var(--text-strong);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }
 
-        .cg-rate { display: flex; align-items: center; gap: 14px; }
-        .cg-rate__main { display: flex; flex-direction: column; min-width: 0; }
+        /* Rate value — compact single line */
+        .cg-rate {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 5px 12px;
+          border-radius: 8px;
+          background: var(--stroke-soft);
+          border: 1px solid var(--stroke);
+        }
+        .cg-rate__main {
+          display: flex;
+          align-items: baseline;
+          gap: 5px;
+          min-width: 0;
+        }
         .cg-rate__label {
-          font-size: 0.62rem;
-          text-transform: uppercase;
-          letter-spacing: 0.12em;
+          font-size: 0.68rem;
+          color: var(--text-dim);
+          white-space: nowrap;
           line-height: 1;
         }
         .cg-rate__value {
-          font-family: var(--font-display);
-          font-size: 1.55rem;
+          font-size: 0.95rem;
           font-weight: 700;
-          margin: 2px 0 0;
-          color: var(--gold);
-          text-shadow: 0 0 30px var(--gold-glow);
-          line-height: 1.05;
+          color: var(--text-strong);
+          line-height: 1;
           display: flex;
           align-items: baseline;
-          gap: 3px;
+          gap: 2px;
+          font-variant-numeric: tabular-nums;
         }
-        .cg-rate--loading .cg-rate__value { text-shadow: none; }
-        .cg-rate--stale .cg-rate__value { opacity: 0.7; }
-        .cg-rate__per { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; }
-        .cg-rate__skel { display: inline-block; min-width: 90px; height: 1.45rem; vertical-align: middle; }
-        .cg-rate__sub { font-size: 0.7rem; margin-top: 1px; line-height: 1.1; }
-        .cg-rate__actions { display: flex; align-items: center; gap: 6px; }
+        .cg-rate--loading .cg-rate__value { opacity: 0.6; }
+        .cg-rate--stale .cg-rate__value { opacity: 0.65; }
+        .cg-rate__per { font-size: 0.72rem; color: var(--text-dim); font-weight: 500; }
+        .cg-rate__skel { display: inline-block; min-width: 70px; height: 1em; vertical-align: middle; border-radius: 4px; }
+        .cg-rate__sub { display: none; }
+        .cg-rate__actions { display: flex; align-items: center; gap: 4px; }
         .cg-rate__refresh {
           display: inline-flex;
           align-items: center;
-          gap: 6px;
-          padding: 7px 12px;
-          border-radius: 999px;
-          border: 1px solid var(--stroke-strong);
-          background: var(--gold-soft);
-          color: var(--gold);
-          font-size: 0.74rem;
-          font-weight: 600;
+          justify-content: center;
+          gap: 5px;
+          padding: 5px 10px;
+          border-radius: 7px;
+          border: 1px solid var(--stroke);
+          background: transparent;
+          color: var(--text-muted);
+          font-size: 0.72rem;
+          font-weight: 500;
           cursor: pointer;
           white-space: nowrap;
-          transition: background 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.12s;
+          transition: background 0.15s, color 0.15s, border-color 0.15s;
         }
         .cg-rate__refresh:hover:not(:disabled) {
-          border-color: var(--gold);
-          box-shadow: 0 2px 12px var(--gold-glow);
+          color: var(--text);
+          border-color: var(--stroke-strong);
+          background: var(--stroke-soft);
         }
-        .cg-rate__refresh:active:not(:disabled) { transform: scale(0.96); }
-        .cg-rate__refresh:disabled { opacity: 0.55; cursor: not-allowed; }
-        .cg-rate__refresh:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+        .cg-rate__refresh:active:not(:disabled) { opacity: 0.8; }
+        .cg-rate__refresh:disabled { opacity: 0.45; cursor: not-allowed; }
+        .cg-rate__refresh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-        /* Content */
+        /* ── Content area ─────────────────────────────────────────────────────── */
         .cg-shell__content {
           flex: 1;
-          padding: 28px 28px 32px;
-          overflow-y: auto;
+          padding: 28px 28px 40px;
           width: 100%;
           box-sizing: border-box;
         }
-        .cg-section {
-          margin: 0 auto;
-          width: 100%;
-        }
-        /* Каждый раздел получает оптимальную ширину контента */
+        .cg-section { margin: 0 auto; width: 100%; }
+        .cg-section--dashboard { max-width: 1280px; }
         .cg-section--calc { max-width: 1100px; }
         .cg-section--contract { max-width: 1300px; }
         .cg-section--clients { max-width: 1300px; }
@@ -786,72 +839,58 @@ export default function App() {
         .cg-section--gold-index { max-width: 1400px; }
         .cg-section--settings { max-width: 1200px; }
         .cg-section-anim {
-          animation: cgSectionIn 680ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+          animation: cgSectionIn 580ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
           will-change: transform, opacity;
           backface-visibility: hidden;
         }
         @keyframes cgSectionIn {
-          from { opacity: 0; transform: translate3d(0, 6px, 0); }
+          from { opacity: 0; transform: translate3d(0, 8px, 0); }
           to { opacity: 1; transform: translate3d(0, 0, 0); }
         }
 
-        /* Reset legacy styles from разделы, which expected .shell wrapper */
         .muted { color: var(--text-muted); }
         .small { font-size: 0.78rem; }
 
-        /* Responsive — tablet */
+        /* ── Responsive tablet ────────────────────────────────────────────────── */
         @media (max-width: 1100px) {
-          .cg-topbar { padding: 14px 18px; gap: 12px; }
-          .cg-shell__content { padding: 22px 18px 28px; }
-          .cg-rate__value { font-size: 1.35rem; }
+          .cg-topbar { padding: 0 16px; gap: 8px; }
+          .cg-shell__content { padding: 20px 16px 32px; }
           .cg-rate__refresh-label { display: none; }
-          .cg-rate__refresh { width: 32px; height: 32px; padding: 0; justify-content: center; }
+          .cg-rate__refresh { width: 30px; height: 30px; padding: 0; }
         }
 
-        /* Responsive — mobile */
+        /* ── Responsive mobile ────────────────────────────────────────────────── */
         @media (max-width: 900px) {
-          .cg-shell { flex-direction: column; }
           .cg-topbar {
-            grid-template-columns: 1fr auto;
-            grid-template-areas:
-              "title actions"
-              "rate rate";
-            padding: 12px 14px;
-            gap: 10px;
+            grid-template-columns: auto 1fr auto;
+            grid-template-areas: "logo title actions" "rate rate rate";
+            height: auto;
+            padding: 10px 14px;
+            gap: 8px;
           }
           .cg-topbar__title { grid-area: title; }
           .cg-topbar__actions { grid-area: actions; }
-          .cg-topbar__rate { grid-area: rate; padding: 6px 10px; gap: 10px; flex-wrap: nowrap; }
-          /* clamp в основном правиле уже учитывает мобилу */
+          .cg-topbar__rate { grid-area: rate; }
           .cg-topbar__sub { display: none; }
-          /* Лого возвращаем в шапку — сайдбар на мобиле скрыт */
           .cg-topbar__logo {
+            grid-area: logo;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 34px; height: 34px;
-            border-radius: 9px;
-            background: #fff;
-            border: 1px solid var(--stroke);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            width: 32px; height: 32px;
+            border-radius: 8px;
+            background: var(--accent);
             flex-shrink: 0;
           }
-          .cg-shell__content {
-            padding: 16px 14px calc(96px + env(safe-area-inset-bottom, 0));
-          }
-          .cg-quote-tab { padding: 5px 10px; font-size: 0.72rem; }
-          .cg-rate__value { font-size: 1.25rem; }
-          .cg-rate__sub { display: none; }
+          .cg-topbar__logo img { width: 22px; height: 22px; }
+          .cg-shell__content { padding: 14px 12px calc(90px + env(safe-area-inset-bottom, 0)); }
+          .cg-rate { padding: 5px 8px; }
+          .cg-quote-tab { padding: 4px 8px; font-size: 0.68rem; }
         }
 
         @media (max-width: 520px) {
-          /* Биржу оставляем доступной и на узких экранах — компактнее */
-          .cg-topbar__rate { padding: 5px 8px; gap: 8px; }
-          .cg-quote-tabs { padding: 2px; gap: 2px; }
-          .cg-quote-tab { padding: 5px 8px; font-size: 0.68rem; }
-          .cg-rate { gap: 8px; }
           .cg-rate__label { display: none; }
-          .cg-rate__value { font-size: 1.05rem; }
+          .cg-quote-tabs { gap: 1px; }
         }
       `}</style>
     </div>

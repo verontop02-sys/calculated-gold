@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
 import { calculateBuybackRange } from './calc.js';
+import { PageHint } from './PageHint.jsx';
 
 const PRESETS = ['585', '750', '999'];
 
@@ -166,6 +167,9 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
 
   return (
     <div className="calc">
+      <PageHint id="calc" title="Быстрый расчёт">
+        Введите вес и пробу — получите сумму выкупа по текущему курсу и политике. Кнопкой можно перейти к оформлению договора с уже подставленными данными.
+      </PageHint>
       <div className="glass calc-card">
         <h2 className="calc-heading">Расчёт выкупа</h2>
         <p className="calc-hint muted">
@@ -363,7 +367,7 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
         .calc-btn--ready { animation: btnPulse 2.5s ease infinite; }
         @keyframes btnPulse {
           0%, 100% { box-shadow: 0 4px 24px var(--gold-glow); }
-          50% { box-shadow: 0 4px 32px rgba(232,197,71,0.55); }
+          50% { box-shadow: 0 4px 32px var(--accent-glow); }
         }
         .result-block { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--stroke); }
         .result-enter { animation: resultIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
@@ -404,7 +408,7 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
           padding: 12px 16px;
           border-radius: var(--radius-sm);
           border: 1px solid var(--gold);
-          background: linear-gradient(180deg, var(--gold-soft), rgba(232,197,71,0.12));
+          background: linear-gradient(180deg, var(--gold-soft), var(--accent-soft));
           color: var(--gold);
           font-size: 0.9rem;
           font-weight: 600;

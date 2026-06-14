@@ -39,7 +39,7 @@ async function resolveCustomerIdByPhone(supabase, phone) {
   return null;
 }
 
-export async function insertScrapDealRow(supabase, { operatorUserId, body, totalRub }) {
+export async function insertScrapDealRow(supabase, { operatorUserId, body, totalRub, source = 'office' }) {
   const customerRaw = body?.customerId;
   let customerId =
     customerRaw && /^[0-9a-f-]{36}$/i.test(String(customerRaw)) ? String(customerRaw) : null;
@@ -55,24 +55,26 @@ export async function insertScrapDealRow(supabase, { operatorUserId, body, total
   const firstProbe = probeStr ? parseInt(probeStr, 10) : null;
   const firstWg = parseCellNumber(r0?.weightGross ?? r0?.weight_gross);
   const firstWn = parseCellNumber(r0?.weightNet ?? r0?.weight_net);
-  const { data, error } = await supabase
-    .from('scrap_deals')
-    .insert({
-      customer_id: customerId,
-      operator_id: operatorUserId,
-      contract_no: String(body?.contractNo || '').trim() || null,
-      total_rub: totalRub,
-      seller_name: String(body?.sellerName || '').trim() || null,
-      phone,
-      phone_normalized: phoneNorm,
-      rows,
-      first_probe: Number.isFinite(firstProbe) ? firstProbe : null,
-      first_weight_gross: firstWg,
-      first_weight_net: firstWn,
-      appraiser_name: String(body?.appraiserName || '').trim() || null,
-    })
-    .select('id')
-    .single();
+  const baseRow = {
+    customer_id: customerId,
+    operator_id: operatorUserId,
+    contract_no: String(body?.contractNo || '').trim() || null,
+    total_rub: totalRub,
+    seller_name: String(body?.sellerName || '').trim() || null,
+    phone,
+    phone_normalized: phoneNorm,
+    rows,
+    first_probe: Number.isFinite(firstProbe) ? firstProbe : null,
+    first_weight_gross: firstWg,
+    first_weight_net: firstWn,
+    appraiser_name: String(body?.appraiserName || '').trim() || null,
+  };
+  const withSource = { ...baseRow, source: source === 'delivery' ? 'delivery' : 'office' };
+  let { data, error } = await supabase.from('scrap_deals').insert(withSource).select('id').single();
+  // Совместимость: если миграция source ещё не применена — пишем без неё.
+  if (error && error.code === '42703') {
+    ({ data, error } = await supabase.from('scrap_deals').insert(baseRow).select('id').single());
+  }
   if (error) throw error;
   return data?.id || null;
 }
@@ -424,7 +426,7 @@ export async function verifyFieldDealSession(supabase, { token, code, clientIp }
 
   let dealId;
   try {
-    dealId = await insertScrapDealRow(supabase, { operatorUserId: operatorId, body, totalRub: s.total_rub });
+    dealId = await insertScrapDealRow(supabase, { operatorUserId: operatorId, body, totalRub: s.total_rub, source: 'delivery' });
   } catch (e) {
     await supabase.from('field_deal_sessions').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', s.id);
     await audit(supabase, s.id, 'deal_insert_failed', 'system', null, { error: e?.message || String(e) });
