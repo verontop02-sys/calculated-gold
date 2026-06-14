@@ -4,6 +4,7 @@ import { roleLabel } from './roles.js';
 import { SkeletonRow, SkeletonCard } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
 import { PageHint } from './PageHint.jsx';
+import { DealDrawer } from './DealDrawer.jsx';
 
 function fmtDateTime(iso) {
   if (!iso) return '—';
@@ -25,6 +26,7 @@ export function EmployeeDeals({ formatMoney, toast }) {
   const [dealsBusy, setDealsBusy] = useState(false);
   const [pdfBusyId, setPdfBusyId] = useState(null);
   const [photoModal, setPhotoModal] = useState(null);
+  const [openDeal, setOpenDeal] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -181,7 +183,8 @@ export function EmployeeDeals({ formatMoney, toast }) {
                   {deals.map((d) => {
                     const photos = dealRowPhotos(d);
                     return (
-                      <div key={d.id} className="ed-deal">
+                      <div key={d.id} className="ed-deal ed-deal--clickable" onClick={() => setOpenDeal(d)} role="button" tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenDeal(d); } }}>
                         <div className="ed-deal__top">
                           <div className="ed-deal__meta">
                             <span className="ed-deal__name">{d.seller_name || 'Без имени'}</span>
@@ -192,7 +195,7 @@ export function EmployeeDeals({ formatMoney, toast }) {
                           </div>
                           <div className="ed-deal__right">
                             <span className="ed-deal__sum mono-nums">{formatMoney(Number(d.total_rub) || 0)}</span>
-                            <button type="button" className="ed-deal__pdf" onClick={() => onPdf(d)} disabled={pdfBusyId === d.id}>
+                            <button type="button" className="ed-deal__pdf" onClick={(e) => { e.stopPropagation(); onPdf(d); }} disabled={pdfBusyId === d.id}>
                               {pdfBusyId === d.id ? '…' : (
                                 <>
                                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5 5-5"/><path d="M12 16V4"/></svg>
@@ -205,12 +208,15 @@ export function EmployeeDeals({ formatMoney, toast }) {
                         {photos.length > 0 && (
                           <div className="ed-deal__photos">
                             {photos.map((p, i) => (
-                              <button key={i} type="button" className="ed-deal__photo" title={p.name} onClick={() => setPhotoModal(p)}>
+                              <button key={i} type="button" className="ed-deal__photo" title={p.name} onClick={(e) => { e.stopPropagation(); setPhotoModal(p); }}>
                                 <img src={p.url} alt={p.name} />
                               </button>
                             ))}
                           </div>
                         )}
+                        <span className="ed-deal__chevron" aria-hidden>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                        </span>
                       </div>
                     );
                   })}
@@ -220,6 +226,10 @@ export function EmployeeDeals({ formatMoney, toast }) {
           )}
         </div>
       </div>
+
+      {openDeal && (
+        <DealDrawer deal={openDeal} onClose={() => setOpenDeal(null)} formatMoney={formatMoney} toast={toast} />
+      )}
 
       {photoModal && (
         <div className="ed-photo-overlay" onClick={() => setPhotoModal(null)}>
@@ -280,8 +290,12 @@ export function EmployeeDeals({ formatMoney, toast }) {
         .ed-photo:hover { transform: scale(1.05); box-shadow: var(--shadow-pop); }
 
         .ed-deals { display: flex; flex-direction: column; gap: 10px; }
-        .ed-deal { padding: 14px; border-radius: 14px; border: 1px solid var(--stroke-soft); background: var(--bg-elevated); display: flex; flex-direction: column; gap: 10px; transition: box-shadow 200ms; animation: edIn 320ms cubic-bezier(0.22,1,0.36,1) both; }
+        .ed-deal { position: relative; padding: 14px; border-radius: 14px; border: 1px solid var(--stroke-soft); background: var(--bg-elevated); display: flex; flex-direction: column; gap: 10px; transition: box-shadow 200ms, transform 200ms, border-color 200ms; animation: edIn 320ms cubic-bezier(0.22,1,0.36,1) both; }
         .ed-deal:hover { box-shadow: var(--shadow-pop); }
+        .ed-deal--clickable { cursor: pointer; padding-right: 30px; }
+        .ed-deal--clickable:hover { transform: translateX(2px); border-color: var(--accent); }
+        .ed-deal__chevron { position: absolute; right: 12px; top: 16px; color: var(--text-dim); transition: transform 180ms, color 180ms; }
+        .ed-deal--clickable:hover .ed-deal__chevron { color: var(--accent); transform: translateX(2px); }
         .ed-deal__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
         .ed-deal__meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
         .ed-deal__name { font-size: 0.9rem; font-weight: 600; }
