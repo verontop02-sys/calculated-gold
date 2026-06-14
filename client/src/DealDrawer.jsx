@@ -142,14 +142,15 @@ export function DealDrawer({ deal, onClose, formatMoney, toast }) {
       <style>{`
         .ddw-overlay {
           position: fixed; inset: 0; z-index: 96;
-          background: rgba(0,0,0,0.5); backdrop-filter: blur(6px);
-          display: flex; align-items: flex-end; justify-content: flex-end;
+          background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
+          display: flex; align-items: flex-end; justify-content: center;
+          padding: 0;
           animation: ddwFade 240ms ease both;
         }
-        @media (min-width: 600px) { .ddw-overlay { align-items: center; } }
+        @media (min-width: 600px) { .ddw-overlay { align-items: center; padding: 24px; } }
         @keyframes ddwFade { from { opacity: 0; } }
         .ddw {
-          width: 100%; max-width: 460px; max-height: 92dvh;
+          width: 100%; max-width: 480px; max-height: 92dvh;
           overflow-y: auto; overflow-x: hidden;
           background: var(--bg-panel-solid); border: 1px solid var(--stroke-soft);
           border-radius: 22px 22px 0 0;
@@ -158,9 +159,9 @@ export function DealDrawer({ deal, onClose, formatMoney, toast }) {
           box-shadow: 0 -16px 60px rgba(0,0,0,0.3);
           animation: ddwUp 380ms cubic-bezier(0.22,1,0.36,1) both;
         }
-        @media (min-width: 600px) { .ddw { border-radius: 22px; box-shadow: var(--shadow-pop); animation: ddwIn 380ms cubic-bezier(0.22,1,0.36,1) both; } }
+        @media (min-width: 600px) { .ddw { border-radius: 22px; box-shadow: var(--shadow-pop); animation: ddwIn 360ms cubic-bezier(0.22,1,0.36,1) both; } }
         @keyframes ddwUp { from { transform: translateY(100%); opacity: 0; } }
-        @keyframes ddwIn { from { transform: translateX(50px) scale(0.97); opacity: 0; } }
+        @keyframes ddwIn { from { transform: translateY(18px) scale(0.97); opacity: 0; } }
 
         .ddw-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
         .ddw-head__main { display: flex; align-items: center; gap: 12px; min-width: 0; }

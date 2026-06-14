@@ -1539,12 +1539,24 @@ app.get(
     const scope = await analyticsScopeFromRequest(req);
     let q = supabase
       .from('scrap_deals')
-      .select('id, contract_no, total_rub, seller_name, phone, passport_line, address, appraiser_name, first_probe, first_weight_gross, first_weight_net, created_at, operator_id, rows')
+      .select('id, customer_id, contract_no, total_rub, seller_name, phone, appraiser_name, first_probe, first_weight_gross, first_weight_net, created_at, operator_id, rows')
       .eq('id', id);
     if (!scope.viewerIsManager) q = q.eq('operator_id', scope.viewerUserId);
     const { data, error } = await q.maybeSingle();
     if (error) throw error;
     if (!data) return res.status(404).json({ error: 'Сделка не найдена' });
+    // Паспорт и адрес живут в карточке клиента — подтягиваем, если сделка к нему привязана.
+    if (data.customer_id) {
+      const { data: cust } = await supabase
+        .from('scrap_customers')
+        .select('passport_line, address')
+        .eq('id', data.customer_id)
+        .maybeSingle();
+      if (cust) {
+        data.passport_line = cust.passport_line || null;
+        data.address = cust.address || null;
+      }
+    }
     res.json({ deal: data });
   })
 );
