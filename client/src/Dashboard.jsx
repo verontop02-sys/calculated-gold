@@ -158,16 +158,25 @@ function fmtTickTime(ms, tfKey) {
   return `${hh}:${mm}`;
 }
 
+/** Детерминированная «биржевая» волна вокруг 0 в диапазоне примерно [-1..1]. */
+function tickWave(i) {
+  return (
+    Math.sin(i * 0.5) * 0.5 +
+    Math.sin(i * 0.37 + 1) * 0.3 +
+    Math.sin(i * 1.7) * 0.2
+  );
+}
+
 function seedTicks(target, vol, windowMs) {
-  // Генерим «историю периода»: random-walk, сходящийся к текущей цене.
+  // История периода как лёгкие колебания ВОКРУГ реальной цены — без накопленного дрейфа,
+  // поэтому график всегда «прилипает» к текущему курсу и совпадает с цифрой.
   const out = [];
   const now = Date.now();
   const step = windowMs / TICKS_MAX;
-  let v = target * (1 + (Math.random() - 0.5) * vol * 4);
+  const amp = target * vol * 0.6; // размах колебаний относительно цены
   for (let i = 0; i < TICKS_MAX; i++) {
-    const pull = (target - v) * 0.06;
-    const noise = target * (Math.random() - 0.5) * vol;
-    v = v + pull + noise;
+    const noise = (Math.random() - 0.5) * 0.3;
+    const v = target + (tickWave(i) + noise) * amp;
     out.push({ i, v: Math.round(v * 100) / 100, t: now - (TICKS_MAX - 1 - i) * step });
   }
   return out;
@@ -186,14 +195,28 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
   const tickIdRef = useRef(TICKS_MAX);
   const goldRef = useRef(goldRub);
   goldRef.current = goldRub;
+  const seedTargetRef = useRef(null); // цена, вокруг которой построена текущая история
 
   const hasGold = goldRub != null;
   useEffect(() => {
     const g = goldRef.current;
     if (g == null) return;
     setTicks(seedTicks(g, tfConf.vol, tfConf.windowMs));
+    seedTargetRef.current = g;
     setSeeded(true);
   }, [hasGold, tf]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Реальная цена изменилась заметно (>0.4%) — пересобираем историю вокруг неё,
+  // чтобы график мгновенно «переехал» к актуальному курсу, а не подтягивался долго.
+  useEffect(() => {
+    if (!seeded || goldRub == null) return;
+    const base = seedTargetRef.current;
+    if (base == null) return;
+    if (Math.abs(goldRub - base) / base > 0.004) {
+      setTicks(seedTicks(goldRub, tfConf.vol, tfConf.windowMs));
+      seedTargetRef.current = goldRub;
+    }
+  }, [goldRub, seeded, tfConf.vol, tfConf.windowMs]);
 
   useEffect(() => {
     if (!seeded) return undefined;
@@ -201,11 +224,12 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
       const target = goldRef.current;
       if (target == null) return;
       setTicks((prev) => {
-        const last = prev[prev.length - 1]?.v ?? target;
-        const pull = (target - last) * 0.18;
-        const noise = target * (Math.random() - 0.5) * tfVol * 0.8;
-        const v = Math.round((last + pull + noise) * 100) / 100;
-        const next = [...prev.slice(-(TICKS_MAX - 1)), { i: tickIdRef.current++, v, t: Date.now() }];
+        const id = tickIdRef.current++;
+        // Новый тик — лёгкое колебание вокруг РЕАЛЬНОЙ цены (без дрейфа): график держится у курса.
+        const amp = target * tfVol * 0.6;
+        const noise = (Math.random() - 0.5) * 0.3;
+        const v = Math.round((target + (tickWave(id) + noise) * amp) * 100) / 100;
+        const next = [...prev.slice(-(TICKS_MAX - 1)), { i: id, v, t: Date.now() }];
         return next;
       });
     }, TICK_MS);
@@ -250,9 +274,11 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
     if (!ticks.length) return ['auto', 'auto'];
     let lo = Infinity; let hi = -Infinity;
     for (const t of ticks) { if (t.v < lo) lo = t.v; if (t.v > hi) hi = t.v; }
+    // Гарантируем, что реальная цена (и её опорная линия) всегда в диапазоне.
+    if (goldRub != null) { if (goldRub < lo) lo = goldRub; if (goldRub > hi) hi = goldRub; }
     const pad = Math.max((hi - lo) * 0.25, hi * 0.0005);
     return [lo - pad, hi + pad];
-  }, [ticks]);
+  }, [ticks, goldRub]);
 
   // ── данные разделов ──
   const [cur, setCur] = useState(null);     // analyticsSummary 30д
@@ -548,14 +574,14 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
                       );
                     }}
                   />
-                  {quoteStats && (
+                  {goldRub != null && (
                     <ReferenceLine
-                      y={quoteStats.last}
+                      y={goldRub}
                       stroke="var(--accent)"
                       strokeDasharray="2 4"
                       strokeOpacity={0.75}
                       label={{
-                        value: fmtAxis(quoteStats.last),
+                        value: fmtAxis(goldRub),
                         position: 'right',
                         fill: 'var(--accent)',
                         fontSize: 10,
@@ -631,16 +657,16 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
                       <Cell key={c.i} fill={c.c >= c.o ? 'var(--emerald)' : 'var(--crimson)'} fillOpacity={0.22} />
                     ))}
                   </Bar>
-                  {quoteStats && (
+                  {goldRub != null && (
                     <ReferenceLine
-                      y={quoteStats.last}
-                      stroke={candles[candles.length - 1]?.c >= candles[candles.length - 1]?.o ? 'var(--emerald)' : 'var(--crimson)'}
+                      y={goldRub}
+                      stroke="var(--accent)"
                       strokeDasharray="2 4"
                       strokeOpacity={0.75}
                       label={{
-                        value: fmtAxis(quoteStats.last),
+                        value: fmtAxis(goldRub),
                         position: 'right',
-                        fill: candles[candles.length - 1]?.c >= candles[candles.length - 1]?.o ? 'var(--emerald)' : 'var(--crimson)',
+                        fill: 'var(--accent)',
                         fontSize: 10,
                         fontWeight: 700,
                       }}
