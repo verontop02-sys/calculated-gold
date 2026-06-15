@@ -391,6 +391,18 @@ export default function App() {
     return () => clearInterval(pollTimer);
   }, [user, quoteTab, loadPrice]);
 
+  // Строгое обновление курса Мосбиржи раз в 5 минут: принудительно тянем свежее значение
+  // с биржи (refresh) и подставляем его — так цифра всегда «подтягивается» к актуальной MOEX.
+  useEffect(() => {
+    if (!user || quoteTab !== 'moex') return;
+    const id = setInterval(() => {
+      api.refreshPrice()
+        .then(() => loadPrice({ silent: true }))
+        .catch(() => {});
+    }, 5 * 60_000);
+    return () => clearInterval(id);
+  }, [user, quoteTab, loadPrice]);
+
   useEffect(() => {
     if (quoteTab !== 'moex') return;
     if (!user) return;

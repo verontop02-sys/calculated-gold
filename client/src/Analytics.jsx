@@ -938,7 +938,6 @@ export function Analytics({ formatMoney, toast }) {
           {t && !loading && t.deals > 0 && data?.viewerScope !== 'self' && (
             <div className="glass analytics-op-card an-anim">
               <h3 className="analytics-h3">Сотрудники</h3>
-              <p className="muted small an-h3-sub">Кто оформляет — по подписанным PDF договоров.</p>
               {Array.isArray(data?.byOperator) && data.byOperator.length > 0 ? (
                 <div className="cg-table-wrap cg-table-wrap--scroll">
                   <table className="cg-table cg-table--compact">

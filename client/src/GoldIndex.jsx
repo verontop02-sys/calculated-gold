@@ -1380,37 +1380,36 @@ export function GoldIndex({ formatMoney, toast }) {
         Добавляйте города и цены конкурентов — на карте видно, где рынок дороже или дешевле вашего эталона выкупа. Индекс ≈ 1.0 значит «как в калькуляторе». Карта подстраивается под светлую и тёмную тему.
       </PageHint>
       <div className="gold-index__head">
-        <div>
+        <div className="gi-head__title">
           <h2 className="gold-index__title">Индекс золота</h2>
-          <p className="muted small" style={{ marginTop: 6, maxWidth: 560, lineHeight: 1.45 }}>
-            Рыночные цены конкурентов по пробам сравниваются с эталоном выкупа из текущего курса и настроек. Индекс ≈ 1.0 — как
-            «линия» калькулятора; выше — дороже рынок относительно эталона.
+          <p className="gi-head__desc">
+            Цены конкурентов по пробам против эталона выкупа. Индекс ≈ 1.0 — как в калькуляторе; выше — рынок дороже.
           </p>
         </div>
-        <div className="gold-index__actions">
-          <button type="button" className="btn-ghost gi-btn-refresh" disabled={pdfBusy || loading || refreshing} onClick={() => load()}>
-            ↻ Обновить
+
+        <div className="gi-toolbar">
+          <button type="button" className="gi-tool-btn gi-tool-btn--ghost gi-tool-refresh" disabled={pdfBusy || loading || refreshing} onClick={() => load()}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+            Обновить
           </button>
-          <div className="gi-export-block">
-            <span className="gi-export-label">Период отчёта</span>
-            <div className="gi-export-dates">
-              <label className="gi-date-field">
-                <span>с</span>
-                <input type="date" className="input" value={pdfFrom} onChange={(e) => setPdfFrom(e.target.value)} />
-              </label>
-              <label className="gi-date-field">
-                <span>по</span>
-                <input type="date" className="input" value={pdfTo} onChange={(e) => setPdfTo(e.target.value)} />
-              </label>
+
+          <div className="gi-period">
+            <span className="gi-period__label">Период отчёта</span>
+            <div className="gi-period__dates">
+              <input type="date" className="gi-date-input" value={pdfFrom} onChange={(e) => setPdfFrom(e.target.value)} aria-label="Период с" />
+              <span className="gi-period__sep">—</span>
+              <input type="date" className="gi-date-input" value={pdfTo} onChange={(e) => setPdfTo(e.target.value)} aria-label="Период по" />
             </div>
-            <div className="gi-export-btns">
-              <button type="button" className="btn-ghost" disabled={excelBusy || loading || refreshing} onClick={handleExcel}>
-                {excelBusy ? '…' : '↓ Excel'}
-              </button>
-              <button type="button" className="btn-primary" disabled={pdfBusy || loading || refreshing} onClick={handlePdf}>
-                {pdfBusy ? '…' : '↓ PDF'}
-              </button>
-            </div>
+          </div>
+
+          <div className="gi-export-btns">
+            <button type="button" className="gi-tool-btn gi-tool-btn--ghost" disabled={excelBusy || loading || refreshing} onClick={handleExcel}>
+              {excelBusy ? '…' : 'Excel'}
+            </button>
+            <button type="button" className="gi-tool-btn gi-tool-btn--accent" disabled={pdfBusy || loading || refreshing} onClick={handlePdf}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5 5-5"/><path d="M12 16V4"/></svg>
+              PDF
+            </button>
           </div>
         </div>
       </div>
@@ -2315,24 +2314,41 @@ export function GoldIndex({ formatMoney, toast }) {
 
         /* ── header ────────────────────────────────────── */
         .gold-index__head {
-          display: flex; flex-wrap: wrap; align-items: flex-start;
-          justify-content: space-between; gap: 12px; margin-bottom: 16px;
+          display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px;
         }
-        .gold-index__title { margin: 0; font-size: clamp(1rem,3vw,1.2rem); font-family: var(--font-display); }
+        .gold-index__title { margin: 0; font-size: clamp(1.15rem, 1rem + 1vw, 1.5rem); font-weight: 700; font-family: var(--font-display); letter-spacing: -0.02em; color: var(--text-strong); }
+        .gi-head__desc { margin: 5px 0 0; font-size: 0.85rem; line-height: 1.5; color: var(--text-muted); max-width: 60ch; }
 
-        /* export block */
-        .gold-index__actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
-        .gi-btn-refresh { white-space: nowrap; }
-        .gi-export-block {
-          display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px;
-          background: var(--input-bg); border: 1px solid var(--stroke);
-          border-radius: 12px; padding: 8px 12px;
+        /* Единая премиум-панель действий */
+        .gi-toolbar {
+          display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+          padding: 12px 14px; border-radius: 16px;
+          border: 1px solid var(--stroke-soft); background: var(--bg-elevated);
         }
-        .gi-export-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; width: 100%; margin-bottom: 2px; }
-        .gi-export-dates { display: flex; flex-wrap: wrap; gap: 6px; }
-        .gi-date-field { display: flex; align-items: center; gap: 5px; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
-        .gi-date-field input { width: min(140px,42vw); }
-        .gi-export-btns { display: flex; gap: 6px; margin-left: auto; }
+        .gi-tool-btn {
+          display: inline-flex; align-items: center; gap: 7px; justify-content: center;
+          padding: 10px 16px; border-radius: 11px; font-size: 0.85rem; font-weight: 600;
+          cursor: pointer; border: 1px solid var(--stroke-soft); background: var(--bg-panel-solid);
+          color: var(--text); white-space: nowrap; transition: all 170ms cubic-bezier(0.22,1,0.36,1);
+        }
+        .gi-tool-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .gi-tool-btn--ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+        .gi-tool-btn--accent { background: var(--accent-grad); border-color: transparent; color: #fff; box-shadow: 0 4px 16px var(--accent-glow); }
+        .gi-tool-btn--accent:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 22px var(--accent-glow); }
+        .gi-period {
+          display: flex; flex-direction: column; gap: 4px;
+          margin-left: auto; padding: 0 4px;
+        }
+        .gi-period__label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); font-weight: 600; }
+        .gi-period__dates { display: flex; align-items: center; gap: 8px; }
+        .gi-period__sep { color: var(--text-dim); }
+        .gi-date-input {
+          padding: 8px 10px; border-radius: 10px; border: 1px solid var(--stroke-soft);
+          background: var(--bg-panel-solid); color: var(--text); font-family: inherit; font-size: 0.84rem;
+          width: min(140px, 38vw); transition: border-color 170ms, box-shadow 170ms;
+        }
+        .gi-date-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+        .gi-export-btns { display: flex; gap: 8px; }
 
         /* ── meta / legend ─────────────────────────────── */
         /* ── stats grid ─────────────────────────────────── */
@@ -2513,19 +2529,23 @@ export function GoldIndex({ formatMoney, toast }) {
 
         /* ── add-city form ──────────────────────────────── */
         .gold-index__form {
-          margin-bottom: 16px; padding: clamp(10px,2vw,16px); border-radius: 12px;
-          border: 1px solid var(--stroke); background: var(--input-bg);
+          margin-bottom: 16px; padding: clamp(14px,2vw,18px); border-radius: 16px;
+          border: 1px solid var(--stroke-soft); background: var(--bg-elevated);
           animation: gi-expand 0.22s ease both;
         }
         .gi-form-hint {
           display: flex; gap: 10px; align-items: flex-start;
-          background: rgba(139,124,255,0.08); border: 1px solid rgba(139,124,255,0.2);
-          border-radius: 8px; padding: 10px 12px; margin-bottom: 14px;
+          background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+          border-radius: 12px; padding: 11px 14px; margin-bottom: 16px;
           font-size: 0.83rem; line-height: 1.5; color: var(--text);
         }
-        .gi-form-hint a { color: var(--gold); }
+        .gi-form-hint a { color: var(--accent); font-weight: 600; }
+        .gi-form-hint strong { color: var(--text-strong); }
         .gi-form-hint-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
-        .gold-index__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 10px; }
+        .gold-index__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; align-items: end; }
+        .gold-index__grid .gi-city-coords-row { grid-column: 1 / -1; }
+        @media (max-width: 720px) { .gold-index__grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 460px) { .gold-index__grid { grid-template-columns: 1fr; } }
         .gold-index__probe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px,1fr)); gap: 8px; margin: 8px 0; }
 
         /* ── animations ─────────────────────────────────── */
@@ -2801,14 +2821,13 @@ export function GoldIndex({ formatMoney, toast }) {
 
         @media (max-width: 600px) {
           /* Header */
-          .gold-index__head { flex-direction: column; gap: 10px; }
-          .gold-index__actions { flex-direction: column; align-items: stretch; }
-          .gi-export-block { width: 100%; box-sizing: border-box; }
-          .gi-export-dates { flex-direction: column; gap: 6px; }
-          .gi-date-field { width: 100%; }
-          .gi-date-field input { flex: 1; width: auto; min-width: 0; }
-          .gi-export-btns { width: 100%; margin-left: 0; }
-          .gi-export-btns button { flex: 1; min-height: 44px; }
+          .gi-toolbar { flex-direction: column; align-items: stretch; }
+          .gi-tool-refresh { width: 100%; min-height: 44px; }
+          .gi-period { margin-left: 0; }
+          .gi-period__dates { flex-wrap: wrap; }
+          .gi-date-input { flex: 1; width: auto; min-width: 0; min-height: 40px; }
+          .gi-export-btns { width: 100%; }
+          .gi-export-btns .gi-tool-btn { flex: 1; min-height: 44px; }
 
           /* Map */
           .gold-index__map { height: min(300px, 46vh); }

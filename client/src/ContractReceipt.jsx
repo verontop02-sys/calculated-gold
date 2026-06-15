@@ -933,7 +933,6 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         .contract-page {
           display: flex; flex-direction: column; gap: 16px;
           animation: ctIn 440ms cubic-bezier(0.22,1,0.36,1) both;
-          will-change: transform, opacity;
         }
         @keyframes ctIn {
           from { opacity:0; transform: translate3d(0,14px,0); }

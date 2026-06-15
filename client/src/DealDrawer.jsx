@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from './api.js';
 
 function fmtDateTime(iso) {
@@ -40,6 +41,9 @@ export function DealDrawer({ deal, onClose, formatMoney, toast }) {
   if (!deal) return null;
 
   const d = detail || deal;
+  // Портал в body — иначе position:fixed считается от родителя с will-change/transform
+  // и дравер «съезжает» в середину страницы вместо центра экрана.
+  const mount = typeof document !== 'undefined' ? document.body : null;
   const rows = Array.isArray(d.rows) ? d.rows.filter((r) => r.itemName || r.weightGross || r.priceRub || r.photoUrl) : [];
 
   async function downloadPdf() {
@@ -58,7 +62,9 @@ export function DealDrawer({ deal, onClose, formatMoney, toast }) {
     }
   }
 
-  return (
+  if (!mount) return null;
+
+  return createPortal(
     <div className="ddw-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Детали сделки">
       <div className="ddw" onClick={(e) => e.stopPropagation()}>
         <div className="ddw-head">
@@ -208,6 +214,7 @@ export function DealDrawer({ deal, onClose, formatMoney, toast }) {
 
         @media (max-width: 480px) { .ddw { max-width: 100%; } }
       `}</style>
-    </div>
+    </div>,
+    mount
   );
 }

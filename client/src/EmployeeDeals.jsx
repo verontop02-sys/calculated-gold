@@ -244,7 +244,7 @@ export function EmployeeDeals({ formatMoney, toast }) {
       )}
 
       <style>{`
-        .ed-root { display: flex; flex-direction: column; gap: 16px; animation: edIn 440ms cubic-bezier(0.22,1,0.36,1) both; will-change: transform, opacity; }
+        .ed-root { display: flex; flex-direction: column; gap: 16px; animation: edIn 440ms cubic-bezier(0.22,1,0.36,1) both; }
         @keyframes edIn { from { opacity: 0; transform: translate3d(0,14px,0); } }
         .ed-layout { display: grid; grid-template-columns: 280px 1fr; gap: 14px; align-items: start; }
         @media (max-width: 800px) { .ed-layout { grid-template-columns: 1fr; } }

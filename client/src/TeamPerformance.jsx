@@ -547,9 +547,6 @@ export function TeamPerformance({ formatMoney, toast, user }) {
               </div>
             </div>
           </div>
-          <p className="tm-hint">
-            Пороги — переменные окружения <code>TEAM_PERF_HIGH_SUM_RUB</code> и <code>TEAM_PERF_MID_SUM_RUB</code>. После смены — перезапуск бэкенда.
-          </p>
         </section>
       )}
 

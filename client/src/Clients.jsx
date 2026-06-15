@@ -405,7 +405,7 @@ export function Clients({ formatMoney, toast }) {
 
       <style>{`
         /* ── Clients root ── */
-        .cl-root { display: flex; flex-direction: column; gap: 16px; animation: clIn 440ms cubic-bezier(0.22,1,0.36,1) both; will-change: transform, opacity; }
+        .cl-root { display: flex; flex-direction: column; gap: 16px; animation: clIn 440ms cubic-bezier(0.22,1,0.36,1) both; }
         @keyframes clIn { from { opacity:0; transform: translate3d(0,14px,0); } }
 
         /* ── Toolbar ── */

@@ -39,8 +39,8 @@
   --crimson-strong: #ef4444;
   --text: #f4f5f7;
   --text-strong: #ffffff;
-  --text-muted: rgba(244, 245, 247, 0.58);
-  --text-dim: rgba(244, 245, 247, 0.38);
+  --text-muted: rgba(244, 245, 247, 0.68);
+  --text-dim: rgba(244, 245, 247, 0.48);
   --danger: #fb7185;
   --ok: #4ade80;
   --warn-bg: rgba(250, 204, 21, 0.12);
@@ -89,8 +89,8 @@
   --crimson-strong: #b51f2e;
   --text: #16181d;
   --text-strong: #0a0b0e;
-  --text-muted: rgba(22, 24, 29, 0.58);
-  --text-dim: rgba(22, 24, 29, 0.40);
+  --text-muted: rgba(22, 24, 29, 0.66);
+  --text-dim: rgba(22, 24, 29, 0.50);
   --danger: #d92d3a;
   --ok: #12824f;
   --warn-bg: rgba(250, 204, 21, 0.2);
@@ -228,6 +228,31 @@ body {
   max-width: 100%;
 }
 
+/* ── Кастомный скроллбар под дизайн (тонкий, нейтральный, акцент при ховере) ── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--stroke-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-muted) 32%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 160ms;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner { background: transparent; }
+
 #root {
   min-height: 100vh;
   min-height: 100dvh;
@@ -299,7 +324,7 @@ textarea:disabled {
 }
 
 ::placeholder {
-  color: var(--text-muted);
+  color: var(--text-dim);
   opacity: 1; /* Firefox делает 0.54 по умолчанию */
 }
 
