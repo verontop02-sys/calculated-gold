@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from './api.js';
 import { mergeSettings, calculateBuybackRange } from './calc.js';
 import { ScrapCustomerDirectory } from './ScrapCustomerDirectory.jsx';
@@ -884,7 +885,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         </button>
       </div>
 
-      {smsOpen && (
+      {smsOpen && typeof document !== 'undefined' && createPortal(
         <div className="contract-sms-overlay" role="dialog" aria-modal="true" aria-label="Ссылка для клиента">
           <div className="contract-sms-modal">
             <div className="csm-icon" aria-hidden>
@@ -912,7 +913,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
             </div>
 
             {smsDev && (
-              <p className="csm-dev">Тест-код: <span className="mono-nums">{smsDev}</span> (только при FIELD_DEAL_RETURN_CODE=1)</p>
+              <p className="csm-dev">Тест-код: <span className="mono-nums">{smsDev}</span></p>
             )}
 
             <div className="csm-actions">
@@ -925,7 +926,8 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <style>{`

@@ -171,9 +171,18 @@ app.use(
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    // Чтобы фронт на другом домене мог прочитать id созданной сделки и догрузить фото.
+    exposedHeaders: ['X-Deal-Id'],
   })
 );
-app.use(express.json({ limit: '100kb' }));
+// Загрузка фото изделия шлёт base64 (несколько МБ) — для этого маршрута поднимаем лимит,
+// для остальных оставляем строгие 100kb. Глобальный парсер иначе режет тело раньше роутового.
+const jsonSmall = express.json({ limit: '100kb' });
+const jsonLarge = express.json({ limit: '16mb' });
+app.use((req, res, next) => {
+  if (req.path === '/api/deal-photos/upload') return jsonLarge(req, res, next);
+  return jsonSmall(req, res, next);
+});
 
 const DEFAULT_SETTINGS = {
   buybackPercentOfScrap: 92,
@@ -1564,7 +1573,6 @@ app.get(
 // Загрузить фото изделия для позиции сделки и сохранить URL в rows JSON
 app.post(
   '/api/deal-photos/upload',
-  express.json({ limit: '15mb' }),
   asyncHandler(async (req, res) => {
     const { dealId, rowIdx, base64, mimeType } = req.body || {};
     if (!dealId || !/^[0-9a-f-]{36}$/i.test(String(dealId))) {
