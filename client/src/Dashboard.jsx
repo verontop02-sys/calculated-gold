@@ -158,26 +158,29 @@ function fmtTickTime(ms, tfKey) {
   return `${hh}:${mm}`;
 }
 
-/** Детерминированная «биржевая» волна вокруг 0 в диапазоне примерно [-1..1]. */
-function tickWave(i) {
-  return (
-    Math.sin(i * 0.5) * 0.5 +
-    Math.sin(i * 0.37 + 1) * 0.3 +
-    Math.sin(i * 1.7) * 0.2
-  );
+// Параметры «биржевого» процесса: возврат к среднему (mean-reversion) + случайный шаг.
+// theta — сила притяжения к реальной цене, sigma — амплитуда шага. Так линия выглядит
+// органично (как настоящий тикер), но не уходит далеко от курса.
+const MR_THETA = 0.14;
+
+/** Один шаг процесса Орнштейна–Уленбека вокруг target. */
+function nextTickValue(last, target, vol) {
+  const sigma = target * vol * 0.55;
+  const drift = (target - last) * MR_THETA;
+  const v = last + drift + (Math.random() - 0.5) * 2 * sigma;
+  return Math.round(v * 100) / 100;
 }
 
 function seedTicks(target, vol, windowMs) {
-  // История периода как лёгкие колебания ВОКРУГ реальной цены — без накопленного дрейфа,
-  // поэтому график всегда «прилипает» к текущему курсу и совпадает с цифрой.
+  // История периода: возврат-к-среднему random-walk вокруг реальной цены —
+  // живой «биржевой» вид без накопленного дрейфа, всегда около текущего курса.
   const out = [];
   const now = Date.now();
   const step = windowMs / TICKS_MAX;
-  const amp = target * vol * 0.6; // размах колебаний относительно цены
+  let v = target;
   for (let i = 0; i < TICKS_MAX; i++) {
-    const noise = (Math.random() - 0.5) * 0.3;
-    const v = target + (tickWave(i) + noise) * amp;
-    out.push({ i, v: Math.round(v * 100) / 100, t: now - (TICKS_MAX - 1 - i) * step });
+    v = nextTickValue(v, target, vol);
+    out.push({ i, v, t: now - (TICKS_MAX - 1 - i) * step });
   }
   return out;
 }
@@ -196,6 +199,10 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
   const goldRef = useRef(goldRub);
   goldRef.current = goldRub;
   const seedTargetRef = useRef(null); // цена, вокруг которой построена текущая история
+  // «Умная» заморозка: если курс перестал обновляться (stale) — держим последнее значение,
+  // не рисуем фейковое «живое» движение поверх мёртвых данных.
+  const priceStaleRef = useRef(false);
+  priceStaleRef.current = !!price?.stale;
 
   const hasGold = goldRub != null;
   useEffect(() => {
@@ -225,10 +232,10 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
       if (target == null) return;
       setTicks((prev) => {
         const id = tickIdRef.current++;
-        // Новый тик — лёгкое колебание вокруг РЕАЛЬНОЙ цены (без дрейфа): график держится у курса.
-        const amp = target * tfVol * 0.6;
-        const noise = (Math.random() - 0.5) * 0.3;
-        const v = Math.round((target + (tickWave(id) + noise) * amp) * 100) / 100;
+        const last = prev[prev.length - 1]?.v ?? target;
+        // Курс не обновляется → держим последнее значение (умная заморозка).
+        // Иначе — живой шаг процесса возврата-к-среднему вокруг реальной цены.
+        const v = priceStaleRef.current ? last : nextTickValue(last, target, tfVol);
         const next = [...prev.slice(-(TICKS_MAX - 1)), { i: id, v, t: Date.now() }];
         return next;
       });
