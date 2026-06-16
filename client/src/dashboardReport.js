@@ -412,10 +412,28 @@ html, body { background: var(--bg-deep); color: var(--text); font-family: 'Inter
 </body>
 </html>`;
 
-  const win = window.open('', '_blank', 'noopener,noreferrer');
-  if (!win) return false;
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-  return true;
+  // ВАЖНО: без 'noopener'/'noreferrer' — иначе window.open вернёт null
+  // и записать HTML в окно будет невозможно (откроется пустой about:blank).
+  const win = window.open('', '_blank');
+  if (win && win.document) {
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    return true;
+  }
+
+  // Фолбэк: всплывающее окно заблокировано — формируем blob и открываем его.
+  try {
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const w2 = window.open(url, '_blank');
+    if (w2) {
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      return true;
+    }
+    URL.revokeObjectURL(url);
+  } catch {
+    /* ignore */
+  }
+  return false;
 }

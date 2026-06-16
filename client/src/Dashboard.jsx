@@ -448,7 +448,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
       return dd.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
     };
     const sourceLabel = price?.source === 'xaut' ? 'XAUT' : price?.source === 'moex' ? 'Мосбиржа' : 'ЦБ РФ';
-    openDashboardReport({
+    const ok = openDashboardReport({
       formatMoney,
       userName,
       rangeLabel: `${fmtRu(from)} – ${fmtRu(today)}`,
@@ -481,6 +481,9 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
         time: fmtDealTime(dl.created_at),
       })),
     });
+    if (!ok) {
+      alert('Не удалось открыть отчёт. Разрешите всплывающие окна для этого сайта и повторите.');
+    }
   }, [formatMoney, userName, price, goldRub, cur, settings, t, tp, avgCheck, avgPrev, todayRow, flowSeries, staff, marketRows, probeRows, recent]);
 
   return (
