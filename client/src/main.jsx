@@ -6,8 +6,11 @@ import { FieldDealConfirm } from './FieldDealConfirm.jsx';
 import { ToastProvider } from './ToastContext.jsx';
 import { initThemeFromStorage } from './theme.js';
 import { recoverAuthIfNeeded } from './supabase.js';
+import { pingApiHealth } from './api.js';
 
 initThemeFromStorage();
+// Прогрев Render с первой миллисекунды — пока грузится JS и восстанавливается сессия.
+void pingApiHealth({ timeout: 90_000 }).catch(() => {});
 
 if (import.meta.env.DEV) {
   const nativeInfo = console.info.bind(console);
@@ -20,25 +23,22 @@ if (import.meta.env.DEV) {
   };
 }
 
-void recoverAuthIfNeeded()
-  .catch(() => {})
-  .finally(() => {
-    const el = document.getElementById('root');
-    const path = typeof window !== 'undefined' ? window.location.pathname || '' : '';
-    const m = path.match(/^\/podtverzhdenie\/([^/]+)\/?$/);
-    const token = m?.[1] ? decodeURIComponent(m[1]) : '';
-    const tree = token ? (
-      <StrictMode>
-        <ToastProvider>
-          <FieldDealConfirm token={token} />
-        </ToastProvider>
-      </StrictMode>
-    ) : (
-      <StrictMode>
-        <ToastProvider>
-          <App />
-        </ToastProvider>
-      </StrictMode>
-    );
-    createRoot(el).render(tree);
-  });
+const el = document.getElementById('root');
+const path = typeof window !== 'undefined' ? window.location.pathname || '' : '';
+const m = path.match(/^\/podtverzhdenie\/([^/]+)\/?$/);
+const token = m?.[1] ? decodeURIComponent(m[1]) : '';
+const tree = token ? (
+  <StrictMode>
+    <ToastProvider>
+      <FieldDealConfirm token={token} />
+    </ToastProvider>
+  </StrictMode>
+) : (
+  <StrictMode>
+    <ToastProvider>
+      <App />
+    </ToastProvider>
+  </StrictMode>
+);
+createRoot(el).render(tree);
+void recoverAuthIfNeeded().catch(() => {});

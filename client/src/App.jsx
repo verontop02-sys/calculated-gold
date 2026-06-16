@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, connectPriceStream, onSessionExpired, pingApiHealth, isTransientProfileLoadError } from './api.js';
 import { supabase } from './supabase.js';
+import { readProfileCache, writeProfileCache, clearProfileCache } from './profileCache.js';
 import { useToast } from './ToastContext.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
 import { Login } from './Login.jsx';
@@ -203,26 +204,39 @@ export default function App() {
       setUser(null);
       setProfileErr(null);
       setQuoteTab('moex');
+      clearProfileCache();
       return;
     }
+    const uid = session.user.id;
     setProfileErr(null);
-    setUser(undefined);
+    const cached = readProfileCache(uid);
+    if (cached) {
+      setUser(cached);
+    } else {
+      setUser(undefined);
+    }
     void pingApiHealth({ timeout: 30_000 }).catch(() => {});
-    const maxAttempts = 3;
+    const maxAttempts = cached ? 2 : 3;
     let lastErr;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         if (attempt > 0) {
-          await new Promise((r) => setTimeout(r, 1000 + attempt * 1000));
+          await new Promise((r) => setTimeout(r, 400 + attempt * 600));
         }
         const { user: u } = await api.me();
+        if (u) writeProfileCache(u);
         setUser(u ?? null);
+        setProfileErr(null);
         return;
       } catch (e) {
         lastErr = e;
         console.error(e);
         const transient = isTransientProfileLoadError(e);
         if (!transient || attempt === maxAttempts - 1) {
+          if (cached && transient) {
+            // Сеть/API упали, но профиль уже есть — пускаем в панель, не блокируем.
+            return;
+          }
           setProfileErr(profileErrorMessage(e));
           setUser(null);
           setQuoteTab('moex');
@@ -230,6 +244,7 @@ export default function App() {
         }
       }
     }
+    if (cached) return;
     setProfileErr(profileErrorMessage(lastErr));
     setUser(null);
     setQuoteTab('moex');
@@ -289,6 +304,7 @@ export default function App() {
       if (event === 'TOKEN_REFRESHED') return;
       if (event === 'SIGNED_OUT') {
         clearCalculatorLocalForUid(lastSignedInUidRef.current);
+        clearProfileCache();
         lastSignedInUidRef.current = null;
       }
       setSessionUser(session?.user ?? null);
@@ -315,6 +331,15 @@ export default function App() {
     if (!authReady) return;
     loadMe();
   }, [authReady, sessionUser?.id, loadMe]);
+
+  // Пока вкладка открыта — не даём Render уснуть (free tier).
+  useEffect(() => {
+    if (!user?.uid) return undefined;
+    const id = setInterval(() => {
+      void pingApiHealth({ timeout: 15_000 }).catch(() => {});
+    }, 4 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!sessionUser || user !== undefined || profileErr) return undefined;

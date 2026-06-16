@@ -536,12 +536,21 @@ function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubPerGram,
  * если в БД только super_admin, старая функция каждый вход сбрасывала пользователя в admin.
  * Здесь только проверка «есть ли кто-то с admin или super_admin» и обновление одной строки uid.
  */
+/** Кэш «в проекте уже есть admin/super_admin» — не дергаем БД на каждый запрос. */
+let projectHasManagerCache = null;
+
+/** Кэш роли профиля в памяти процесса (снижает повторные SELECT). */
+const profileRoleMem = new Map();
+const PROFILE_ROLE_MEM_TTL_MS = 120_000;
+
 async function ensureProfileAndBootstrap(userId) {
   const { data: row } = await supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
   if (!row) {
     const { error: insErr } = await supabase.from('profiles').insert({ id: userId, role: 'courier' });
     if (insErr && insErr.code !== '23505') throw insErr;
+    profileRoleMem.delete(userId);
   }
+  if (projectHasManagerCache === true) return;
   const { data: managers, error: mErr } = await supabase
     .from('profiles')
     .select('id')
@@ -551,7 +560,11 @@ async function ensureProfileAndBootstrap(userId) {
     console.error('[profiles bootstrap]', mErr);
     return;
   }
-  if (managers?.length) return;
+  if (managers?.length) {
+    projectHasManagerCache = true;
+    return;
+  }
+  projectHasManagerCache = false;
   const { error: upErr } = await supabase
     .from('profiles')
     .update({ role: 'super_admin', updated_at: new Date().toISOString() })
@@ -629,12 +642,16 @@ function isSuperAdminRole(role) {
 }
 
 async function loadProfileRole(userId) {
+  const mem = profileRoleMem.get(userId);
+  if (mem && Date.now() - mem.ts < PROFILE_ROLE_MEM_TTL_MS) return mem.role;
   let { data: prof } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
   if (!prof) {
     await ensureProfileAndBootstrap(userId);
     ({ data: prof } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle());
   }
-  return prof?.role ?? null;
+  const role = prof?.role ?? null;
+  profileRoleMem.set(userId, { role, ts: Date.now() });
+  return role;
 }
 
 async function requireUserManager(req, res, next) {
@@ -663,9 +680,9 @@ async function requireSuperAdmin(req, res, next) {
   }
 }
 
-async function getRequesterRole(req) {
+function resolveRequesterRoleFromReq(req) {
   if (req.isSuperAdmin) return 'super_admin';
-  const raw = await loadProfileRole(req.user.id);
+  const raw = req.profileRoleRaw;
   const meta = req.user?.app_metadata?.role ?? req.user?.user_metadata?.role ?? null;
   const rProf = normalizeRole(raw);
   const rMeta = normalizeRole(meta);
@@ -674,6 +691,10 @@ async function getRequesterRole(req) {
   if (rProf === 'seller' || rMeta === 'seller') return 'seller';
   if (rProf === 'courier' || rMeta === 'courier') return 'courier';
   return 'courier';
+}
+
+async function getRequesterRole(req) {
+  return resolveRequesterRoleFromReq(req);
 }
 
 async function getProfileRoleById(uid) {
@@ -901,7 +922,8 @@ app.use('/api', asyncHandler(authMiddleware));
 app.get(
   '/api/auth/me',
   asyncHandler(async (req, res) => {
-    const role = await getRequesterRole(req);
+    const role = resolveRequesterRoleFromReq(req);
+    res.setHeader('Cache-Control', 'private, max-age=60');
     res.json({ user: { uid: req.user.id, email: req.user.email, role } });
   })
 );

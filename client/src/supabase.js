@@ -24,6 +24,9 @@ export const supabase = createClient(url || '', anon || '', {
 export async function recoverAuthIfNeeded() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return;
+  // Токен ещё жив — не дергаем Supabase по сети при каждом открытии вкладки.
+  const expiresMs = (session.expires_at ?? 0) * 1000;
+  if (expiresMs > Date.now() + 120_000) return;
   const { error } = await supabase.auth.getUser();
   if (!error) return;
   const m = String(error.message || '');

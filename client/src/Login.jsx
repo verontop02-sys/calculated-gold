@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
-import { pingApiHealth } from './api.js';
+import { api, pingApiHealth } from './api.js';
 import { ThemeToggle } from './ThemeToggle.jsx';
 
 function mapLoginError(ex) {
@@ -71,7 +71,7 @@ export function Login() {
       });
       if (error) throw error;
       if (!data.session?.access_token) throw new Error('Сессия не создана, попробуйте ещё раз');
-      // Не ждать loadMe(): профиль догружается в App после смены сессии.
+      api.prefetchMe();
     } catch (ex) {
       setErr(mapLoginError(ex));
     } finally {

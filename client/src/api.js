@@ -268,8 +268,21 @@ export async function publicFieldDealSessionSendReceipt(token, channel, target) 
   return j;
 }
 
+/** Один in-flight запрос /auth/me — Login и App не дублируют при входе. */
+let meInflight = null;
+function fetchMeOnce() {
+  if (meInflight) return meInflight;
+  meInflight = request('/auth/me').finally(() => {
+    meInflight = null;
+  });
+  return meInflight;
+}
+
 export const api = {
-  me: () => request('/auth/me'),
+  me: () => fetchMeOnce(),
+  prefetchMe: () => {
+    void fetchMeOnce();
+  },
   /** quote: moex | xaut (Мосбиржа / Tether Gold XAUT в USD → ₽ через ЦБ) */
   price: (opts = {}) => {
     const q = opts.quote === 'xaut' ? '?quote=xaut' : '';
