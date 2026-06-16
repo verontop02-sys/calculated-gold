@@ -470,7 +470,7 @@ export const api = {
     return requestBlob(`/team-performance.pdf?${q.toString()}`, { method: 'GET' });
   },
   dashboardReportPdf: (payload) =>
-    requestBlob('/dashboard-report.pdf', { method: 'POST', body: JSON.stringify(payload) }),
+    requestBlob('/dashboard-report.pdf', { method: 'POST', body: payload }),
   /** Полевая сделка: СМС + ссылка клиенту (тело как у scrapContractPdf + phone + опционально courierId для руководителя). */
   fieldDealSessionCreate: (body) =>
     request('/field-deal-sessions', { method: 'POST', body: JSON.stringify(body) }),
