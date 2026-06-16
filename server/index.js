@@ -38,6 +38,12 @@ import {
 } from './goldIndex.js';
 import { buildGoldIndexReportPdfBuffer } from './goldIndexPdf.js';
 import { buildGoldIndexExcelBuffer } from './goldIndexExcel.js';
+import {
+  requestClientCode,
+  verifyClientCode,
+  verifyClientToken,
+  getClientDeals,
+} from './clientPortal.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // npm run dev из корня монорепо: cwd ≠ server/, иначе dotenv не видит server/.env
@@ -914,6 +920,73 @@ app.get(
       perGram,
       updatedAt: cache?.cachedAt ?? null,
     });
+  })
+);
+
+// ── Клиентский кабинет (публичный, вход по телефону + SMS-код) ──────────────
+function clientPortalOrigin(req) {
+  const fromEnv = String(process.env.PUBLIC_APP_ORIGIN || '').trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, '');
+  const origin = String(req.headers.origin || '').trim();
+  if (origin) return origin.replace(/\/$/, '');
+  const host = req.get('host');
+  return host ? `${req.protocol}://${host}` : '';
+}
+
+function clientTokenFromReq(req) {
+  const h = String(req.headers.authorization || '');
+  if (h.startsWith('Bearer ')) return h.slice(7);
+  return '';
+}
+
+app.post(
+  '/api/public/client-auth/request-code',
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await requestClientCode(supabase, {
+        phone: req.body?.phone,
+        origin: clientPortalOrigin(req),
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.post(
+  '/api/public/client-auth/verify',
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await verifyClientCode(supabase, { phone: req.body?.phone, code: req.body?.code });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.get(
+  '/api/public/client/me',
+  asyncHandler(async (req, res) => {
+    const session = verifyClientToken(clientTokenFromReq(req));
+    if (!session) return res.status(401).json({ error: 'Сессия недействительна, войдите снова' });
+    res.json({ ok: true, phoneNormalized: session.phoneNormalized });
+  })
+);
+
+app.get(
+  '/api/public/client/deals',
+  asyncHandler(async (req, res) => {
+    const session = verifyClientToken(clientTokenFromReq(req));
+    if (!session) return res.status(401).json({ error: 'Сессия недействительна, войдите снова' });
+    try {
+      const out = await getClientDeals(supabase, session.phoneNormalized);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
   })
 );
 

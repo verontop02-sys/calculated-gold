@@ -182,6 +182,9 @@ export function Login() {
               Перейти на reaktivo.ru
               <span aria-hidden>→</span>
             </a>
+            <a className="lg-client-cabinet" href="/kabinet">
+              Личный кабинет клиента (вход по телефону)
+            </a>
           </aside>
         </div>
 
@@ -471,6 +474,18 @@ const CSS = `
   transition: background 0.18s, border-color 0.18s, transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), gap 0.2s;
 }
 .lg-client-btn:hover { background: var(--accent-soft); border-color: var(--accent); transform: translateY(-1px); gap: 13px; }
+
+.lg-client-cabinet {
+  margin-top: 10px;
+  display: block;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.16s;
+}
+.lg-client-cabinet:hover { color: var(--accent); text-decoration: underline; }
 
 .lg-foot {
   margin: 0;

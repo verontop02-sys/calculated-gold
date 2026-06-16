@@ -257,6 +257,81 @@ export async function publicFieldDealSessionVerify(token, code) {
   return j;
 }
 
+// ── Клиентский кабинет (вход по телефону + SMS-код) ─────────────────────────
+const CLIENT_TOKEN_KEY = 'cg_client_token';
+
+export function getClientToken() {
+  try {
+    return localStorage.getItem(CLIENT_TOKEN_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setClientToken(token) {
+  try {
+    if (token) localStorage.setItem(CLIENT_TOKEN_KEY, token);
+    else localStorage.removeItem(CLIENT_TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export const clientApi = {
+  requestCode: async (phone) => {
+    const r = await fetch(withBase('/public/client-auth/request-code'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    return j;
+  },
+  verify: async (phone, code) => {
+    const r = await fetch(withBase('/public/client-auth/verify'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, code }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    if (j.token) setClientToken(j.token);
+    return j;
+  },
+  me: async () => {
+    const r = await fetch(withBase('/public/client/me'), {
+      headers: { Authorization: `Bearer ${getClientToken()}` },
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const err = new Error(j.error || `Ошибка ${r.status}`);
+      err.status = r.status;
+      throw err;
+    }
+    return j;
+  },
+  deals: async () => {
+    const r = await fetch(withBase('/public/client/deals'), {
+      headers: { Authorization: `Bearer ${getClientToken()}` },
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const err = new Error(j.error || `Ошибка ${r.status}`);
+      err.status = r.status;
+      throw err;
+    }
+    return j;
+  },
+  buybackQuote: async (quote = 'moex') => {
+    const q = quote === 'xaut' ? '?quote=xaut' : '';
+    const r = await fetch(withBase(`/public/buyback-quote${q}`));
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    return j;
+  },
+};
+
 export async function publicFieldDealSessionSendReceipt(token, channel, target) {
   const r = await fetch(withBase(`/public/field-deal-session/${encodeURIComponent(token)}/receipt`), {
     method: 'POST',

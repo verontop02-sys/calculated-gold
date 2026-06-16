@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.jsx';
 import { FieldDealConfirm } from './FieldDealConfirm.jsx';
+import { ClientPortal } from './ClientPortal.jsx';
 import { ToastProvider } from './ToastContext.jsx';
 import { initThemeFromStorage } from './theme.js';
 import { recoverAuthIfNeeded } from './supabase.js';
@@ -27,18 +28,22 @@ const el = document.getElementById('root');
 const path = typeof window !== 'undefined' ? window.location.pathname || '' : '';
 const m = path.match(/^\/podtverzhdenie\/([^/]+)\/?$/);
 const token = m?.[1] ? decodeURIComponent(m[1]) : '';
-const tree = token ? (
+const isClientPortal = /^\/kabinet\/?$/.test(path);
+
+let inner;
+if (token) {
+  inner = <FieldDealConfirm token={token} />;
+} else if (isClientPortal) {
+  inner = <ClientPortal />;
+} else {
+  inner = <App />;
+}
+
+const tree = (
   <StrictMode>
-    <ToastProvider>
-      <FieldDealConfirm token={token} />
-    </ToastProvider>
-  </StrictMode>
-) : (
-  <StrictMode>
-    <ToastProvider>
-      <App />
-    </ToastProvider>
+    <ToastProvider>{inner}</ToastProvider>
   </StrictMode>
 );
 createRoot(el).render(tree);
-void recoverAuthIfNeeded().catch(() => {});
+// Восстановление сессии сотрудника не нужно в клиентском кабинете.
+if (!isClientPortal) void recoverAuthIfNeeded().catch(() => {});
