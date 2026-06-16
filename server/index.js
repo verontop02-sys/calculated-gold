@@ -10,6 +10,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { buildScrapContractPdfBuffer } from './scrapContractPdf.js';
 import { computeAnalyticsSummaryData } from './analyticsSummaryData.js';
 import { buildAnalyticsReportPdfBuffer } from './analyticsReportPdf.js';
+import { buildDashboardReportPdf } from './dashboardReportPdf.js';
 import { computeTeamPerformanceData } from './teamPerformanceData.js';
 import { buildTeamPerformancePdfBuffer } from './teamPerformancePdf.js';
 import {
@@ -1843,7 +1844,20 @@ app.get(
   })
 );
 
-// ── AI (Grok / x.ai): вопросы по текущей аналитике и прогнозам ───────────────
+// ── Дашборд: PDF-отчёт ───────────────────────────────────────────────────────
+app.post(
+  '/api/dashboard-report.pdf',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    await getRequesterRole(req); // проверка авторизации
+    const payload = req.body || {};
+    const buf = await buildDashboardReportPdf(payload);
+    const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '-');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="dashboard-${date}.pdf"`);
+    res.send(buf);
+  })
+);
 const GROK_API_KEY = process.env.GROK_API_KEY || '';
 const GROK_MODEL = process.env.GROK_MODEL || 'grok-3-mini';
 

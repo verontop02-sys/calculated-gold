@@ -469,6 +469,8 @@ export const api = {
     if (Array.isArray(operatorIds) && operatorIds.length > 0) q.set('operators', operatorIds.join(','));
     return requestBlob(`/team-performance.pdf?${q.toString()}`, { method: 'GET' });
   },
+  dashboardReportPdf: (payload) =>
+    requestBlob('/dashboard-report.pdf', { method: 'POST', body: JSON.stringify(payload) }),
   /** Полевая сделка: СМС + ссылка клиенту (тело как у scrapContractPdf + phone + опционально courierId для руководителя). */
   fieldDealSessionCreate: (body) =>
     request('/field-deal-sessions', { method: 'POST', body: JSON.stringify(body) }),

@@ -14,8 +14,6 @@ import {
 } from 'recharts';
 import { api } from './api.js';
 import { PageHint } from './PageHint.jsx';
-import { openDashboardReport } from './dashboardReport.js';
-
 /**
  * Дашборд — главный рабочий экран после входа (Stage 7).
  *
@@ -440,16 +438,18 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
     return e.split('@')[0] || 'коллега';
   }, [user]);
 
-  // Ref всегда хранит актуальные данные — без риска устаревшего замыкания useCallback.
+  // Ref всегда хранит актуальные данные — без риска устаревшего замыкания.
   const reportDataRef = useRef({});
   reportDataRef.current = {
-    formatMoney, userName, price, goldRub, cur, prev, settings, market,
-    t, tp, avgCheck, avgPrev, todayRow, flowSeries, staff, marketRows, probeRows, recent,
+    userName, price, goldRub, cur, settings, t, tp,
+    avgCheck, avgPrev, todayRow, flowSeries, staff, marketRows, probeRows, recent,
   };
+  const [reportBusy, setReportBusy] = useState(false);
 
-  function exportReport() {
+  async function exportReport() {
+    if (reportBusy) return;
     const d = reportDataRef.current;
-    const { formatMoney: fm, userName: uName, price: pr, goldRub: gRub,
+    const { userName: uName, price: pr, goldRub: gRub,
             cur: cCur, settings: sett, t: tt, tp: ttp,
             avgCheck: avgC, avgPrev: avgP, todayRow: tRow,
             flowSeries: fSeries, staff: stf, marketRows: mRows,
@@ -462,23 +462,22 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
       return dd.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
     };
     const sourceLabel = pr?.source === 'xaut' ? 'XAUT' : pr?.source === 'moex' ? 'Мосбиржа' : 'ЦБ РФ';
-    const ok = openDashboardReport({
-      formatMoney: fm,
+    const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+
+    const payload = {
+      theme,
       userName: uName,
       rangeLabel: `${fmtRu(from)} – ${fmtRu(today)}`,
-      generatedAt: new Date().toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
       gold: { value: gRub, source: sourceLabel },
-      viewerScope: cCur?.viewerScope,
-      buybackPercent: sett?.buybackPercentOfScrap ?? null,
       kpis: {
         sum:     { cur: tt?.sumRub ?? null,         prev: ttp?.sumRub ?? null },
         deals:   { cur: tt?.deals ?? null,           prev: ttp?.deals ?? null },
         clients: { cur: tt?.uniqueCustomers ?? null, prev: ttp?.uniqueCustomers ?? null },
         avg:     { cur: avgC,                        prev: avgP },
       },
-      today: { count: tRow?.count ?? 0, sumRub: Number(tRow?.sumRub) || 0 },
-      flow: fSeries,
-      staff: stf.map((row) => ({
+      today:  { count: tRow?.count ?? 0, sumRub: Number(tRow?.sumRub) || 0 },
+      flow:   fSeries,
+      staff:  stf.map((row) => ({
         name: (row.email || '—').split('@')[0],
         sumRub: row.sumRub || 0,
         deals: row.deals || 0,
@@ -494,9 +493,27 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
         sum: Number(dl.total_rub) || 0,
         time: fmtDealTime(dl.created_at),
       })),
-    });
-    if (!ok) {
-      alert('Не удалось открыть отчёт. Разрешите всплывающие окна для этого сайта и повторите.');
+      buybackPercent: sett?.buybackPercentOfScrap ?? null,
+      viewerScope: cCur?.viewerScope,
+    };
+
+    setReportBusy(true);
+    try {
+      const blob = await api.dashboardReportPdf(payload);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '-');
+      a.download = `dashboard-${date}.pdf`;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(`Не удалось сформировать отчёт: ${e?.message || 'ошибка сервера'}`);
+    } finally {
+      setReportBusy(false);
     }
   }
 
@@ -518,9 +535,11 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
           <button type="button" className="dx-qa" onClick={() => onNavigate?.('contract')}>
             Договор
           </button>
-          <button type="button" className="dx-qa dx-qa--pdf" onClick={exportReport} title="Сформировать PDF-отчёт по дашборду">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5 5-5"/><path d="M12 16V4"/></svg>
-            Отчёт PDF
+          <button type="button" className="dx-qa dx-qa--pdf" onClick={exportReport} disabled={reportBusy} title="Сформировать PDF-отчёт по дашборду">
+            {reportBusy
+              ? <><span className="dx-qa-spin" aria-hidden /> Формируем…</>
+              : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5 5-5"/><path d="M12 16V4"/></svg> Отчёт PDF</>
+            }
           </button>
         </div>
       </div>
@@ -1287,7 +1306,14 @@ const CSS = `
 }
 .dx-qa--primary:hover { filter: brightness(1.07); transform: translateY(-1px); }
 .dx-qa--pdf { display: inline-flex; align-items: center; gap: 7px; }
-.dx-qa--pdf:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.dx-qa--pdf:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.dx-qa--pdf:disabled { opacity: 0.65; cursor: not-allowed; }
+.dx-qa-spin {
+  display: inline-block; width: 13px; height: 13px; border-radius: 50%;
+  border: 2px solid var(--stroke-strong); border-top-color: var(--accent);
+  animation: dxSpin 0.7s linear infinite; flex-shrink: 0;
+}
+@keyframes dxSpin { to { transform: rotate(360deg); } }
 
 /* ── grid ── */
 .dx-grid {
