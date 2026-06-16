@@ -448,6 +448,10 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       toast?.('Укажите ФИО продавца', 'error');
       return;
     }
+    if (!appraiserName.trim()) {
+      toast?.('Укажите ФИО эксперта-оценщика', 'error');
+      return;
+    }
     if (!rowTotal || rowTotal <= 0) {
       toast?.('Укажите стоимость хотя бы в одной строке', 'error');
       return;
@@ -539,6 +543,10 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     const fn = sellerName.trim();
     if (!fn) {
       toast?.('Укажите ФИО продавца', 'error');
+      return;
+    }
+    if (!appraiserName.trim()) {
+      toast?.('Укажите ФИО эксперта-оценщика', 'error');
       return;
     }
     if (!rowTotal || rowTotal <= 0) {
@@ -826,8 +834,13 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
 
       <div className="contract-card">
         <label className="field">
-          <span className="field-label">Эксперт-оценщик (ФИО)</span>
-          <input value={appraiserName} onChange={(e) => setAppraiserName(e.target.value)} placeholder="Кто принял товар" />
+          <span className="field-label">Эксперт-оценщик (ФИО) <span className="field-required" aria-hidden>*</span></span>
+          <input
+            value={appraiserName}
+            onChange={(e) => setAppraiserName(e.target.value)}
+            placeholder="Кто принял товар"
+            required
+          />
         </label>
       </div>
 
@@ -1201,6 +1214,9 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         }
         .contract-reset-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
         .contract-reset-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        /* Required field mark */
+        .field-required { color: var(--danger, #ef4444); margin-left: 2px; font-weight: 700; }
       `}</style>
     </div>
   );
