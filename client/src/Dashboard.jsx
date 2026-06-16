@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { api } from './api.js';
 import { PageHint } from './PageHint.jsx';
+import { openDashboardReport } from './dashboardReport.js';
 
 /**
  * Дашборд — главный рабочий экран после входа (Stage 7).
@@ -439,6 +440,49 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
     return e.split('@')[0] || 'коллега';
   }, [user]);
 
+  const exportReport = useCallback(() => {
+    const today = toIso(new Date());
+    const from = addDays(today, -29);
+    const fmtRu = (iso) => {
+      const dd = new Date(`${iso}T00:00:00`);
+      return dd.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+    const sourceLabel = price?.source === 'xaut' ? 'XAUT' : price?.source === 'moex' ? 'Мосбиржа' : 'ЦБ РФ';
+    openDashboardReport({
+      formatMoney,
+      userName,
+      rangeLabel: `${fmtRu(from)} – ${fmtRu(today)}`,
+      generatedAt: new Date().toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      gold: { value: goldRub, source: sourceLabel },
+      viewerScope: cur?.viewerScope,
+      buybackPercent: settings?.buybackPercentOfScrap ?? null,
+      kpis: {
+        sum: { cur: t?.sumRub ?? null, prev: tp?.sumRub ?? null },
+        deals: { cur: t?.deals ?? null, prev: tp?.deals ?? null },
+        clients: { cur: t?.uniqueCustomers ?? null, prev: tp?.uniqueCustomers ?? null },
+        avg: { cur: avgCheck, prev: avgPrev },
+      },
+      today: { count: todayRow?.count ?? 0, sumRub: Number(todayRow?.sumRub) || 0 },
+      flow: flowSeries,
+      staff: staff.map((row) => ({
+        name: (row.email || '—').split('@')[0],
+        sumRub: row.sumRub || 0,
+        deals: row.deals || 0,
+        share: t?.sumRub ? Math.round(((row.sumRub || 0) / t.sumRub) * 100) : 0,
+      })),
+      market: marketRows.map((c) => ({ name: c.name, region: c.region, comps: c.comps, avg: c.avg, adv: c.adv })),
+      probes: probeRows,
+      recent: recent.map((dl) => ({
+        name: dl.seller_name,
+        contractNo: dl.contract_no,
+        probe: dl.first_probe,
+        weight: dl.first_weight_gross,
+        sum: Number(dl.total_rub) || 0,
+        time: fmtDealTime(dl.created_at),
+      })),
+    });
+  }, [formatMoney, userName, price, goldRub, cur, settings, t, tp, avgCheck, avgPrev, todayRow, flowSeries, staff, marketRows, probeRows, recent]);
+
   return (
     <div className="dx">
       <PageHint id="dashboard" title="Это ваш рабочий экран">
@@ -456,6 +500,10 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
           </button>
           <button type="button" className="dx-qa" onClick={() => onNavigate?.('contract')}>
             Договор
+          </button>
+          <button type="button" className="dx-qa dx-qa--pdf" onClick={exportReport} title="Сформировать PDF-отчёт по дашборду">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5 5-5"/><path d="M12 16V4"/></svg>
+            Отчёт PDF
           </button>
         </div>
       </div>
@@ -1221,6 +1269,8 @@ const CSS = `
   box-shadow: 0 4px 18px var(--accent-glow);
 }
 .dx-qa--primary:hover { filter: brightness(1.07); transform: translateY(-1px); }
+.dx-qa--pdf { display: inline-flex; align-items: center; gap: 7px; }
+.dx-qa--pdf:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
 /* ── grid ── */
 .dx-grid {
