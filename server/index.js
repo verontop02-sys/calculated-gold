@@ -1008,6 +1008,7 @@ app.get(
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     const role = await getRequesterRole(req);
     const uid = req.user.id;
+    const { data: prof } = await supabase.from('profiles').select('display_name').eq('id', uid).maybeSingle();
     const sel = 'id, contract_no, total_rub, seller_name, first_probe, first_weight_gross, first_weight_net, created_at, rows';
     const { data: deals, error } = await supabase
       .from('scrap_deals')
@@ -1023,14 +1024,33 @@ app.get(
     const dealsCount = list.length;
     const avg = dealsCount > 0 ? Math.round(totalRub / dealsCount) : 0;
     const maxDeal = list.reduce((m, d) => (Number(d.total_rub) > (m?.total_rub || 0) ? d : m), null);
-    // first/last activity
     const firstDealAt = dealsCount > 0 ? list[list.length - 1].created_at : null;
     const lastDealAt = dealsCount > 0 ? list[0].created_at : null;
     res.json({
-      user: { uid, email: req.user.email, role },
+      user: { uid, email: req.user.email, role, displayName: prof?.display_name || null },
       stats: { dealsCount, totalRub, totalGross, totalNet, avg, firstDealAt, lastDealAt, maxDealRub: maxDeal?.total_rub || 0 },
       recent: list.slice(0, 12),
     });
+  })
+);
+
+// Обновление отображаемого имени.
+app.patch(
+  '/api/profile/me',
+  asyncHandler(async (req, res) => {
+    const uid = req.user.id;
+    const raw = String(req.body?.displayName ?? '').trim();
+    if (raw.length > 80) {
+      return res.status(400).json({ error: 'Имя не должно превышать 80 символов' });
+    }
+    const displayName = raw || null;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ display_name: displayName, updated_at: new Date().toISOString() })
+      .eq('id', uid);
+    if (error) throw error;
+    profileRoleMem.delete(uid);
+    res.json({ ok: true, displayName });
   })
 );
 

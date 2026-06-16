@@ -38,12 +38,20 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
   const [loading, setLoading] = useState(false);
   const [instrOn, setInstrOn] = useState(getShowInstructions);
   const [hintsOn, setHintsOn] = useState(getShowHints);
+  const [editingName, setEditingName] = useState(false);
+  const [nameVal, setNameVal] = useState('');
+  const [nameBusy, setNameBusy] = useState(false);
+  const [nameErr, setNameErr] = useState('');
+
+  const displayName = data?.user?.displayName || null;
 
   useEffect(() => {
     if (!open) return;
     let alive = true;
     setLoading(true);
     setData(null);
+    setEditingName(false);
+    setNameErr('');
     api
       .profileMe()
       .then((d) => { if (alive) setData(d); })
@@ -77,10 +85,29 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
     });
   }, []);
 
+  async function saveName() {
+    setNameErr('');
+    const val = nameVal.trim();
+    if (val.length > 80) { setNameErr('Максимум 80 символов'); return; }
+    setNameBusy(true);
+    try {
+      await api.updateDisplayName(val || null);
+      setData((prev) => prev ? { ...prev, user: { ...prev.user, displayName: val || null } } : prev);
+      setEditingName(false);
+    } catch (e) {
+      setNameErr(e?.message || 'Не удалось сохранить');
+    } finally {
+      setNameBusy(false);
+    }
+  }
+
   const stats = data?.stats;
   const recent = data?.recent || [];
 
-  const initials = useMemo(() => (user?.email || '?').trim().slice(0, 1).toUpperCase(), [user?.email]);
+  const initials = useMemo(() => {
+    const src = displayName || user?.email || '?';
+    return src.trim().slice(0, 1).toUpperCase();
+  }, [displayName, user?.email]);
 
   if (!open) return null;
 
@@ -94,6 +121,45 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
           </button>
           <div className="pf-avatar">{initials}</div>
           <div className="pf-id">
+            {editingName ? (
+              <div className="pf-name-edit">
+                <input
+                  className="pf-name-input"
+                  value={nameVal}
+                  onChange={(e) => setNameVal(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditingName(false); }}
+                  maxLength={80}
+                  placeholder="Ваше имя"
+                  autoFocus
+                  disabled={nameBusy}
+                />
+                <div className="pf-name-btns">
+                  <button type="button" className="pf-name-save" onClick={saveName} disabled={nameBusy}>
+                    {nameBusy ? '…' : 'Сохранить'}
+                  </button>
+                  <button type="button" className="pf-name-cancel" onClick={() => setEditingName(false)} disabled={nameBusy}>
+                    Отмена
+                  </button>
+                </div>
+                {nameErr && <span className="pf-name-err">{nameErr}</span>}
+              </div>
+            ) : (
+              <div className="pf-name-row">
+                <span className="pf-name">{displayName || user?.email || '—'}</span>
+                <button
+                  type="button"
+                  className="pf-name-pencil"
+                  title="Переименовать"
+                  onClick={() => { setNameVal(displayName || ''); setEditingName(true); setNameErr(''); }}
+                  aria-label="Изменить имя"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+              </div>
+            )}
             <div className="pf-email">{user?.email || '—'}</div>
             <span className="pf-role">{roleLabel(user?.role)}</span>
           </div>
@@ -250,8 +316,34 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
           display: flex; align-items: center; justify-content: center;
           font-size: 1.9rem; font-weight: 800; font-family: var(--font-display);
         }
-        .pf-id { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-        .pf-email { font-size: 1.02rem; font-weight: 700; word-break: break-all; line-height: 1.2; }
+        .pf-id { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+        .pf-name-row { display: flex; align-items: center; gap: 7px; }
+        .pf-name { font-size: 1.1rem; font-weight: 700; line-height: 1.2; }
+        .pf-name-pencil {
+          border: none; background: rgba(255,255,255,0.18); color: #fff;
+          border-radius: 6px; padding: 4px 5px; cursor: pointer; display: flex;
+          transition: background 150ms; flex-shrink: 0;
+        }
+        .pf-name-pencil:hover { background: rgba(255,255,255,0.35); }
+        .pf-name-edit { display: flex; flex-direction: column; gap: 7px; width: 100%; max-width: 280px; }
+        .pf-name-input {
+          width: 100%; padding: 9px 12px; border-radius: 9px;
+          border: 1.5px solid rgba(255,255,255,0.5); background: rgba(255,255,255,0.12);
+          color: #fff; font-size: 0.96rem; font-weight: 600; text-align: center;
+          outline: none; box-sizing: border-box;
+          transition: border-color 0.15s, background 0.15s;
+        }
+        .pf-name-input:focus { border-color: #fff; background: rgba(255,255,255,0.2); }
+        .pf-name-input::placeholder { color: rgba(255,255,255,0.5); }
+        .pf-name-btns { display: flex; gap: 8px; justify-content: center; }
+        .pf-name-save, .pf-name-cancel {
+          padding: 7px 16px; border-radius: 8px; font-size: 0.82rem; font-weight: 700; cursor: pointer; border: none; transition: opacity 0.15s;
+        }
+        .pf-name-save { background: #fff; color: var(--accent); }
+        .pf-name-cancel { background: rgba(255,255,255,0.18); color: #fff; }
+        .pf-name-save:disabled, .pf-name-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+        .pf-name-err { font-size: 0.76rem; color: #fca5a5; text-align: center; }
+        .pf-email { font-size: 0.86rem; opacity: 0.85; word-break: break-all; line-height: 1.2; }
         .pf-role {
           font-size: 0.74rem; font-weight: 600; padding: 3px 12px; border-radius: 999px;
           background: rgba(255,255,255,0.2);

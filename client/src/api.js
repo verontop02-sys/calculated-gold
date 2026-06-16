@@ -414,6 +414,8 @@ export const api = {
   scrapDealDetail: (id) => request(`/scrap-deals/${encodeURIComponent(String(id))}/detail`),
   /** Личный профиль: статистика и последние сделки текущего пользователя. */
   profileMe: () => request('/profile/me'),
+  updateDisplayName: (displayName) =>
+    request('/profile/me', { method: 'PATCH', body: JSON.stringify({ displayName }) }),
   /** Все сделки конкретного сотрудника (только руководитель). operatorId | 'none'. */
   operatorDeals: (operatorId, limit = 200) =>
     request(`/operator-deals?operatorId=${encodeURIComponent(String(operatorId || ''))}&limit=${limit}`),
