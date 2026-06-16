@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 import { pingApiHealth } from './api.js';
 import { ThemeToggle } from './ThemeToggle.jsx';
@@ -14,21 +14,56 @@ function mapLoginError(ex) {
 
 const CLIENT_SITE_URL = 'https://reaktivo.ru';
 
+// Сколько секунд симулировать прогресс до 90% при прогреве
+const WARM_PROGRESS_DURATION = 55;
+
 export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
+  // 'checking' | 'warming' | 'ready'
+  const [serverStatus, setServerStatus] = useState('checking');
+  const [warmProgress, setWarmProgress] = useState(0);
+  const progressRef = useRef(null);
+  const startRef = useRef(Date.now());
 
   useEffect(() => {
-    void pingApiHealth({ timeout: 90_000 }).catch(() => {});
+    let done = false;
+
+    // Через 6 сек без ответа — переходим в "warming" и запускаем прогресс-бар
+    const slowTimer = setTimeout(() => {
+      if (!done) setServerStatus('warming');
+    }, 6_000);
+
+    // Анимируем прогресс-бар: нелинейный рост (быстро в начале, замедляется к 90%)
+    progressRef.current = setInterval(() => {
+      const elapsed = (Date.now() - startRef.current) / 1000;
+      const pct = Math.min(90, (elapsed / WARM_PROGRESS_DURATION) * 100);
+      setWarmProgress(pct);
+    }, 400);
+
+    pingApiHealth({ timeout: 90_000 }).then((ok) => {
+      done = true;
+      clearTimeout(slowTimer);
+      clearInterval(progressRef.current);
+      setWarmProgress(100);
+      setServerStatus(ok ? 'ready' : 'warming');
+    }).catch(() => {
+      done = true;
+      clearTimeout(slowTimer);
+    });
+
+    return () => {
+      clearTimeout(slowTimer);
+      clearInterval(progressRef.current);
+    };
   }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setErr('');
     setLoading(true);
-    void pingApiHealth({ timeout: 90_000 }).catch(() => {});
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
@@ -36,8 +71,7 @@ export function Login() {
       });
       if (error) throw error;
       if (!data.session?.access_token) throw new Error('Сессия не создана, попробуйте ещё раз');
-      // Не ждать loadMe(): иначе кнопка «Вход…» крутится, пока отвечает API на Render. Профиль
-      // догружается в App после смены сессии.
+      // Не ждать loadMe(): профиль догружается в App после смены сессии.
     } catch (ex) {
       setErr(mapLoginError(ex));
     } finally {
@@ -103,6 +137,21 @@ export function Login() {
                   'Войти в систему'
                 )}
               </button>
+
+              {/* ── Индикатор прогрева сервера ── */}
+              <div className={`lg-warm lg-warm--${serverStatus}`} aria-live="polite">
+                <div className="lg-warm__bar">
+                  <div
+                    className="lg-warm__fill"
+                    style={{ width: `${warmProgress}%` }}
+                  />
+                </div>
+                <span className="lg-warm__label">
+                  {serverStatus === 'checking' && 'Подключение к серверу…'}
+                  {serverStatus === 'warming' && 'Сервер просыпается после паузы (~30–60 сек)…'}
+                  {serverStatus === 'ready' && '✓ Сервер готов'}
+                </span>
+              </div>
             </form>
           </section>
 
@@ -441,4 +490,44 @@ const CSS = `
   .lg-anim, .lg-orb { animation: none !important; }
   .lg-submit, .lg-client-btn { transition: none !important; }
 }
+
+/* ── Индикатор прогрева сервера ── */
+.lg-warm {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  opacity: 1;
+  transition: opacity 0.4s;
+}
+.lg-warm--ready {
+  opacity: 0.55;
+}
+.lg-warm__bar {
+  height: 3px;
+  border-radius: 99px;
+  background: var(--stroke-soft);
+  overflow: hidden;
+}
+.lg-warm__fill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent-grad);
+  transition: width 0.5s ease-out;
+}
+.lg-warm--ready .lg-warm__fill {
+  background: var(--emerald, #22c55e);
+}
+.lg-warm__label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.lg-warm--ready .lg-warm__label {
+  color: var(--emerald, #22c55e);
+  font-weight: 600;
+}
+.lg-warm--warming .lg-warm__label {
+  color: var(--text-muted);
+}
+
 `;

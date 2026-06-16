@@ -1118,6 +1118,28 @@ html {
   position: relative;
   overflow: hidden;
 }
+.load-card__progress-wrap {
+  width: 100%;
+  height: 3px;
+  border-radius: 99px;
+  background: var(--stroke-soft);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.load-card__progress-bar {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent-grad);
+  animation: loadCardProgress 60s cubic-bezier(0.1, 0.6, 0.4, 0.95) forwards;
+}
+@keyframes loadCardProgress {
+  0%   { width: 0%; }
+  10%  { width: 22%; }
+  30%  { width: 48%; }
+  60%  { width: 72%; }
+  90%  { width: 88%; }
+  100% { width: 90%; }
+}
 .load-card__title {
   font-weight: 600;
   font-size: 1.05rem;

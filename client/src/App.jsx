@@ -332,7 +332,7 @@ export default function App() {
       setProfilePatientNote(false);
       return undefined;
     }
-    const t = setTimeout(() => setProfilePatientNote(true), 28_000);
+    const t = setTimeout(() => setProfilePatientNote(true), 6_000);
     return () => clearTimeout(t);
   }, [sessionUser?.id, user, profileErr]);
 
@@ -444,14 +444,16 @@ export default function App() {
     return (
       <div className="shell">
         <div className="glass load-card load-card--profile">
-          <div className="spinner" style={{ margin: '0 auto 16px' }} />
+          <div className="load-card__progress-wrap">
+            <div className="load-card__progress-bar" />
+          </div>
           <p className="load-card__title">Загрузка панели</p>
           <p className="muted load-card__hint" key={profileHintIdx}>
             {PROFILE_LOAD_HINTS[profileHintIdx]}
           </p>
           {profilePatientNote && (
             <p className="muted small load-card__patient">
-              После долгой паузы первый вход иногда до двух минут — оставьте вкладку открытой.
+              Сервер просыпается после паузы — первый запуск занимает 30–60 сек. Не закрывайте вкладку.
             </p>
           )}
         </div>
