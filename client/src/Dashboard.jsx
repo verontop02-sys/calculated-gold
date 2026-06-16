@@ -440,39 +440,53 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
     return e.split('@')[0] || 'коллега';
   }, [user]);
 
-  const exportReport = useCallback(() => {
+  // Ref всегда хранит актуальные данные — без риска устаревшего замыкания useCallback.
+  const reportDataRef = useRef({});
+  reportDataRef.current = {
+    formatMoney, userName, price, goldRub, cur, prev, settings, market,
+    t, tp, avgCheck, avgPrev, todayRow, flowSeries, staff, marketRows, probeRows, recent,
+  };
+
+  function exportReport() {
+    const d = reportDataRef.current;
+    const { formatMoney: fm, userName: uName, price: pr, goldRub: gRub,
+            cur: cCur, settings: sett, t: tt, tp: ttp,
+            avgCheck: avgC, avgPrev: avgP, todayRow: tRow,
+            flowSeries: fSeries, staff: stf, marketRows: mRows,
+            probeRows: pRows, recent: rec } = d;
+
     const today = toIso(new Date());
     const from = addDays(today, -29);
     const fmtRu = (iso) => {
       const dd = new Date(`${iso}T00:00:00`);
       return dd.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
     };
-    const sourceLabel = price?.source === 'xaut' ? 'XAUT' : price?.source === 'moex' ? 'Мосбиржа' : 'ЦБ РФ';
+    const sourceLabel = pr?.source === 'xaut' ? 'XAUT' : pr?.source === 'moex' ? 'Мосбиржа' : 'ЦБ РФ';
     const ok = openDashboardReport({
-      formatMoney,
-      userName,
+      formatMoney: fm,
+      userName: uName,
       rangeLabel: `${fmtRu(from)} – ${fmtRu(today)}`,
       generatedAt: new Date().toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-      gold: { value: goldRub, source: sourceLabel },
-      viewerScope: cur?.viewerScope,
-      buybackPercent: settings?.buybackPercentOfScrap ?? null,
+      gold: { value: gRub, source: sourceLabel },
+      viewerScope: cCur?.viewerScope,
+      buybackPercent: sett?.buybackPercentOfScrap ?? null,
       kpis: {
-        sum: { cur: t?.sumRub ?? null, prev: tp?.sumRub ?? null },
-        deals: { cur: t?.deals ?? null, prev: tp?.deals ?? null },
-        clients: { cur: t?.uniqueCustomers ?? null, prev: tp?.uniqueCustomers ?? null },
-        avg: { cur: avgCheck, prev: avgPrev },
+        sum:     { cur: tt?.sumRub ?? null,         prev: ttp?.sumRub ?? null },
+        deals:   { cur: tt?.deals ?? null,           prev: ttp?.deals ?? null },
+        clients: { cur: tt?.uniqueCustomers ?? null, prev: ttp?.uniqueCustomers ?? null },
+        avg:     { cur: avgC,                        prev: avgP },
       },
-      today: { count: todayRow?.count ?? 0, sumRub: Number(todayRow?.sumRub) || 0 },
-      flow: flowSeries,
-      staff: staff.map((row) => ({
+      today: { count: tRow?.count ?? 0, sumRub: Number(tRow?.sumRub) || 0 },
+      flow: fSeries,
+      staff: stf.map((row) => ({
         name: (row.email || '—').split('@')[0],
         sumRub: row.sumRub || 0,
         deals: row.deals || 0,
-        share: t?.sumRub ? Math.round(((row.sumRub || 0) / t.sumRub) * 100) : 0,
+        share: tt?.sumRub ? Math.round(((row.sumRub || 0) / tt.sumRub) * 100) : 0,
       })),
-      market: marketRows.map((c) => ({ name: c.name, region: c.region, comps: c.comps, avg: c.avg, adv: c.adv })),
-      probes: probeRows,
-      recent: recent.map((dl) => ({
+      market: mRows.map((c) => ({ name: c.name, region: c.region, comps: c.comps, avg: c.avg, adv: c.adv })),
+      probes: pRows,
+      recent: rec.map((dl) => ({
         name: dl.seller_name,
         contractNo: dl.contract_no,
         probe: dl.first_probe,
@@ -484,7 +498,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
     if (!ok) {
       alert('Не удалось открыть отчёт. Разрешите всплывающие окна для этого сайта и повторите.');
     }
-  }, [formatMoney, userName, price, goldRub, cur, settings, t, tp, avgCheck, avgPrev, todayRow, flowSeries, staff, marketRows, probeRows, recent]);
+  }
 
   return (
     <div className="dx">
