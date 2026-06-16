@@ -101,7 +101,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   const [passportLine, setPassportLine] = useState('');
   const [address, setAddress] = useState('');
   const [appraiserName, setAppraiserName] = useState('');
-  const [rows, setRows] = useState(() => [emptyRow(), emptyRow(), emptyRow()]);
+  const [rows, setRows] = useState(() => [emptyRow()]);
   const [customerId, setCustomerId] = useState(null);
 
   const [searchQ, setSearchQ] = useState('');
@@ -217,7 +217,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     if (!prefill) return;
     if (typeof prefill.totalRub === 'number' && Number.isFinite(prefill.totalRub)) {
       const tr = Math.round(prefill.totalRub);
-      const next = [emptyRow(), emptyRow(), emptyRow()];
+      const next = [emptyRow()];
       if (prefill.weightGrams != null && prefill.purity != null) {
         next[0] = {
           itemName: prefill.itemName || 'Лом ювелирных изделий',
@@ -344,7 +344,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   function resetForm() {
     setRows((prev) => {
       for (const r of prev) if (r?.photoUrl) URL.revokeObjectURL(r.photoUrl);
-      return [emptyRow(), emptyRow(), emptyRow()];
+      return [emptyRow()];
     });
     setContractNo('');
     setSellerName('');
