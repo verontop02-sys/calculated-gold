@@ -145,6 +145,48 @@ function clearCalculatorLocalForUid(uid) {
   }
 }
 
+function FullscreenToggle() {
+  const [isFull, setIsFull] = useState(false);
+
+  useEffect(() => {
+    function onChange() {
+      setIsFull(!!document.fullscreenElement);
+    }
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  function toggle() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className="cg-fullscreen-btn"
+      onClick={toggle}
+      title={isFull ? 'Выйти из полного экрана' : 'Полный экран'}
+      aria-label={isFull ? 'Выйти из полного экрана' : 'Полный экран'}
+    >
+      {isFull ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/>
+          <path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>
+        </svg>
+      ) : (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 7V3h4"/><path d="M17 3h4v4"/>
+          <path d="M21 17v4h-4"/><path d="M7 21H3v-4"/>
+        </svg>
+      )}
+    </button>
+  );
+}
+
 export default function App() {
   const toast = useToast();
   const [authReady, setAuthReady] = useState(false);
@@ -629,6 +671,7 @@ export default function App() {
           </div>
 
           <div className="cg-topbar__actions">
+            <FullscreenToggle />
             <ThemeToggle />
           </div>
         </header>
@@ -763,6 +806,18 @@ export default function App() {
           text-overflow: ellipsis;
         }
         .cg-topbar__actions { display: flex; align-items: center; gap: 8px; }
+        .cg-fullscreen-btn {
+          display: flex; align-items: center; justify-content: center;
+          width: 34px; height: 34px;
+          border: 1px solid var(--stroke-soft);
+          border-radius: 8px;
+          background: transparent;
+          color: var(--text-muted);
+          cursor: pointer;
+          transition: color 0.16s, background 0.16s, border-color 0.16s;
+          flex-shrink: 0;
+        }
+        .cg-fullscreen-btn:hover { color: var(--text); background: var(--bg-elevated); border-color: var(--stroke); }
 
         /* ── Rate pill (right side of topbar) ──────────────────────────────────── */
         .cg-topbar__rate {
