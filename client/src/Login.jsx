@@ -278,21 +278,21 @@ const CSS = `
 }
 
 /* ── шапка ── */
-.lg-head { display: flex; align-items: center; gap: 13px; }
+.lg-head { display: flex; align-items: center; gap: 16px; }
 .lg-mark {
-  width: 46px; height: 46px;
-  border-radius: 13px;
+  width: 62px; height: 62px;
+  border-radius: 16px;
   background: #fff;
   border: 1px solid var(--stroke);
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
 }
-.lg-mark img { width: 100%; height: 100%; object-fit: contain; padding: 5px; box-sizing: border-box; }
+.lg-mark img { width: 100%; height: 100%; object-fit: contain; padding: 6px; box-sizing: border-box; }
 .lg-brand {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.3rem;
+  font-size: 1.55rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   color: var(--text-strong);
