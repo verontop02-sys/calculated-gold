@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
-import { roleLabel } from './roles.js';
+import { roleLabel, isSuperAdminRole } from './roles.js';
 import { getShowHints, setShowHints, resetDismissedHints } from './PageHint.jsx';
 
 const INSTRUCTIONS_KEY = 'cg_show_instructions';
@@ -33,7 +33,7 @@ function fmtDateTime(iso) {
   return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayInstructions }) {
+export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayInstructions, onNameChange }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [instrOn, setInstrOn] = useState(getShowInstructions);
@@ -93,6 +93,7 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
     try {
       await api.updateDisplayName(val || null);
       setData((prev) => prev ? { ...prev, user: { ...prev.user, displayName: val || null } } : prev);
+      onNameChange?.(val || null);
       setEditingName(false);
     } catch (e) {
       setNameErr(e?.message || 'Не удалось сохранить');
@@ -121,7 +122,7 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
           </button>
           <div className="pf-avatar">{initials}</div>
           <div className="pf-id">
-            {editingName ? (
+            {editingName && isSuperAdminRole(user?.role) ? (
               <div className="pf-name-edit">
                 <input
                   className="pf-name-input"
@@ -146,18 +147,20 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
             ) : (
               <div className="pf-name-row">
                 <span className="pf-name">{displayName || user?.email || '—'}</span>
-                <button
-                  type="button"
-                  className="pf-name-pencil"
-                  title="Переименовать"
-                  onClick={() => { setNameVal(displayName || ''); setEditingName(true); setNameErr(''); }}
-                  aria-label="Изменить имя"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
-                </button>
+                {isSuperAdminRole(user?.role) && (
+                  <button
+                    type="button"
+                    className="pf-name-pencil"
+                    title="Переименовать"
+                    onClick={() => { setNameVal(displayName || ''); setEditingName(true); setNameErr(''); }}
+                    aria-label="Изменить имя"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </button>
+                )}
               </div>
             )}
             <div className="pf-email">{user?.email || '—'}</div>

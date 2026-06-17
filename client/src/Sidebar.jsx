@@ -121,10 +121,15 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpen
           title="Открыть профиль"
         >
           <span className="cg-sidebar__user-avatar" aria-hidden>
-            {(user?.email || '?').slice(0, 1).toUpperCase()}
+            {(user?.displayName || user?.email || '?').slice(0, 1).toUpperCase()}
           </span>
           <div className="cg-sidebar__user-text">
-            <span className="cg-sidebar__user-email" title={user?.email}>{user?.email}</span>
+            <span className="cg-sidebar__user-email" title={user?.displayName || user?.email}>
+              {user?.displayName || user?.email}
+            </span>
+            {user?.displayName && (
+              <span className="cg-sidebar__user-subemail" title={user?.email}>{user?.email}</span>
+            )}
             <span className="cg-sidebar__user-role">{roleLabel(user?.role)}</span>
           </div>
           <span className="cg-sidebar__user-chevron" aria-hidden>
@@ -500,6 +505,14 @@ const SIDEBAR_CSS = `
   font-size: 0.75rem;
   color: var(--text);
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cg-sidebar__user-subemail {
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
