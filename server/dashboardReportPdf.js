@@ -6,14 +6,12 @@
 
 import { createRequire } from 'module';
 import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
-import { readFileSync } from 'fs';
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
+import { getReportLogoDataUri } from './reportLogo.js';
 
 const require = createRequire(import.meta.url);
 const pdfMake = require('pdfmake');
 const pdfmakeRoot = dirname(require.resolve('pdfmake/package.json'));
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ── шрифты ──────────────────────────────────────────────────────────────────
 pdfMake.setFonts({
@@ -33,21 +31,6 @@ function ensureCanvasFonts() {
   reg(join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-Medium.ttf'), 'DRptB');
   _canvasFontsReady = true;
 }
-
-// ── логотип ──────────────────────────────────────────────────────────────────
-let LOGO_B64 = null;
-(() => {
-  const cands = [
-    join(__dirname, '..', 'client', 'public', 'logo_reactivo1.png'),
-    join(__dirname, '..', 'logo_reactivo1.png'),
-  ];
-  for (const p of cands) {
-    try {
-      const buf = readFileSync(p);
-      if (buf?.length) { LOGO_B64 = `data:image/png;base64,${buf.toString('base64')}`; break; }
-    } catch { /* skip */ }
-  }
-})();
 
 // ── форматирование ───────────────────────────────────────────────────────────
 const fmt = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
@@ -223,8 +206,9 @@ export async function buildDashboardReportPdf(payload) {
     ? await renderFlowChart(flow, C.chartColor)
     : null;
 
+  const logo = await getReportLogoDataUri();
   const images = {};
-  if (LOGO_B64) images.brandLogo = LOGO_B64;
+  if (logo) images.brandLogo = logo;
   if (chartB64) images.flowChart = chartB64;
 
   const layout = makeLayout(C);
@@ -339,7 +323,7 @@ export async function buildDashboardReportPdf(payload) {
       ],
     });
   }
-  if (LOGO_B64) {
+  if (logo) {
     headerCols.push({ width: 36, image: 'brandLogo', fit: [36, 36], margin: [8, 0, 0, 0] });
   }
 

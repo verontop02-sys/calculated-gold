@@ -1,28 +1,11 @@
 import { createRequire } from 'module';
 import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
-import { readFileSync } from 'fs';
 import { renderLineChartPng, renderDualLineChartPng, renderBarChartPng } from './analyticsChartCanvas.js';
+import { getReportLogoDataUri } from './reportLogo.js';
 
 const require = createRequire(import.meta.url);
 const pdfMake = require('pdfmake');
 const pdfmakeRoot = dirname(require.resolve('pdfmake/package.json'));
-
-// Логотип REAKTIVO для шапки отчёта (грузим один раз, base64).
-const __dirname = dirname(fileURLToPath(import.meta.url));
-let LOGO_DATA_URI = null;
-(() => {
-  const candidates = [
-    join(__dirname, '..', 'client', 'public', 'logo_reactivo1.png'),
-    join(__dirname, '..', 'logo_reactivo1.png'),
-  ];
-  for (const p of candidates) {
-    try {
-      const buf = readFileSync(p);
-      if (buf?.length) { LOGO_DATA_URI = `data:image/png;base64,${buf.toString('base64')}`; break; }
-    } catch { /* следующий путь */ }
-  }
-})();
 
 // Палитра отчёта (Stage 7): фирменный красный + нейтральные серые.
 const C = {
@@ -255,6 +238,7 @@ export async function buildAnalyticsReportPdfBuffer(data, group = 'day', section
         })
       : null;
 
+  const LOGO_DATA_URI = await getReportLogoDataUri();
   const images = {};
   if (LOGO_DATA_URI) images.brandLogo = LOGO_DATA_URI;
   if (b64Png(bufBar)) images.gBar = b64Png(bufBar);
