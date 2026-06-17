@@ -31,7 +31,7 @@ const CONTENT_W = Math.round(PAGE_W - 2 * PAGE_MARGIN_X);
 
 /** overview — результат buildGoldIndexOverview */
 export async function buildGoldIndexReportPdfBuffer(overview, options = {}) {
-  const C = pickPalette(options.theme === 'light' ? 'light' : 'dark');
+  const C = pickPalette(options.theme === 'dark' ? 'dark' : 'light');
   const generated = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
   const spot = overview?.goldRubPerGram != null ? fmtRub(overview.goldRubPerGram) : '—';
   const bb = overview?.settingsSnapshot?.buybackPercentOfScrap ?? '—';

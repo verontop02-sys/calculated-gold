@@ -121,7 +121,7 @@ async function renderFlowChart(series, C, W = 1480, H = 320) {
 }
 
 export async function buildDashboardReportPdf(payload) {
-  const theme = payload.theme === 'light' ? 'light' : 'dark';
+  const theme = payload.theme === 'dark' ? 'dark' : 'light';
   const C = pickPalette(theme);
   const fm = fmtRub;
 

@@ -61,7 +61,7 @@ function weekDeltaCell(prev, cur, C) {
 }
 
 export async function buildTeamPerformancePdfBuffer(data, options = {}) {
-  const C = pickPalette(options.theme === 'light' ? 'light' : 'dark');
+  const C = pickPalette(options.theme === 'dark' ? 'dark' : 'light');
   const nowStr = new Date().toLocaleString('ru-RU', {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
@@ -83,10 +83,10 @@ export async function buildTeamPerformancePdfBuffer(data, options = {}) {
 
   const [bufDaily, bufWeek, logo] = await Promise.all([
     dayLabels.length > 0
-      ? renderLineChartPng({ width: chartW * 2, height: chartH * 2, labels: dayLabels, values: dayValues, caption: 'Оборот по дням, ₽', yUnit: '₽', color: C.accent, isCurrency: true, theme: 'dark' })
+      ? renderLineChartPng({ width: chartW * 2, height: chartH * 2, labels: dayLabels, values: dayValues, caption: 'Оборот по дням, ₽', yUnit: '₽', color: C.accent, isCurrency: true, theme: 'light' })
       : Promise.resolve(Buffer.alloc(0)),
     weekLabels.length > 0
-      ? renderLineChartPng({ width: chartW * 2, height: chartH * 2, labels: weekLabels, values: weekValues, caption: 'Оборот по неделям (ISO, пн), ₽', yUnit: '₽', color: C.amber, fillUnder: true, isCurrency: true, theme: 'dark' })
+      ? renderLineChartPng({ width: chartW * 2, height: chartH * 2, labels: weekLabels, values: weekValues, caption: 'Оборот по неделям (ISO, пн), ₽', yUnit: '₽', color: C.amber, fillUnder: true, isCurrency: true, theme: 'light' })
       : Promise.resolve(Buffer.alloc(0)),
     getReportLogoDataUri(),
   ]);
