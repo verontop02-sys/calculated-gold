@@ -7,8 +7,8 @@ import { dirname, join } from 'path';
 import { renderLineChartPng } from './analyticsChartCanvas.js';
 import { getReportLogoDataUri } from './reportLogo.js';
 import {
-  pickPalette, fmtRub, fmtNum, fmtDateRu, dataTableLayout, th, sectionTitle,
-  statCard, baseDocDefinition,
+  pickPalette, fmtRub, fmtNum, fmtDateRu, th, sectionTitle,
+  sectionTable, statCard, baseDocDefinition,
 } from './reportTheme.js';
 
 const require = createRequire(import.meta.url);
@@ -96,9 +96,6 @@ export async function buildTeamPerformancePdfBuffer(data, options = {}) {
   if (b64Png(bufDaily)) images.teamDay = b64Png(bufDaily);
   if (b64Png(bufWeek)) images.teamWeek = b64Png(bufWeek);
 
-  const layout = dataTableLayout(C);
-  const tbl = (body, widths, m = [0, 0, 0, 0]) => ({ width: '*', table: { widths, body }, layout, margin: m });
-
   const content = [];
 
   // ── Шапка ──
@@ -138,7 +135,7 @@ export async function buildTeamPerformancePdfBuffer(data, options = {}) {
       margin: [0, 0, 0, 4],
     });
 
-    // ── Графики ──
+    // ── Графики (каждый с заголовком, неразрывно) ──
     if (images.teamDay || images.teamWeek) {
       content.push(sectionTitle('Динамика оборота', C));
       content.push({
@@ -148,14 +145,15 @@ export async function buildTeamPerformancePdfBuffer(data, options = {}) {
           { width: '*', stack: images.teamWeek ? [{ image: 'teamWeek', width: chartW }] : [{ text: '' }] },
         ],
         margin: [0, 0, 0, 4],
+        unbreakable: true,
       });
     }
 
     // ── Рейтинг ──
-    content.push(sectionTitle('Рейтинг по сотрудникам', C));
-    content.push(tbl([
-      [th('#', C), th('Учётная запись', C), th('Сделок', C, { alignment: 'right' }), th('Сумма', C, { alignment: 'right' }), th('Вес лом / чист., г', C, { alignment: 'right' }), th('% суммы', C, { alignment: 'right' })],
-      ...ops.map((r) => [
+    content.push(sectionTable(C, {
+      title: 'Рейтинг по сотрудникам',
+      head: [th('#', C), th('Учётная запись', C), th('Сделок', C, { alignment: 'right' }), th('Сумма', C, { alignment: 'right' }), th('Вес лом / чист., г', C, { alignment: 'right' }), th('% суммы', C, { alignment: 'right' })],
+      rows: ops.map((r) => [
         { text: String(r.rank), fontSize: 8, color: C.accent, bold: true },
         { text: r.email || '—', fontSize: 8, color: C.ink },
         { text: String(r.deals), fontSize: 8, alignment: 'right', color: C.ink },
@@ -163,14 +161,15 @@ export async function buildTeamPerformancePdfBuffer(data, options = {}) {
         { text: `${fmtNum(r.weightGrossSum, 2)} / ${fmtNum(r.weightNetSum, 3)}`, fontSize: 7.5, alignment: 'right', color: C.inkMuted },
         { text: `${r.shareRubPct}%`, fontSize: 8, alignment: 'right', color: C.inkMuted },
       ]),
-    ], [22, '*', 40, 70, 110, 44]));
+      widths: [22, '*', 40, 70, 110, 44],
+    }));
 
     // ── По неделям ──
     if (weeks.length > 0) {
-      content.push(sectionTitle('По неделям (ISO, пн — начало недели)', C));
-      content.push(tbl([
-        [th('Неделя с', C), th('Сделок', C, { alignment: 'right' }), th('Сумма', C, { alignment: 'right' }), th('к пред.', C, { alignment: 'right' }), th('Лом, г', C, { alignment: 'right' }), th('Чист., г', C, { alignment: 'right' })],
-        ...weeks.map((w, i) => [
+      content.push(sectionTable(C, {
+        title: 'По неделям (ISO, пн — начало недели)',
+        head: [th('Неделя с', C), th('Сделок', C, { alignment: 'right' }), th('Сумма', C, { alignment: 'right' }), th('к пред.', C, { alignment: 'right' }), th('Лом, г', C, { alignment: 'right' }), th('Чист., г', C, { alignment: 'right' })],
+        rows: weeks.map((w, i) => [
           { text: fmtDateRu(w.weekStart), fontSize: 8, color: C.ink },
           { text: String(w.deals), fontSize: 8, alignment: 'right', color: C.ink },
           { text: fmtRub(w.sumRub), fontSize: 8, alignment: 'right', color: C.ink },
@@ -178,7 +177,8 @@ export async function buildTeamPerformancePdfBuffer(data, options = {}) {
           { text: fmtNum(w.weightGrossSum, 2), fontSize: 8, alignment: 'right', color: C.inkMuted },
           { text: fmtNum(w.weightNetSum, 3), fontSize: 8, alignment: 'right', color: C.inkMuted },
         ]),
-      ], [70, 44, '*', 56, 60, 60]));
+        widths: [70, 44, '*', 56, 60, 60],
+      }));
     }
   }
 

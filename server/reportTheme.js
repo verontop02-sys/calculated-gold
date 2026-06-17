@@ -144,6 +144,53 @@ export function sectionTitle(text, C, margin = [0, 14, 0, 6]) {
   };
 }
 
+/** Слой для таблицы-раздела: строка 0 — заголовок (без фона), строка 1 — шапка. */
+function sectionTableLayout(C) {
+  return {
+    hLineWidth: (i, node) => {
+      if (i === 0) return 0;
+      if (i === 1) return 2; // акцентная линия под заголовком раздела
+      if (i === node.table.body.length) return 0.8;
+      return 0.4;
+    },
+    vLineWidth: () => 0,
+    hLineColor: (i) => (i === 1 ? C.accent : C.stroke),
+    paddingLeft: () => 9,
+    paddingRight: () => 9,
+    paddingTop: (i) => (i === 0 ? 3 : 6),
+    paddingBottom: (i) => (i === 0 ? 7 : 6),
+    fillColor: (i) => {
+      if (i === 0) return null; // заголовок — прозрачный (виден фон страницы)
+      if (i === 1) return C.thFill; // шапка столбцов
+      return i % 2 === 0 ? C.rowOdd : C.rowEven;
+    },
+  };
+}
+
+/**
+ * Таблица-раздел: заголовок вшит первой строкой таблицы и помечен как headerRow,
+ * поэтому он НИКОГДА не остаётся «сиротой» внизу страницы, а при переносе таблицы
+ * заголовок и шапка столбцов повторяются на новой странице.
+ * @param {object} cfg { title, head: cell[], rows: cell[][], widths, margin }
+ */
+export function sectionTable(C, { title, head, rows, widths, margin = [0, 14, 0, 0] }) {
+  const colN = widths.length;
+  const titleRow = [
+    { text: String(title).toUpperCase(), colSpan: colN, bold: true, fontSize: 7.5, color: C.inkMuted, characterSpacing: 0.1 },
+    ...Array.from({ length: colN - 1 }, () => ({})),
+  ];
+  return {
+    table: { widths, headerRows: 2, dontBreakRows: false, body: [titleRow, head, ...rows] },
+    layout: sectionTableLayout(C),
+    margin,
+  };
+}
+
+/** Неразрывный блок (заголовок + одиночный контент, напр. график) — не делится между страницами. */
+export function keepTogether(...nodes) {
+  return { stack: nodes.filter(Boolean), unbreakable: true };
+}
+
 /** Одна карточка-плитка (single-cell table) с акцентной кромкой сверху. */
 export function statCard(C, { label, value, valueColor, footColumns }) {
   const stack = [

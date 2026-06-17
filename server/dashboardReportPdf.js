@@ -9,7 +9,7 @@ import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
 import { getReportLogoDataUri } from './reportLogo.js';
 import {
   pickPalette, fmtRub, deltaParts, dataTableLayout, th, sectionTitle,
-  statCard, baseDocDefinition,
+  sectionTable, keepTogether, statCard, baseDocDefinition,
 } from './reportTheme.js';
 
 const require = createRequire(import.meta.url);
@@ -198,7 +198,7 @@ export async function buildDashboardReportPdf(payload) {
   content.push({ columns: [{ width: '*', ...kpiCl }, { width: 10, text: '' }, { width: '*', ...kpiAvg }], margin: [0, 0, 0, 0] });
 
   // ── Сегодня + Выкуп по пробам ──
-  content.push(sectionTitle('Сегодня и выкуп по пробам', C));
+  const todayTitle = sectionTitle('Сегодня и выкуп по пробам', C);
   const leftToday = {
     width: '*',
     table: {
@@ -234,61 +234,68 @@ export async function buildDashboardReportPdf(payload) {
   const rightProbes = probeBody
     ? { width: '*', stack: [tbl(probeBody, ['auto', '*'])] }
     : { width: '*', text: '' };
-  content.push({ columns: [leftToday, { width: 14, text: '' }, rightProbes], columnGap: 0, margin: [0, 0, 0, 0] });
+  // Заголовок + блок «сегодня/пробы» держим вместе.
+  content.push(keepTogether(
+    todayTitle,
+    { columns: [leftToday, { width: 14, text: '' }, rightProbes], columnGap: 0, margin: [0, 0, 0, 0] },
+  ));
 
-  // ── График ──
-  content.push(sectionTitle('Денежный поток · оборот по дням', C));
+  // ── График (заголовок + картинка неразрывно) ──
   if (chartB64) {
-    content.push({ image: 'flowChart', width: CONTENT_W, margin: [0, 0, 0, 2] });
+    content.push(keepTogether(
+      sectionTitle('Денежный поток · оборот по дням', C),
+      { image: 'flowChart', width: CONTENT_W, margin: [0, 0, 0, 2] },
+    ));
   } else {
+    content.push(sectionTitle('Денежный поток · оборот по дням', C));
     content.push({ text: 'Нет данных за период', fontSize: 8, color: C.inkDim, margin: [0, 2, 0, 6] });
   }
 
   // ── Команда ──
   if (staff.length) {
-    content.push(sectionTitle('Команда · топ по обороту за 30 дней', C));
-    content.push(tbl([
-      [th('#', C), th('Сотрудник', C), th('Сделок', C, { alignment: 'right' }), th('Оборот', C, { alignment: 'right' }), th('Доля', C, { alignment: 'right' })],
-      ...staff.map((s, i) => [
+    content.push(sectionTable(C, {
+      title: 'Команда · топ по обороту за 30 дней',
+      head: [th('#', C), th('Сотрудник', C), th('Сделок', C, { alignment: 'right' }), th('Оборот', C, { alignment: 'right' }), th('Доля', C, { alignment: 'right' })],
+      rows: staff.map((s, i) => [
         { text: String(i + 1), fontSize: 7.5, color: C.accent, bold: true },
         { text: s.name || '—', fontSize: 8, color: C.ink },
         { text: String(s.deals || 0), fontSize: 8, alignment: 'right', color: C.ink },
         { text: fm(s.sumRub), fontSize: 8, alignment: 'right', color: C.ink },
         { text: `${s.share || 0}%`, fontSize: 8, alignment: 'right', color: C.inkMuted },
       ]),
-    ], ['auto', '*', 'auto', 'auto', 'auto']));
+      widths: ['auto', '*', 'auto', 'auto', 'auto'],
+    }));
   }
 
   // ── Рынок ──
   if (market.length) {
-    content.push(sectionTitle('Рынок · 585 проба', C));
-    content.push(tbl([
-      [th('Город', C), th('Ср. цена конк.', C, { alignment: 'right' }), th('Наше преим.', C, { alignment: 'right' })],
-      ...market.map((m) => {
-        const advCell = m.adv != null
+    content.push(sectionTable(C, {
+      title: 'Рынок · 585 проба',
+      head: [th('Город', C), th('Ср. цена конк.', C, { alignment: 'right' }), th('Наше преим.', C, { alignment: 'right' })],
+      rows: market.map((m) => [
+        { text: m.name || '—', fontSize: 8, color: C.ink },
+        { text: m.avg != null ? fm(Math.round(m.avg)) : '—', fontSize: 8, alignment: 'right', color: C.ink },
+        m.adv != null
           ? { text: `${m.adv >= 0 ? '+' : '−'}${Math.abs(m.adv).toFixed(1)}%`, fontSize: 8, alignment: 'right', color: m.adv >= 0 ? C.emerald : C.crimson, bold: true }
-          : { text: '—', fontSize: 8, alignment: 'right', color: C.inkDim };
-        return [
-          { text: m.name || '—', fontSize: 8, color: C.ink },
-          { text: m.avg != null ? fm(Math.round(m.avg)) : '—', fontSize: 8, alignment: 'right', color: C.ink },
-          advCell,
-        ];
-      }),
-    ], ['*', 'auto', 'auto']));
+          : { text: '—', fontSize: 8, alignment: 'right', color: C.inkDim },
+      ]),
+      widths: ['*', 'auto', 'auto'],
+    }));
   }
 
   // ── Последние договоры ──
   if (recent.length) {
-    content.push(sectionTitle('Последние договоры', C));
-    content.push(tbl([
-      [th('Клиент', C), th('Договор', C), th('Сумма', C, { alignment: 'right' }), th('Время', C, { alignment: 'right' })],
-      ...recent.map((r) => [
+    content.push(sectionTable(C, {
+      title: 'Последние договоры',
+      head: [th('Клиент', C), th('Договор', C), th('Сумма', C, { alignment: 'right' }), th('Время', C, { alignment: 'right' })],
+      rows: recent.map((r) => [
         { text: r.name || 'Без имени', fontSize: 8, color: C.ink },
         { text: (r.contractNo ? `№ ${r.contractNo}` : '—') + (r.probe ? ` · ${r.probe} пр.` : '') + (r.weight ? ` · ${r.weight} г` : ''), fontSize: 7.5, color: C.inkMuted },
         { text: fm(r.sum), fontSize: 8, alignment: 'right', color: C.ink },
         { text: r.time || '—', fontSize: 7.5, alignment: 'right', color: C.inkDim },
       ]),
-    ], ['*', '*', 'auto', 'auto']));
+      widths: ['*', '*', 'auto', 'auto'],
+    }));
   }
 
   const docDef = {

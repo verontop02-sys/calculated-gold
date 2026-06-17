@@ -6,7 +6,7 @@ import { createRequire } from 'module';
 import { dirname, join } from 'path';
 import { getReportLogoDataUri } from './reportLogo.js';
 import {
-  pickPalette, fmtRub, dataTableLayout, th, sectionTitle, baseDocDefinition,
+  pickPalette, fmtRub, dataTableLayout, th, sectionTitle, sectionTable, keepTogether, baseDocDefinition,
 } from './reportTheme.js';
 
 const require = createRequire(import.meta.url);
@@ -66,32 +66,29 @@ export async function buildGoldIndexReportPdfBuffer(overview, options = {}) {
   content.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: CONTENT_W, y2: 0, lineWidth: 1.5, lineColor: C.accent }], margin: [0, 0, 0, 12] });
 
   // ── Сводка по регионам ──
-  content.push(sectionTitle('Сводка по регионам', C, [0, 0, 0, 6]));
-  content.push(tbl([
-    [th('Регион', C), th('Городов', C, { alignment: 'right' }), th('Индекс ср.', C, { alignment: 'right' })],
-    ...((overview?.regions || []).map((r) => [
+  content.push(sectionTable(C, {
+    title: 'Сводка по регионам',
+    head: [th('Регион', C), th('Городов', C, { alignment: 'right' }), th('Индекс ср.', C, { alignment: 'right' })],
+    rows: (overview?.regions || []).map((r) => [
       { text: String(r.regionName || ''), fontSize: 8, color: C.ink },
       { text: String(r.cityCount ?? ''), fontSize: 8, alignment: 'right', color: C.ink },
       { text: fmtRatio(r.ratioAvg), fontSize: 8, alignment: 'right', color: C.inkMuted },
-    ])),
-  ], ['*', 'auto', 'auto'], [0, 0, 0, 14]));
+    ]),
+    widths: ['*', 'auto', 'auto'],
+    margin: [0, 0, 0, 0],
+  }));
 
   // ── Города и конкуренты ──
-  content.push(sectionTitle('Города и конкуренты', C, [0, 0, 0, 6]));
+  content.push(sectionTitle('Города и конкуренты', C, [0, 16, 0, 0]));
   for (const c of overview?.cities || []) {
-    content.push({ text: `${c.region_name || ''} · ${c.city_name || ''}`, fontSize: 11, bold: true, color: C.ink, margin: [0, 8, 0, 3] });
     const bits = [];
     const streetLine = [c.street, c.building].filter(Boolean).join(', ');
     if (streetLine) bits.push(`ул.: ${streetLine}`);
     if (c.address_note) bits.push(`прим.: ${c.address_note}`);
     if (c.geocoded_label) bits.push(String(c.geocoded_label));
     const addrSuffix = bits.length ? ` · ${bits.join(' · ')}` : '';
-    content.push({
-      text: `Координаты: ${c.lat?.toFixed?.(4) ?? c.lat}, ${c.lng?.toFixed?.(4) ?? c.lng} · Население: ${c.population ?? '—'} · Индекс: ${fmtRatio(c.ratioAvg)}${addrSuffix}`,
-      fontSize: 7.5, color: C.inkDim, margin: [0, 0, 0, 6],
-    });
 
-    const compRows = [[th('Компания', C), th('Индекс', C, { alignment: 'right' }), th('Пробы (₽/г)', C)]];
+    const compRows = [];
     for (const co of c.competitors || []) {
       const probesStr = Object.entries(co.probes || {})
         .map(([k, v]) => `${k}: ${fmtRub(typeof v === 'number' ? v : parseFloat(v))}`)
@@ -108,13 +105,21 @@ export async function buildGoldIndexReportPdfBuffer(overview, options = {}) {
         { text: probesStr || '—', fontSize: 7.5, color: C.ink },
       ]);
     }
-    if (compRows.length === 1) compRows.push([{ text: '—', fontSize: 8, color: C.inkDim }, { text: '—', fontSize: 8, alignment: 'right', color: C.inkDim }, { text: 'Нет конкурентов', fontSize: 8, color: C.inkDim }]);
-    content.push(tbl(compRows, ['*', 'auto', '*'], [0, 0, 0, 6]));
+    if (compRows.length === 0) compRows.push([{ text: '—', fontSize: 8, color: C.inkDim }, { text: '—', fontSize: 8, alignment: 'right', color: C.inkDim }, { text: 'Нет конкурентов', fontSize: 8, color: C.inkDim }]);
+
+    // Заголовок города + адрес + таблица конкурентов держим вместе.
+    content.push(keepTogether(
+      { text: `${c.region_name || ''} · ${c.city_name || ''}`, fontSize: 11, bold: true, color: C.ink, margin: [0, 10, 0, 3] },
+      {
+        text: `Координаты: ${c.lat?.toFixed?.(4) ?? c.lat}, ${c.lng?.toFixed?.(4) ?? c.lng} · Население: ${c.population ?? '—'} · Индекс: ${fmtRatio(c.ratioAvg)}${addrSuffix}`,
+        fontSize: 7.5, color: C.inkDim, margin: [0, 0, 0, 6],
+      },
+      tbl([[th('Компания', C), th('Индекс', C, { alignment: 'right' }), th('Пробы (₽/г)', C)], ...compRows], ['*', 'auto', '*']),
+    ));
   }
 
   // ── История изменений ──
-  content.push(sectionTitle('История изменений', C, [0, 10, 0, 6]));
-  const histRows = [[th('Дата / время', C), th('Тип', C), th('Действие', C), th('Объект', C), th('Кто изменил', C)]];
+  const histRows = [];
   for (const row of historyRows.slice(0, 120)) {
     const ts = row?.created_at ? new Date(row.created_at).toLocaleString('ru-RU') : '—';
     const action = row?.action === 'create' ? 'Создание' : row?.action === 'update' ? 'Изменение' : row?.action === 'delete' ? 'Удаление' : '—';
@@ -137,8 +142,14 @@ export async function buildGoldIndexReportPdfBuffer(overview, options = {}) {
       actorCell,
     ]);
   }
-  if (histRows.length === 1) histRows.push([{ text: '—', fontSize: 7.5, color: C.inkDim }, { text: '—', fontSize: 7.5 }, { text: '—', fontSize: 7.5 }, { text: 'Нет изменений за период', fontSize: 7.5, color: C.inkDim, colSpan: 2 }, {}]);
-  content.push(tbl(histRows, [80, 52, 52, '*', 110]));
+  if (histRows.length === 0) histRows.push([{ text: '—', fontSize: 7.5, color: C.inkDim }, { text: '—', fontSize: 7.5 }, { text: '—', fontSize: 7.5 }, { text: 'Нет изменений за период', fontSize: 7.5, color: C.inkDim, colSpan: 2 }, {}]);
+  content.push(sectionTable(C, {
+    title: 'История изменений',
+    head: [th('Дата / время', C), th('Тип', C), th('Действие', C), th('Объект', C), th('Кто изменил', C)],
+    rows: histRows,
+    widths: [80, 52, 52, '*', 110],
+    margin: [0, 16, 0, 0],
+  }));
 
   const docDef = {
     ...baseDocDefinition(C, { footerLabel: 'REAKTIVO PRO · Индекс золота', pageW: PAGE_W, marginX: PAGE_MARGIN_X }),
