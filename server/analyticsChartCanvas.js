@@ -63,8 +63,14 @@ export async function renderLineChartPng({
   fillUnder = true,
   caption = 'Денежный поток',
   isCurrency = true,
+  theme = 'light',
 } = {}) {
   ensureFonts();
+  // Цветовая схема под тему страницы отчёта.
+  const dark = theme === 'dark';
+  const COL = dark
+    ? { bg: '#1a1c24', grid: '#2b2e39', axis: '#7e818d', caption: '#f4f5f7', unit: '#7e818d', dot: '#1a1c24' }
+    : { bg: '#faf8f4', grid: '#e2ddd4', axis: '#5c5348', caption: '#1c1917', unit: '#6b655c', dot: '#ffffff' };
   const w = width;
   const h = height;
   const pl = 52;
@@ -92,17 +98,19 @@ export async function renderLineChartPng({
   const canvas = createCanvas(w, h);
   const ctx = canvas.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = '#faf8f4';
+  ctx.fillStyle = COL.bg;
   ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = '#0f172a08';
-  for (let y = 0; y < h; y += G) {
-    for (let x = 0; x < w; x += G) {
-      if ((x / G + y / G) % 2 === 0) ctx.fillRect(x, y, G, 1);
+  if (!dark) {
+    ctx.fillStyle = '#0f172a08';
+    for (let y = 0; y < h; y += G) {
+      for (let x = 0; x < w; x += G) {
+        if ((x / G + y / G) % 2 === 0) ctx.fillRect(x, y, G, 1);
+      }
     }
   }
   const chartW = w - pl - pr;
   const chartH = h - pt - pb;
-  ctx.strokeStyle = '#e2ddd4';
+  ctx.strokeStyle = COL.grid;
   ctx.lineWidth = 1;
   for (let i = 0; i <= tickN; i++) {
     const ty = t0 + (i * (t1 - t0)) / tickN;
@@ -112,7 +120,7 @@ export async function renderLineChartPng({
     ctx.lineTo(pl + chartW, y);
     ctx.stroke();
   }
-  ctx.fillStyle = '#5c5348';
+  ctx.fillStyle = COL.axis;
   ctx.font = '12px "AnCanvas"';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
@@ -125,29 +133,26 @@ export async function renderLineChartPng({
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.font = '11px "AnCanvasB"';
-  ctx.fillStyle = '#1c1917';
+  ctx.fillStyle = COL.caption;
   ctx.fillText(caption, 12, 8);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillStyle = '#5c5348';
+  ctx.fillStyle = COL.axis;
   const stepL = n > 24 ? Math.ceil(n / 12) : n > 14 ? 2 : 1;
   for (let i = 0; i < n; i += stepL) {
     const x = n === 1 ? pl + chartW / 2 : pl + (i / (n - 1)) * chartW;
-    if (i === 0 || i === n - 1) {
-      // ok
-    }
     if (i % stepL === 0 || i === 0 || i === n - 1) {
       const lab = String(labels[i] ?? '—');
       const shorted = lab.length > 7 ? lab.slice(0, 6) : lab;
       ctx.save();
       ctx.font = '9px "AnCanvas"';
-      ctx.fillText(i === n - 1 ? shorted : shorted, x, h - 34);
+      ctx.fillText(shorted, x, h - 34);
       ctx.restore();
     }
   }
   ctx.textAlign = 'right';
   ctx.textBaseline = 'top';
-  ctx.fillStyle = '#6b655c';
+  ctx.fillStyle = COL.unit;
   ctx.font = '9px "AnCanvas"';
   ctx.fillText(yUnit, w - 12, pt);
   const pts = [];
@@ -165,7 +170,7 @@ export async function renderLineChartPng({
     ctx.lineTo(pts[pts.length - 1].x, pt + chartH);
     ctx.closePath();
     const g = ctx.createLinearGradient(0, pt, 0, pt + chartH);
-    g.addColorStop(0, `${color}4d`);
+    g.addColorStop(0, `${color}${dark ? '66' : '4d'}`);
     g.addColorStop(1, `${color}0d`);
     ctx.fillStyle = g;
     ctx.fill();
@@ -182,7 +187,7 @@ export async function renderLineChartPng({
   ctx.stroke();
   for (const p of pts) {
     ctx.beginPath();
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = COL.dot;
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.5;
     ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);

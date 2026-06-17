@@ -1,6 +1,15 @@
+/**
+ * PDF «Команда и KPI» (A4 ландшафт). Единый тёмный стиль из reportTheme.js.
+ */
+
 import { createRequire } from 'module';
 import { dirname, join } from 'path';
 import { renderLineChartPng } from './analyticsChartCanvas.js';
+import { getReportLogoDataUri } from './reportLogo.js';
+import {
+  pickPalette, fmtRub, fmtNum, fmtDateRu, dataTableLayout, th, sectionTitle,
+  statCard, baseDocDefinition,
+} from './reportTheme.js';
 
 const require = createRequire(import.meta.url);
 const pdfMake = require('pdfmake');
@@ -8,41 +17,18 @@ const pdfmakeRoot = dirname(require.resolve('pdfmake/package.json'));
 
 pdfMake.setFonts({
   Roboto: {
-    normal: join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-Regular.ttf'),
-    bold: join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-Medium.ttf'),
-    italics: join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-Italic.ttf'),
+    normal:      join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-Regular.ttf'),
+    bold:        join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-Medium.ttf'),
+    italics:     join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-Italic.ttf'),
     bolditalics: join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-MediumItalic.ttf'),
   },
 });
 
-const fmtRub = (n) => {
-  if (n == null || !Number.isFinite(n)) return '—';
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(n) + ' ₽';
-};
-
-const fmtNum = (n, fd = 2) => {
-  if (n == null || !Number.isFinite(n)) return '—';
-  return new Intl.NumberFormat('ru-RU', {
-    minimumFractionDigits: fd,
-    maximumFractionDigits: fd,
-  }).format(n);
-};
-
-const fmtDateRu = (iso) => {
-  if (!iso) return '—';
-  const s = String(iso).slice(0, 10);
-  const [y, m, d] = s.split('-');
-  if (!y || !m || !d) return s;
-  return `${d}.${m}.${y}`;
-};
-
-const th = (text, opt = {}) => ({ text, fillColor: '#e8e4dd', bold: true, fontSize: 7.5, color: '#2a2420', ...opt });
-
-/** A4 ландшафт — дашборд: графики по два в ряд. */
-const PAGE_MARGIN_X = 32;
-const PAGE_W_LANDSCAPE = 841.89;
-const CONTENT_W = Math.round(PAGE_W_LANDSCAPE - 2 * PAGE_MARGIN_X);
-const COL_GAP = 18;
+const PAGE_MARGIN_X = 30;
+const PAGE_W = 841.89;
+const PAGE_H = 595.28;
+const CONTENT_W = Math.round(PAGE_W - 2 * PAGE_MARGIN_X);
+const COL_GAP = 16;
 const HALF_W = Math.round((CONTENT_W - COL_GAP) / 2);
 
 function b64Png(buf) {
@@ -50,55 +36,6 @@ function b64Png(buf) {
   return `data:image/png;base64,${buf.toString('base64')}`;
 }
 
-const pdfTableLayoutKpi = {
-  hLineWidth(i, node) {
-    if (i === 0 || i === node.table.body.length) return 0.85;
-    return 0.4;
-  },
-  vLineWidth(i, node) {
-    if (i === 0 || i === node.table.widths.length) return 0.85;
-    return 0.4;
-  },
-  paddingLeft: () => 10,
-  paddingRight: () => 10,
-  paddingTop: () => 7,
-  paddingBottom: () => 7,
-  hLineColor: () => '#c9c0b4',
-  vLineColor: () => '#c9c0b4',
-  fillColor: (i) => (i % 2 === 0 ? '#f4f0e8' : '#faf8f4'),
-};
-
-const pdfTableLayoutData = {
-  hLineWidth(i, node) {
-    if (i === 0 || i === node.table.body.length) return 0.85;
-    return 0.35;
-  },
-  vLineWidth(i, node) {
-    if (i === 0 || i === node.table.widths.length) return 0.85;
-    return 0.35;
-  },
-  paddingLeft: () => 9,
-  paddingRight: () => 9,
-  paddingTop: () => 4.5,
-  paddingBottom: () => 4.5,
-  hLineColor: () => '#c9c0b4',
-  vLineColor: () => '#c9c0b4',
-  fillColor: (i) => {
-    if (i === 0) return '#ebe4d8';
-    return i % 2 === 1 ? '#faf8f4' : '#f4f0e8';
-  },
-};
-
-function fullWidthTable(table, layout, margin = [0, 0, 0, 12]) {
-  return {
-    width: '*',
-    table,
-    layout,
-    margin,
-  };
-}
-
-/** Сумма ₽ по календарному дню (все сотрудники в выборке). */
 function dailyTurnoverSeries(dailyRows) {
   const m = new Map();
   for (const r of dailyRows || []) {
@@ -107,39 +44,26 @@ function dailyTurnoverSeries(dailyRows) {
     m.set(day, (m.get(day) || 0) + (Number(r.sumRub) || 0));
   }
   const sorted = [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  const labels = sorted.map(([day]) => {
-    const tail = day.slice(5);
-    return tail.replace('-', '.');
-  });
-  const values = sorted.map(([, sum]) => sum);
-  return { labels, values };
+  return {
+    labels: sorted.map(([day]) => day.slice(5).replace('-', '.')),
+    values: sorted.map(([, sum]) => sum),
+  };
 }
 
-function weekSumDeltaCell(prev, cur) {
-  if (!prev) return { text: '—', fontSize: 7.5, alignment: 'right', color: '#6b655a' };
+function weekDeltaCell(prev, cur, C) {
+  if (!prev) return { text: '—', fontSize: 7.5, alignment: 'right', color: C.inkDim };
   const c = Number(cur?.sumRub) || 0;
   const p = Number(prev?.sumRub) || 0;
-  if (p <= 0) {
-    return { text: c > 0 ? 'нов.' : '—', fontSize: 7.5, alignment: 'right', color: '#6b655a' };
-  }
+  if (p <= 0) return { text: c > 0 ? 'нов.' : '—', fontSize: 7.5, alignment: 'right', color: C.inkDim };
   const pct = Math.round(((c - p) / p) * 1000) / 10;
-  const sign = pct > 0 ? '+' : '';
-  let color = '#1c1917';
-  if (pct > 0.5) color = '#166534';
-  else if (pct < -0.5) color = '#b45309';
-  return { text: `${sign}${pct}%`, fontSize: 7.5, alignment: 'right', color };
+  const color = pct > 0.5 ? C.emerald : pct < -0.5 ? C.crimson : C.inkMuted;
+  return { text: `${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct)}%`, fontSize: 7.5, alignment: 'right', color };
 }
 
-/**
- * @param {Awaited<ReturnType<import('./teamPerformanceData.js').computeTeamPerformanceData>>} data
- */
-export async function buildTeamPerformancePdfBuffer(data) {
+export async function buildTeamPerformancePdfBuffer(data, options = {}) {
+  const C = pickPalette(options.theme === 'light' ? 'light' : 'dark');
   const nowStr = new Date().toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
   const p = data.period || {};
   const t = data.totals;
@@ -148,7 +72,7 @@ export async function buildTeamPerformancePdfBuffer(data) {
   const dailyRows = Array.isArray(data.dailyRows) ? data.dailyRows : [];
 
   const chartW = HALF_W;
-  const chartH = 138;
+  const chartH = 128;
   const { labels: dayLabels, values: dayValues } = dailyTurnoverSeries(dailyRows);
   const weekLabels = weeks.map((w) => {
     const s = String(w.weekStart || '').slice(0, 10);
@@ -157,228 +81,111 @@ export async function buildTeamPerformancePdfBuffer(data) {
   });
   const weekValues = weeks.map((w) => Number(w.sumRub) || 0);
 
-  const [bufDaily, bufWeek] = await Promise.all([
+  const [bufDaily, bufWeek, logo] = await Promise.all([
     dayLabels.length > 0
-      ? renderLineChartPng({
-          width: chartW * 2,
-          height: chartH * 2,
-          labels: dayLabels,
-          values: dayValues,
-          caption: 'Оборот по дням, ₽',
-          yUnit: '₽',
-          color: '#b8860b',
-          isCurrency: true,
-        })
+      ? renderLineChartPng({ width: chartW * 2, height: chartH * 2, labels: dayLabels, values: dayValues, caption: 'Оборот по дням, ₽', yUnit: '₽', color: C.accent, isCurrency: true, theme: 'dark' })
       : Promise.resolve(Buffer.alloc(0)),
     weekLabels.length > 0
-      ? renderLineChartPng({
-          width: chartW * 2,
-          height: chartH * 2,
-          labels: weekLabels,
-          values: weekValues,
-          caption: 'Оборот по неделям (ISO, пн), ₽',
-          yUnit: '₽',
-          color: '#6b5b95',
-          fillUnder: true,
-          isCurrency: true,
-        })
+      ? renderLineChartPng({ width: chartW * 2, height: chartH * 2, labels: weekLabels, values: weekValues, caption: 'Оборот по неделям (ISO, пн), ₽', yUnit: '₽', color: C.amber, fillUnder: true, isCurrency: true, theme: 'dark' })
       : Promise.resolve(Buffer.alloc(0)),
+    getReportLogoDataUri(),
   ]);
 
   const images = {};
+  if (logo) images.brandLogo = logo;
   if (b64Png(bufDaily)) images.teamDay = b64Png(bufDaily);
   if (b64Png(bufWeek)) images.teamWeek = b64Png(bufWeek);
 
+  const layout = dataTableLayout(C);
+  const tbl = (body, widths, m = [0, 0, 0, 0]) => ({ width: '*', table: { widths, body }, layout, margin: m });
+
   const content = [];
 
-  content.push({
+  // ── Шапка ──
+  const headerCols = [{
+    width: '*',
     stack: [
-      { text: 'КОМАНДА И KPI (ПО СДЕЛКАМ С PDF)', style: 'reportTitle', margin: [0, 0, 0, 6] },
+      { text: 'Команда и KPI', fontSize: 18, bold: true, color: C.ink, characterSpacing: -0.3 },
+      { text: `${fmtDateRu(p.from)} — ${fmtDateRu(p.to)}`, fontSize: 9, color: C.inkMuted, margin: [0, 4, 0, 0] },
       {
-        text: `${fmtDateRu(p.from)}  —  ${fmtDateRu(p.to)}`,
-        style: 'reportSub',
-        margin: [0, 0, 0, 4],
+        text: (data.viewerIsManager
+          ? 'Руководитель: видна вся команда. '
+          : 'Только ваши сделки. ') + 'Сделка учитывается после скачивания PDF договора. Вес — по первой строке договора.',
+        fontSize: 7, color: C.inkDim, margin: [0, 3, 0, 0],
       },
-      {
-        text:
-          (data.viewerIsManager
-            ? 'Руководитель: видна команда; фильтр сотрудников — как в панели.'
-            : 'Только ваши сделки за период.') +
-            ' Сделка учитывается после скачивания PDF по договору. Вес — по первой строке таблицы в договоре.',
-        style: 'hint',
-        margin: [0, 0, 0, 2],
-      },
-      { text: `сформировано: ${nowStr}`, style: 'muted' },
+      { text: `Сформировано: ${nowStr}`, fontSize: 7, color: C.inkDim, margin: [0, 2, 0, 0] },
     ],
-    margin: [0, 0, 0, 12],
-  });
+  }];
+  if (logo) headerCols.push({ width: 34, image: 'brandLogo', fit: [34, 34], margin: [10, 0, 0, 0] });
+  content.push({ columns: headerCols, columnGap: 12, margin: [0, 0, 0, 8] });
+  content.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: CONTENT_W, y2: 0, lineWidth: 1.5, lineColor: C.accent }], margin: [0, 0, 0, 14] });
 
   if (!t || t.deals === 0) {
-    content.push({ text: 'За выбранный период нет сделок по этим фильтрам.', style: 'body' });
+    content.push({ text: 'За выбранный период нет сделок по этим фильтрам.', fontSize: 9, color: C.inkMuted });
   } else {
-    const wg = fmtNum(t.weightGrossSum, 2);
-    const wn = fmtNum(t.weightNetSum, 3);
-    const kpiBody = [
-      [
-        { text: 'СДЕЛОК', style: 'kpiLab', alignment: 'left' },
-        { text: String(t.deals), style: 'kpiVal', alignment: 'right' },
-        { text: 'СУММА', style: 'kpiLab', alignment: 'left' },
-        { text: fmtRub(t.sumRub), style: 'kpiVal', alignment: 'right' },
+    // ── KPI: 4 плитки в ряд ──
+    const card = (label, value, valueColor) => ({ width: '*', ...statCard(C, { label, value, valueColor }) });
+    content.push({
+      columns: [
+        card('Сделок', String(t.deals), C.ink),
+        { width: 10, text: '' },
+        card('Оборот', fmtRub(t.sumRub), C.accent),
+        { width: 10, text: '' },
+        card('Вес лом, г', fmtNum(t.weightGrossSum, 2), C.ink),
+        { width: 10, text: '' },
+        card('Вес чист., г', fmtNum(t.weightNetSum, 3), C.ink),
       ],
-      [
-        { text: 'ВЕС ЛОМ, Г', style: 'kpiLab', alignment: 'left' },
-        { text: wg, style: 'kpiVal', alignment: 'right' },
-        { text: 'ВЕС ЧИСТ., Г', style: 'kpiLab', alignment: 'left' },
-        { text: wn, style: 'kpiVal', alignment: 'right' },
-      ],
-    ];
-    content.push(
-      fullWidthTable(
-        {
-          widths: ['25%', '25%', '25%', '25%'],
-          body: kpiBody,
-        },
-        pdfTableLayoutKpi,
-        [0, 0, 0, 14]
-      )
-    );
+      margin: [0, 0, 0, 4],
+    });
 
+    // ── Графики ──
     if (images.teamDay || images.teamWeek) {
-      content.push({ text: 'ДИНАМИКА ОБОРОТА', style: 'sectionHead', margin: [0, 4, 0, 6] });
+      content.push(sectionTitle('Динамика оборота', C));
       content.push({
         columnGap: COL_GAP,
         columns: [
-          {
-            width: '*',
-            stack: images.teamDay
-              ? [
-                  { text: 'По дням', style: 'chartName', margin: [0, 0, 0, 4] },
-                  { image: 'teamDay', width: chartW },
-                ]
-              : [{ text: '' }],
-          },
-          {
-            width: '*',
-            stack: images.teamWeek
-              ? [
-                  { text: 'По неделям (ISO, пн)', style: 'chartName', margin: [0, 0, 0, 4] },
-                  { image: 'teamWeek', width: chartW },
-                ]
-              : [{ text: '' }],
-          },
+          { width: '*', stack: images.teamDay ? [{ image: 'teamDay', width: chartW }] : [{ text: '' }] },
+          { width: '*', stack: images.teamWeek ? [{ image: 'teamWeek', width: chartW }] : [{ text: '' }] },
         ],
-        margin: [0, 0, 0, 14],
+        margin: [0, 0, 0, 4],
       });
     }
 
-    const opBody = [
-      [
-        th('#'),
-        th('Учётная запись'),
-        th('Сделок', { alignment: 'right' }),
-        th('Сумма', { alignment: 'right' }),
-        th('Вес лом / чист., г', { alignment: 'right' }),
-        th('% суммы', { alignment: 'right' }),
-      ],
+    // ── Рейтинг ──
+    content.push(sectionTitle('Рейтинг по сотрудникам', C));
+    content.push(tbl([
+      [th('#', C), th('Учётная запись', C), th('Сделок', C, { alignment: 'right' }), th('Сумма', C, { alignment: 'right' }), th('Вес лом / чист., г', C, { alignment: 'right' }), th('% суммы', C, { alignment: 'right' })],
       ...ops.map((r) => [
-        { text: String(r.rank), fontSize: 8 },
-        { text: r.email || '—', fontSize: 8 },
-        { text: String(r.deals), fontSize: 8, alignment: 'right' },
-        { text: fmtRub(r.sumRub), fontSize: 8, alignment: 'right' },
-        {
-          text: `${fmtNum(r.weightGrossSum, 2)} / ${fmtNum(r.weightNetSum, 3)}`,
-          fontSize: 7.5,
-          alignment: 'right',
-        },
-        { text: `${r.shareRubPct}%`, fontSize: 8, alignment: 'right' },
+        { text: String(r.rank), fontSize: 8, color: C.accent, bold: true },
+        { text: r.email || '—', fontSize: 8, color: C.ink },
+        { text: String(r.deals), fontSize: 8, alignment: 'right', color: C.ink },
+        { text: fmtRub(r.sumRub), fontSize: 8, alignment: 'right', color: C.ink },
+        { text: `${fmtNum(r.weightGrossSum, 2)} / ${fmtNum(r.weightNetSum, 3)}`, fontSize: 7.5, alignment: 'right', color: C.inkMuted },
+        { text: `${r.shareRubPct}%`, fontSize: 8, alignment: 'right', color: C.inkMuted },
       ]),
-    ];
-    content.push(
-      { text: 'РЕЙТИНГ ПО СОТРУДНИКАМ', style: 'sectionHead', margin: [0, 6, 0, 4] },
-      fullWidthTable(
-        {
-          widths: [22, '*', 34, 56, 72, 34],
-          body: opBody,
-        },
-        pdfTableLayoutData,
-        [0, 0, 0, 14]
-      )
-    );
+    ], [22, '*', 40, 70, 110, 44]));
 
+    // ── По неделям ──
     if (weeks.length > 0) {
-      const wBody = [
-        [
-          th('Неделя с'),
-          th('Сделок', { alignment: 'right' }),
-          th('Сумма', { alignment: 'right' }),
-          th('к пред.', { alignment: 'right', fontSize: 6.8 }),
-          th('Лом, г', { alignment: 'right' }),
-          th('Чист., г', { alignment: 'right' }),
-        ],
-        ...weeks.map((w, i) => {
-          const prev = i > 0 ? weeks[i - 1] : null;
-          return [
-            { text: fmtDateRu(w.weekStart), fontSize: 8 },
-            { text: String(w.deals), fontSize: 8, alignment: 'right' },
-            { text: fmtRub(w.sumRub), fontSize: 8, alignment: 'right' },
-            weekSumDeltaCell(prev, w),
-            { text: fmtNum(w.weightGrossSum, 2), fontSize: 8, alignment: 'right' },
-            { text: fmtNum(w.weightNetSum, 3), fontSize: 8, alignment: 'right' },
-          ];
-        }),
-      ];
-      content.push(
-        { text: 'ПО НЕДЕЛЯМ (ISO, ПН — НАЧАЛО НЕДЕЛИ)', style: 'sectionHead', margin: [0, 4, 0, 2] },
-        {
-          text: 'Колонка «к пред.» — изменение оборота к предыдущей полной неделе в отчёте (%).',
-          style: 'hint',
-          margin: [0, 0, 0, 4],
-        },
-        fullWidthTable(
-          {
-            widths: [58, 30, '*', 40, 44, 44],
-            body: wBody,
-          },
-          pdfTableLayoutData,
-          [0, 0, 0, 8]
-        )
-      );
+      content.push(sectionTitle('По неделям (ISO, пн — начало недели)', C));
+      content.push(tbl([
+        [th('Неделя с', C), th('Сделок', C, { alignment: 'right' }), th('Сумма', C, { alignment: 'right' }), th('к пред.', C, { alignment: 'right' }), th('Лом, г', C, { alignment: 'right' }), th('Чист., г', C, { alignment: 'right' })],
+        ...weeks.map((w, i) => [
+          { text: fmtDateRu(w.weekStart), fontSize: 8, color: C.ink },
+          { text: String(w.deals), fontSize: 8, alignment: 'right', color: C.ink },
+          { text: fmtRub(w.sumRub), fontSize: 8, alignment: 'right', color: C.ink },
+          weekDeltaCell(i > 0 ? weeks[i - 1] : null, w, C),
+          { text: fmtNum(w.weightGrossSum, 2), fontSize: 8, alignment: 'right', color: C.inkMuted },
+          { text: fmtNum(w.weightNetSum, 3), fontSize: 8, alignment: 'right', color: C.inkMuted },
+        ]),
+      ], [70, 44, '*', 56, 60, 60]));
     }
   }
 
-  // Убираем нижний отступ у последнего блока — иначе pdfmake иногда добавляет пустую страницу.
-  const lastNode = content[content.length - 1];
-  if (lastNode && Array.isArray(lastNode.margin)) {
-    lastNode.margin = [lastNode.margin[0], lastNode.margin[1], lastNode.margin[2], 0];
-  }
-
-  const docDefinition = {
-    pageSize: 'A4',
-    pageOrientation: 'landscape',
-    pageMargins: [PAGE_MARGIN_X, 34, PAGE_MARGIN_X, 32],
-    defaultStyle: { font: 'Roboto', fontSize: 8.5, color: '#1c1917' },
-    styles: {
-      reportTitle: { fontSize: 17, bold: true, color: '#0f0d0a', characterSpacing: 0.2 },
-      reportSub: { fontSize: 11, color: '#3d3830' },
-      body: { fontSize: 9.5, color: '#1c1917' },
-      muted: { fontSize: 7.2, color: '#6b655a' },
-      hint: { fontSize: 7, color: '#5c5650' },
-      sectionHead: { fontSize: 9, bold: true, color: '#0f0d0a' },
-      sectionDesc: { fontSize: 7, color: '#4a4440', lineHeight: 1.3 },
-      chartName: { fontSize: 8, bold: true, color: '#2a2018' },
-      kpiLab: { fontSize: 7, color: '#5c5348' },
-      kpiVal: { fontSize: 10, bold: true, color: '#8a6d1b' },
-    },
-    footer: (cur, tot) => ({
-      margin: [PAGE_MARGIN_X, 4, PAGE_MARGIN_X, 0],
-      columns: [
-        { text: 'Calculated Gold · команда и KPI', color: '#9a9288', fontSize: 6.5 },
-        { text: `стр. ${cur} / ${tot}`, alignment: 'right', color: '#9a9288', fontSize: 6.5 },
-      ],
-    }),
+  const docDef = {
+    ...baseDocDefinition(C, { footerLabel: 'REAKTIVO PRO · команда и KPI', pageW: PAGE_W, pageH: PAGE_H, marginX: PAGE_MARGIN_X, orientation: 'landscape' }),
     content,
   };
-
-  if (Object.keys(images).length) docDefinition.images = images;
-  return pdfMake.createPdf(docDefinition).getBuffer();
+  if (Object.keys(images).length) docDef.images = images;
+  return pdfMake.createPdf(docDef).getBuffer();
 }

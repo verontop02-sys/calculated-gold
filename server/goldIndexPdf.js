@@ -1,5 +1,13 @@
+/**
+ * PDF «Индекс золота» (A4 портрет). Единый тёмный стиль из reportTheme.js.
+ */
+
 import { createRequire } from 'module';
 import { dirname, join } from 'path';
+import { getReportLogoDataUri } from './reportLogo.js';
+import {
+  pickPalette, fmtRub, dataTableLayout, th, sectionTitle, baseDocDefinition,
+} from './reportTheme.js';
 
 const require = createRequire(import.meta.url);
 const pdfMake = require('pdfmake');
@@ -7,206 +15,136 @@ const pdfmakeRoot = dirname(require.resolve('pdfmake/package.json'));
 
 pdfMake.setFonts({
   Roboto: {
-    normal: join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-Regular.ttf'),
-    bold: join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-Medium.ttf'),
-    italics: join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-Italic.ttf'),
+    normal:      join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-Regular.ttf'),
+    bold:        join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-Medium.ttf'),
+    italics:     join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-Italic.ttf'),
     bolditalics: join(pdfmakeRoot, 'build/fonts/Roboto/Roboto-MediumItalic.ttf'),
   },
 });
 
-const fmtRub = (n) => {
-  if (n == null || !Number.isFinite(n)) return '—';
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(n) + ' ₽';
-};
+const fmtRatio = (n) =>
+  (n == null || !Number.isFinite(n)) ? '—' : new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
-const fmtRatio = (n) => {
-  if (n == null || !Number.isFinite(n)) return '—';
-  return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-};
-
-const PAGE_MARGIN_X = 40;
+const PAGE_MARGIN_X = 30;
+const PAGE_W = 595.28;
+const CONTENT_W = Math.round(PAGE_W - 2 * PAGE_MARGIN_X);
 
 /** overview — результат buildGoldIndexOverview */
 export async function buildGoldIndexReportPdfBuffer(overview, options = {}) {
+  const C = pickPalette(options.theme === 'light' ? 'light' : 'dark');
   const generated = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
   const spot = overview?.goldRubPerGram != null ? fmtRub(overview.goldRubPerGram) : '—';
   const bb = overview?.settingsSnapshot?.buybackPercentOfScrap ?? '—';
   const filters = options?.filters || {};
   const historyRows = Array.isArray(options?.historyRows) ? options.historyRows : [];
+  const logo = await getReportLogoDataUri();
+
   const filtersText = [
     filters.regionName ? `Регион: ${filters.regionName}` : null,
     filters.from || filters.to
       ? `Период истории: ${filters.from || '...'} — ${filters.to || '...'}`
       : 'Период истории: последние изменения',
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  ].filter(Boolean).join(' · ');
 
-  const regionRows = [
-    [{ text: 'Регион', style: 'th' }, { text: 'Городов', style: 'th' }, { text: 'Индекс ср.', style: 'th' }],
-    ...(overview?.regions || []).map((r) => [
-      String(r.regionName || ''),
-      String(r.cityCount ?? ''),
-      fmtRatio(r.ratioAvg),
-    ]),
-  ];
+  const layout = dataTableLayout(C);
+  const tbl = (body, widths, m = [0, 0, 0, 0]) => ({ table: { widths, body }, layout, margin: m });
 
-  const cityBlocks = [];
+  const content = [];
+
+  // ── Шапка ──
+  const headerCols = [{
+    width: '*',
+    stack: [
+      { text: 'Индекс золота', fontSize: 18, bold: true, color: C.ink, characterSpacing: -0.3 },
+      { text: `Сформировано: ${generated}`, fontSize: 8, color: C.inkMuted, margin: [0, 4, 0, 0] },
+      { text: `Биржа (эталон): ${spot} · Выкуп лома: ${bb}%`, fontSize: 8, color: C.inkMuted, margin: [0, 2, 0, 0] },
+      filtersText ? { text: filtersText, fontSize: 7.5, color: C.accent, margin: [0, 2, 0, 0] } : null,
+    ].filter(Boolean),
+  }];
+  if (logo) headerCols.push({ width: 34, image: 'brandLogo', fit: [34, 34], margin: [10, 0, 0, 0] });
+  content.push({ columns: headerCols, columnGap: 12, margin: [0, 0, 0, 8] });
+  content.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: CONTENT_W, y2: 0, lineWidth: 1.5, lineColor: C.accent }], margin: [0, 0, 0, 12] });
+
+  // ── Сводка по регионам ──
+  content.push(sectionTitle('Сводка по регионам', C, [0, 0, 0, 6]));
+  content.push(tbl([
+    [th('Регион', C), th('Городов', C, { alignment: 'right' }), th('Индекс ср.', C, { alignment: 'right' })],
+    ...((overview?.regions || []).map((r) => [
+      { text: String(r.regionName || ''), fontSize: 8, color: C.ink },
+      { text: String(r.cityCount ?? ''), fontSize: 8, alignment: 'right', color: C.ink },
+      { text: fmtRatio(r.ratioAvg), fontSize: 8, alignment: 'right', color: C.inkMuted },
+    ])),
+  ], ['*', 'auto', 'auto'], [0, 0, 0, 14]));
+
+  // ── Города и конкуренты ──
+  content.push(sectionTitle('Города и конкуренты', C, [0, 0, 0, 6]));
   for (const c of overview?.cities || []) {
-    cityBlocks.push({
-      text: `${c.region_name || ''} · ${c.city_name || ''}`,
-      style: 'cityHead',
-      margin: [0, 10, 0, 4],
-    });
+    content.push({ text: `${c.region_name || ''} · ${c.city_name || ''}`, fontSize: 11, bold: true, color: C.ink, margin: [0, 8, 0, 3] });
     const bits = [];
     const streetLine = [c.street, c.building].filter(Boolean).join(', ');
     if (streetLine) bits.push(`ул.: ${streetLine}`);
     if (c.address_note) bits.push(`прим.: ${c.address_note}`);
     if (c.geocoded_label) bits.push(String(c.geocoded_label));
     const addrSuffix = bits.length ? ` · ${bits.join(' · ')}` : '';
-    cityBlocks.push({
+    content.push({
       text: `Координаты: ${c.lat?.toFixed?.(4) ?? c.lat}, ${c.lng?.toFixed?.(4) ?? c.lng} · Население: ${c.population ?? '—'} · Индекс: ${fmtRatio(c.ratioAvg)}${addrSuffix}`,
-      style: 'small',
-      margin: [0, 0, 0, 6],
+      fontSize: 7.5, color: C.inkDim, margin: [0, 0, 0, 6],
     });
-    const compRows = [
-      [
-        { text: 'Компания', style: 'th' },
-        { text: 'Индекс', style: 'th' },
-        { text: 'Пробы (₽/г)', style: 'th' },
-      ],
-    ];
+
+    const compRows = [[th('Компания', C), th('Индекс', C, { alignment: 'right' }), th('Пробы (₽/г)', C)]];
     for (const co of c.competitors || []) {
       const probesStr = Object.entries(co.probes || {})
         .map(([k, v]) => `${k}: ${fmtRub(typeof v === 'number' ? v : parseFloat(v))}`)
         .join('; ');
       const addressStr = co.address ? `Адрес: ${co.address}` : 'Адрес: —';
-      const commentStr = co.comment || co.notes ? `Комментарий: ${co.comment || co.notes}` : 'Комментарий: —';
+      const commentStr = (co.comment || co.notes) ? `Комментарий: ${co.comment || co.notes}` : 'Комментарий: —';
       compRows.push([
-        `${String(co.companyName || '')}\n${addressStr}\n${commentStr}`,
-        fmtRatio(co.ratioAvg),
-        probesStr || '—',
+        { stack: [
+          { text: String(co.companyName || ''), fontSize: 8, bold: true, color: C.ink },
+          { text: addressStr, fontSize: 7, color: C.inkDim },
+          { text: commentStr, fontSize: 7, color: C.inkDim },
+        ] },
+        { text: fmtRatio(co.ratioAvg), fontSize: 8, alignment: 'right', color: C.inkMuted },
+        { text: probesStr || '—', fontSize: 7.5, color: C.ink },
       ]);
     }
-    if (compRows.length === 1) {
-      compRows.push(['—', '—', 'Нет конкурентов']);
-    }
-    cityBlocks.push({
-      table: {
-        widths: ['*', 55, '*'],
-        body: compRows,
-      },
-      layout: 'lightHorizontalLines',
-      margin: [0, 0, 0, 6],
-    });
+    if (compRows.length === 1) compRows.push([{ text: '—', fontSize: 8, color: C.inkDim }, { text: '—', fontSize: 8, alignment: 'right', color: C.inkDim }, { text: 'Нет конкурентов', fontSize: 8, color: C.inkDim }]);
+    content.push(tbl(compRows, ['*', 'auto', '*'], [0, 0, 0, 6]));
   }
 
-  const historyTableRows = [
-    [
-      { text: 'Дата / время', style: 'th' },
-      { text: 'Тип', style: 'th' },
-      { text: 'Действие', style: 'th' },
-      { text: 'Объект', style: 'th' },
-      { text: 'Кто изменил', style: 'th' },
-    ],
-  ];
+  // ── История изменений ──
+  content.push(sectionTitle('История изменений', C, [0, 10, 0, 6]));
+  const histRows = [[th('Дата / время', C), th('Тип', C), th('Действие', C), th('Объект', C), th('Кто изменил', C)]];
   for (const row of historyRows.slice(0, 120)) {
     const ts = row?.created_at ? new Date(row.created_at).toLocaleString('ru-RU') : '—';
-    const action =
-      row?.action === 'create' ? 'Создание' : row?.action === 'update' ? 'Изменение' : row?.action === 'delete' ? 'Удаление' : '—';
+    const action = row?.action === 'create' ? 'Создание' : row?.action === 'update' ? 'Изменение' : row?.action === 'delete' ? 'Удаление' : '—';
     const payloadCity =
-      row?.payload?.city_name ||
-      row?.payload?.before?.city_name ||
-      row?.payload?.patch?.city_name ||
-      row?.payload?.company_name ||
-      row?.payload?.before?.company_name ||
-      '—';
+      row?.payload?.city_name || row?.payload?.before?.city_name || row?.payload?.patch?.city_name ||
+      row?.payload?.company_name || row?.payload?.before?.company_name || '—';
     const actorName = (row?.changed_by_name || '').trim();
     const actorEmail = (row?.changed_by_email || '').trim();
-    const actorCell = actorName || actorEmail
-      ? {
-          stack: [
-            actorName ? { text: actorName, bold: true, fontSize: 7.5 } : null,
-            actorEmail ? { text: actorEmail, fontSize: 7, color: '#5c5348' } : null,
-          ].filter(Boolean),
-        }
-      : { text: 'Система', fontSize: 7.5, color: '#5c5348' };
-    historyTableRows.push([
-      { text: ts, fontSize: 7.5, noWrap: false },
-      { text: row?.entity_type === 'city' ? 'Город' : 'Конкурент', fontSize: 7.5 },
-      { text: action, fontSize: 7.5 },
-      { text: String(payloadCity || '—'), fontSize: 7.5, noWrap: false },
+    const actorCell = (actorName || actorEmail)
+      ? { stack: [
+          actorName ? { text: actorName, bold: true, fontSize: 7.5, color: C.ink } : null,
+          actorEmail ? { text: actorEmail, fontSize: 7, color: C.inkDim } : null,
+        ].filter(Boolean) }
+      : { text: 'Система', fontSize: 7.5, color: C.inkDim };
+    histRows.push([
+      { text: ts, fontSize: 7.5, color: C.ink },
+      { text: row?.entity_type === 'city' ? 'Город' : 'Конкурент', fontSize: 7.5, color: C.inkMuted },
+      { text: action, fontSize: 7.5, color: C.inkMuted },
+      { text: String(payloadCity || '—'), fontSize: 7.5, color: C.ink },
       actorCell,
     ]);
   }
-  if (historyTableRows.length === 1) {
-    historyTableRows.push([
-      { text: '—', fontSize: 7.5 },
-      { text: '—', fontSize: 7.5 },
-      { text: '—', fontSize: 7.5 },
-      { text: 'Нет изменений за выбранный период', fontSize: 7.5, colSpan: 2 },
-      {},
-    ]);
-  }
+  if (histRows.length === 1) histRows.push([{ text: '—', fontSize: 7.5, color: C.inkDim }, { text: '—', fontSize: 7.5 }, { text: '—', fontSize: 7.5 }, { text: 'Нет изменений за период', fontSize: 7.5, color: C.inkDim, colSpan: 2 }, {}]);
+  content.push(tbl(histRows, [80, 52, 52, '*', 110]));
 
-  const docDefinition = {
-    pageSize: 'A4',
-    pageMargins: [PAGE_MARGIN_X, 50, PAGE_MARGIN_X, 46],
-    defaultStyle: { font: 'Roboto', fontSize: 9 },
-    styles: {
-      header: { fontSize: 16, bold: true, color: '#1a1510' },
-      sub: { fontSize: 9, color: '#5c5348', margin: [0, 4, 0, 10] },
-      cityHead: { fontSize: 11, bold: true, color: '#2a2018' },
-      small: { fontSize: 8, color: '#5c5348' },
-      th: { bold: true, fillColor: '#f5f1ea', fontSize: 7.5, color: '#3a3028' },
-      sectionHead: { fontSize: 10, bold: true, color: '#2a2018', margin: [0, 4, 0, 6] },
-    },
-    footer: (cur, tot) => ({
-      margin: [PAGE_MARGIN_X, 6, PAGE_MARGIN_X, 0],
-      columns: [
-        { text: 'REAKTIVO PRO · Индекс золота', color: '#9a9288', fontSize: 6.5 },
-        { text: `стр. ${cur} / ${tot}`, alignment: 'right', color: '#9a9288', fontSize: 6.5 },
-      ],
-    }),
-    content: [
-      { text: 'Индекс золота', style: 'header' },
-      {
-        text: `Сформировано: ${generated} · Биржа (эталон): ${spot} · Выкуп лома: ${bb}%`,
-        style: 'sub',
-      },
-      filtersText ? { text: filtersText, style: 'sub', color: '#b8921a' } : null,
-      { text: 'Сводка по регионам', style: 'sectionHead' },
-      {
-        table: {
-          widths: ['*', 55, 70],
-          body: regionRows,
-        },
-        layout: 'lightHorizontalLines',
-        margin: [0, 0, 0, 14],
-      },
-      { text: 'Города и конкуренты', style: 'sectionHead' },
-      ...cityBlocks,
-      { text: 'История изменений', style: 'sectionHead', margin: [0, 12, 0, 6] },
-      {
-        table: {
-          widths: [80, 52, 52, '*', 110],
-          body: historyTableRows,
-          dontBreakRows: false,
-        },
-        layout: {
-          ...pdfMake.tableLayouts?.lightHorizontalLines,
-          hLineWidth: (i) => (i === 0 || i === 1 ? 1 : 0.5),
-          hLineColor: () => '#d9d4cc',
-          vLineWidth: () => 0,
-          paddingLeft: () => 4,
-          paddingRight: () => 4,
-          paddingTop: () => 4,
-          paddingBottom: () => 4,
-        },
-      },
-    ].filter(Boolean),
+  const docDef = {
+    ...baseDocDefinition(C, { footerLabel: 'REAKTIVO PRO · Индекс золота', pageW: PAGE_W, marginX: PAGE_MARGIN_X }),
+    content,
   };
-
-  const out = await pdfMake.createPdf(docDefinition).getBuffer();
+  if (logo) docDef.images = { brandLogo: logo };
+  const out = await pdfMake.createPdf(docDef).getBuffer();
   return Buffer.isBuffer(out) ? out : Buffer.from(out);
 }
