@@ -328,7 +328,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   }
 
   function addRow() {
-    setRows((prev) => [...prev, emptyRow()]);
+    setRows((prev) => prev.length >= 3 ? prev : [...prev, emptyRow()]);
   }
 
   function removeRow(i) {
@@ -821,7 +821,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           ))}
         </div>
 
-        <button type="button" className="contract-add-pos-btn" onClick={addRow}>
+        <button type="button" className="contract-add-pos-btn" onClick={addRow} disabled={rows.length >= 3} title={rows.length >= 3 ? 'Максимум 3 позиции в договоре' : undefined}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Добавить позицию
         </button>
@@ -1120,10 +1120,13 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           font-size: 0.9rem; font-weight: 600; cursor: pointer;
           transition: all 200ms cubic-bezier(0.22,1,0.36,1);
         }
-        .contract-add-pos-btn:hover {
+        .contract-add-pos-btn:hover:not(:disabled) {
           border-color: var(--accent); color: var(--accent);
           background: var(--accent-soft);
           transform: translateY(-1px);
+        }
+        .contract-add-pos-btn:disabled {
+          opacity: 0.35; cursor: not-allowed;
         }
 
         /* Total */
