@@ -161,13 +161,15 @@ export async function buildScrapContractPdfBuffer(body) {
   for (let i = 0; i < 3; i += 1) {
     const r = rows[i] || {};
     const empty = rowIsEmpty(r);
+    if (empty) continue;
+
     const rawName = String(r?.itemName || '').trim();
-    const metal = empty ? '—' : (String(r?.metal || '').trim() || '—');
-    const probe = empty ? '—' : (String(r?.probe || '').trim() || '—');
-    const wg = empty ? '—' : formatCellRu(r?.weightGross);
-    const wn = empty ? '—' : formatCellRu(r?.weightNet);
+    const metal = String(r?.metal || '').trim() || '—';
+    const probe = String(r?.probe || '').trim() || '—';
+    const wg = formatCellRu(r?.weightGross);
+    const wn = formatCellRu(r?.weightNet);
     const price = parseMoney(r?.priceRub);
-    const priceText = formatPriceCell(price ?? 0, empty);
+    const priceText = formatPriceCell(price ?? 0, false);
 
     // Column boundaries (x from left): 69.5 | 255.2 | 324.7 | 382.0 | 430.9 | 481.0 | 576.4
     drawTop(page, rawName ? formatCellRu(rawName) : '—', 75, rowY[i], { size: 9.5, font: regularFont, maxWidth: 175 });
