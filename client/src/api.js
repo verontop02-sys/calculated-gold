@@ -121,29 +121,50 @@ async function requestBlob(path, options = {}) {
     expectedLabel = 'PDF',
     ...opt
   } = options;
-  const c = new AbortController();
-  const to = setTimeout(() => c.abort(), timeout);
   const token = await getAccessToken();
   const h = { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(opt.headers || {}) };
   if (opt.body != null) h['Content-Type'] = 'application/json';
+  const body = opt.body != null ? JSON.stringify(opt.body) : undefined;
+
+  // Одна попытка fetch с собственным таймаутом.
+  const attempt = async () => {
+    const c = new AbortController();
+    const to = setTimeout(() => c.abort(), timeout);
+    try {
+      return await fetch(withBase(path), {
+        method: opt.method || 'GET',
+        headers: h,
+        body,
+        signal: c.signal,
+      });
+    } finally {
+      clearTimeout(to);
+    }
+  };
+
   let res;
   try {
-    res = await fetch(withBase(path), {
-      method: opt.method || 'GET',
-      headers: h,
-      body: opt.body != null ? JSON.stringify(opt.body) : undefined,
-      signal: c.signal,
-    });
+    res = await attempt();
   } catch (e) {
-    clearTimeout(to);
     if (e?.name === 'AbortError') {
       const err = new Error(`Скачивание ${expectedLabel}: сервер слишком долго не отвечал. Повторите запрос.`);
       err.code = 'API_TIMEOUT';
       throw err;
     }
-    throw e;
-  } finally {
-    clearTimeout(to);
+    // Сетевой сбой — вероятно холодный старт Render. Будим сервер и повторяем один раз.
+    try {
+      await pingApiHealth({ timeout: 95_000 });
+      res = await attempt();
+    } catch (e2) {
+      if (e2?.name === 'AbortError') {
+        const err = new Error(`Скачивание ${expectedLabel}: сервер слишком долго не отвечал. Повторите запрос.`);
+        err.code = 'API_TIMEOUT';
+        throw err;
+      }
+      const err = new Error('Сервер недоступен. Подождите 10–20 секунд (он «просыпается») и повторите.');
+      err.code = 'API_OFFLINE';
+      throw err;
+    }
   }
   const ct = (res.headers.get('content-type') || '').toLowerCase();
   if (!res.ok) {
