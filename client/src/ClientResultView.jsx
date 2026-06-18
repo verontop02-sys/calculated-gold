@@ -259,9 +259,31 @@ export const CLIENT_RESULT_CSS = `
 }
 
 @media (max-width: 720px) {
-  .cg-crv__hero-value { font-size: clamp(3rem, 16vw, 4.6rem); }
-  .cg-crv__compare-grid { grid-template-columns: 1fr; gap: 10px; }
-  .cg-crv__vs { transform: rotate(90deg); align-self: center; justify-self: center; padding: 4px 0; }
+  .cg-crv { gap: 14px; }
+  .cg-crv__hero { padding: 24px 16px 20px; }
+  .cg-crv__hero-value { font-size: clamp(2.8rem, 14vw, 4.6rem); }
+  .cg-crv__hero-sub { font-size: 1rem; }
+  .cg-crv__compare { padding: 16px; }
+  .cg-crv__compare-grid { grid-template-columns: 1fr; gap: 8px; }
+  .cg-crv__vs {
+    height: 1px; width: 100%; font-size: 0;
+    background: rgba(255,255,255,0.08); border-radius: 1px;
+    transform: none; align-self: stretch; margin: 0;
+  }
   .cg-crv__compare-head { flex-direction: column; align-items: stretch; }
+  .cg-crv__pillar { padding: 14px 12px; }
+  .cg-crv__pillar-value { font-size: clamp(1.7rem, 9vw, 2.6rem); }
+  .cg-crv__advantage { font-size: 0.9rem; padding: 12px 14px; }
+  .cg-crv__advantage-pct { font-size: 1.4rem; }
+}
+@media (max-width: 400px) {
+  .cg-crv__hero { padding: 20px 12px 16px; }
+  .cg-crv__hero-value { font-size: clamp(2.4rem, 16vw, 3.4rem); }
+  .cg-crv__hero-label { font-size: 0.75rem; letter-spacing: 0.16em; }
+  .cg-crv__compare { padding: 12px; }
+  .cg-crv__pillar { padding: 12px 10px; }
+  .cg-crv__pillar-value { font-size: clamp(1.5rem, 10vw, 2.2rem); }
+  .cg-crv__pillar-label { font-size: 0.66rem; }
+  .cg-crv__compare-title { font-size: 1rem; }
 }
 `;
