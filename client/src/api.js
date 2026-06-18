@@ -259,6 +259,55 @@ export async function connectPriceStream(onData, onError) {
   return () => controller.abort();
 }
 
+/**
+ * Подписка экрана клиента (покупательский дисплей) на комнату по коду — БЕЗ JWT.
+ * Экран может стоять на отдельном устройстве (планшет), поэтому без авторизации.
+ * Возвращает функцию отписки. При обрыве вызывает onError(status) для авто-реконнекта.
+ */
+export async function connectClientDisplayStream(code, onData, onError) {
+  const c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!c) { onError?.(); return () => {}; }
+
+  const url = withBase(`/public/client-display/${encodeURIComponent(c)}/stream`);
+  const controller = new AbortController();
+
+  (async () => {
+    try {
+      const res = await fetch(url, { headers: { Accept: 'text/event-stream' }, signal: controller.signal });
+      if (!res.ok) { onError?.(res.status); return; }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) { onError?.(); break; }
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try { onData(JSON.parse(line.slice(6))); } catch { /* ignore */ }
+          }
+        }
+      }
+    } catch (e) {
+      if (e?.name !== 'AbortError') onError?.(0);
+    }
+  })();
+
+  return () => controller.abort();
+}
+
+/** Текущее состояние комнаты экрана клиента (polling-fallback), без JWT. */
+export async function clientDisplayGet(code) {
+  const c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const r = await fetch(withBase(`/public/client-display/${encodeURIComponent(c)}`));
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+  return j;
+}
+
 /** Публичная страница подтверждения (без JWT). */
 export async function publicFieldDealSessionGet(token) {
   const r = await fetch(withBase(`/public/field-deal-session/${encodeURIComponent(token)}`));
@@ -492,6 +541,13 @@ export const api = {
   },
   dashboardReportPdf: (payload) =>
     requestBlob('/dashboard-report.pdf', { method: 'POST', body: payload }),
+  /** Экран клиента: оператор пушит готовый view в комнату по коду. mode: 'show' | 'idle'. */
+  clientDisplayPush: (code, body) =>
+    request(`/client-display/${encodeURIComponent(String(code || ''))}`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+      timeout: 20_000,
+    }),
   /** Полевая сделка: СМС + ссылка клиенту (тело как у scrapContractPdf + phone + опционально courierId для руководителя). */
   fieldDealSessionCreate: (body) =>
     request('/field-deal-sessions', { method: 'POST', body: JSON.stringify(body) }),

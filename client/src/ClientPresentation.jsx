@@ -1,20 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from './api.js';
-import { calculateBuybackRange, mergeSettings } from './calc.js';
+import { computeClientView } from './clientView.js';
+import { ClientResultView, CLIENT_RESULT_CSS } from './ClientResultView.jsx';
 
 /**
- * Полноэкранный режим «Показать клиенту».
+ * Полноэкранный режим «Показать клиенту» — ОВЕРЛЕЙ на экране оператора.
  *
- * Что показывает:
- *   - Большую сумму нашего выкупа за указанные вес/пробу.
- *   - Цену за 1 г выбранной пробы (для сравнения).
- *   - Средние/диапазон цен по конкурентам в выбранном городе/регионе
- *     (берём из /api/gold-index/public-summary — обезличенная сводка для всех ролей).
- *   - Выгоду в % относительно средней по рынку.
+ * Для показа на отдельном экране клиента (второй монитор / планшет) см. ClientDisplay.jsx.
+ * Здесь — быстрый локальный показ зелёного экрана поверх калькулятора оператора.
  *
- * Город выбирается из выпадающего списка и сохраняется в localStorage.
- * Светлая премиальная палитра не зависит от темы приложения — чтобы клиент через стол
+ * Светлая/тёмная палитра фиксированная (тёмный премиум) — чтобы клиент через стол
  * видел контрастно и без «компьютерных» цветов.
  */
 export function ClientPresentation({ open, onClose, formatMoney, price, weight, purity, brandName = 'REAKTIVO PRO' }) {
@@ -28,7 +24,6 @@ export function ClientPresentation({ open, onClose, formatMoney, price, weight, 
   const overlayRef = useRef(null);
   const wasOpenRef = useRef(false);
 
-  // Загружаем настройки и публичную сводку при первом открытии.
   useEffect(() => {
     if (!open) return;
     let alive = true;
@@ -40,7 +35,7 @@ export function ClientPresentation({ open, onClose, formatMoney, price, weight, 
     ])
       .then(([s, sum]) => {
         if (!alive) return;
-        setSettings(mergeSettings(s));
+        setSettings(s);
         setSummary(sum || null);
       })
       .catch((e) => {
@@ -53,7 +48,6 @@ export function ClientPresentation({ open, onClose, formatMoney, price, weight, 
     return () => { alive = false; };
   }, [open]);
 
-  // Блокируем body-scroll, ESC закрывает, без layout-jank в Safari.
   useEffect(() => {
     if (!open) return undefined;
     if (!wasOpenRef.current) {
@@ -73,75 +67,48 @@ export function ClientPresentation({ open, onClose, formatMoney, price, weight, 
     };
   }, [open, onClose]);
 
-  // По умолчанию выбираем первый город из списка, если ничего не сохранено.
   useEffect(() => {
     if (!open || !summary?.cities?.length) return;
     if (!cityId) {
       setCityId(summary.cities[0].id);
     } else if (!summary.cities.some((c) => c.id === cityId)) {
-      // Сохранённый город удалили — берём первый
       setCityId(summary.cities[0].id);
     }
   }, [open, summary, cityId]);
 
-  // Сохраняем выбор города
   useEffect(() => {
     if (!cityId) return;
     try { localStorage.setItem('cg_client_view_city', cityId); } catch { /* ignore */ }
   }, [cityId]);
 
-  const purityNum = Number(purity) || 0;
-  const weightNum = parseFloat(String(weight || '').replace(',', '.')) || 0;
-  const goldRub = price?.goldRubPerGram;
-
-  // Наш расчёт
-  const ourCalc = useMemo(() => {
-    if (!settings || !Number.isFinite(goldRub) || !weightNum || !purityNum) return null;
-    const r = calculateBuybackRange({
-      weightGrams: weightNum,
-      purityPerThousand: purityNum,
-      goldRubPerGram: goldRub,
-      settings,
-    });
-    if (!r.ok) return null;
-    return r;
-  }, [settings, goldRub, weightNum, purityNum]);
-
-  // Наша цена за 1 г для пробы (без учёта веса) — для честного сравнения с конкурентами.
-  const ourRubPerGram = useMemo(() => {
-    if (!ourCalc || !weightNum) return null;
-    return ourCalc.midRub / weightNum;
-  }, [ourCalc, weightNum]);
-
-  const city = useMemo(
-    () => (summary?.cities || []).find((c) => c.id === cityId) || null,
-    [summary, cityId],
+  const view = useMemo(
+    () => computeClientView({ settings, price, summary, cityId, weight, purity }),
+    [settings, price, summary, cityId, weight, purity],
   );
-
-  // Средняя по конкурентам для текущей пробы. Если по нашей пробе данных нет —
-  // показываем «нет данных», без подмен.
-  const cityAvgForProbe = useMemo(() => {
-    if (!city || !purityNum) return null;
-    const v = city.avgByProbe?.[purityNum];
-    if (!Number.isFinite(v)) return null;
-    const lo = city.minByProbe?.[purityNum];
-    const hi = city.maxByProbe?.[purityNum];
-    return { avg: v, lo: Number.isFinite(lo) ? lo : null, hi: Number.isFinite(hi) ? hi : null };
-  }, [city, purityNum]);
-
-  // Разница в %: на сколько мы выгоднее средней по рынку.
-  const advantage = useMemo(() => {
-    if (!ourRubPerGram || !cityAvgForProbe?.avg) return null;
-    const delta = ourRubPerGram - cityAvgForProbe.avg;
-    const pct = (delta / cityAvgForProbe.avg) * 100;
-    return { delta, pct };
-  }, [ourRubPerGram, cityAvgForProbe]);
 
   const handleBackdropClick = useCallback((e) => {
     if (e.target === overlayRef.current) onClose?.();
   }, [onClose]);
 
   if (!open) return null;
+
+  const cityControl = (
+    <div className="cg-cp__city-pick">
+      <span className="cg-cp__city-label">Город:</span>
+      <select
+        className="cg-cp__city-select"
+        value={cityId || ''}
+        onChange={(e) => setCityId(e.target.value)}
+      >
+        {(summary?.cities || []).map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.cityName} · {c.regionName}
+          </option>
+        ))}
+        {!summary?.cities?.length && <option value="">Нет городов</option>}
+      </select>
+    </div>
+  );
 
   const node = (
     <div
@@ -168,100 +135,16 @@ export function ClientPresentation({ open, onClose, formatMoney, price, weight, 
         </header>
 
         <main className="cg-cp__body">
-          {/* Главный блок — наша сумма */}
-          <section className="cg-cp__hero">
-            <p className="cg-cp__hero-label">Ваш выкуп</p>
-            <p className="cg-cp__hero-value mono-nums">
-              {ourCalc ? formatMoney(Math.round(ourCalc.midRub)) : '—'}
-            </p>
-            <p className="cg-cp__hero-sub">
-              {weightNum > 0 && purityNum > 0
-                ? `За ${formatWeight(weightNum)} г · ${purityNum} проба`
-                : 'Введите вес и пробу в калькуляторе'}
-            </p>
-            {ourCalc && (
-              <p className="cg-cp__hero-meta">
-                Чистого золота {ourCalc.fineGrams.toFixed(3)} г
-              </p>
-            )}
-          </section>
+          <ClientResultView view={view} formatMoney={formatMoney} cityControl={cityControl} />
 
-          {/* Сравнение по рынку */}
-          <section className="cg-cp__compare">
-            <div className="cg-cp__compare-head">
-              <h3 className="cg-cp__compare-title">Сравнение с рынком</h3>
-              <div className="cg-cp__city-pick">
-                <span className="cg-cp__city-label">Город:</span>
-                <select
-                  className="cg-cp__city-select"
-                  value={cityId || ''}
-                  onChange={(e) => setCityId(e.target.value)}
-                >
-                  {(summary?.cities || []).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.cityName} · {c.regionName}
-                    </option>
-                  ))}
-                  {!summary?.cities?.length && <option value="">Нет городов</option>}
-                </select>
-              </div>
-            </div>
-
-            <div className="cg-cp__compare-grid">
-              <article className="cg-cp__pillar cg-cp__pillar--ours">
-                <div className="cg-cp__pillar-label">Наша цена за 1 г</div>
-                <div className="cg-cp__pillar-value mono-nums">
-                  {ourRubPerGram != null ? formatMoney(Math.round(ourRubPerGram)) : '—'}
-                </div>
-                <div className="cg-cp__pillar-sub">проба {purityNum || '—'}</div>
-              </article>
-
-              <div className="cg-cp__vs">VS</div>
-
-              <article className="cg-cp__pillar cg-cp__pillar--market">
-                <div className="cg-cp__pillar-label">Среднее по конкурентам</div>
-                <div className="cg-cp__pillar-value mono-nums">
-                  {summaryLoading ? '…' : cityAvgForProbe ? formatMoney(Math.round(cityAvgForProbe.avg)) : '—'}
-                </div>
-                <div className="cg-cp__pillar-sub">
-                  {cityAvgForProbe?.lo != null && cityAvgForProbe?.hi != null
-                    ? `от ${formatMoney(Math.round(cityAvgForProbe.lo))} до ${formatMoney(Math.round(cityAvgForProbe.hi))}`
-                    : city
-                      ? `данных по пробе ${purityNum} нет`
-                      : '—'}
-                </div>
-              </article>
-            </div>
-
-            {advantage && (
-              <div className={`cg-cp__advantage ${advantage.pct >= 0 ? 'cg-cp__advantage--good' : 'cg-cp__advantage--bad'}`}>
-                {advantage.pct >= 0 ? (
-                  <>
-                    <span className="cg-cp__advantage-pct">+{advantage.pct.toFixed(1)}%</span>
-                    <span>выгоднее средней по городу — это +{formatMoney(Math.round(advantage.delta))} за каждый грамм</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="cg-cp__advantage-pct">{advantage.pct.toFixed(1)}%</span>
-                    <span>относительно средней по городу</span>
-                  </>
-                )}
-              </div>
-            )}
-
-            {city && (
-              <p className="cg-cp__compare-foot">
-                На основе данных {city.competitorsCount} {pluralComps(city.competitorsCount)} в городе{city.lastMeasuredAt ? `, актуально на ${formatDate(city.lastMeasuredAt)}` : ''}.
-              </p>
-            )}
-
-            {summaryErr && !summaryLoading && (
-              <p className="cg-cp__err">{summaryErr}</p>
-            )}
-          </section>
+          {summaryErr && !summaryLoading && (
+            <p className="cg-cp__err">{summaryErr}</p>
+          )}
 
           <footer className="cg-cp__footer">
-            <span className="cg-cp__footer-note">Биржевая цена сегодня: {goldRub != null ? formatMoney(goldRub) : '—'} / г чистого</span>
+            <span className="cg-cp__footer-note">
+              Биржевая цена сегодня: {view.goldRubPerGram != null ? formatMoney(view.goldRubPerGram) : '—'} / г чистого
+            </span>
             <button type="button" className="cg-cp__back" onClick={onClose}>
               К калькулятору
             </button>
@@ -276,34 +159,14 @@ export function ClientPresentation({ open, onClose, formatMoney, price, weight, 
   return createPortal(node, document.body);
 }
 
-function formatWeight(w) {
-  if (!Number.isFinite(w)) return '—';
-  // целые — без точки; дробные — с одним знаком
-  return Number.isInteger(w) ? String(w) : w.toFixed(2).replace(/\.?0+$/, '');
-}
-
-function formatDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
-function pluralComps(n) {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 14) return 'конкурентов';
-  if (mod10 === 1) return 'конкурент';
-  if (mod10 >= 2 && mod10 <= 4) return 'конкурента';
-  return 'конкурентов';
-}
-
 const CSS = `
 html.cg-cp-open, body.cg-cp-open {
   overflow: hidden !important;
 }
 
-/* ─── Клиентский экран (Stage 7) — тёмный премиум, крупный зелёный блок выплаты ─── */
+${CLIENT_RESULT_CSS}
+
+/* ─── Клиентский экран (Stage 7) — тёмный премиум ─── */
 .cg-cp {
   position: fixed; inset: 0;
   z-index: 200;
@@ -383,70 +246,6 @@ html.cg-cp-open, body.cg-cp-open {
 
 .cg-cp__body { display: flex; flex-direction: column; gap: 22px; }
 
-/* ── Hero: сумма к выдаче — КРУПНЫЙ ЗЕЛЁНЫЙ БЛОК ── */
-.cg-cp__hero {
-  text-align: center;
-  padding: 34px 20px 30px;
-  background:
-    radial-gradient(ellipse 90% 100% at 50% 0%, rgba(74, 222, 128, 0.16), transparent 70%),
-    linear-gradient(180deg, rgba(34, 197, 94, 0.14) 0%, rgba(34, 197, 94, 0.05) 100%);
-  border-radius: 22px;
-  border: 1px solid rgba(74, 222, 128, 0.35);
-  box-shadow: 0 0 60px rgba(74, 222, 128, 0.07) inset, 0 10px 40px rgba(0,0,0,0.2);
-  animation: cgCpHeroIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards;
-}
-@keyframes cgCpHeroIn {
-  from { opacity: 0; transform: translateY(14px) scale(0.98); }
-  to { opacity: 1; transform: none; }
-}
-.cg-cp__hero-label {
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.22em;
-  color: rgba(134, 239, 172, 0.85);
-  font-weight: 600;
-  margin: 0 0 8px;
-}
-.cg-cp__hero-value {
-  font-size: clamp(3.4rem, 8vw, 6rem);
-  font-weight: 700;
-  color: #4ade80;
-  text-shadow: 0 6px 50px rgba(74, 222, 128, 0.45);
-  line-height: 1;
-  margin: 4px 0 10px;
-  letter-spacing: -0.025em;
-  font-variant-numeric: tabular-nums;
-}
-.cg-cp__hero-sub { font-size: 1.2rem; color: #f4f5f7; margin: 0; font-weight: 500; }
-.cg-cp__hero-meta { font-size: 0.92rem; color: rgba(244, 245, 247, 0.55); margin: 6px 0 0; }
-
-/* ── Compare ── */
-.cg-cp__compare {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  padding: 20px 22px;
-  animation: cgCpFadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.22s backwards;
-}
-@keyframes cgCpFadeUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: none; }
-}
-.cg-cp__compare-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-.cg-cp__compare-title {
-  margin: 0;
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: -0.01em;
-}
 .cg-cp__city-pick { display: flex; align-items: center; gap: 8px; }
 .cg-cp__city-label { font-size: 0.85rem; color: rgba(244, 245, 247, 0.55); }
 .cg-cp__city-select {
@@ -462,94 +261,13 @@ html.cg-cp-open, body.cg-cp-open {
 .cg-cp__city-select:focus { outline: 2px solid #4ade80; outline-offset: 1px; }
 .cg-cp__city-select option { background: #1b1e25; color: #f4f5f7; }
 
-.cg-cp__compare-grid {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: stretch;
-  gap: 14px;
-}
-.cg-cp__pillar {
-  text-align: center;
-  padding: 20px 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-}
-.cg-cp__pillar--ours {
-  background: linear-gradient(160deg, rgba(34, 197, 94, 0.16) 0%, rgba(34, 197, 94, 0.04) 100%);
-  border-color: rgba(74, 222, 128, 0.45);
-  box-shadow: 0 8px 32px rgba(34, 197, 94, 0.10);
-}
-.cg-cp__pillar-label {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: rgba(244, 245, 247, 0.5);
-  font-weight: 600;
-}
-.cg-cp__pillar--ours .cg-cp__pillar-label { color: rgba(134, 239, 172, 0.85); }
-.cg-cp__pillar-value {
-  font-size: clamp(2rem, 4vw, 2.8rem);
-  font-weight: 700;
-  margin: 8px 0 4px;
-  color: #fff;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-.cg-cp__pillar--ours .cg-cp__pillar-value { color: #4ade80; }
-.cg-cp__pillar-sub {
-  font-size: 0.82rem;
-  color: rgba(244, 245, 247, 0.5);
-}
-
-.cg-cp__vs {
-  align-self: center;
-  font-size: 1.1rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  color: rgba(244, 245, 247, 0.3);
-}
-
-.cg-cp__advantage {
-  margin-top: 14px;
-  padding: 14px 20px;
-  border-radius: 14px;
-  font-size: 1rem;
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.cg-cp__advantage--good {
-  background: rgba(74, 222, 128, 0.12);
-  color: #86efac;
-  border: 1px solid rgba(74, 222, 128, 0.4);
-}
-.cg-cp__advantage--bad {
-  background: rgba(251, 113, 133, 0.10);
-  color: #fda4af;
-  border: 1px solid rgba(251, 113, 133, 0.35);
-}
-.cg-cp__advantage-pct {
-  font-size: 1.7rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-}
-.cg-cp__compare-foot {
-  margin: 12px 0 0;
-  font-size: 0.78rem;
-  color: rgba(244, 245, 247, 0.45);
-  text-align: center;
-}
 .cg-cp__err {
-  margin: 12px 0 0;
+  margin: 0;
   font-size: 0.85rem;
   color: #fda4af;
   text-align: center;
 }
 
-/* ── Footer ── */
 .cg-cp__footer {
   display: flex;
   justify-content: space-between;
@@ -559,10 +277,7 @@ html.cg-cp-open, body.cg-cp-open {
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
-.cg-cp__footer-note {
-  font-size: 0.82rem;
-  color: rgba(244, 245, 247, 0.5);
-}
+.cg-cp__footer-note { font-size: 0.82rem; color: rgba(244, 245, 247, 0.5); }
 .cg-cp__back {
   padding: 11px 24px;
   border-radius: 999px;
@@ -579,7 +294,6 @@ html.cg-cp-open, body.cg-cp-open {
 .cg-cp__back:active { transform: scale(0.97); }
 .cg-cp__back:focus-visible { outline: 2px solid #4ade80; outline-offset: 2px; }
 
-/* ── Mobile ── */
 @media (max-width: 720px) {
   .cg-cp { padding: 0; align-items: stretch; }
   .cg-cp__sheet {
@@ -591,19 +305,5 @@ html.cg-cp-open, body.cg-cp-open {
     background: rgba(16, 18, 24, 0.97);
     min-height: 100dvh;
   }
-  .cg-cp__hero-value { font-size: clamp(3rem, 16vw, 4.6rem); }
-  .cg-cp__compare-grid {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-  .cg-cp__vs {
-    transform: rotate(90deg);
-    align-self: center;
-    justify-self: center;
-    padding: 4px 0;
-  }
-  .cg-cp__compare-head { flex-direction: column; align-items: stretch; }
-  .cg-cp__city-pick { justify-content: space-between; }
-  .cg-cp__city-select { flex: 1; }
 }
 `;

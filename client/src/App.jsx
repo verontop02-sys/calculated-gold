@@ -691,6 +691,7 @@ export default function App() {
                 formatMoney={formatMoney}
                 price={price}
                 userUid={user.uid}
+                toast={toast}
                 onGoToContract={(payload) => {
                   setContractMounted(true);
                   setContractPrefill(payload);

@@ -45,6 +45,12 @@ import {
   verifyClientToken,
   getClientDeals,
 } from './clientPortal.js';
+import {
+  setDisplayState,
+  getDisplayState,
+  subscribeDisplay,
+  normalizeDisplayCode,
+} from './clientDisplay.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // npm run dev из корня монорепо: cwd ≠ server/, иначе dotenv не видит server/.env
@@ -822,6 +828,39 @@ app.post(
     }
   })
 );
+// ── Экран клиента (покупательский дисплей): публичная подписка по коду ──────
+app.get(
+  '/api/public/client-display/:code',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(getDisplayState(req.params.code));
+  })
+);
+
+app.get(
+  '/api/public/client-display/:code/stream',
+  asyncHandler(async (req, res) => {
+    const code = normalizeDisplayCode(req.params.code);
+    if (!code) return res.status(400).json({ error: 'Некорректный код экрана' });
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    const unsubscribe = subscribeDisplay(code, res);
+    const hb = setInterval(() => {
+      try { res.write(': ping\n\n'); } catch { /* ignore */ }
+    }, 25_000);
+
+    req.on('close', () => {
+      unsubscribe();
+      clearInterval(hb);
+    });
+  })
+);
+
 app.get(
   '/api/price/stream',
   asyncHandler(async (req, res) => {
@@ -999,6 +1038,19 @@ app.get(
     const role = resolveRequesterRoleFromReq(req);
     res.setHeader('Cache-Control', 'private, max-age=60');
     res.json({ user: { uid: req.user.id, email: req.user.email, role } });
+  })
+);
+
+// Экран клиента: оператор пушит готовый view в комнату по коду (требует входа).
+app.post(
+  '/api/client-display/:code',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    await getRequesterRole(req);
+    const { mode, view, brandName } = req.body || {};
+    const out = setDisplayState(req.params.code, { mode, view, brandName });
+    if (!out.ok) return res.status(400).json({ error: 'Некорректный код экрана' });
+    res.json({ ok: true, subscribers: out.subscribers });
   })
 );
 
