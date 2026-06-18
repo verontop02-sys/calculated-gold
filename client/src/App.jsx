@@ -761,11 +761,11 @@ export default function App() {
           background-attachment: fixed;
         }
         .cg-shell__main {
-          padding-left: 60px;
+          padding-left: 0;
           min-height: 100dvh;
           display: flex;
           flex-direction: column;
-          transition: padding-left 0.22s cubic-bezier(0.4, 0.2, 0.2, 1);
+          transition: padding-left 0.26s cubic-bezier(0.4, 0.2, 0.2, 1);
         }
         .cg-shell--pinned .cg-shell__main { padding-left: 240px; }
         @media (max-width: 900px) {

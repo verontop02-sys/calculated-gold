@@ -270,28 +270,41 @@ function IconLogout() {
 }
 
 const SIDEBAR_CSS = `
-/* ─── Sidebar — Premium redesign (Stage 7) ─────────────────────────────────
-   Collapsed: 60px icon rail.
-   Pinned/hover: 240px full nav — Codename-style.
-   Active item: accent left bar + accent text, no background fill.
+/* ─── Sidebar — slide-in drawer ────────────────────────────────────────────
+   Not pinned: hidden off-screen, 4px accent strip visible as hover trigger.
+   Pinned: 240px fixed, content shifted.
+   On hover (not pinned): overlays content with full 240px nav.
    ─────────────────────────────────────────────────────────────────────────── */
 .cg-sidebar {
   position: fixed;
   top: 0; left: 0;
-  width: 60px;
+  width: 240px;
   height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--bg-panel-solid);
   border-right: 1px solid var(--stroke-soft);
-  transition: width 0.22s cubic-bezier(0.4, 0.2, 0.2, 1), box-shadow 0.22s;
+  transform: translateX(calc(-100% + 4px));
+  transition: transform 0.26s cubic-bezier(0.4, 0.2, 0.2, 1), box-shadow 0.26s;
   z-index: 50;
-  overflow: hidden;
 }
-.cg-sidebar--pinned { width: 240px; }
+/* Accent strip — the 4px visible trigger edge */
+.cg-sidebar:not(.cg-sidebar--pinned)::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 0;
+  width: 4px; height: 100%;
+  background: linear-gradient(180deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 50%, transparent) 100%);
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+.cg-sidebar:not(.cg-sidebar--pinned):hover::after { opacity: 0; }
+
+.cg-sidebar--pinned { transform: translateX(0); border-right: 1px solid var(--stroke-soft); }
 .cg-sidebar:not(.cg-sidebar--pinned):hover {
-  width: 240px;
-  box-shadow: 4px 0 24px rgba(0,0,0,0.08);
+  transform: translateX(0);
+  box-shadow: 6px 0 32px rgba(0,0,0,0.18);
 }
 
 /* ── Brand ── */
@@ -321,7 +334,7 @@ const SIDEBAR_CSS = `
   display: flex; flex-direction: column;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.18s 0.06s;
   min-width: 0;
 }
 .cg-sidebar--pinned .cg-sidebar__brand-text,
@@ -376,7 +389,7 @@ const SIDEBAR_CSS = `
   padding: 0 12px 6px;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.18s 0.06s;
   pointer-events: none;
 }
 .cg-sidebar--pinned .cg-sidebar__group-title,
@@ -426,7 +439,7 @@ const SIDEBAR_CSS = `
   text-overflow: ellipsis;
   flex: 1;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.18s 0.04s;
   letter-spacing: -0.01em;
 }
 .cg-sidebar--pinned .cg-sidebar__item-label,
@@ -477,7 +490,7 @@ const SIDEBAR_CSS = `
 }
 .cg-sidebar__user-chevron {
   margin-left: auto; flex-shrink: 0; color: var(--text-muted);
-  opacity: 0; transition: opacity 0.15s, transform 0.16s;
+  opacity: 0; transition: opacity 0.18s 0.06s, transform 0.16s;
 }
 .cg-sidebar--pinned .cg-sidebar__user-chevron,
 .cg-sidebar:hover .cg-sidebar__user-chevron { opacity: 1; }
@@ -497,7 +510,7 @@ const SIDEBAR_CSS = `
   display: flex; flex-direction: column;
   min-width: 0;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.18s 0.06s;
 }
 .cg-sidebar--pinned .cg-sidebar__user-text,
 .cg-sidebar:hover .cg-sidebar__user-text { opacity: 1; }
