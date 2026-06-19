@@ -89,6 +89,15 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpen
           <span className="cg-sidebar__brand-title">REAKTIVO <b>PRO</b></span>
           <span className="cg-sidebar__brand-sub">панель оценки</span>
         </div>
+        <button
+          type="button"
+          className="cg-sidebar__brand-pin"
+          onClick={() => setPinned((v) => !v)}
+          title={pinned ? 'Свернуть боковое меню' : 'Закрепить меню'}
+          aria-pressed={pinned}
+        >
+          {pinned ? <IconSidebarClose /> : <IconSidebarOpen />}
+        </button>
       </div>
 
       <nav className="cg-sidebar__nav" role="navigation" aria-label="Разделы">
@@ -137,15 +146,6 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpen
           </span>
         </button>
         <div className="cg-sidebar__footer-actions">
-          <button
-            type="button"
-            className="cg-sidebar__pin"
-            onClick={() => setPinned((v) => !v)}
-            title={pinned ? 'Свернуть меню' : 'Закрепить раскрытым'}
-            aria-pressed={pinned}
-          >
-            {pinned ? <IconChevronLeft /> : <IconChevronRight />}
-          </button>
           <button
             type="button"
             className="cg-sidebar__logout"
@@ -245,17 +245,21 @@ function IconSettings() {
     </svg>
   );
 }
-function IconChevronLeft() {
+function IconSidebarClose() {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M15 18l-6-6 6-6" />
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2.5" />
+      <path d="M9 3v18" />
+      <path d="M14 9l-3 3 3 3" />
     </svg>
   );
 }
-function IconChevronRight() {
+function IconSidebarOpen() {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 18l6-6-6-6" />
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2.5" />
+      <path d="M9 3v18" />
+      <path d="M11 9l3 3-3 3" />
     </svg>
   );
 }
@@ -307,7 +311,6 @@ const SIDEBAR_CSS = `
   box-shadow: 6px 0 32px rgba(0,0,0,0.18);
 }
 
-/* ── Brand ── */
 .cg-sidebar__brand {
   display: flex;
   align-items: center;
@@ -336,6 +339,7 @@ const SIDEBAR_CSS = `
   opacity: 0;
   transition: opacity 0.18s 0.06s;
   min-width: 0;
+  flex: 1;
 }
 .cg-sidebar--pinned .cg-sidebar__brand-text,
 .cg-sidebar:hover .cg-sidebar__brand-text { opacity: 1; }
@@ -362,6 +366,30 @@ const SIDEBAR_CSS = `
   color: var(--text-dim);
   margin-top: 1px;
 }
+
+/* ── Кнопка toggle в шапке ── */
+.cg-sidebar__brand-pin {
+  flex-shrink: 0;
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.18s 0.06s, color 0.16s, border-color 0.16s, background 0.16s, transform 0.16s;
+}
+.cg-sidebar--pinned .cg-sidebar__brand-pin,
+.cg-sidebar:hover .cg-sidebar__brand-pin { opacity: 1; }
+.cg-sidebar__brand-pin:hover {
+  color: var(--accent);
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+  transform: scale(1.08);
+}
+.cg-sidebar__brand-pin:active { transform: scale(0.94); }
+.cg-sidebar__brand-pin:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* ── Nav ── */
 .cg-sidebar__nav {
@@ -540,19 +568,6 @@ const SIDEBAR_CSS = `
 .cg-sidebar__footer-actions {
   display: flex; gap: 4px; align-items: stretch;
 }
-.cg-sidebar__pin {
-  width: 34px; height: 34px;
-  border-radius: 7px;
-  border: 1px solid var(--stroke);
-  background: transparent;
-  color: var(--text-dim);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: color 0.18s, border-color 0.18s, background 0.18s;
-}
-.cg-sidebar__pin:hover { color: var(--text); border-color: var(--stroke-strong); background: var(--stroke-soft); }
-.cg-sidebar__pin:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .cg-sidebar__logout {
   display: flex; align-items: center; gap: 7px;
   padding: 0 10px;
@@ -563,8 +578,7 @@ const SIDEBAR_CSS = `
   font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
-  flex: 1;
-  min-width: 34px;
+  width: 100%;
   height: 34px;
   transition: color 0.18s, border-color 0.18s, background 0.18s;
 }
