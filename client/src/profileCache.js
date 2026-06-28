@@ -1,4 +1,4 @@
-const KEY = 'cg_profile_cache_v1';
+const KEY = 'cg_profile_cache_v2';
 
 export function readProfileCache(uid) {
   if (!uid) return null;
@@ -8,7 +8,12 @@ export function readProfileCache(uid) {
     const data = JSON.parse(raw);
     if (data?.uid !== uid) return null;
     if (!data.role) return null;
-    return { uid: data.uid, email: data.email || '', role: data.role };
+    return {
+      uid: data.uid,
+      email: data.email || '',
+      role: data.role,
+      displayName: data.displayName || null,
+    };
   } catch {
     return null;
   }
@@ -23,6 +28,7 @@ export function writeProfileCache(user) {
         uid: user.uid,
         email: user.email || '',
         role: user.role,
+        displayName: user.displayName || null,
         cachedAt: Date.now(),
       }),
     );

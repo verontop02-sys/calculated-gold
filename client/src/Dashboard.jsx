@@ -184,6 +184,33 @@ function seedTicks(target, vol, windowMs) {
   return out;
 }
 
+// ── Stale-while-revalidate кэш для дашборда ──────────────────────────────────
+const DASH_CACHE_TTL = 3 * 60 * 1000; // 3 минуты
+
+function dashCacheKey(uid) {
+  return uid ? `cg_dash_v1_${String(uid).replace(/[^a-z0-9-]/gi, '')}` : null;
+}
+
+function readDashCache(uid) {
+  const k = dashCacheKey(uid);
+  if (!k) return null;
+  try {
+    const raw = sessionStorage.getItem(k);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d?.ts || Date.now() - d.ts > DASH_CACHE_TTL) return null;
+    return d;
+  } catch { return null; }
+}
+
+function writeDashCache(uid, payload) {
+  const k = dashCacheKey(uid);
+  if (!k) return;
+  try {
+    sessionStorage.setItem(k, JSON.stringify({ ...payload, ts: Date.now() }));
+  } catch { /* ignore */ }
+}
+
 export function Dashboard({ formatMoney, price, user, onNavigate }) {
   const goldRub = price?.goldRubPerGram ?? null;
 
@@ -287,12 +314,14 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
   }, [ticks, goldRub]);
 
   // ── данные разделов ──
-  const [cur, setCur] = useState(null);     // analyticsSummary 30д
-  const [prev, setPrev] = useState(null);   // предыдущие 30д
-  const [market, setMarket] = useState(null); // goldIndexPublicSummary
-  const [settings, setSettings] = useState(null);
-  const [recent, setRecent] = useState([]); // лента последних договоров
-  const [loading, setLoading] = useState(true);
+  const _initCacheRef = useRef(readDashCache(user?.uid));
+  const _initCache = _initCacheRef.current;
+  const [cur, setCur] = useState(_initCache?.cur ?? null);
+  const [prev, setPrev] = useState(_initCache?.prev ?? null);
+  const [market, setMarket] = useState(_initCache?.market ?? null);
+  const [settings, setSettings] = useState(_initCache?.settings ?? null);
+  const [recent, setRecent] = useState(_initCache?.recent ?? []);
+  const [loading, setLoading] = useState(!_initCache);
   const [err, setErr] = useState(null);
 
   // ── Дравер деталей сделки ──
@@ -319,8 +348,9 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
     setDrawerDetail(null);
   }, []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts = {}) => {
+    const silent = opts.silent === true;
+    if (!silent) setLoading(true);
     setErr(null);
     const today = toIso(new Date());
     const from = addDays(today, -29);
@@ -333,15 +363,37 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
       api.settings(),
       api.scrapDealsRecent(6),
     ]);
-    if (a.status === 'fulfilled') setCur(a.value); else setErr(a.reason?.message || 'Не удалось загрузить сводку');
-    if (b.status === 'fulfilled') setPrev(b.value);
-    if (m.status === 'fulfilled') setMarket(m.value);
-    if (s.status === 'fulfilled') setSettings(s.value);
-    if (r.status === 'fulfilled') setRecent(r.value?.deals || []);
-    setLoading(false);
-  }, []);
+    const nextCur = a.status === 'fulfilled' ? a.value : null;
+    const nextPrev = b.status === 'fulfilled' ? b.value : null;
+    const nextMarket = m.status === 'fulfilled' ? m.value : null;
+    const nextSettings = s.status === 'fulfilled' ? s.value : null;
+    const nextRecent = r.status === 'fulfilled' ? (r.value?.deals || []) : null;
+    if (nextCur) setCur(nextCur); else if (!silent) setErr(a.reason?.message || 'Не удалось загрузить сводку');
+    if (nextPrev) setPrev(nextPrev);
+    if (nextMarket) setMarket(nextMarket);
+    if (nextSettings) setSettings(nextSettings);
+    if (nextRecent) setRecent(nextRecent);
+    if (nextCur) {
+      writeDashCache(user?.uid, {
+        cur: nextCur,
+        prev: nextPrev,
+        market: nextMarket,
+        settings: nextSettings,
+        recent: nextRecent,
+      });
+    }
+    if (!silent) setLoading(false);
+  }, [user?.uid]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (_initCacheRef.current) {
+      // Кэш есть — данные уже показаны, обновляем тихо в фоне
+      load({ silent: true });
+    } else {
+      load();
+    }
+    _initCacheRef.current = null; // только первый раз
+  }, [load]);
 
   // ── AI (Grok) ──
   const [aiQ, setAiQ] = useState('');
@@ -434,6 +486,8 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
   }, []);
 
   const userName = useMemo(() => {
+    const displayName = String(user?.displayName || '').trim();
+    if (displayName) return displayName;
     const e = user?.email || '';
     return e.split('@')[0] || 'коллега';
   }, [user]);

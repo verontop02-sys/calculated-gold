@@ -95,10 +95,15 @@ export function MobileNav({ tab, onChange, user, onSignOut, onOpenProfile }) {
                 onClick={() => { setDrawerOpen(false); onOpenProfile?.(); }}
               >
                 <span className="cg-drawer__avatar">
-                  {(user?.email || '?').slice(0, 1).toUpperCase()}
+                  {(user?.displayName || user?.email || '?').slice(0, 1).toUpperCase()}
                 </span>
                 <div className="cg-drawer__user-text">
-                  <span className="cg-drawer__email" title={user?.email}>{user?.email}</span>
+                  <span className="cg-drawer__email" title={user?.displayName || user?.email}>
+                    {user?.displayName || user?.email}
+                  </span>
+                  {user?.displayName && (
+                    <span className="cg-drawer__role cg-drawer__role--sub" title={user?.email}>{user?.email}</span>
+                  )}
                   <span className="cg-drawer__role">{roleLabel(user?.role)} · открыть профиль ›</span>
                 </div>
               </button>

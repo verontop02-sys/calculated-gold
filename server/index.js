@@ -87,6 +87,26 @@ const supabase = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
+// ── Простой in-memory TTL кэш ─────────────────────────────────────────────────
+const _cache = new Map();
+function cacheGet(key) {
+  const e = _cache.get(key);
+  if (!e) return undefined;
+  if (Date.now() > e.exp) { _cache.delete(key); return undefined; }
+  return e.val;
+}
+function cacheSet(key, val, ttlMs) {
+  _cache.set(key, { val, exp: Date.now() + ttlMs });
+}
+function cacheInvalidate(prefix) {
+  for (const k of _cache.keys()) if (k.startsWith(prefix)) _cache.delete(k);
+}
+// Периодическая очистка — раз в 5 минут
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, e] of _cache) if (now > e.exp) _cache.delete(k);
+}, 5 * 60_000).unref?.();
+
 function normalizeScrapPhoneDigits(v) {
   const digits = String(v || '').replace(/\D/g, '');
   if (digits.length === 11 && (digits.startsWith('7') || digits.startsWith('8'))) {
@@ -1036,8 +1056,18 @@ app.get(
   '/api/auth/me',
   asyncHandler(async (req, res) => {
     const role = resolveRequesterRoleFromReq(req);
-    res.setHeader('Cache-Control', 'private, max-age=60');
-    res.json({ user: { uid: req.user.id, email: req.user.email, role } });
+    const uid = req.user.id;
+    const cacheKey = `auth-me:${uid}`;
+    const hit = cacheGet(cacheKey);
+    if (hit) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json(hit);
+    }
+    const { data: prof } = await supabase.from('profiles').select('display_name').eq('id', uid).maybeSingle();
+    const result = { user: { uid, email: req.user.email, role, displayName: prof?.display_name || null } };
+    cacheSet(cacheKey, result, 60_000);
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(result);
   })
 );
 
@@ -1103,6 +1133,7 @@ app.patch(
       .eq('id', uid);
     if (error) throw error;
     profileRoleMem.delete(uid);
+    cacheInvalidate(`auth-me:${uid}`);
     res.json({ ok: true, displayName });
   })
 );
@@ -1163,7 +1194,10 @@ app.get(
   '/api/gold-index/public-summary',
   asyncHandler(async (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
+    const hit = cacheGet('gold-index:public-summary');
+    if (hit) return res.json(hit);
     const data = await buildGoldIndexPublicSummary(supabase);
+    cacheSet('gold-index:public-summary', data, 5 * 60_000);
     res.json(data);
   })
 );
@@ -1692,9 +1726,12 @@ app.get(
 app.get(
   '/api/scrap-deals-recent',
   asyncHandler(async (req, res) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Cache-Control', 'no-store');
     const limit = Math.min(20, Math.max(1, parseInt(String(req.query.limit || '6'), 10) || 6));
     const scope = await analyticsScopeFromRequest(req);
+    const cacheKey = `recent:${scope.viewerIsManager ? 'mgr' : `self:${scope.viewerUserId}`}:${limit}`;
+    const hit = cacheGet(cacheKey);
+    if (hit) return res.json(hit);
     let q = supabase
       .from('scrap_deals')
       .select('id, contract_no, total_rub, seller_name, first_probe, first_weight_gross, created_at, operator_id')
@@ -1703,7 +1740,9 @@ app.get(
     if (!scope.viewerIsManager) q = q.eq('operator_id', scope.viewerUserId);
     const { data, error } = await q;
     if (error) throw error;
-    res.json({ deals: data || [] });
+    const result = { deals: data || [] };
+    cacheSet(cacheKey, result, 60_000);
+    res.json(result);
   })
 );
 
@@ -1865,11 +1904,15 @@ app.delete(
 app.get(
   '/api/analytics/summary',
   asyncHandler(async (req, res) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Cache-Control', 'no-store');
     const fromD = String(req.query.from || '').trim();
     const toD = String(req.query.to || '').trim();
     const scope = await analyticsScopeFromRequest(req);
+    const cacheKey = `analytics:${scope.viewerIsManager ? 'mgr' : `self:${scope.viewerUserId}`}:${fromD}:${toD}`;
+    const hit = cacheGet(cacheKey);
+    if (hit) return res.json(hit);
     const data = await computeAnalyticsSummaryData(supabase, fromD, toD, scope);
+    cacheSet(cacheKey, data, 2 * 60_000);
     res.json(data);
   })
 );
@@ -2118,6 +2161,8 @@ app.post(
     let dealId = null;
     try {
       dealId = await recordScrapDealFromPdf({ req, body, totalRub: total });
+      cacheInvalidate('analytics:');
+      cacheInvalidate('recent:');
     } catch (e) {
       console.error('[scrap_deals insert]', e?.message || e);
     }
@@ -2128,7 +2173,13 @@ app.post(
   })
 );
 
-app.get('/api/settings', asyncHandler(async (_req, res) => res.json(await getSettings())));
+app.get('/api/settings', asyncHandler(async (_req, res) => {
+  const hit = cacheGet('settings');
+  if (hit) return res.json(hit);
+  const data = await getSettings();
+  cacheSet('settings', data, 5 * 60_000);
+  res.json(data);
+}));
 
 app.put(
   '/api/settings',
@@ -2138,7 +2189,9 @@ app.put(
     const allowed = ['buybackPercentOfScrap', 'rangeHalfWidthPercent', 'purityAdjustments', 'purityOrder'];
     const patch = {};
     for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];
-    res.json(await saveSettings(patch));
+    const result = await saveSettings(patch);
+    cacheInvalidate('settings');
+    res.json(result);
   })
 );
 

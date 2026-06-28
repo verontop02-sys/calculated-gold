@@ -744,7 +744,12 @@ export default function App() {
         formatMoney={formatMoney}
         onSignOut={handleSignOut}
         onReplayInstructions={() => setInstructionsOpen(true)}
-        onNameChange={(name) => setUser((prev) => prev ? { ...prev, displayName: name } : prev)}
+        onNameChange={(name) => setUser((prev) => {
+          if (!prev) return prev;
+          const updated = { ...prev, displayName: name };
+          writeProfileCache(updated);
+          return updated;
+        })}
       />
       <Instructions
         open={instructionsOpen}
