@@ -41,6 +41,27 @@ function addDays(iso, n) {
 const fmtAxisNum = new Intl.NumberFormat('ru-RU');
 function fmtAxis(v) { return fmtAxisNum.format(Math.round(v)); }
 
+// ── Диапазоны KPI ─────────────────────────────────────────────────────────────
+const KPI_PERIODS = [
+  { key: '7d',   label: 'Неделя',    days: 7   },
+  { key: '30d',  label: 'Месяц',     days: 30  },
+  { key: '180d', label: '6 месяцев', days: 180 },
+];
+
+const KPI_PERIOD_DEFAULT = '30d';
+const KPI_PERIOD_KEY = 'cg_dash_period';
+
+function readSavedPeriod() {
+  try {
+    const v = localStorage.getItem(KPI_PERIOD_KEY);
+    return KPI_PERIODS.find((p) => p.key === v)?.key ?? KPI_PERIOD_DEFAULT;
+  } catch { return KPI_PERIOD_DEFAULT; }
+}
+
+function savePeriod(key) {
+  try { localStorage.setItem(KPI_PERIOD_KEY, key); } catch { /* ignore */ }
+}
+
 const AI_SUGGESTIONS = [
   'Как прошли последние 30 дней?',
   'Какая динамика сделок и оборота?',
@@ -187,12 +208,14 @@ function seedTicks(target, vol, windowMs) {
 // ── Stale-while-revalidate кэш для дашборда ──────────────────────────────────
 const DASH_CACHE_TTL = 3 * 60 * 1000; // 3 минуты
 
-function dashCacheKey(uid) {
-  return uid ? `cg_dash_v1_${String(uid).replace(/[^a-z0-9-]/gi, '')}` : null;
+function dashCacheKey(uid, period) {
+  if (!uid) return null;
+  const p = period || KPI_PERIOD_DEFAULT;
+  return `cg_dash_v1_${p}_${String(uid).replace(/[^a-z0-9-]/gi, '')}`;
 }
 
-function readDashCache(uid) {
-  const k = dashCacheKey(uid);
+function readDashCache(uid, period) {
+  const k = dashCacheKey(uid, period);
   if (!k) return null;
   try {
     const raw = sessionStorage.getItem(k);
@@ -203,8 +226,8 @@ function readDashCache(uid) {
   } catch { return null; }
 }
 
-function writeDashCache(uid, payload) {
-  const k = dashCacheKey(uid);
+function writeDashCache(uid, period, payload) {
+  const k = dashCacheKey(uid, period);
   if (!k) return;
   try {
     sessionStorage.setItem(k, JSON.stringify({ ...payload, ts: Date.now() }));
@@ -313,8 +336,17 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
     return [lo - pad, hi + pad];
   }, [ticks, goldRub]);
 
+  // ── период KPI ──
+  const [period, setPeriodState] = useState(readSavedPeriod);
+  const periodConf = KPI_PERIODS.find((p) => p.key === period) ?? KPI_PERIODS[1];
+
+  function setPeriod(key) {
+    savePeriod(key);
+    setPeriodState(key);
+  }
+
   // ── данные разделов ──
-  const _initCacheRef = useRef(readDashCache(user?.uid));
+  const _initCacheRef = useRef(readDashCache(user?.uid, readSavedPeriod()));
   const _initCache = _initCacheRef.current;
   const [cur, setCur] = useState(_initCache?.cur ?? null);
   const [prev, setPrev] = useState(_initCache?.prev ?? null);
@@ -350,12 +382,16 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
 
   const load = useCallback(async (opts = {}) => {
     const silent = opts.silent === true;
+    const days = KPI_PERIODS.find((p) => p.key === opts.period)?.days
+      ?? KPI_PERIODS.find((p) => p.key === period)?.days
+      ?? 30;
+    const periodKey = opts.period ?? period;
     if (!silent) setLoading(true);
     setErr(null);
     const today = toIso(new Date());
-    const from = addDays(today, -29);
+    const from = addDays(today, -(days - 1));
     const prevTo = addDays(from, -1);
-    const prevFrom = addDays(prevTo, -29);
+    const prevFrom = addDays(prevTo, -(days - 1));
     const [a, b, m, s, r] = await Promise.allSettled([
       api.analyticsSummary(from, today),
       api.analyticsSummary(prevFrom, prevTo),
@@ -374,7 +410,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
     if (nextSettings) setSettings(nextSettings);
     if (nextRecent) setRecent(nextRecent);
     if (nextCur) {
-      writeDashCache(user?.uid, {
+      writeDashCache(user?.uid, periodKey, {
         cur: nextCur,
         prev: nextPrev,
         market: nextMarket,
@@ -383,17 +419,26 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
       });
     }
     if (!silent) setLoading(false);
-  }, [user?.uid]);
+  }, [user?.uid, period]);
 
   useEffect(() => {
-    if (_initCacheRef.current) {
-      // Кэш есть — данные уже показаны, обновляем тихо в фоне
+    const cachedForPeriod = readDashCache(user?.uid, period);
+    if (_initCacheRef.current || cachedForPeriod) {
+      // Кэш есть — показываем сразу, обновляем тихо в фоне
+      if (cachedForPeriod && !_initCacheRef.current) {
+        setCur(cachedForPeriod.cur ?? null);
+        setPrev(cachedForPeriod.prev ?? null);
+        setMarket(cachedForPeriod.market ?? null);
+        setSettings(cachedForPeriod.settings ?? null);
+        setRecent(cachedForPeriod.recent ?? []);
+        setLoading(false);
+      }
       load({ silent: true });
     } else {
       load();
     }
     _initCacheRef.current = null; // только первый раз
-  }, [load]);
+  }, [load]); // load уже зависит от period
 
   // ── AI (Grok) ──
   const [aiQ, setAiQ] = useState('');
@@ -409,8 +454,9 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
     setAiErr(null);
     setAiAnswer(null);
     try {
+      const days = periodConf.days;
       const today = toIso(new Date());
-      const from = addDays(today, -29);
+      const from = addDays(today, -(days - 1));
       const r = await api.aiAsk(question, from, today);
       setAiAnswer(r?.answer || '');
     } catch (e) {
@@ -418,7 +464,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
     } finally {
       setAiBusy(false);
     }
-  }, [aiQ, aiBusy]);
+  }, [aiQ, aiBusy, periodConf.days]);
 
   const t = cur?.totals;
   const tp = prev?.totals;
@@ -497,6 +543,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
   reportDataRef.current = {
     userName, price, goldRub, cur, settings, t, tp,
     avgCheck, avgPrev, todayRow, flowSeries, staff, marketRows, probeRows, recent,
+    periodDays: periodConf.days,
   };
   const [reportBusy, setReportBusy] = useState(false);
 
@@ -510,7 +557,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
             probeRows: pRows, recent: rec } = d;
 
     const today = toIso(new Date());
-    const from = addDays(today, -29);
+    const from = addDays(today, -(d.periodDays - 1));
     const fmtRu = (iso) => {
       const dd = new Date(`${iso}T00:00:00`);
       return dd.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -574,13 +621,29 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
   return (
     <div className="dx">
       <PageHint id="dashboard" title="Это ваш рабочий экран">
-        Здесь живой курс золота, ключевые показатели за 30 дней и последние договоры. Нажмите на сделку в ленте — откроются детали с фото. Графику можно переключать на свечи и менять таймфрейм.
+        Здесь живой курс золота, ключевые показатели и последние договоры. Выберите период сводки: неделя, месяц или 6 месяцев. Нажмите на сделку в ленте — откроются детали с фото.
       </PageHint>
       {/* ── приветствие ── */}
       <div className="dx-head dx-in" style={{ '--d': '0ms' }}>
-        <div>
+        <div className="dx-head__left">
           <h2 className="dx-head__hi">{greeting}, {userName}</h2>
-          <p className="dx-head__sub">Сводка по системе за последние 30 дней · {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</p>
+          <div className="dx-head__sub-row">
+            <p className="dx-head__sub">Сводка по системе · {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</p>
+            <div className="dx-period" role="tablist" aria-label="Период сводки">
+              {KPI_PERIODS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={period === p.key}
+                  className={`dx-period__btn${period === p.key ? ' dx-period__btn--active' : ''}`}
+                  onClick={() => setPeriod(p.key)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         <div className="dx-head__actions">
           <button type="button" className="dx-qa dx-qa--primary" onClick={() => onNavigate?.('calc')}>
@@ -862,7 +925,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
             </span>
             <div className="dx-ai-head-text">
               <h3 className="dx-card-title">AI-аналитик Grok</h3>
-              <p className="dx-card-sub">Вопросы и прогнозы по вашим данным за 30 дней</p>
+              <p className="dx-card-sub">Вопросы и прогнозы по данным за {periodConf.label.toLowerCase()}</p>
             </div>
           </div>
           <form
@@ -913,7 +976,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
                 <path d="M6 15h4" />
               </svg>
             </span>
-            <div className="dx-label">Оборот, 30 дней</div>
+            <div className="dx-label">Оборот, {periodConf.label.toLowerCase()}</div>
           </div>
           <div className="dx-kpi__v mono-nums">{loading ? '…' : sumAnim != null ? formatMoney(sumAnim) : '—'}</div>
           <div className="dx-kpi__foot">
@@ -1330,6 +1393,7 @@ const CSS = `
   gap: 14px;
   flex-wrap: wrap;
 }
+.dx-head__left { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .dx-head__hi {
   margin: 0;
   font-family: var(--font-display);
@@ -1338,8 +1402,38 @@ const CSS = `
   letter-spacing: -0.02em;
   color: var(--text-strong);
 }
-.dx-head__sub { margin: 4px 0 0; font-size: 0.86rem; color: var(--text-muted); }
+.dx-head__sub-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dx-head__sub { margin: 0; font-size: 0.86rem; color: var(--text-muted); }
 .dx-head__actions { display: flex; gap: 8px; }
+
+/* Period selector */
+.dx-period {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--stroke-soft);
+  border: 1px solid var(--stroke-soft);
+}
+.dx-period__btn {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.dx-period__btn:hover:not(.dx-period__btn--active) { color: var(--text); }
+.dx-period__btn--active {
+  background: var(--bg-panel-solid);
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
 .dx-qa {
   padding: 10px 18px;
   border-radius: 10px;
@@ -2057,6 +2151,8 @@ const CSS = `
   .dx-quote-right { flex-direction: row; align-items: center; justify-content: space-between; width: 100%; }
   .dx-quote-chart { min-height: 100px; margin: 4px -10px -8px; }
   .dx-flow-chart { height: 190px; }
+  .dx-head__sub-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .dx-period__btn { padding: 4px 10px; font-size: 0.72rem; }
   .dx-head__actions { width: 100%; }
   .dx-qa { flex: 1; text-align: center; }
   .dx-market { grid-template-columns: 1fr; }
