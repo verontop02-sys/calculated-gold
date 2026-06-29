@@ -43,6 +43,7 @@ function fmtAxis(v) { return fmtAxisNum.format(Math.round(v)); }
 
 // ── Диапазоны KPI ─────────────────────────────────────────────────────────────
 const KPI_PERIODS = [
+  { key: '1d',   label: 'Сегодня',   days: 1   },
   { key: '7d',   label: 'Неделя',    days: 7   },
   { key: '30d',  label: 'Месяц',     days: 30  },
   { key: '180d', label: '6 месяцев', days: 180 },
