@@ -202,6 +202,10 @@ function fmtTickTime(ms, tfKey) {
 // органично (как настоящий тикер), но не уходит далеко от курса.
 const MR_THETA = 0.14;
 
+// Таймфреймы с «живым» скользящим окном. Длинные (1Н, 1М, 6М) — статичны:
+// обновляется только последняя точка, без сдвига истории влево.
+const LIVE_TF_KEYS = new Set(['5m', '15m', '1h', '1d']);
+
 /** Один шаг процесса Орнштейна–Уленбека вокруг target. */
 function nextTickValue(last, target, vol) {
   const sigma = target * vol * 0.55;
@@ -283,33 +287,47 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
 
   // Реальная цена изменилась заметно (>0.4%) — пересобираем историю вокруг неё,
   // чтобы график мгновенно «переехал» к актуальному курсу, а не подтягивался долго.
+  // Для длинных ТФ порог выше (2%) — не пересобираем историю по мелким движениям.
   useEffect(() => {
     if (!seeded || goldRub == null) return;
     const base = seedTargetRef.current;
     if (base == null) return;
-    if (Math.abs(goldRub - base) / base > 0.004) {
+    const threshold = LIVE_TF_KEYS.has(tf) ? 0.004 : 0.02;
+    if (Math.abs(goldRub - base) / base > threshold) {
       setTicks(seedTicks(goldRub, tfConf.vol, tfConf.windowMs));
       seedTargetRef.current = goldRub;
     }
-  }, [goldRub, seeded, tfConf.vol, tfConf.windowMs]);
+  }, [goldRub, seeded, tf, tfConf.vol, tfConf.windowMs]);
 
   useEffect(() => {
     if (!seeded) return undefined;
+    const isLive = LIVE_TF_KEYS.has(tf);
+    // Длинные ТФ: обновляем только последнюю точку раз в 6с, не сдвигая историю.
+    // Короткие ТФ: классическое скользящее окно каждые 2с.
+    const intervalMs = isLive ? TICK_MS : 6_000;
+
     const t = setInterval(() => {
       const target = goldRef.current;
       if (target == null) return;
       setTicks((prev) => {
-        const id = tickIdRef.current++;
-        const last = prev[prev.length - 1]?.v ?? target;
-        // Курс не обновляется → держим последнее значение (умная заморозка).
-        // Иначе — живой шаг процесса возврата-к-среднему вокруг реальной цены.
-        const v = priceStaleRef.current ? last : nextTickValue(last, target, tfVol);
-        const next = [...prev.slice(-(TICKS_MAX - 1)), { i: id, v, t: Date.now() }];
-        return next;
+        if (!prev.length) return prev;
+        if (isLive) {
+          // Скользящее окно: новый тик справа, старый уходит влево.
+          const id = tickIdRef.current++;
+          const last = prev[prev.length - 1]?.v ?? target;
+          const v = priceStaleRef.current ? last : nextTickValue(last, target, tfVol);
+          return [...prev.slice(-(TICKS_MAX - 1)), { i: id, v, t: Date.now() }];
+        } else {
+          // Статичная история: только последняя точка плавно тянется к текущей цене.
+          if (priceStaleRef.current) return prev;
+          const last = prev[prev.length - 1];
+          const v = Math.round((last.v + (target - last.v) * 0.15) * 100) / 100;
+          return [...prev.slice(0, -1), { ...last, v }];
+        }
       });
-    }, TICK_MS);
+    }, intervalMs);
     return () => clearInterval(t);
-  }, [seeded, tfVol]);
+  }, [seeded, tfVol, tf]);
 
   // Свечи: чанкуем тики по CANDLE_CHUNK → OHLC + условный объём (для «терминального» вида).
   const candles = useMemo(() => {
