@@ -192,7 +192,7 @@ function fmtTickTime(ms, tfKey) {
   if (tfKey === '1mo') return `${DD}.${MO}`;
   if (tfKey === '6mo') {
     const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
-    return `${months[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+    return `${DD} ${months[d.getMonth()]}`;
   }
   return `${hh}:${mm}`;
 }
