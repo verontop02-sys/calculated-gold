@@ -157,11 +157,22 @@ const TICK_MS = 2000;
 
 // Таймфреймы: чем длиннее период, тем выше «накопленная» волатильность истории.
 const TIMEFRAMES = [
-  { key: '5m', label: '5М', vol: 0.0009, windowMs: 5 * 60_000 },
+  { key: '5m',  label: '5М',  vol: 0.0009, windowMs: 5 * 60_000 },
   { key: '15m', label: '15М', vol: 0.0016, windowMs: 15 * 60_000 },
-  { key: '1h', label: '1Ч', vol: 0.0032, windowMs: 60 * 60_000 },
-  { key: '1d', label: '1Д', vol: 0.0075, windowMs: 24 * 60 * 60_000 },
+  { key: '1h',  label: '1Ч',  vol: 0.0032, windowMs: 60 * 60_000 },
+  { key: '1d',  label: '1Д',  vol: 0.0075, windowMs: 24 * 60 * 60_000 },
+  { key: '1w',  label: '1Н',  vol: 0.018,  windowMs: 7 * 24 * 60 * 60_000 },
+  { key: '1mo', label: '1М',  vol: 0.038,  windowMs: 30 * 24 * 60 * 60_000 },
+  { key: '6mo', label: '6М',  vol: 0.072,  windowMs: 180 * 24 * 60 * 60_000 },
 ];
+
+// Соответствие: период KPI → таймфрейм графика
+const PERIOD_TO_TF = {
+  '1d':   '15m',
+  '7d':   '1d',
+  '30d':  '1mo',
+  '180d': '6mo',
+};
 
 const CANDLE_CHUNK = 5; // тиков на одну свечу → 18 свечей на графике
 
@@ -169,12 +180,19 @@ function fmtTickTime(ms, tfKey) {
   const d = new Date(ms);
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
+  const DD = String(d.getDate()).padStart(2, '0');
+  const MO = String(d.getMonth() + 1).padStart(2, '0');
   if (tfKey === '5m' || tfKey === '15m') {
     const ss = String(d.getSeconds()).padStart(2, '0');
     return `${hh}:${mm}:${ss}`;
   }
-  if (tfKey === '1d') {
-    return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')} ${hh}:${mm}`;
+  if (tfKey === '1h') return `${hh}:${mm}`;
+  if (tfKey === '1d') return `${DD}.${MO} ${hh}:${mm}`;
+  if (tfKey === '1w') return `${DD}.${MO} ${hh}:00`;
+  if (tfKey === '1mo') return `${DD}.${MO}`;
+  if (tfKey === '6mo') {
+    const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+    return `${months[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
   }
   return `${hh}:${mm}`;
 }
@@ -241,7 +259,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
   // ── котировка: тики ──
   const [ticks, setTicks] = useState([]);
   const [seeded, setSeeded] = useState(false);
-  const [tf, setTf] = useState('15m');
+  const [tf, setTf] = useState(() => PERIOD_TO_TF[readSavedPeriod()] ?? '15m');
   const [chartType, setChartType] = useState('area'); // area | candles
   const tfConf = TIMEFRAMES.find((x) => x.key === tf) ?? TIMEFRAMES[1];
   const tfVol = tfConf.vol;
@@ -344,6 +362,8 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
   function setPeriod(key) {
     savePeriod(key);
     setPeriodState(key);
+    const autoTf = PERIOD_TO_TF[key];
+    if (autoTf) setTf(autoTf);
   }
 
   // ── данные разделов ──
