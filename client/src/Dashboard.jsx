@@ -207,9 +207,11 @@ const LIVE_TF_KEYS = new Set(['5m', '15m', '1h', '1d']);
 
 /** Один шаг процесса Орнштейна–Уленбека вокруг target. */
 function nextTickValue(last, target, vol) {
-  const sigma = target * vol * 0.55;
+  // Минимум ~0.04% цены, чтобы график не «залипал» в одну точку (особенно XAUT ~$4000).
+  const sigma = Math.max(target * vol * 0.55, target * 0.0004, 0.5);
   const drift = (target - last) * MR_THETA;
   const v = last + drift + (Math.random() - 0.5) * 2 * sigma;
+  // Для крупных цен ($/oz) — 2 знака; для ₽/г тоже ок.
   return Math.round(v * 100) / 100;
 }
 
@@ -219,7 +221,8 @@ function seedTicks(target, vol, windowMs) {
   const out = [];
   const now = Date.now();
   const step = windowMs / TICKS_MAX;
-  let v = target;
+  // Стартуем чуть в стороне, иначе первый тик почти = target и ряд выглядит «мёртвым».
+  let v = target * (1 + (Math.random() - 0.5) * vol * 4);
   for (let i = 0; i < TICKS_MAX; i++) {
     v = nextTickValue(v, target, vol);
     out.push({ i, v, t: now - (TICKS_MAX - 1 - i) * step });
@@ -256,43 +259,45 @@ function GoldQuoteCard({
   periodTf,
   delay = '60ms',
   accentVar = 'var(--accent)',
+  /** Множитель волатильности симуляции (для $/oz нужен выше, иначе линия «стоит»). */
+  volBoost = 1,
 }) {
   const [ticks, setTicks] = useState([]);
   const [seeded, setSeeded] = useState(false);
   const [tf, setTf] = useState(periodTf || '15m');
   const [chartType, setChartType] = useState('area');
   const tfConf = TIMEFRAMES.find((x) => x.key === tf) ?? TIMEFRAMES[1];
-  const tfVol = tfConf.vol;
+  const tfVol = tfConf.vol * (Number(volBoost) > 0 ? Number(volBoost) : 1);
   const tickIdRef = useRef(TICKS_MAX);
   const valueRef = useRef(value);
   valueRef.current = value;
   const seedTargetRef = useRef(null);
-  const staleRef = useRef(stale);
-  staleRef.current = !!stale;
+  // stale = кэш API устарел; визуальный тикер всё равно живёт вокруг последней цены.
+  void stale;
 
   useEffect(() => {
     if (periodTf && periodTf !== tf) setTf(periodTf);
   }, [periodTf]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const hasValue = value != null;
+  const hasValue = value != null && Number.isFinite(value);
   useEffect(() => {
     const g = valueRef.current;
-    if (g == null) return;
-    setTicks(seedTicks(g, tfConf.vol, tfConf.windowMs));
+    if (g == null || !Number.isFinite(g)) return;
+    setTicks(seedTicks(g, tfVol, tfConf.windowMs));
     seedTargetRef.current = g;
     setSeeded(true);
-  }, [hasValue, tf]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasValue, tf, tfVol, tfConf.windowMs]);
 
   useEffect(() => {
-    if (!seeded || value == null) return;
+    if (!seeded || value == null || !Number.isFinite(value)) return;
     const base = seedTargetRef.current;
     if (base == null) return;
     const threshold = LIVE_TF_KEYS.has(tf) ? 0.004 : 0.02;
     if (Math.abs(value - base) / base > threshold) {
-      setTicks(seedTicks(value, tfConf.vol, tfConf.windowMs));
+      setTicks(seedTicks(value, tfVol, tfConf.windowMs));
       seedTargetRef.current = value;
     }
-  }, [value, seeded, tf, tfConf.vol, tfConf.windowMs]);
+  }, [value, seeded, tf, tfVol, tfConf.windowMs]);
 
   useEffect(() => {
     if (!seeded) return undefined;
@@ -300,18 +305,20 @@ function GoldQuoteCard({
     const intervalMs = isLive ? TICK_MS : 6_000;
     const t = setInterval(() => {
       const target = valueRef.current;
-      if (target == null) return;
+      if (target == null || !Number.isFinite(target)) return;
       setTicks((prev) => {
         if (!prev.length) return prev;
         if (isLive) {
+          // Скользящее окно — всегда «живой» шаг вокруг последней известной цены.
           const id = tickIdRef.current++;
           const last = prev[prev.length - 1]?.v ?? target;
-          const v = staleRef.current ? last : nextTickValue(last, target, tfVol);
+          const v = nextTickValue(last, target, tfVol);
           return [...prev.slice(-(TICKS_MAX - 1)), { i: id, v, t: Date.now() }];
         }
-        if (staleRef.current) return prev;
+        // Длинный ТФ: история статична, последняя точка тянется к цене + лёгкий шум.
         const last = prev[prev.length - 1];
-        const v = Math.round((last.v + (target - last.v) * 0.15) * 100) / 100;
+        const pulled = last.v + (target - last.v) * 0.12;
+        const v = nextTickValue(pulled, target, tfVol * 0.35);
         return [...prev.slice(0, -1), { ...last, v }];
       });
     }, intervalMs);
@@ -1012,6 +1019,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
           periodTf={periodTf}
           delay="120ms"
           accentVar="var(--emerald)"
+          volBoost={2.8}
         />
 
         {/* ── оборот за выбранный период ── */}
