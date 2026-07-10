@@ -923,7 +923,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
   return (
     <div className="dx">
       <PageHint id="dashboard" title="Это ваш рабочий экран">
-        Два графика котировок: Мосбиржа в ₽/г и глобальная биржа (XAUT) в $/oz. Выберите период сводки — KPI и таймфреймы графиков подстроятся. Нажмите на сделку в ленте — откроются детали с фото.
+        Два графика: Мосбиржа (₽/г) и глобальная XAUT ($/oz). Справа — оборот сегодня и оборот за выбранный период. Переключатель периода меняет KPI, графики и сводку.
       </PageHint>
       {/* ── приветствие ── */}
       <div className="dx-head dx-in" style={{ '--d': '0ms' }}>
@@ -1014,35 +1014,47 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
           accentVar="var(--emerald)"
         />
 
-        {/* ── сотрудники ── */}
-        <section className="dx-card dx-card--staff dx-in" style={{ '--d': '140ms' }}>
-          <div className="dx-card-head">
-            <div>
-              <h3 className="dx-card-title">Команда</h3>
-              <p className="dx-card-sub">Топ по обороту за {periodConf.label.toLowerCase()}</p>
-            </div>
+        {/* ── оборот за выбранный период ── */}
+        <section className="dx-card dx-card--period dx-in" style={{ '--d': '140ms' }}>
+          <div className="dx-label">Оборот · {periodConf.label}</div>
+          <div className="dx-period-main mono-nums">
+            {loading ? '…' : sumAnim != null ? formatMoney(sumAnim) : '—'}
           </div>
-          {staff.length > 0 ? (
-            <div className="dx-staff">
-              {staff.map((row, i) => {
-                const share = t?.sumRub ? Math.round(((row.sumRub || 0) / t.sumRub) * 100) : 0;
-                return (
-                  <div key={row.operatorId ?? i} className="dx-staff-row">
-                    <span className="dx-staff-rank mono-nums">{i + 1}</span>
-                    <div className="dx-staff-mid">
-                      <span className="dx-staff-name">{(row.email || '—').split('@')[0]}</span>
-                      <div className="dx-staff-bar"><div className="dx-staff-bar__fill" style={{ width: `${Math.max(3, share)}%` }} /></div>
-                    </div>
-                    <div className="dx-staff-right">
-                      <span className="dx-staff-sum mono-nums">{formatMoney(row.sumRub || 0)}</span>
-                      <span className="dx-staff-deals">{row.deals} сд. · {share}%</span>
-                    </div>
-                  </div>
-                );
-              })}
+          <div className="dx-period-meta">
+            <span className="mono-nums">{loading ? '…' : (t?.deals ?? 0)} сделок</span>
+            <span className="dx-period-dot" aria-hidden>·</span>
+            <span className="mono-nums">
+              ср. чек {loading ? '…' : avgCheck != null ? formatMoney(Math.round(avgCheck)) : '—'}
+            </span>
+          </div>
+          <div className="dx-period-foot">
+            <DeltaBadge pct={deltaPct(t?.sumRub, tp?.sumRub)} />
+            <span className="dx-period-prev">
+              пред.: {tp?.sumRub != null ? formatMoney(tp.sumRub) : '—'}
+            </span>
+          </div>
+          {flowSeries.length > 1 && (
+            <div className="dx-period-spark" aria-hidden>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={flowSeries} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="dx-period-spark" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--emerald)" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="var(--emerald)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area
+                    type="monotone"
+                    dataKey="sum"
+                    stroke="var(--emerald)"
+                    strokeWidth={1.8}
+                    fill="url(#dx-period-spark)"
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
-          ) : (
-            <div className="dx-empty">{loading ? 'Загружаем…' : cur?.viewerScope === 'self' ? 'Доступна только своя статистика' : 'Нет данных'}</div>
           )}
         </section>
 
@@ -1253,6 +1265,38 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
               <div className="dx-empty">{loading ? 'Загружаем…' : 'Нет данных за период'}</div>
             )}
           </div>
+        </section>
+
+        {/* ── сотрудники ── */}
+        <section className="dx-card dx-card--staff dx-in" style={{ '--d': '440ms' }}>
+          <div className="dx-card-head">
+            <div>
+              <h3 className="dx-card-title">Команда</h3>
+              <p className="dx-card-sub">Топ по обороту за {periodConf.label.toLowerCase()}</p>
+            </div>
+          </div>
+          {staff.length > 0 ? (
+            <div className="dx-staff">
+              {staff.map((row, i) => {
+                const share = t?.sumRub ? Math.round(((row.sumRub || 0) / t.sumRub) * 100) : 0;
+                return (
+                  <div key={row.operatorId ?? i} className="dx-staff-row">
+                    <span className="dx-staff-rank mono-nums">{i + 1}</span>
+                    <div className="dx-staff-mid">
+                      <span className="dx-staff-name">{(row.email || '—').split('@')[0]}</span>
+                      <div className="dx-staff-bar"><div className="dx-staff-bar__fill" style={{ width: `${Math.max(3, share)}%` }} /></div>
+                    </div>
+                    <div className="dx-staff-right">
+                      <span className="dx-staff-sum mono-nums">{formatMoney(row.sumRub || 0)}</span>
+                      <span className="dx-staff-deals">{row.deals} сд. · {share}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="dx-empty">{loading ? 'Загружаем…' : cur?.viewerScope === 'self' ? 'Доступна только своя статистика' : 'Нет данных'}</div>
+          )}
         </section>
 
         {/* ── последние договоры ── */}
@@ -1638,8 +1682,64 @@ const CSS = `
 .dx-card--today .dx-label { color: color-mix(in srgb, var(--accent) 55%, var(--text-muted)); }
 .dx-kpi { grid-column: span 3; display: flex; flex-direction: column; }
 .dx-card--ai { grid-column: span 12; }
-.dx-card--flow { grid-column: span 12; }
+.dx-card--flow { grid-column: span 8; }
 .dx-card--staff { grid-column: span 4; }
+.dx-card--period {
+  grid-column: span 4;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(168deg, color-mix(in srgb, var(--emerald) 14%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 62%);
+  border-color: color-mix(in srgb, var(--emerald) 24%, var(--stroke-soft));
+}
+:root[data-theme='dark'] .dx-card--period {
+  background:
+    linear-gradient(168deg, color-mix(in srgb, var(--emerald) 18%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 64%),
+    var(--bg-panel-solid);
+}
+.dx-card--period::before {
+  content: '';
+  position: absolute;
+  top: -45%; right: -25%;
+  width: 80%; height: 100%;
+  background: radial-gradient(circle, var(--emerald-soft), transparent 64%);
+  opacity: 0.85;
+  pointer-events: none;
+}
+.dx-card--period > * { position: relative; }
+.dx-card--period .dx-label { color: color-mix(in srgb, var(--emerald) 55%, var(--text-muted)); }
+.dx-period-main {
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 1.2rem + 0.8vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+  line-height: 1.15;
+}
+.dx-period-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.dx-period-dot { opacity: 0.5; }
+.dx-period-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dx-period-prev { font-size: 0.72rem; color: var(--text-dim); }
+.dx-period-spark {
+  flex: 1;
+  min-height: 56px;
+  margin: 4px -8px -6px;
+}
 .dx-card--deals { grid-column: span 7; }
 .dx-card--market { grid-column: span 5; }
 .dx-card--probes { grid-column: span 12; }
@@ -2228,6 +2328,7 @@ const CSS = `
 @media (max-width: 1100px) {
   .dx-card--quote { grid-column: span 12; }
   .dx-card--today { grid-column: span 12; }
+  .dx-card--period { grid-column: span 12; }
   .dx-kpi { grid-column: span 6; }
   .dx-card--flow { grid-column: span 12; }
   .dx-card--staff { grid-column: span 12; }
