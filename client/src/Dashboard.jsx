@@ -18,12 +18,11 @@ import { PageHint } from './PageHint.jsx';
  * Дашборд — главный рабочий экран после входа (Stage 7).
  *
  * Блоки:
- *  - Живая котировка золота (имитация биржевого тикера вокруг реального курса).
- *  - KPI за 30 дней с дельтами к предыдущему периоду (оборот, сделки, клиенты, чек).
- *  - Денежный поток (area-график по дням).
- *  - «Сегодня» + быстрые действия.
- *  - Топ сотрудников по обороту.
- *  - Рынок: наша цена против конкурентов по городам (индекс золота).
+ *  - Котировка Мосбиржа (₽/г) + «Сегодня».
+ *  - Котировка глобальной биржи XAUT ($/oz) + топ команды.
+ *  - KPI за выбранный период с дельтами к предыдущему.
+ *  - Денежный поток (area-график по дням) на всю ширину.
+ *  - Последние договоры + рынок (индекс золота).
  */
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -228,6 +227,353 @@ function seedTicks(target, vol, windowMs) {
   return out;
 }
 
+const fmtUsdNum = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 0,
+});
+function formatUsd(n) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return fmtUsdNum.format(Math.round(n));
+}
+function fmtAxisUsd(v) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  return `$${fmtAxisNum.format(Math.round(v))}`;
+}
+
+/**
+ * Карточка живой котировки (Мосбиржа ₽/г или глобальная биржа $/oz).
+ * periodTf — таймфрейм из переключателя периода KPI; при смене синхронизируется.
+ */
+function GoldQuoteCard({
+  value,
+  stale = false,
+  formatValue,
+  formatAxis = fmtAxis,
+  unitLabel,
+  sourceLabel,
+  gradientId,
+  periodTf,
+  delay = '60ms',
+  accentVar = 'var(--accent)',
+}) {
+  const [ticks, setTicks] = useState([]);
+  const [seeded, setSeeded] = useState(false);
+  const [tf, setTf] = useState(periodTf || '15m');
+  const [chartType, setChartType] = useState('area');
+  const tfConf = TIMEFRAMES.find((x) => x.key === tf) ?? TIMEFRAMES[1];
+  const tfVol = tfConf.vol;
+  const tickIdRef = useRef(TICKS_MAX);
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const seedTargetRef = useRef(null);
+  const staleRef = useRef(stale);
+  staleRef.current = !!stale;
+
+  useEffect(() => {
+    if (periodTf && periodTf !== tf) setTf(periodTf);
+  }, [periodTf]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hasValue = value != null;
+  useEffect(() => {
+    const g = valueRef.current;
+    if (g == null) return;
+    setTicks(seedTicks(g, tfConf.vol, tfConf.windowMs));
+    seedTargetRef.current = g;
+    setSeeded(true);
+  }, [hasValue, tf]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!seeded || value == null) return;
+    const base = seedTargetRef.current;
+    if (base == null) return;
+    const threshold = LIVE_TF_KEYS.has(tf) ? 0.004 : 0.02;
+    if (Math.abs(value - base) / base > threshold) {
+      setTicks(seedTicks(value, tfConf.vol, tfConf.windowMs));
+      seedTargetRef.current = value;
+    }
+  }, [value, seeded, tf, tfConf.vol, tfConf.windowMs]);
+
+  useEffect(() => {
+    if (!seeded) return undefined;
+    const isLive = LIVE_TF_KEYS.has(tf);
+    const intervalMs = isLive ? TICK_MS : 6_000;
+    const t = setInterval(() => {
+      const target = valueRef.current;
+      if (target == null) return;
+      setTicks((prev) => {
+        if (!prev.length) return prev;
+        if (isLive) {
+          const id = tickIdRef.current++;
+          const last = prev[prev.length - 1]?.v ?? target;
+          const v = staleRef.current ? last : nextTickValue(last, target, tfVol);
+          return [...prev.slice(-(TICKS_MAX - 1)), { i: id, v, t: Date.now() }];
+        }
+        if (staleRef.current) return prev;
+        const last = prev[prev.length - 1];
+        const v = Math.round((last.v + (target - last.v) * 0.15) * 100) / 100;
+        return [...prev.slice(0, -1), { ...last, v }];
+      });
+    }, intervalMs);
+    return () => clearInterval(t);
+  }, [seeded, tfVol, tf]);
+
+  const candles = useMemo(() => {
+    const out = [];
+    for (let i = 0; i + CANDLE_CHUNK <= ticks.length; i += CANDLE_CHUNK) {
+      const chunk = ticks.slice(i, i + CANDLE_CHUNK);
+      const o = chunk[0].v;
+      const c = chunk[chunk.length - 1].v;
+      let h = -Infinity; let l = Infinity;
+      for (const x of chunk) { if (x.v > h) h = x.v; if (x.v < l) l = x.v; }
+      const seed = Math.abs(Math.sin(chunk[0].i * 12.9898) * 43758.5453) % 1;
+      const vol = Math.round(((h - l) / (c || 1)) * 1e6 * (0.55 + seed * 0.9)) + 12;
+      out.push({ i: chunk[0].i, t: chunk[chunk.length - 1].t, o, c, h, l, vol });
+    }
+    return out;
+  }, [ticks]);
+
+  const maxVol = useMemo(() => candles.reduce((m, x) => Math.max(m, x.vol), 0), [candles]);
+
+  const quoteStats = useMemo(() => {
+    if (ticks.length < 2) return null;
+    let h = -Infinity; let l = Infinity;
+    for (const x of ticks) { if (x.v > h) h = x.v; if (x.v < l) l = x.v; }
+    return { o: ticks[0].v, h, l, last: ticks[ticks.length - 1].v };
+  }, [ticks]);
+
+  const sessionDelta = useMemo(() => {
+    if (ticks.length < 2) return null;
+    return deltaPct(ticks[ticks.length - 1].v, ticks[0].v);
+  }, [ticks]);
+
+  const tickDomain = useMemo(() => {
+    if (!ticks.length) return ['auto', 'auto'];
+    let lo = Infinity; let hi = -Infinity;
+    for (const t of ticks) { if (t.v < lo) lo = t.v; if (t.v > hi) hi = t.v; }
+    if (value != null) { if (value < lo) lo = value; if (value > hi) hi = value; }
+    const pad = Math.max((hi - lo) * 0.08, (hi || 1) * 0.002);
+    return [lo - pad, hi + pad];
+  }, [ticks, value]);
+
+  const anim = useCountUp(value, { duration: 900 });
+
+  return (
+    <section className="dx-card dx-card--quote dx-in" style={{ '--d': delay }}>
+      <div className="dx-quote-top">
+        <div>
+          <div className="dx-label">
+            <span className="dx-live-dot" aria-hidden />
+            Котировка золота · {sourceLabel}
+          </div>
+          <div className="dx-quote-value mono-nums">
+            {anim != null ? formatValue(anim) : '—'}
+            <span className="dx-quote-per">{unitLabel}</span>
+          </div>
+          {quoteStats && (
+            <div className="dx-quote-stats mono-nums">
+              <span>О <b>{formatAxis(quoteStats.o)}</b></span>
+              <span>В <b className="dx-quote-stats--h">{formatAxis(quoteStats.h)}</b></span>
+              <span>Н <b className="dx-quote-stats--l">{formatAxis(quoteStats.l)}</b></span>
+            </div>
+          )}
+        </div>
+        <div className="dx-quote-right">
+          <div className="dx-quote-controls">
+            <div className="dx-tf" role="tablist" aria-label="Тип графика">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={chartType === 'area'}
+                className={`dx-tf__btn dx-tf__btn--icon${chartType === 'area' ? ' dx-tf__btn--active' : ''}`}
+                onClick={() => setChartType('area')}
+                title="Линия"
+              >
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 17l5-6 4 3 6-8 3 4" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={chartType === 'candles'}
+                className={`dx-tf__btn dx-tf__btn--icon${chartType === 'candles' ? ' dx-tf__btn--active' : ''}`}
+                onClick={() => setChartType('candles')}
+                title="Свечи"
+              >
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M8 4v3M8 17v3M16 2v4M16 14v5" />
+                  <rect x="5.5" y="7" width="5" height="10" rx="1" />
+                  <rect x="13.5" y="6" width="5" height="8" rx="1" />
+                </svg>
+              </button>
+            </div>
+            <div className="dx-tf" role="tablist" aria-label="Таймфрейм графика">
+              {TIMEFRAMES.map((x) => (
+                <button
+                  key={x.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={tf === x.key}
+                  className={`dx-tf__btn${tf === x.key ? ' dx-tf__btn--active' : ''}`}
+                  onClick={() => setTf(x.key)}
+                >
+                  {x.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="dx-quote-delta">
+            <DeltaBadge pct={sessionDelta} />
+            <span className="dx-quote-session">за период</span>
+          </div>
+        </div>
+      </div>
+      <div className="dx-quote-chart">
+        {ticks.length > 1 && chartType === 'area' && (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={ticks} margin={{ top: 6, right: 0, left: 4, bottom: 0 }}>
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={accentVar} stopOpacity={0.38} />
+                  <stop offset="70%" stopColor={accentVar} stopOpacity={0.06} />
+                  <stop offset="100%" stopColor={accentVar} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="var(--stroke-soft)" strokeOpacity={0.55} strokeDasharray="3 7" vertical={false} />
+              <YAxis
+                domain={tickDomain}
+                orientation="right"
+                width={56}
+                tickCount={5}
+                tick={{ fontSize: 9.5, fill: 'var(--text-dim)' }}
+                tickFormatter={formatAxis}
+                axisLine={false}
+                tickLine={false}
+              />
+              <XAxis
+                dataKey="t"
+                tick={{ fontSize: 9.5, fill: 'var(--text-dim)' }}
+                tickFormatter={(v) => fmtTickTime(v, tf)}
+                axisLine={false}
+                tickLine={false}
+                minTickGap={56}
+                height={20}
+              />
+              <Tooltip
+                cursor={{ stroke: 'var(--stroke-strong)', strokeDasharray: '3 3' }}
+                content={({ active, payload }) => {
+                  if (!active || !payload?.[0]) return null;
+                  const p = payload[0].payload;
+                  return (
+                    <div className="dx-tt">
+                      <div className="dx-tt__label">{fmtTickTime(p.t, tf)}</div>
+                      <div className="dx-tt__val mono-nums">{formatValue(p.v)}</div>
+                    </div>
+                  );
+                }}
+              />
+              {value != null && (
+                <ReferenceLine
+                  y={value}
+                  stroke={accentVar}
+                  strokeDasharray="2 4"
+                  strokeOpacity={0.75}
+                  label={{
+                    value: formatAxis(value),
+                    position: 'right',
+                    fill: accentVar,
+                    fontSize: 10,
+                    fontWeight: 700,
+                  }}
+                />
+              )}
+              <Area
+                type="monotone"
+                dataKey="v"
+                stroke={accentVar}
+                strokeWidth={2.2}
+                fill={`url(#${gradientId})`}
+                isAnimationActive={false}
+                dot={false}
+                activeDot={{ r: 4, fill: accentVar, stroke: 'var(--bg-panel-solid)', strokeWidth: 2 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+        {candles.length > 1 && chartType === 'candles' && (
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={candles} margin={{ top: 6, right: 0, left: 4, bottom: 0 }}>
+              <CartesianGrid stroke="var(--stroke-soft)" strokeOpacity={0.55} strokeDasharray="3 7" vertical={false} />
+              <YAxis
+                domain={tickDomain}
+                orientation="right"
+                width={56}
+                tickCount={5}
+                tick={{ fontSize: 9.5, fill: 'var(--text-dim)' }}
+                tickFormatter={formatAxis}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis yAxisId="vol" domain={[0, Math.max(1, maxVol * 4.2)]} hide />
+              <XAxis
+                dataKey="t"
+                tick={{ fontSize: 9.5, fill: 'var(--text-dim)' }}
+                tickFormatter={(v) => fmtTickTime(v, tf)}
+                axisLine={false}
+                tickLine={false}
+                minTickGap={56}
+                height={20}
+              />
+              <Tooltip
+                cursor={{ fill: 'var(--stroke-soft)', fillOpacity: 0.35 }}
+                content={({ active, payload }) => {
+                  if (!active || !payload?.[0]) return null;
+                  const p = payload[0].payload;
+                  const up = p.c >= p.o;
+                  return (
+                    <div className="dx-tt">
+                      <div className="dx-tt__label">{fmtTickTime(p.t, tf)}</div>
+                      <div className="dx-tt__ohlc mono-nums">
+                        <span>O {formatValue(p.o)}</span>
+                        <span>H {formatValue(p.h)}</span>
+                        <span>L {formatValue(p.l)}</span>
+                        <span className={up ? 'dx-tt__c--up' : 'dx-tt__c--down'}>C {formatValue(p.c)}</span>
+                      </div>
+                      <div className="dx-tt__sub">Объём: {fmtAxis(p.vol)}</div>
+                    </div>
+                  );
+                }}
+              />
+              <Bar yAxisId="vol" dataKey="vol" isAnimationActive={false} barSize={7} radius={[2, 2, 0, 0]}>
+                {candles.map((c) => (
+                  <Cell key={c.i} fill={c.c >= c.o ? 'var(--emerald)' : 'var(--crimson)'} fillOpacity={0.22} />
+                ))}
+              </Bar>
+              {value != null && (
+                <ReferenceLine
+                  y={value}
+                  stroke={accentVar}
+                  strokeDasharray="2 4"
+                  strokeOpacity={0.75}
+                  label={{
+                    value: formatAxis(value),
+                    position: 'right',
+                    fill: accentVar,
+                    fontSize: 10,
+                    fontWeight: 700,
+                  }}
+                />
+              )}
+              <Bar dataKey={(d) => [d.l, d.h]} shape={<CandleShape />} isAnimationActive={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // ── Stale-while-revalidate кэш для дашборда ──────────────────────────────────
 const DASH_CACHE_TTL = 3 * 60 * 1000; // 3 минуты
 
@@ -258,130 +604,48 @@ function writeDashCache(uid, period, payload) {
 }
 
 export function Dashboard({ formatMoney, price, user, onNavigate }) {
+  // Курс для расчётов выкупа / прайса проб — из топбара (moex или xaut→₽).
   const goldRub = price?.goldRubPerGram ?? null;
 
-  // ── котировка: тики ──
-  const [ticks, setTicks] = useState([]);
-  const [seeded, setSeeded] = useState(false);
-  const [tf, setTf] = useState(() => PERIOD_TO_TF[readSavedPeriod()] ?? '15m');
-  const [chartType, setChartType] = useState('area'); // area | candles
-  const tfConf = TIMEFRAMES.find((x) => x.key === tf) ?? TIMEFRAMES[1];
-  const tfVol = tfConf.vol;
-  const tickIdRef = useRef(TICKS_MAX);
-  const goldRef = useRef(goldRub);
-  goldRef.current = goldRub;
-  const seedTargetRef = useRef(null); // цена, вокруг которой построена текущая история
-  // «Умная» заморозка: если курс перестал обновляться (stale) — держим последнее значение,
-  // не рисуем фейковое «живое» движение поверх мёртвых данных.
-  const priceStaleRef = useRef(false);
-  priceStaleRef.current = !!price?.stale;
+  // Отдельные котировки для двух карточек дашборда (не зависят от переключателя в топбаре).
+  const [moexPrice, setMoexPrice] = useState(
+    () => (price && price.quote !== 'xaut' && price.source !== 'xaut' ? price : null),
+  );
+  const [xautPrice, setXautPrice] = useState(null);
 
-  const hasGold = goldRub != null;
   useEffect(() => {
-    const g = goldRef.current;
-    if (g == null) return;
-    setTicks(seedTicks(g, tfConf.vol, tfConf.windowMs));
-    seedTargetRef.current = g;
-    setSeeded(true);
-  }, [hasGold, tf]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Реальная цена изменилась заметно (>0.4%) — пересобираем историю вокруг неё,
-  // чтобы график мгновенно «переехал» к актуальному курсу, а не подтягивался долго.
-  // Для длинных ТФ порог выше (2%) — не пересобираем историю по мелким движениям.
-  useEffect(() => {
-    if (!seeded || goldRub == null) return;
-    const base = seedTargetRef.current;
-    if (base == null) return;
-    const threshold = LIVE_TF_KEYS.has(tf) ? 0.004 : 0.02;
-    if (Math.abs(goldRub - base) / base > threshold) {
-      setTicks(seedTicks(goldRub, tfConf.vol, tfConf.windowMs));
-      seedTargetRef.current = goldRub;
+    if (price && price.quote !== 'xaut' && price.source !== 'xaut') {
+      setMoexPrice(price);
     }
-  }, [goldRub, seeded, tf, tfConf.vol, tfConf.windowMs]);
+  }, [price]);
 
   useEffect(() => {
-    if (!seeded) return undefined;
-    const isLive = LIVE_TF_KEYS.has(tf);
-    // Длинные ТФ: обновляем только последнюю точку раз в 6с, не сдвигая историю.
-    // Короткие ТФ: классическое скользящее окно каждые 2с.
-    const intervalMs = isLive ? TICK_MS : 6_000;
+    let alive = true;
+    const loadQuotes = async () => {
+      const [m, x] = await Promise.allSettled([
+        api.price({ quote: 'moex' }),
+        api.price({ quote: 'xaut' }),
+      ]);
+      if (!alive) return;
+      if (m.status === 'fulfilled') setMoexPrice(m.value);
+      if (x.status === 'fulfilled') setXautPrice(x.value);
+    };
+    loadQuotes();
+    const id = setInterval(loadQuotes, 90_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
 
-    const t = setInterval(() => {
-      const target = goldRef.current;
-      if (target == null) return;
-      setTicks((prev) => {
-        if (!prev.length) return prev;
-        if (isLive) {
-          // Скользящее окно: новый тик справа, старый уходит влево.
-          const id = tickIdRef.current++;
-          const last = prev[prev.length - 1]?.v ?? target;
-          const v = priceStaleRef.current ? last : nextTickValue(last, target, tfVol);
-          return [...prev.slice(-(TICKS_MAX - 1)), { i: id, v, t: Date.now() }];
-        } else {
-          // Статичная история: только последняя точка плавно тянется к текущей цене.
-          if (priceStaleRef.current) return prev;
-          const last = prev[prev.length - 1];
-          const v = Math.round((last.v + (target - last.v) * 0.15) * 100) / 100;
-          return [...prev.slice(0, -1), { ...last, v }];
-        }
-      });
-    }, intervalMs);
-    return () => clearInterval(t);
-  }, [seeded, tfVol, tf]);
-
-  // Свечи: чанкуем тики по CANDLE_CHUNK → OHLC + условный объём (для «терминального» вида).
-  const candles = useMemo(() => {
-    const out = [];
-    for (let i = 0; i + CANDLE_CHUNK <= ticks.length; i += CANDLE_CHUNK) {
-      const chunk = ticks.slice(i, i + CANDLE_CHUNK);
-      const o = chunk[0].v;
-      const c = chunk[chunk.length - 1].v;
-      let h = -Infinity; let l = Infinity;
-      for (const x of chunk) { if (x.v > h) h = x.v; if (x.v < l) l = x.v; }
-      // Объём пропорционален размаху свечи + детерминированный шум (стабилен между рендерами).
-      const seed = Math.abs(Math.sin(chunk[0].i * 12.9898) * 43758.5453) % 1;
-      const vol = Math.round(((h - l) / (c || 1)) * 1e6 * (0.55 + seed * 0.9)) + 12;
-      out.push({ i: chunk[0].i, t: chunk[chunk.length - 1].t, o, c, h, l, vol });
-    }
-    return out;
-  }, [ticks]);
-
-  const maxVol = useMemo(() => candles.reduce((m, x) => Math.max(m, x.vol), 0), [candles]);
-
-  // Статистика периода: открытие / максимум / минимум / последняя цена.
-  const quoteStats = useMemo(() => {
-    if (ticks.length < 2) return null;
-    let h = -Infinity; let l = Infinity;
-    for (const x of ticks) { if (x.v > h) h = x.v; if (x.v < l) l = x.v; }
-    return { o: ticks[0].v, h, l, last: ticks[ticks.length - 1].v };
-  }, [ticks]);
-
-  const sessionDelta = useMemo(() => {
-    if (ticks.length < 2) return null;
-    const first = ticks[0].v;
-    const last = ticks[ticks.length - 1].v;
-    return deltaPct(last, first);
-  }, [ticks]);
-
-  const tickDomain = useMemo(() => {
-    if (!ticks.length) return ['auto', 'auto'];
-    let lo = Infinity; let hi = -Infinity;
-    for (const t of ticks) { if (t.v < lo) lo = t.v; if (t.v > hi) hi = t.v; }
-    // Гарантируем, что реальная цена (и её опорная линия) всегда в диапазоне.
-    if (goldRub != null) { if (goldRub < lo) lo = goldRub; if (goldRub > hi) hi = goldRub; }
-    const pad = Math.max((hi - lo) * 0.25, hi * 0.0005);
-    return [lo - pad, hi + pad];
-  }, [ticks, goldRub]);
+  const moexRub = moexPrice?.goldRubPerGram ?? null;
+  const xautUsd = xautPrice?.xautUsdPerOz ?? null;
 
   // ── период KPI ──
   const [period, setPeriodState] = useState(readSavedPeriod);
   const periodConf = KPI_PERIODS.find((p) => p.key === period) ?? KPI_PERIODS[1];
+  const periodTf = PERIOD_TO_TF[period] ?? '15m';
 
   function setPeriod(key) {
     savePeriod(key);
     setPeriodState(key);
-    const autoTf = PERIOD_TO_TF[key];
-    if (autoTf) setTf(autoTf);
   }
 
   // ── данные разделов ──
@@ -555,7 +819,6 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
   }, [market, ourPerGram585]);
 
   // ── анимированные значения ──
-  const goldAnim = useCountUp(goldRub, { duration: 900 });
   const sumAnim = useCountUp(t?.sumRub ?? null, { duration: 1300 });
   const dealsAnim = useCountUp(t?.deals ?? null, { duration: 1100 });
   const clientsAnim = useCountUp(t?.uniqueCustomers ?? null, { duration: 1100 });
@@ -660,7 +923,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
   return (
     <div className="dx">
       <PageHint id="dashboard" title="Это ваш рабочий экран">
-        Здесь живой курс золота, ключевые показатели и последние договоры. Выберите период сводки: неделя, месяц или 6 месяцев. Нажмите на сделку в ленте — откроются детали с фото.
+        Два графика котировок: Мосбиржа в ₽/г и глобальная биржа (XAUT) в $/oz. Выберите период сводки — KPI и таймфреймы графиков подстроятся. Нажмите на сделку в ленте — откроются детали с фото.
       </PageHint>
       {/* ── приветствие ── */}
       <div className="dx-head dx-in" style={{ '--d': '0ms' }}>
@@ -701,237 +964,21 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
       </div>
 
       <div className="dx-grid">
-        {/* ── живая котировка ── */}
-        <section className="dx-card dx-card--quote dx-in" style={{ '--d': '60ms' }}>
-          <div className="dx-quote-top">
-            <div>
-              <div className="dx-label">
-                <span className="dx-live-dot" aria-hidden />
-                Котировка золота · {price?.source === 'xaut' ? 'XAUT' : price?.source === 'moex' ? 'Мосбиржа' : 'ЦБ РФ'}
-              </div>
-              <div className="dx-quote-value mono-nums">
-                {goldAnim != null ? formatMoney(goldAnim) : '—'}
-                <span className="dx-quote-per">/ г</span>
-              </div>
-              {quoteStats && (
-                <div className="dx-quote-stats mono-nums">
-                  <span>О <b>{fmtAxis(quoteStats.o)}</b></span>
-                  <span>В <b className="dx-quote-stats--h">{fmtAxis(quoteStats.h)}</b></span>
-                  <span>Н <b className="dx-quote-stats--l">{fmtAxis(quoteStats.l)}</b></span>
-                </div>
-              )}
-            </div>
-            <div className="dx-quote-right">
-              <div className="dx-quote-controls">
-                <div className="dx-tf" role="tablist" aria-label="Тип графика">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={chartType === 'area'}
-                    className={`dx-tf__btn dx-tf__btn--icon${chartType === 'area' ? ' dx-tf__btn--active' : ''}`}
-                    onClick={() => setChartType('area')}
-                    title="Линия"
-                  >
-                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 17l5-6 4 3 6-8 3 4" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={chartType === 'candles'}
-                    className={`dx-tf__btn dx-tf__btn--icon${chartType === 'candles' ? ' dx-tf__btn--active' : ''}`}
-                    onClick={() => setChartType('candles')}
-                    title="Свечи"
-                  >
-                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <path d="M8 4v3M8 17v3M16 2v4M16 14v5" />
-                      <rect x="5.5" y="7" width="5" height="10" rx="1" />
-                      <rect x="13.5" y="6" width="5" height="8" rx="1" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="dx-tf" role="tablist" aria-label="Таймфрейм графика">
-                  {TIMEFRAMES.map((x) => (
-                    <button
-                      key={x.key}
-                      type="button"
-                      role="tab"
-                      aria-selected={tf === x.key}
-                      className={`dx-tf__btn${tf === x.key ? ' dx-tf__btn--active' : ''}`}
-                      onClick={() => setTf(x.key)}
-                    >
-                      {x.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="dx-quote-delta">
-                <DeltaBadge pct={sessionDelta} />
-                <span className="dx-quote-session">за период</span>
-              </div>
-            </div>
-          </div>
-          <div className="dx-quote-chart">
-            {ticks.length > 1 && chartType === 'area' && (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={ticks} margin={{ top: 6, right: 0, left: 4, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="dx-quote-grad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.38} />
-                      <stop offset="70%" stopColor="var(--accent)" stopOpacity={0.06} />
-                      <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid
-                    stroke="var(--stroke-soft)"
-                    strokeOpacity={0.55}
-                    strokeDasharray="3 7"
-                    vertical={false}
-                  />
-                  <YAxis
-                    domain={tickDomain}
-                    orientation="right"
-                    width={52}
-                    tickCount={5}
-                    tick={{ fontSize: 9.5, fill: 'var(--text-dim)' }}
-                    tickFormatter={fmtAxis}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <XAxis
-                    dataKey="t"
-                    tick={{ fontSize: 9.5, fill: 'var(--text-dim)' }}
-                    tickFormatter={(v) => fmtTickTime(v, tf)}
-                    axisLine={false}
-                    tickLine={false}
-                    minTickGap={56}
-                    height={20}
-                  />
-                  <Tooltip
-                    cursor={{ stroke: 'var(--stroke-strong)', strokeDasharray: '3 3' }}
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.[0]) return null;
-                      const p = payload[0].payload;
-                      return (
-                        <div className="dx-tt">
-                          <div className="dx-tt__label">{fmtTickTime(p.t, tf)}</div>
-                          <div className="dx-tt__val mono-nums">{formatMoney(p.v)}</div>
-                        </div>
-                      );
-                    }}
-                  />
-                  {goldRub != null && (
-                    <ReferenceLine
-                      y={goldRub}
-                      stroke="var(--accent)"
-                      strokeDasharray="2 4"
-                      strokeOpacity={0.75}
-                      label={{
-                        value: fmtAxis(goldRub),
-                        position: 'right',
-                        fill: 'var(--accent)',
-                        fontSize: 10,
-                        fontWeight: 700,
-                      }}
-                    />
-                  )}
-                  <Area
-                    type="monotone"
-                    dataKey="v"
-                    stroke="var(--accent)"
-                    strokeWidth={2.2}
-                    fill="url(#dx-quote-grad)"
-                    isAnimationActive={false}
-                    dot={false}
-                    activeDot={{ r: 4, fill: 'var(--accent)', stroke: 'var(--bg-panel-solid)', strokeWidth: 2 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-            {candles.length > 1 && chartType === 'candles' && (
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={candles} margin={{ top: 6, right: 0, left: 4, bottom: 0 }}>
-                  <CartesianGrid
-                    stroke="var(--stroke-soft)"
-                    strokeOpacity={0.55}
-                    strokeDasharray="3 7"
-                    vertical={false}
-                  />
-                  <YAxis
-                    domain={tickDomain}
-                    orientation="right"
-                    width={52}
-                    tickCount={5}
-                    tick={{ fontSize: 9.5, fill: 'var(--text-dim)' }}
-                    tickFormatter={fmtAxis}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  {/* Отдельная шкала для объёма: бары занимают нижнюю четверть графика */}
-                  <YAxis yAxisId="vol" domain={[0, Math.max(1, maxVol * 4.2)]} hide />
-                  <XAxis
-                    dataKey="t"
-                    tick={{ fontSize: 9.5, fill: 'var(--text-dim)' }}
-                    tickFormatter={(v) => fmtTickTime(v, tf)}
-                    axisLine={false}
-                    tickLine={false}
-                    minTickGap={56}
-                    height={20}
-                  />
-                  <Tooltip
-                    cursor={{ fill: 'var(--stroke-soft)', fillOpacity: 0.35 }}
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.[0]) return null;
-                      const p = payload[0].payload;
-                      const up = p.c >= p.o;
-                      return (
-                        <div className="dx-tt">
-                          <div className="dx-tt__label">{fmtTickTime(p.t, tf)}</div>
-                          <div className="dx-tt__ohlc mono-nums">
-                            <span>O {formatMoney(p.o)}</span>
-                            <span>H {formatMoney(p.h)}</span>
-                            <span>L {formatMoney(p.l)}</span>
-                            <span className={up ? 'dx-tt__c--up' : 'dx-tt__c--down'}>C {formatMoney(p.c)}</span>
-                          </div>
-                          <div className="dx-tt__sub">Объём: {fmtAxis(p.vol)}</div>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Bar yAxisId="vol" dataKey="vol" isAnimationActive={false} barSize={7} radius={[2, 2, 0, 0]}>
-                    {candles.map((c) => (
-                      <Cell key={c.i} fill={c.c >= c.o ? 'var(--emerald)' : 'var(--crimson)'} fillOpacity={0.22} />
-                    ))}
-                  </Bar>
-                  {goldRub != null && (
-                    <ReferenceLine
-                      y={goldRub}
-                      stroke="var(--accent)"
-                      strokeDasharray="2 4"
-                      strokeOpacity={0.75}
-                      label={{
-                        value: fmtAxis(goldRub),
-                        position: 'right',
-                        fill: 'var(--accent)',
-                        fontSize: 10,
-                        fontWeight: 700,
-                      }}
-                    />
-                  )}
-                  <Bar
-                    dataKey={(d) => [d.l, d.h]}
-                    shape={<CandleShape />}
-                    isAnimationActive={false}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </section>
+        {/* ── Мосбиржа ₽/г ── */}
+        <GoldQuoteCard
+          value={moexRub}
+          stale={!!moexPrice?.stale}
+          formatValue={formatMoney}
+          formatAxis={fmtAxis}
+          unitLabel="/ г"
+          sourceLabel="Мосбиржа"
+          gradientId="dx-quote-grad-moex"
+          periodTf={periodTf}
+          delay="60ms"
+        />
 
         {/* ── сегодня ── */}
-        <section className="dx-card dx-card--today dx-in" style={{ '--d': '120ms' }}>
+        <section className="dx-card dx-card--today dx-in" style={{ '--d': '100ms' }}>
           <div className="dx-label">Сегодня</div>
           <div className="dx-today-stats">
             <div className="dx-today-stat">
@@ -952,6 +999,53 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
             </button>
           </div>
         </section>
+
+        {/* ── Глобальная биржа $/oz ── */}
+        <GoldQuoteCard
+          value={xautUsd}
+          stale={!!xautPrice?.stale}
+          formatValue={formatUsd}
+          formatAxis={fmtAxisUsd}
+          unitLabel="/ oz"
+          sourceLabel="Глобальная · XAUT"
+          gradientId="dx-quote-grad-xaut"
+          periodTf={periodTf}
+          delay="120ms"
+          accentVar="var(--emerald)"
+        />
+
+        {/* ── сотрудники ── */}
+        <section className="dx-card dx-card--staff dx-in" style={{ '--d': '140ms' }}>
+          <div className="dx-card-head">
+            <div>
+              <h3 className="dx-card-title">Команда</h3>
+              <p className="dx-card-sub">Топ по обороту за {periodConf.label.toLowerCase()}</p>
+            </div>
+          </div>
+          {staff.length > 0 ? (
+            <div className="dx-staff">
+              {staff.map((row, i) => {
+                const share = t?.sumRub ? Math.round(((row.sumRub || 0) / t.sumRub) * 100) : 0;
+                return (
+                  <div key={row.operatorId ?? i} className="dx-staff-row">
+                    <span className="dx-staff-rank mono-nums">{i + 1}</span>
+                    <div className="dx-staff-mid">
+                      <span className="dx-staff-name">{(row.email || '—').split('@')[0]}</span>
+                      <div className="dx-staff-bar"><div className="dx-staff-bar__fill" style={{ width: `${Math.max(3, share)}%` }} /></div>
+                    </div>
+                    <div className="dx-staff-right">
+                      <span className="dx-staff-sum mono-nums">{formatMoney(row.sumRub || 0)}</span>
+                      <span className="dx-staff-deals">{row.deals} сд. · {share}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="dx-empty">{loading ? 'Загружаем…' : cur?.viewerScope === 'self' ? 'Доступна только своя статистика' : 'Нет данных'}</div>
+          )}
+        </section>
+
 
         {/* ── строка AI Grok ── */}
         <section className="dx-card dx-card--ai dx-in" style={{ '--d': '150ms' }}>
@@ -1109,7 +1203,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
           <div className="dx-card-head">
             <div>
               <h3 className="dx-card-title">Денежный поток</h3>
-              <p className="dx-card-sub">Оборот по дням за 30 дней</p>
+              <p className="dx-card-sub">Оборот по дням за {periodConf.label.toLowerCase()}</p>
             </div>
             <button type="button" className="dx-link" onClick={() => onNavigate?.('analytics')}>
               Вся аналитика →
@@ -1159,38 +1253,6 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
               <div className="dx-empty">{loading ? 'Загружаем…' : 'Нет данных за период'}</div>
             )}
           </div>
-        </section>
-
-        {/* ── сотрудники ── */}
-        <section className="dx-card dx-card--staff dx-in" style={{ '--d': '440ms' }}>
-          <div className="dx-card-head">
-            <div>
-              <h3 className="dx-card-title">Команда</h3>
-              <p className="dx-card-sub">Топ по обороту за 30 дней</p>
-            </div>
-          </div>
-          {staff.length > 0 ? (
-            <div className="dx-staff">
-              {staff.map((row, i) => {
-                const share = t?.sumRub ? Math.round(((row.sumRub || 0) / t.sumRub) * 100) : 0;
-                return (
-                  <div key={row.operatorId ?? i} className="dx-staff-row">
-                    <span className="dx-staff-rank mono-nums">{i + 1}</span>
-                    <div className="dx-staff-mid">
-                      <span className="dx-staff-name">{(row.email || '—').split('@')[0]}</span>
-                      <div className="dx-staff-bar"><div className="dx-staff-bar__fill" style={{ width: `${Math.max(3, share)}%` }} /></div>
-                    </div>
-                    <div className="dx-staff-right">
-                      <span className="dx-staff-sum mono-nums">{formatMoney(row.sumRub || 0)}</span>
-                      <span className="dx-staff-deals">{row.deals} сд. · {share}%</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="dx-empty">{loading ? 'Загружаем…' : cur?.viewerScope === 'self' ? 'Доступна только своя статистика' : 'Нет данных'}</div>
-          )}
         </section>
 
         {/* ── последние договоры ── */}
@@ -1576,7 +1638,7 @@ const CSS = `
 .dx-card--today .dx-label { color: color-mix(in srgb, var(--accent) 55%, var(--text-muted)); }
 .dx-kpi { grid-column: span 3; display: flex; flex-direction: column; }
 .dx-card--ai { grid-column: span 12; }
-.dx-card--flow { grid-column: span 8; }
+.dx-card--flow { grid-column: span 12; }
 .dx-card--staff { grid-column: span 4; }
 .dx-card--deals { grid-column: span 7; }
 .dx-card--market { grid-column: span 5; }
