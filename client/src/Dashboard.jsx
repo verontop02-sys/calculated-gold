@@ -358,12 +358,13 @@ function GoldQuoteCard({
     if (!ticks.length) return ['auto', 'auto'];
     let lo = Infinity; let hi = -Infinity;
     for (const t of ticks) { if (t.v < lo) lo = t.v; if (t.v > hi) hi = t.v; }
-    if (value != null) { if (value < lo) lo = value; if (value > hi) hi = value; }
     const pad = Math.max((hi - lo) * 0.08, (hi || 1) * 0.002);
     return [lo - pad, hi + pad];
-  }, [ticks, value]);
+  }, [ticks]);
 
-  const anim = useCountUp(value, { duration: 900 });
+  // Цена в заголовке = последняя точка графика (как на биржевом тикере).
+  const livePrice = ticks.length ? ticks[ticks.length - 1].v : value;
+  const anim = useCountUp(livePrice, { duration: 420 });
 
   return (
     <section className="dx-card dx-card--quote dx-in" style={{ '--d': delay }}>
@@ -480,14 +481,14 @@ function GoldQuoteCard({
                   );
                 }}
               />
-              {value != null && (
+              {livePrice != null && (
                 <ReferenceLine
-                  y={value}
+                  y={livePrice}
                   stroke={accentVar}
                   strokeDasharray="2 4"
                   strokeOpacity={0.75}
                   label={{
-                    value: formatAxis(value),
+                    value: formatAxis(livePrice),
                     position: 'right',
                     fill: accentVar,
                     fontSize: 10,
@@ -557,14 +558,14 @@ function GoldQuoteCard({
                   <Cell key={c.i} fill={c.c >= c.o ? 'var(--emerald)' : 'var(--crimson)'} fillOpacity={0.22} />
                 ))}
               </Bar>
-              {value != null && (
+              {livePrice != null && (
                 <ReferenceLine
-                  y={value}
+                  y={livePrice}
                   stroke={accentVar}
                   strokeDasharray="2 4"
                   strokeOpacity={0.75}
                   label={{
-                    value: formatAxis(value),
+                    value: formatAxis(livePrice),
                     position: 'right',
                     fill: accentVar,
                     fontSize: 10,
