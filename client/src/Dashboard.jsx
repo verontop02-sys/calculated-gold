@@ -155,14 +155,15 @@ const TICKS_MAX = 90;
 const TICK_MS = 2000;
 
 // Таймфреймы: чем длиннее период, тем выше «накопленная» волатильность истории.
+// maxDev — макс. отклонение симуляции от реальной цены (доля), чтобы курс не «улетал» на ±$1000.
 const TIMEFRAMES = [
-  { key: '5m',  label: '5М',  vol: 0.0009, windowMs: 5 * 60_000 },
-  { key: '15m', label: '15М', vol: 0.0016, windowMs: 15 * 60_000 },
-  { key: '1h',  label: '1Ч',  vol: 0.0032, windowMs: 60 * 60_000 },
-  { key: '1d',  label: '1Д',  vol: 0.0075, windowMs: 24 * 60 * 60_000 },
-  { key: '1w',  label: '1Н',  vol: 0.018,  windowMs: 7 * 24 * 60 * 60_000 },
-  { key: '1mo', label: '1М',  vol: 0.038,  windowMs: 30 * 24 * 60 * 60_000 },
-  { key: '6mo', label: '6М',  vol: 0.072,  windowMs: 180 * 24 * 60 * 60_000 },
+  { key: '5m',  label: '5М',  vol: 0.0009, windowMs: 5 * 60_000,           maxDev: 0.004 },
+  { key: '15m', label: '15М', vol: 0.0016, windowMs: 15 * 60_000,          maxDev: 0.006 },
+  { key: '1h',  label: '1Ч',  vol: 0.0032, windowMs: 60 * 60_000,          maxDev: 0.01 },
+  { key: '1d',  label: '1Д',  vol: 0.006,  windowMs: 24 * 60 * 60_000,     maxDev: 0.015 },
+  { key: '1w',  label: '1Н',  vol: 0.01,   windowMs: 7 * 24 * 60 * 60_000,  maxDev: 0.025 },
+  { key: '1mo', label: '1М',  vol: 0.014,  windowMs: 30 * 24 * 60 * 60_000, maxDev: 0.035 },
+  { key: '6mo', label: '6М',  vol: 0.022,  windowMs: 180 * 24 * 60 * 60_000, maxDev: 0.05 },
 ];
 
 // Соответствие: период KPI → таймфрейм графика
@@ -206,25 +207,25 @@ const MR_THETA = 0.14;
 const LIVE_TF_KEYS = new Set(['5m', '15m', '1h', '1d']);
 
 /** Один шаг процесса Орнштейна–Уленбека вокруг target. */
-function nextTickValue(last, target, vol) {
-  // Минимум ~0.04% цены, чтобы график не «залипал» в одну точку (особенно XAUT ~$4000).
-  const sigma = Math.max(target * vol * 0.55, target * 0.0004, 0.5);
+function nextTickValue(last, target, vol, maxDev = 0.02) {
+  const sigma = Math.max(target * vol * 0.55, target * 0.00025, 0.15);
   const drift = (target - last) * MR_THETA;
-  const v = last + drift + (Math.random() - 0.5) * 2 * sigma;
-  // Для крупных цен ($/oz) — 2 знака; для ₽/г тоже ок.
+  let v = last + drift + (Math.random() - 0.5) * 2 * sigma;
+  const lo = target * (1 - maxDev);
+  const hi = target * (1 + maxDev);
+  if (v < lo) v = lo + (Math.random() * target * vol * 0.2);
+  if (v > hi) v = hi - (Math.random() * target * vol * 0.2);
   return Math.round(v * 100) / 100;
 }
 
-function seedTicks(target, vol, windowMs) {
-  // История периода: возврат-к-среднему random-walk вокруг реальной цены —
-  // живой «биржевой» вид без накопленного дрейфа, всегда около текущего курса.
+function seedTicks(target, vol, windowMs, maxDev = 0.02) {
   const out = [];
   const now = Date.now();
   const step = windowMs / TICKS_MAX;
-  // Стартуем чуть в стороне, иначе первый тик почти = target и ряд выглядит «мёртвым».
-  let v = target * (1 + (Math.random() - 0.5) * vol * 4);
+  // Старт в пределах maxDev, без огромного разброса.
+  let v = target * (1 + (Math.random() - 0.5) * maxDev * 0.6);
   for (let i = 0; i < TICKS_MAX; i++) {
-    v = nextTickValue(v, target, vol);
+    v = nextTickValue(v, target, vol, maxDev);
     out.push({ i, v, t: now - (TICKS_MAX - 1 - i) * step });
   }
   return out;
@@ -259,20 +260,19 @@ function GoldQuoteCard({
   periodTf,
   delay = '60ms',
   accentVar = 'var(--accent)',
-  /** Множитель волатильности симуляции (для $/oz нужен выше, иначе линия «стоит»). */
-  volBoost = 1,
+  className = '',
 }) {
   const [ticks, setTicks] = useState([]);
   const [seeded, setSeeded] = useState(false);
   const [tf, setTf] = useState(periodTf || '15m');
   const [chartType, setChartType] = useState('area');
   const tfConf = TIMEFRAMES.find((x) => x.key === tf) ?? TIMEFRAMES[1];
-  const tfVol = tfConf.vol * (Number(volBoost) > 0 ? Number(volBoost) : 1);
+  const tfVol = tfConf.vol;
+  const tfMaxDev = tfConf.maxDev ?? 0.02;
   const tickIdRef = useRef(TICKS_MAX);
   const valueRef = useRef(value);
   valueRef.current = value;
   const seedTargetRef = useRef(null);
-  // stale = кэш API устарел; визуальный тикер всё равно живёт вокруг последней цены.
   void stale;
 
   useEffect(() => {
@@ -283,10 +283,10 @@ function GoldQuoteCard({
   useEffect(() => {
     const g = valueRef.current;
     if (g == null || !Number.isFinite(g)) return;
-    setTicks(seedTicks(g, tfVol, tfConf.windowMs));
+    setTicks(seedTicks(g, tfVol, tfConf.windowMs, tfMaxDev));
     seedTargetRef.current = g;
     setSeeded(true);
-  }, [hasValue, tf, tfVol, tfConf.windowMs]);
+  }, [hasValue, tf, tfVol, tfConf.windowMs, tfMaxDev]);
 
   useEffect(() => {
     if (!seeded || value == null || !Number.isFinite(value)) return;
@@ -294,10 +294,10 @@ function GoldQuoteCard({
     if (base == null) return;
     const threshold = LIVE_TF_KEYS.has(tf) ? 0.004 : 0.02;
     if (Math.abs(value - base) / base > threshold) {
-      setTicks(seedTicks(value, tfVol, tfConf.windowMs));
+      setTicks(seedTicks(value, tfVol, tfConf.windowMs, tfMaxDev));
       seedTargetRef.current = value;
     }
-  }, [value, seeded, tf, tfVol, tfConf.windowMs]);
+  }, [value, seeded, tf, tfVol, tfConf.windowMs, tfMaxDev]);
 
   useEffect(() => {
     if (!seeded) return undefined;
@@ -309,21 +309,19 @@ function GoldQuoteCard({
       setTicks((prev) => {
         if (!prev.length) return prev;
         if (isLive) {
-          // Скользящее окно — всегда «живой» шаг вокруг последней известной цены.
           const id = tickIdRef.current++;
           const last = prev[prev.length - 1]?.v ?? target;
-          const v = nextTickValue(last, target, tfVol);
+          const v = nextTickValue(last, target, tfVol, tfMaxDev);
           return [...prev.slice(-(TICKS_MAX - 1)), { i: id, v, t: Date.now() }];
         }
-        // Длинный ТФ: история статична, последняя точка тянется к цене + лёгкий шум.
         const last = prev[prev.length - 1];
         const pulled = last.v + (target - last.v) * 0.12;
-        const v = nextTickValue(pulled, target, tfVol * 0.35);
+        const v = nextTickValue(pulled, target, tfVol * 0.35, tfMaxDev);
         return [...prev.slice(0, -1), { ...last, v }];
       });
     }, intervalMs);
     return () => clearInterval(t);
-  }, [seeded, tfVol, tf]);
+  }, [seeded, tfVol, tf, tfMaxDev]);
 
   const candles = useMemo(() => {
     const out = [];
@@ -367,7 +365,7 @@ function GoldQuoteCard({
   const anim = useCountUp(livePrice, { duration: 420 });
 
   return (
-    <section className="dx-card dx-card--quote dx-in" style={{ '--d': delay }}>
+    <section className={`dx-card dx-card--quote ${className} dx-in`.trim()} style={{ '--d': delay }}>
       <div className="dx-quote-top">
         <div>
           <div className="dx-label">
@@ -983,6 +981,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
           gradientId="dx-quote-grad-moex"
           periodTf={periodTf}
           delay="60ms"
+          className="dx-card--quote-a"
         />
 
         {/* ── сегодня ── */}
@@ -1020,7 +1019,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
           periodTf={periodTf}
           delay="120ms"
           accentVar="var(--emerald)"
-          volBoost={2.8}
+          className="dx-card--quote-b"
         />
 
         {/* ── оборот за выбранный период ── */}
@@ -2335,9 +2334,12 @@ const CSS = `
 
 /* ── tablet ── */
 @media (max-width: 1100px) {
+  .dx-grid > * { order: 10; }
+  .dx-card--quote-a { order: 1; grid-column: span 12; }
+  .dx-card--quote-b { order: 2; grid-column: span 12; }
+  .dx-card--today { order: 3; grid-column: span 12; }
+  .dx-card--period { order: 4; grid-column: span 12; }
   .dx-card--quote { grid-column: span 12; }
-  .dx-card--today { grid-column: span 12; }
-  .dx-card--period { grid-column: span 12; }
   .dx-kpi { grid-column: span 6; }
   .dx-card--flow { grid-column: span 12; }
   .dx-card--staff { grid-column: span 12; }
