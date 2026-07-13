@@ -48,7 +48,7 @@ function matchFeatureToRegion(props, regionList) {
   );
 }
 
-const CHART_COLORS = ['#8b7cff', '#38bdf8', '#f87171', '#4ade80', '#f0437a', '#fb923c', '#34d399'];
+const CHART_COLORS = ['#e21b24', '#38bdf8', '#f87171', '#4ade80', '#f59e0b', '#fb923c', '#34d399'];
 const COMMON_PROBES = ['375', '500', '585', '750', '875', '916', '999'];
 
 function downloadBlob(blob, filename) {
@@ -367,7 +367,7 @@ export function GoldIndex({ formatMoney, toast }) {
         if (!isMapAdd && !compTarget) return;
         const { lat, lng } = e.latlng;
         if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
-        const color = compTarget ? '#38bdf8' : '#8b7cff';
+        const color = compTarget ? '#38bdf8' : '#e21b24';
         const icon = L.divIcon({
           className: '',
           html: `<div style="width:16px;height:16px;background:${color};border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px ${color}66;animation:gi-pulse 1s infinite"></div>`,
@@ -482,11 +482,11 @@ export function GoldIndex({ formatMoney, toast }) {
         })() +
         // Competitors
         (compRowsHtml ? `<div style="padding:0 14px 8px;border-top:1px solid #e8e6f0;padding-top:8px">${compRowsHtml}</div>` : '') +
-        (compCount > 3 ? `<div style="padding:0 14px 6px;font-size:11px;color:#6a5ae0">+ещё ${compCount - 3}</div>` : '') +
+        (compCount > 3 ? `<div style="padding:0 14px 6px;font-size:11px;color:#b4141c">+ещё ${compCount - 3}</div>` : '') +
         // Button
         `<div style="padding:8px 14px 12px">` +
         `<button class="gi-popup-detail-btn" data-city-id="${c.id}" style="width:100%;padding:8px 12px;` +
-        `background:linear-gradient(135deg,#a799ff,#6a5ae0);border:none;border-radius:8px;` +
+        `background:linear-gradient(135deg,#ff3b42,#b4141c);border:none;border-radius:8px;` +
         `font-weight:700;cursor:pointer;font-size:13px;color:#fff;letter-spacing:0.02em;` +
         `transition:opacity 0.15s">Подробнее ↓</button>` +
         `</div>` +
@@ -561,12 +561,12 @@ export function GoldIndex({ formatMoney, toast }) {
           `<div>Индекс: <strong style="color:${coFill}">${fmtRatio(co.ratioAvg)}</strong></div>` +
           (co.measuredAt ? `<div style="color:#999;font-size:11px;margin-top:2px">Замер: ${co.measuredAt}</div>` : '') +
           `</div>` +
-          `<div style="padding:0 12px 10px;font-size:11px;color:#6a5ae0;display:flex;align-items:center;gap:4px">` +
+          `<div style="padding:0 12px 10px;font-size:11px;color:#b4141c;display:flex;align-items:center;gap:4px">` +
           `<span>✥</span><span>Перетащите маркер, чтобы уточнить место</span>` +
           `</div>` +
           `<div style="padding:0 12px 12px">` +
           `<button class="gi-popup-comp-detail-btn" data-city-id="${c.id}" data-comp-id="${co.id}" style="width:100%;padding:7px 10px;` +
-          `background:linear-gradient(135deg,#a799ff,#6a5ae0);border:none;border-radius:8px;` +
+          `background:linear-gradient(135deg,#ff3b42,#b4141c);border:none;border-radius:8px;` +
           `font-weight:700;cursor:pointer;font-size:12px;color:#fff;letter-spacing:0.02em;">Подробнее</button>` +
           `</div></div>`;
 
@@ -1045,12 +1045,12 @@ export function GoldIndex({ formatMoney, toast }) {
             ">
               <div style="
                 width:36px;height:36px;
-                background:linear-gradient(135deg,#a799ff,#6a5ae0);
+                background:linear-gradient(135deg,#ff3b42,#b4141c);
                 border:3px solid #fff;border-radius:50%;
                 display:flex;align-items:center;justify-content:center;
                 font-size:18px;line-height:1;
               ">📍</div>
-              <div style="width:3px;height:14px;background:#6a5ae0;"></div>
+              <div style="width:3px;height:14px;background:#b4141c;"></div>
               <div style="width:8px;height:4px;background:rgba(0,0,0,0.2);border-radius:50%;"></div>
             </div>`,
             iconSize: [36, 54], iconAnchor: [18, 54],
@@ -2961,7 +2961,7 @@ export function GoldIndex({ formatMoney, toast }) {
           --stroke-strong: rgba(20,22,30,0.26);
           --text: #16181d;
           --text-muted: rgba(22,24,29,0.55);
-          --gold: #6a5ae0;
+          --gold: #b4141c;
           --gold-glow: rgba(106,90,224,0.22);
           --gold-soft: rgba(106,90,224,0.1);
           color-scheme: light;
@@ -3001,7 +3001,7 @@ export function GoldIndex({ formatMoney, toast }) {
           height: 56px;
           border-radius: 50%;
           border: 4px solid rgba(106,90,224,0.18);
-          border-top-color: #6a5ae0;
+          border-top-color: #b4141c;
           animation: gi-modal-loading-spin 0.8s linear infinite;
         }
         @keyframes gi-modal-loading-spin {
@@ -3096,10 +3096,10 @@ export function GoldIndex({ formatMoney, toast }) {
           flex-shrink: 0;
         }
         .gi-modal-city { font-size: 1.25rem; font-weight: 800; color: #1a0e00; }
-        .gi-modal-region { font-size: 0.78rem; color: #6a5ae0; margin-top: 3px; }
+        .gi-modal-region { font-size: 0.78rem; color: #b4141c; margin-top: 3px; }
         .gi-modal-title-block { flex: 1; min-width: 0; }
         .gi-modal-title { font-size: 1.1rem; font-weight: 800; color: #1a0e00; line-height: 1.2; }
-        .gi-modal-subtitle { font-size: 0.78rem; color: #6a5ae0; margin-top: 4px; }
+        .gi-modal-subtitle { font-size: 0.78rem; color: #b4141c; margin-top: 4px; }
         .gi-modal-close {
           width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer;
           background: rgba(28,24,20,0.08); color: #6b5230;
@@ -3125,7 +3125,7 @@ export function GoldIndex({ formatMoney, toast }) {
           color: #1c1814 !important;
           /* WebKit uses -webkit-text-fill-color for actual rendered text — must override */
           -webkit-text-fill-color: #1c1814 !important;
-          caret-color: #6a5ae0 !important;
+          caret-color: #b4141c !important;
           border: 1.5px solid rgba(20,22,30,0.14) !important;
           border-radius: 12px !important;
           padding: 12px 14px !important;
@@ -3139,7 +3139,7 @@ export function GoldIndex({ formatMoney, toast }) {
         }
         .gi-modal-sheet input:focus,
         .gi-modal-sheet select:focus {
-          border-color: #6a5ae0 !important;
+          border-color: #b4141c !important;
           box-shadow: 0 0 0 3px rgba(106,90,224,0.18) !important;
           outline: none !important;
         }
@@ -3152,13 +3152,13 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-modal-sheet input:-webkit-autofill:focus {
           -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
           -webkit-text-fill-color: #1c1814 !important;
-          caret-color: #6a5ae0 !important;
+          caret-color: #b4141c !important;
         }
 
         /* Field labels inside modal */
         .gi-modal-sheet .field-label {
           font-size: 0.7rem !important;
-          color: #6a5ae0 !important;
+          color: #b4141c !important;
           font-weight: 700 !important;
           text-transform: uppercase !important;
           letter-spacing: 0.07em !important;
@@ -3169,7 +3169,7 @@ export function GoldIndex({ formatMoney, toast }) {
 
         .gi-modal-probes-label {
           font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
-          letter-spacing: 0.07em; color: #6a5ae0; margin-bottom: -4px;
+          letter-spacing: 0.07em; color: #b4141c; margin-bottom: -4px;
         }
 
         /* Row layout for 2-column fields */
@@ -3187,7 +3187,7 @@ export function GoldIndex({ formatMoney, toast }) {
           margin-top: 2px;
         }
         .gi-modal-sheet .gi-loc-label {
-          color: #6a5ae0 !important;
+          color: #b4141c !important;
           font-size: 0.7rem !important;
           font-weight: 700 !important;
           text-transform: uppercase !important;
@@ -3200,7 +3200,7 @@ export function GoldIndex({ formatMoney, toast }) {
         }
         .gi-modal-sheet .gi-loc-btn--active {
           background: rgba(106,90,224,0.1) !important;
-          border-color: #6a5ae0 !important;
+          border-color: #b4141c !important;
           color: #7a5c0a !important;
         }
         .gi-modal-sheet .gi-loc-coords {

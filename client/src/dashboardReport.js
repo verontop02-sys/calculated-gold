@@ -32,10 +32,10 @@ function readTheme() {
   const v = (n) => cs.getPropertyValue(n).trim();
   return {
     theme: document.documentElement.getAttribute('data-theme') || 'dark',
-    accent: v('--accent') || '#8b7cff',
+    accent: v('--accent') || '#e21b24',
     accentDim: v('--accent-dim') || '#5d4fc7',
     accentSoft: v('--accent-soft') || 'rgba(139,124,255,0.13)',
-    accentGrad: v('--accent-grad') || 'linear-gradient(135deg,#a799ff,#8b7cff)',
+    accentGrad: v('--accent-grad') || 'linear-gradient(135deg,#ff3b42,#e21b24)',
     emerald: v('--emerald') || '#4ade80',
     emeraldSoft: v('--emerald-soft') || 'rgba(74,222,128,0.14)',
     crimson: v('--crimson') || '#fb7185',

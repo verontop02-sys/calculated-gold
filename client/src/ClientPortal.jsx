@@ -115,7 +115,7 @@ export function ClientPortal() {
     }
   }
 
-  function logout() {
+  const logout = useCallback(() => {
     setClientToken('');
     setPhase('login');
     setStep('phone');
@@ -123,7 +123,7 @@ export function ClientPortal() {
     setCode('');
     setErr('');
     setPhoneMasked('');
-  }
+  }, []);
 
   return (
     <div className="cpx-root">

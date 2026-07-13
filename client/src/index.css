@@ -1,47 +1,46 @@
 /* Темы: data-theme на <html> — localStorage cg-theme + index.html */
 
 /* ============================================================================
-   ПАЛИТРА REAKTIVO PRO (Stage 7) — премиум-нейтраль + фирменный красный акцент.
+   ПАЛИТРА REAKTIVO PRO — графит + фирменный красный (дверь / презентации).
    Историческое имя --gold сохранено как «акцент», чтобы не трогать каждый
-   компонент: теперь оно указывает на фирменный красный, а не золото.
-   Доп. семантические алиасы --accent* добавлены для нового кода.
+   компонент: указывает на фирменный красный, а не золото.
    ============================================================================ */
 :root[data-theme='dark'] {
-  --bg-deep: #0c0d11;
-  --bg-panel: rgba(24, 26, 32, 0.78);
-  --bg-panel-solid: #16181e;
-  --bg-elevated: rgba(30, 33, 40, 0.96);
-  --surface: rgba(28, 31, 38, 0.6);
-  --surface-elevated: #1b1e25;
-  --sidebar-bg: linear-gradient(180deg, #14161b 0%, #0e1014 100%);
+  --bg-deep: #121314;
+  --bg-panel: rgba(28, 30, 32, 0.82);
+  --bg-panel-solid: #1a1c1e;
+  --bg-elevated: rgba(36, 38, 41, 0.96);
+  --surface: rgba(32, 34, 37, 0.65);
+  --surface-elevated: #222426;
+  --sidebar-bg: linear-gradient(180deg, #1a1c1e 0%, #121314 100%);
   --sidebar-stroke: rgba(255, 255, 255, 0.08);
   --stroke: rgba(255, 255, 255, 0.10);
   --stroke-soft: rgba(255, 255, 255, 0.06);
   --stroke-strong: rgba(255, 255, 255, 0.20);
-  --gold: #8b7cff;
-  --gold-soft-bg: rgba(139, 124, 255, 0.10);
-  --gold-dim: #5d4fc7;
-  --gold-glow: rgba(139, 124, 255, 0.36);
-  --gold-soft: rgba(139, 124, 255, 0.13);
-  --accent: #8b7cff;
-  --accent-strong: #a799ff;
-  --accent-dim: #5d4fc7;
-  --accent-soft: rgba(139, 124, 255, 0.13);
-  --accent-glow: rgba(139, 124, 255, 0.36);
-  --accent-grad: linear-gradient(135deg, #a799ff 0%, #8b7cff 45%, #6a5ae0 100%);
-  --indigo: #7c8cff;
-  --indigo-soft: rgba(124, 140, 255, 0.14);
+  --gold: #e21b24;
+  --gold-soft-bg: rgba(226, 27, 36, 0.12);
+  --gold-dim: #b4141c;
+  --gold-glow: rgba(226, 27, 36, 0.34);
+  --gold-soft: rgba(226, 27, 36, 0.14);
+  --accent: #e21b24;
+  --accent-strong: #ff3b42;
+  --accent-dim: #b4141c;
+  --accent-soft: rgba(226, 27, 36, 0.14);
+  --accent-glow: rgba(226, 27, 36, 0.34);
+  --accent-grad: linear-gradient(135deg, #ff3b42 0%, #e21b24 48%, #b4141c 100%);
+  --indigo: #8a9099;
+  --indigo-soft: rgba(138, 144, 153, 0.14);
   --emerald: #4ade80;
   --emerald-soft: rgba(74, 222, 128, 0.14);
   --emerald-strong: #22c55e;
-  --crimson: #fb7185;
-  --crimson-soft: rgba(251, 113, 133, 0.12);
-  --crimson-strong: #ef4444;
-  --text: #f4f5f7;
+  --crimson: #ff5a63;
+  --crimson-soft: rgba(226, 27, 36, 0.14);
+  --crimson-strong: #e21b24;
+  --text: #f2f3f4;
   --text-strong: #ffffff;
-  --text-muted: rgba(244, 245, 247, 0.68);
-  --text-dim: rgba(244, 245, 247, 0.48);
-  --danger: #fb7185;
+  --text-muted: rgba(242, 243, 244, 0.68);
+  --text-dim: rgba(242, 243, 244, 0.48);
+  --danger: #ff5a63;
   --ok: #4ade80;
   --warn-bg: rgba(251, 191, 36, 0.14);
   --warn-border: rgba(251, 191, 36, 0.28);
@@ -52,60 +51,60 @@
   --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
   --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.55);
   --bg-gradient:
-    radial-gradient(ellipse 130% 90% at 50% -15%, rgba(139, 124, 255, 0.10), transparent 55%),
-    radial-gradient(ellipse 70% 45% at 100% 100%, rgba(80, 90, 200, 0.12), transparent),
-    linear-gradient(180deg, #101218 0%, #0c0d11 45%, #08090c 100%);
+    radial-gradient(ellipse 120% 80% at 50% -12%, rgba(226, 27, 36, 0.10), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 100% 100%, rgba(60, 64, 70, 0.35), transparent),
+    linear-gradient(180deg, #181a1c 0%, #121314 45%, #0d0e0f 100%);
 }
 
 :root[data-theme='light'] {
-  --bg-deep: #f4f4f6;
-  --bg-panel: rgba(255, 255, 255, 0.92);
+  --bg-deep: #eceeef;
+  --bg-panel: rgba(255, 255, 255, 0.94);
   --bg-panel-solid: #ffffff;
   --bg-elevated: #ffffff;
   --surface: #ffffff;
   --surface-elevated: #ffffff;
-  --sidebar-bg: linear-gradient(180deg, #fbfbfc 0%, #f3f3f5 100%);
-  --sidebar-stroke: rgba(20, 22, 30, 0.08);
-  --stroke: rgba(20, 22, 30, 0.10);
-  --stroke-soft: rgba(20, 22, 30, 0.06);
-  --stroke-strong: rgba(20, 22, 30, 0.22);
-  --gold: #e02d5f;
-  --gold-soft-bg: rgba(224, 45, 95, 0.06);
-  --gold-dim: #b51e4a;
-  --gold-glow: rgba(224, 45, 95, 0.18);
-  --gold-soft: rgba(224, 45, 95, 0.09);
-  --accent: #e02d5f;
-  --accent-strong: #f0437a;
-  --accent-dim: #b51e4a;
-  --accent-soft: rgba(224, 45, 95, 0.09);
-  --accent-glow: rgba(224, 45, 95, 0.18);
-  --accent-grad: linear-gradient(135deg, #f0437a 0%, #e02d5f 50%, #c22052 100%);
-  --indigo: #4f5bd5;
-  --indigo-soft: rgba(79, 91, 213, 0.10);
+  --sidebar-bg: linear-gradient(180deg, #f7f8f9 0%, #eceeef 100%);
+  --sidebar-stroke: rgba(30, 34, 38, 0.08);
+  --stroke: rgba(30, 34, 38, 0.10);
+  --stroke-soft: rgba(30, 34, 38, 0.06);
+  --stroke-strong: rgba(30, 34, 38, 0.22);
+  --gold: #d41922;
+  --gold-soft-bg: rgba(212, 25, 34, 0.07);
+  --gold-dim: #a81219;
+  --gold-glow: rgba(212, 25, 34, 0.18);
+  --gold-soft: rgba(212, 25, 34, 0.09);
+  --accent: #d41922;
+  --accent-strong: #e21b24;
+  --accent-dim: #a81219;
+  --accent-soft: rgba(212, 25, 34, 0.09);
+  --accent-glow: rgba(212, 25, 34, 0.18);
+  --accent-grad: linear-gradient(135deg, #e21b24 0%, #d41922 50%, #a81219 100%);
+  --indigo: #5c636b;
+  --indigo-soft: rgba(92, 99, 107, 0.10);
   --emerald: #12824f;
   --emerald-soft: rgba(18, 130, 79, 0.12);
   --emerald-strong: #0f7a4a;
-  --crimson: #d92d3a;
-  --crimson-soft: rgba(217, 45, 58, 0.08);
-  --crimson-strong: #b51f2e;
-  --text: #16181d;
-  --text-strong: #0a0b0e;
-  --text-muted: rgba(22, 24, 29, 0.66);
-  --text-dim: rgba(22, 24, 29, 0.50);
-  --danger: #d92d3a;
+  --crimson: #d41922;
+  --crimson-soft: rgba(212, 25, 34, 0.08);
+  --crimson-strong: #a81219;
+  --text: #1a1c1e;
+  --text-strong: #0d0e0f;
+  --text-muted: rgba(26, 28, 30, 0.66);
+  --text-dim: rgba(26, 28, 30, 0.50);
+  --danger: #d41922;
   --ok: #12824f;
   --warn-bg: rgba(245, 158, 11, 0.1);
   --warn-border: rgba(180, 83, 9, 0.22);
   --warn-text: #92400e;
   --warn-dot: #d97706;
   --input-bg: #ffffff;
-  --spinner-track: rgba(22, 24, 29, 0.12);
-  --shadow-card: 0 10px 40px rgba(20, 22, 40, 0.06), 0 0 0 1px rgba(20, 22, 30, 0.06);
-  --shadow-pop: 0 20px 60px rgba(20, 22, 40, 0.16);
+  --spinner-track: rgba(26, 28, 30, 0.12);
+  --shadow-card: 0 10px 40px rgba(20, 24, 28, 0.07), 0 0 0 1px rgba(30, 34, 38, 0.06);
+  --shadow-pop: 0 20px 60px rgba(20, 24, 28, 0.14);
   --bg-gradient:
-    radial-gradient(ellipse 130% 80% at 50% -10%, rgba(224, 45, 95, 0.04), transparent 50%),
-    radial-gradient(ellipse 80% 50% at 100% 0%, rgba(80, 120, 255, 0.04), transparent),
-    linear-gradient(180deg, #fbfbfc 0%, #f4f4f6 50%, #eeeef1 100%);
+    radial-gradient(ellipse 130% 80% at 50% -10%, rgba(212, 25, 34, 0.05), transparent 50%),
+    radial-gradient(ellipse 80% 50% at 100% 0%, rgba(80, 88, 96, 0.06), transparent),
+    linear-gradient(180deg, #f7f8f9 0%, #eceeef 50%, #e4e6e8 100%);
 }
 
 :root {

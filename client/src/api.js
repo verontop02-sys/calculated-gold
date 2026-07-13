@@ -10,6 +10,20 @@ if (import.meta.env.PROD && !import.meta.env.VITE_API_BASE) {
 
 const AUTH_EXPIRED_EVENT = 'cg:session-expired';
 
+/** Один «всплеск» протухшей сессии — много параллельных 401 не должны слать N тостов. */
+let authExpiredArmed = true;
+
+function notifyAuthExpired() {
+  if (!authExpiredArmed) return;
+  authExpiredArmed = false;
+  window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+}
+
+/** Снова разрешить событие после успешного входа / свежего токена. */
+export function resetAuthExpiredGate() {
+  authExpiredArmed = true;
+}
+
 export function onSessionExpired(fn) {
   window.addEventListener(AUTH_EXPIRED_EVENT, fn, { once: false });
   return () => window.removeEventListener(AUTH_EXPIRED_EVENT, fn);
@@ -104,7 +118,7 @@ async function request(path, options = {}) {
   }
   if (!res.ok) {
     if (res.status === 401) {
-      window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+      notifyAuthExpired();
     }
     const err = new Error(data?.error || `HTTP ${res.status}`);
     err.status = res.status;
@@ -169,7 +183,7 @@ async function requestBlob(path, options = {}) {
   const ct = (res.headers.get('content-type') || '').toLowerCase();
   if (!res.ok) {
     if (res.status === 401) {
-      window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+      notifyAuthExpired();
     }
     if (ct.includes('application/json')) {
       let data = null;
@@ -228,6 +242,7 @@ export async function connectPriceStream(onData, onError) {
       });
 
       if (!res.ok) {
+        if (res.status === 401) notifyAuthExpired();
         // Pass status so caller can decide whether to retry
         onError?.(res.status);
         return;

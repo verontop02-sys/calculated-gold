@@ -1,15 +1,27 @@
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useRef, useState } from 'react';
 
 const ToastCtx = createContext(
   /** @type {null | ((msg: string, type?: 'success' | 'error' | 'info') => void)} */ (null),
 );
 
+const DEDUPE_MS = 4500;
+
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState(/** @type {{ id: number; message: string; type: string }[]} */ ([]));
+  const recentRef = useRef(/** @type {Map<string, number>} */ (new Map()));
 
   const showToast = useCallback((message, type = 'info') => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, type }]);
+    const key = `${type}::${message}`;
+    const now = Date.now();
+    const last = recentRef.current.get(key) || 0;
+    if (now - last < DEDUPE_MS) return;
+    recentRef.current.set(key, now);
+
+    const id = now + Math.random();
+    setToasts((prev) => {
+      if (prev.some((t) => t.message === message && t.type === type)) return prev;
+      return [...prev, { id, message, type }];
+    });
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4200);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, connectPriceStream, onSessionExpired, pingApiHealth, isTransientProfileLoadError } from './api.js';
+import { api, connectPriceStream, onSessionExpired, pingApiHealth, isTransientProfileLoadError, resetAuthExpiredGate } from './api.js';
 import { supabase } from './supabase.js';
 import { readProfileCache, writeProfileCache, clearProfileCache } from './profileCache.js';
 import { useToast } from './ToastContext.jsx';
@@ -304,7 +304,8 @@ export default function App() {
       } catch (e) {
         setPriceErr(e.message);
         setPrice(null);
-        if (!silent) toast(e.message, 'error');
+        // 401 обрабатывает onSessionExpired — не дублируем тостом API-ошибки
+        if (!silent && e?.status !== 401) toast(e.message, 'error');
       } finally {
         if (!silent) setPriceLoading(false);
       }
@@ -356,7 +357,7 @@ export default function App() {
       setAuthReady(true);
     });
     const unsub = onSessionExpired(() => {
-      supabase.auth.signOut();
+      void supabase.auth.signOut();
       toast('Сессия истекла, войдите снова', 'info');
     });
     return () => {
@@ -364,6 +365,10 @@ export default function App() {
       unsub();
     };
   }, [toast]);
+
+  useEffect(() => {
+    if (sessionUser?.id) resetAuthExpiredGate();
+  }, [sessionUser?.id]);
 
   useEffect(() => {
     if (user?.uid) lastSignedInUidRef.current = user.uid;

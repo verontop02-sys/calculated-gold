@@ -171,9 +171,9 @@ ${CLIENT_RESULT_CSS}
   position: fixed; inset: 0;
   z-index: 200;
   background:
-    radial-gradient(ellipse 110% 75% at 50% -15%, rgba(139, 124, 255, 0.16), transparent 55%),
+    radial-gradient(ellipse 110% 75% at 50% -15%, rgba(226, 27, 36, 0.14), transparent 55%),
     radial-gradient(ellipse 70% 50% at 100% 100%, rgba(74, 222, 128, 0.08), transparent 60%),
-    linear-gradient(180deg, #101218 0%, #0b0c10 100%);
+    linear-gradient(180deg, #181a1c 0%, #121314 100%);
   color: #f4f5f7;
   color-scheme: dark;
   display: flex;

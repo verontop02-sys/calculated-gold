@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
-import { api, pingApiHealth } from './api.js';
+import { api, pingApiHealth, resetAuthExpiredGate } from './api.js';
 import { ThemeToggle } from './ThemeToggle.jsx';
 
 function mapLoginError(ex) {
@@ -71,6 +71,7 @@ export function Login() {
       });
       if (error) throw error;
       if (!data.session?.access_token) throw new Error('Сессия не создана, попробуйте ещё раз');
+      resetAuthExpiredGate();
       api.prefetchMe();
     } catch (ex) {
       setErr(mapLoginError(ex));
@@ -92,16 +93,16 @@ export function Login() {
 
       <div className="lg-stage">
         <header className="lg-head lg-anim" style={{ '--d': '0ms' }}>
-          <span className="lg-mark">
-            <img src="/logo_reactivo1.png" alt="REAKTIVO PRO" />
+          <span className="lg-mark" aria-hidden>
+            <img src="/logo_reactivo1.png" alt="" />
           </span>
           <h1 className="lg-brand">
-            REAKTIVO <span className="lg-brand-pro">PRO</span>
+            Reaktivo<span className="lg-brand-dot">.</span>PRO
           </h1>
         </header>
 
         <div className="lg-cards">
-          {/* ── Вход для сотрудников ── */}
+          {/* ── Вход для сотрудников (на всю высоту колонки) ── */}
           <section className="lg-card lg-card--staff lg-anim" style={{ '--d': '90ms' }}>
             <span className="lg-badge">Для сотрудников</span>
             <h2 className="lg-card-title">Вход в панель</h2>
@@ -114,7 +115,7 @@ export function Login() {
                   autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@company.ru"
+                  placeholder="name@reaktivo.ru"
                 />
               </label>
               <label className="lg-field">
@@ -138,29 +139,32 @@ export function Login() {
                 )}
               </button>
 
-              {/* ── Индикатор прогрева сервера ── */}
-              <div className={`lg-warm lg-warm--${serverStatus}`} aria-live="polite">
-                <div className="lg-warm__bar">
-                  <div
-                    className="lg-warm__fill"
-                    style={{ width: `${warmProgress}%` }}
-                  />
+              {serverStatus !== 'ready' && (
+                <div className={`lg-warm lg-warm--${serverStatus}`} aria-live="polite">
+                  <div className="lg-warm__bar">
+                    <div
+                      className="lg-warm__fill"
+                      style={{ width: `${warmProgress}%` }}
+                    />
+                  </div>
+                  <span className="lg-warm__label">
+                    {serverStatus === 'checking' && 'Подключение к серверу…'}
+                    {serverStatus === 'warming' && 'Сервер просыпается после паузы (~30–60 сек)…'}
+                  </span>
                 </div>
-                <span className="lg-warm__label">
-                  {serverStatus === 'checking' && 'Подключение к серверу…'}
-                  {serverStatus === 'warming' && 'Сервер просыпается после паузы (~30–60 сек)…'}
-                  {serverStatus === 'ready' && '✓ Сервер готов'}
-                </span>
-              </div>
+              )}
             </form>
           </section>
 
-          {/* ── Для клиентов (зеркальный блок) ── */}
-          <aside className="lg-card lg-card--client lg-anim" style={{ '--d': '180ms' }}>
-            <span className="lg-badge lg-badge--client">Для клиентов</span>
+          {/* ── Продажа золота → сайт ── */}
+          <aside className="lg-card lg-card--sell lg-anim" style={{ '--d': '160ms' }}>
+            <span className="lg-badge lg-badge--solid">Для клиентов</span>
             <h2 className="lg-card-title">Хотите выгодно продать золото?</h2>
-            <p className="lg-card-sub lg-card-sub--client">
-              Оценка по биржевому курсу, прозрачный расчёт и деньги сразу — на сайте REAKTIVO.
+            <p className="lg-card-sub">
+              Оценка по биржевому курсу, прозрачный расчёт и деньги сразу — на сайте{' '}
+              <a className="lg-inline-link" href={CLIENT_SITE_URL} target="_blank" rel="noopener noreferrer">
+                Reaktivo.ru
+              </a>
             </p>
 
             <ul className="lg-perks">
@@ -179,17 +183,43 @@ export function Login() {
             </ul>
 
             <a className="lg-client-btn" href={CLIENT_SITE_URL} target="_blank" rel="noopener noreferrer">
-              Перейти на reaktivo.ru
+              Перейти на Reaktivo.ru
               <span aria-hidden>→</span>
             </a>
-            <a className="lg-client-cabinet" href="/kabinet">
-              Личный кабинет клиента (вход по телефону)
+          </aside>
+
+          {/* ── Кабинет клиента ── */}
+          <aside className="lg-card lg-card--client lg-anim" style={{ '--d': '230ms' }}>
+            <span className="lg-badge lg-badge--solid">Кабинет</span>
+            <h2 className="lg-card-title">Вход для клиентов</h2>
+            <p className="lg-card-sub">
+              Завести карту Reaktivo, Ваш золотой счет, управление доходностью
+            </p>
+
+            <ul className="lg-perks lg-perks--compact">
+              <li>
+                <span className="lg-perk-ico" aria-hidden>✓</span>
+                Карта Reaktivo
+              </li>
+              <li>
+                <span className="lg-perk-ico" aria-hidden>✓</span>
+                Золотой счёт
+              </li>
+              <li>
+                <span className="lg-perk-ico" aria-hidden>✓</span>
+                Управление доходностью
+              </li>
+            </ul>
+
+            <a className="lg-client-btn lg-client-btn--fill" href="/kabinet">
+              Войти в кабинет
+              <span aria-hidden>→</span>
             </a>
           </aside>
         </div>
 
-        <p className="lg-foot lg-anim" style={{ '--d': '280ms' }}>
-          © {new Date().getFullYear()} REAKTIVO PRO · панель оценки и выкупа
+        <p className="lg-foot lg-anim" style={{ '--d': '300ms' }}>
+          © {new Date().getFullYear()} Reaktivo.PRO · панель оценки и выкупа
         </p>
       </div>
 
@@ -199,7 +229,7 @@ export function Login() {
 }
 
 const CSS = `
-/* ─── Login (Stage 7) ─────────────────────────────────────────────────────── */
+/* ─── Login ───────────────────────────────────────────────────────────────── */
 .lg-wrap {
   position: relative;
   min-height: 100dvh;
@@ -212,7 +242,6 @@ const CSS = `
   background-image: var(--bg-gradient);
 }
 
-/* световые сферы */
 .lg-orb {
   position: absolute;
   border-radius: 50%;
@@ -225,21 +254,20 @@ const CSS = `
   width: 46vw; height: 46vw;
   max-width: 640px; max-height: 640px;
   background: radial-gradient(circle, var(--accent-glow), transparent 65%);
-  opacity: 0.55;
+  opacity: 0.45;
   animation: lgFloatA 16s ease-in-out infinite alternate;
 }
 .lg-orb--b {
   bottom: -22%; right: -10%;
   width: 40vw; height: 40vw;
   max-width: 560px; max-height: 560px;
-  background: radial-gradient(circle, var(--emerald-soft), transparent 65%);
-  opacity: 0.7;
+  background: radial-gradient(circle, rgba(120, 128, 136, 0.28), transparent 65%);
+  opacity: 0.75;
   animation: lgFloatB 19s ease-in-out infinite alternate;
 }
 @keyframes lgFloatA { from { transform: translate3d(0,0,0); } to { transform: translate3d(4vw, 3vh, 0); } }
 @keyframes lgFloatB { from { transform: translate3d(0,0,0); } to { transform: translate3d(-3vw, -4vh, 0); } }
 
-/* едва заметная сетка-точки */
 .lg-grid-bg {
   position: absolute;
   inset: 0;
@@ -262,14 +290,13 @@ const CSS = `
   position: relative;
   z-index: 2;
   width: 100%;
-  max-width: 920px;
+  max-width: 980px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 22px;
+  gap: 26px;
 }
 
-/* появление — только opacity + transform (GPU, без репейнтов) */
 .lg-anim {
   animation: lgIn 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: var(--d, 0ms);
@@ -280,50 +307,55 @@ const CSS = `
   to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
-/* ── шапка ── */
-.lg-head { display: flex; align-items: center; gap: 16px; }
+/* ── шапка: знак + Reaktivo.PRO без дубля названия ── */
+.lg-head { display: flex; align-items: center; gap: 18px; }
 .lg-mark {
-  width: 62px; height: 62px;
-  border-radius: 16px;
-  background: #fff;
+  width: 72px; height: 72px;
+  border-radius: 18px;
+  background: #0d0e0f;
   border: 1px solid var(--stroke);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
+  flex-shrink: 0;
 }
-.lg-mark img { width: 100%; height: 100%; object-fit: contain; padding: 6px; box-sizing: border-box; }
+.lg-mark img {
+  width: 118%;
+  height: 118%;
+  object-fit: contain;
+  display: block;
+}
 .lg-brand {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.55rem;
+  font-size: clamp(1.85rem, 1.4rem + 1.8vw, 2.55rem);
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: -0.02em;
   color: var(--text-strong);
-  display: flex;
-  align-items: center;
-  gap: 0.4em;
-}
-.lg-brand-pro {
-  font-size: 0.6em;
-  font-weight: 800;
-  letter-spacing: 0.13em;
-  padding: 0.24em 0.5em;
-  border-radius: 6px;
-  background: var(--accent-grad);
-  color: #fff;
   line-height: 1;
 }
+.lg-brand-dot {
+  color: var(--accent);
+}
 
-/* ── карточки ── */
+/* ── карточки: слева вход на 2 ряда, справа два блока ── */
 .lg-cards {
   display: grid;
   grid-template-columns: 1.08fr 0.92fr;
-  gap: 16px;
+  grid-template-rows: auto auto;
+  gap: 14px;
   width: 100%;
+  align-items: stretch;
 }
+.lg-card--staff {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+.lg-card--sell { grid-column: 2; grid-row: 1; }
+.lg-card--client { grid-column: 2; grid-row: 2; }
 .lg-card {
   border-radius: 20px;
-  padding: 28px 28px 26px;
+  padding: 26px 26px 24px;
   border: 1px solid var(--stroke-soft);
   background: var(--bg-panel-solid);
   box-shadow: var(--shadow-card);
@@ -348,16 +380,20 @@ const CSS = `
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent);
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+}
+.lg-badge--solid {
+  background: color-mix(in srgb, var(--accent) 88%, #000);
+  color: #fff;
 }
 .lg-card-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(1.25rem, 1.05rem + 0.9vw, 1.55rem);
+  font-size: clamp(1.2rem, 1.05rem + 0.7vw, 1.45rem);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-strong);
-  line-height: 1.18;
+  line-height: 1.2;
 }
 .lg-card-sub {
   margin: 8px 0 0;
@@ -365,9 +401,21 @@ const CSS = `
   color: var(--text-muted);
   line-height: 1.5;
 }
+.lg-inline-link {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+.lg-inline-link:hover { text-decoration: underline; }
 
 /* ── форма ── */
-.lg-form { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; }
+.lg-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 22px;
+  flex: 1;
+}
 .lg-field { display: flex; flex-direction: column; gap: 6px; }
 .lg-field-label {
   font-size: 0.7rem;
@@ -378,7 +426,7 @@ const CSS = `
 }
 .lg-err { color: var(--danger); font-size: 0.84rem; margin: 0; }
 .lg-submit {
-  margin-top: 8px;
+  margin-top: auto;
   width: 100%;
   padding: 13px 18px;
   border: none;
@@ -400,43 +448,52 @@ const CSS = `
 .lg-submit:active:not(:disabled) { transform: translateY(0); }
 .lg-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* ── клиентский блок ── */
+/* ── правые карточки ── */
+.lg-card--sell,
 .lg-card--client {
   position: relative;
   overflow: hidden;
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--stroke-soft));
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--stroke-soft));
+}
+.lg-card--sell {
   background:
-    linear-gradient(165deg, color-mix(in srgb, var(--accent) 18%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 62%);
+    linear-gradient(165deg, color-mix(in srgb, var(--accent) 16%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 62%);
+}
+.lg-card--client {
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--accent) 10%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 70%);
+}
+:root[data-theme='dark'] .lg-card--sell {
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--accent) 22%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 64%);
 }
 :root[data-theme='dark'] .lg-card--client {
   background:
-    linear-gradient(165deg, color-mix(in srgb, var(--accent) 24%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 64%);
+    linear-gradient(165deg, color-mix(in srgb, var(--accent) 14%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 68%);
 }
+.lg-card--sell::before,
 .lg-card--client::before {
   content: '';
   position: absolute;
   top: -40%; right: -28%;
   width: 85%; height: 95%;
   background: radial-gradient(circle, var(--accent-soft), transparent 62%);
-  opacity: 0.85;
+  opacity: 0.75;
   pointer-events: none;
 }
+.lg-card--sell > *,
 .lg-card--client > * { position: relative; }
-.lg-badge--client {
-  background: color-mix(in srgb, var(--accent) 85%, #fff);
-  color: #fff;
-}
-.lg-card-sub--client { color: var(--text-muted); }
 
 .lg-perks {
   list-style: none;
-  margin: 18px 0 0;
+  margin: 16px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 10px;
   flex: 1;
 }
+.lg-perks--compact { gap: 9px; margin-top: 14px; }
 .lg-perks li {
   display: flex;
   align-items: center;
@@ -456,7 +513,7 @@ const CSS = `
 }
 
 .lg-client-btn {
-  margin-top: 20px;
+  margin-top: auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -471,21 +528,20 @@ const CSS = `
   font-size: 0.9rem;
   font-weight: 700;
   text-decoration: none;
-  transition: background 0.18s, border-color 0.18s, transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), gap 0.2s;
+  transition: background 0.18s, border-color 0.18s, transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), gap 0.2s, filter 0.18s;
 }
 .lg-client-btn:hover { background: var(--accent-soft); border-color: var(--accent); transform: translateY(-1px); gap: 13px; }
-
-.lg-client-cabinet {
-  margin-top: 10px;
-  display: block;
-  text-align: center;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-decoration: none;
-  transition: color 0.16s;
+.lg-client-btn--fill {
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 20px var(--accent-glow);
 }
-.lg-client-cabinet:hover { color: var(--accent); text-decoration: underline; }
+.lg-client-btn--fill:hover {
+  filter: brightness(1.06);
+  background: var(--accent-grad);
+  border-color: transparent;
+}
 
 .lg-foot {
   margin: 0;
@@ -493,11 +549,20 @@ const CSS = `
   color: var(--text-dim);
 }
 
-/* ── адаптив ── */
 @media (max-width: 760px) {
-  .lg-cards { grid-template-columns: 1fr; }
-  .lg-card { padding: 24px 20px 22px; }
+  .lg-cards {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+  .lg-card--staff,
+  .lg-card--sell,
+  .lg-card--client {
+    grid-column: auto;
+    grid-row: auto;
+  }
+  .lg-card { padding: 22px 20px 20px; }
   .lg-stage { gap: 18px; }
+  .lg-mark { width: 60px; height: 60px; border-radius: 15px; }
   .lg-wrap { align-items: flex-start; padding-top: max(56px, env(safe-area-inset-top)); padding-bottom: 40px; }
 }
 
@@ -506,16 +571,10 @@ const CSS = `
   .lg-submit, .lg-client-btn { transition: none !important; }
 }
 
-/* ── Индикатор прогрева сервера ── */
 .lg-warm {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  opacity: 1;
-  transition: opacity 0.4s;
-}
-.lg-warm--ready {
-  opacity: 0.55;
 }
 .lg-warm__bar {
   height: 3px;
@@ -529,20 +588,10 @@ const CSS = `
   background: var(--accent-grad);
   transition: width 0.5s ease-out;
 }
-.lg-warm--ready .lg-warm__fill {
-  background: var(--emerald, #22c55e);
-}
 .lg-warm__label {
   font-size: 0.72rem;
   color: var(--text-muted);
   line-height: 1.4;
 }
-.lg-warm--ready .lg-warm__label {
-  color: var(--emerald, #22c55e);
-  font-weight: 600;
-}
-.lg-warm--warming .lg-warm__label {
-  color: var(--text-muted);
-}
-
+.lg-warm--warming .lg-warm__label { color: var(--text-muted); }
 `;

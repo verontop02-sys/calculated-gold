@@ -220,9 +220,9 @@ ${CLIENT_RESULT_CSS}
 .cg-disp {
   position: fixed; inset: 0;
   background:
-    radial-gradient(ellipse 110% 75% at 50% -15%, rgba(139, 124, 255, 0.16), transparent 55%),
+    radial-gradient(ellipse 110% 75% at 50% -15%, rgba(226, 27, 36, 0.14), transparent 55%),
     radial-gradient(ellipse 70% 50% at 100% 100%, rgba(74, 222, 128, 0.08), transparent 60%),
-    linear-gradient(180deg, #101218 0%, #0b0c10 100%);
+    linear-gradient(180deg, #181a1c 0%, #121314 100%);
   color: #f4f5f7;
   color-scheme: dark;
   font-family: 'DM Sans', 'Inter', system-ui, sans-serif;
@@ -245,7 +245,7 @@ ${CLIENT_RESULT_CSS}
   border-radius: 32px;
   background: #fff;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 30px 90px rgba(0,0,0,0.5), 0 0 80px rgba(139, 124, 255, 0.18);
+  box-shadow: 0 30px 90px rgba(0,0,0,0.5), 0 0 80px rgba(226, 27, 36, 0.18);
   animation: cgDispPulse 4s ease-in-out infinite;
 }
 .cg-disp__idle-mark img { width: 74%; height: 74%; object-fit: contain; }
@@ -254,7 +254,7 @@ ${CLIENT_RESULT_CSS}
   font-size: clamp(1.4rem, 5vw, 2.6rem); font-weight: 700; letter-spacing: 0.14em;
   text-transform: uppercase; color: #fff;
 }
-.cg-disp__idle-name b { color: #8b7cff; font-weight: 800; }
+.cg-disp__idle-name b { color: #e21b24; font-weight: 800; }
 .cg-disp__idle-sub { font-size: clamp(0.85rem, 2vw, 1.15rem); color: rgba(244,245,247,0.55); letter-spacing: 0.04em; }
 
 /* ── Результат ── */
@@ -344,10 +344,10 @@ ${CLIENT_RESULT_CSS}
   color: #fff; font-size: 1.6rem; font-weight: 700; letter-spacing: 0.3em;
   text-transform: uppercase; outline: none;
 }
-.cg-disp__pair-input:focus { border-color: #8b7cff; }
+.cg-disp__pair-input:focus { border-color: #e21b24; }
 .cg-disp__pair-btn {
   width: 100%; padding: 13px; border-radius: 12px; border: none;
-  background: #8b7cff; color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+  background: #e21b24; color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer;
   transition: opacity 0.15s, transform 0.1s;
 }
 .cg-disp__pair-btn:hover:not(:disabled) { opacity: 0.92; }

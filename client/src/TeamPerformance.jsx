@@ -61,7 +61,7 @@ function rankBadge(rank) {
 const WEEK_BAR = {
   up: 'var(--emerald-strong, #3d9a6a)',
   down: 'var(--crimson, #c96a4a)',
-  neu: 'var(--accent, #8b7cff)',
+  neu: 'var(--accent, #e21b24)',
 };
 
 function WeekDeltaCell({ deltaPct }) {
