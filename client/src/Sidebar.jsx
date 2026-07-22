@@ -40,6 +40,7 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpen
     ...(isAdmin ? [{ key: 'team', label: 'Команда и KPI', icon: <IconTeam /> }] : []),
     ...(isAdmin ? [{ key: 'employees', label: 'Сделки сотрудников', icon: <IconEmployees /> }] : []),
     ...(isSuper ? [{ key: 'gold-index', label: 'Индекс золота', icon: <IconMap /> }] : []),
+    ...(isAdmin ? [{ key: 'fintech-clients', label: 'Клиенты биржи', icon: <IconInvest /> }] : []),
   ];
 
   const groups = [
@@ -234,6 +235,16 @@ function IconMap() {
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M1 6v15l7-3 8 3 7-3V3l-7 3-8-3-7 3z" />
       <path d="M8 3v15M16 6v15" />
+    </svg>
+  );
+}
+function IconInvest() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9 9h4.5a2.25 2.25 0 0 1 0 4.5H9z" />
+      <path d="M9 9v8" />
+      <path d="M7.5 15.5H12" />
     </svg>
   );
 }

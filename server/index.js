@@ -61,6 +61,28 @@ import {
   verifyDeviceCode,
   logLoginEvent,
 } from './deviceTrust.js';
+import {
+  requestFintechCode,
+  verifyFintechCode,
+  verifyFintechToken,
+  getClientProfile as getFintechClientProfile,
+  updateClientContactInfo,
+  uploadKycDocument,
+  submitForReview,
+} from './fintechClients.js';
+import {
+  buyGold,
+  getClientPortfolio as getFintechPortfolio,
+  getClientLedger as getFintechLedger,
+} from './fintechLedger.js';
+import {
+  listFintechClients,
+  getClientDetailForStaff,
+  getKycDocumentSignedUrl,
+  reviewKycDocument,
+  decideClientStatus,
+  manualTopup as fintechManualTopup,
+} from './fintechAdmin.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // npm run dev из корня монорепо: cwd ≠ server/, иначе dotenv не видит server/.env
@@ -259,15 +281,17 @@ app.use(
     '/api/public/client-auth',
     '/api/public/field-deal-session/:token/verify',
     '/api/auth/device',
+    '/api/public/fintech-auth',
   ],
   authBurstLimiter
 );
-// Загрузка фото изделия шлёт base64 (несколько МБ) — для этого маршрута поднимаем лимит,
+// Загрузка фото/документов шлёт base64 (несколько МБ) — для этих маршрутов поднимаем лимит,
 // для остальных оставляем строгие 100kb. Глобальный парсер иначе режет тело раньше роутового.
 const jsonSmall = express.json({ limit: '100kb' });
 const jsonLarge = express.json({ limit: '16mb' });
+const LARGE_BODY_PATHS = new Set(['/api/deal-photos/upload', '/api/public/fintech/kyc/upload']);
 app.use((req, res, next) => {
-  if (req.path === '/api/deal-photos/upload') return jsonLarge(req, res, next);
+  if (LARGE_BODY_PATHS.has(req.path)) return jsonLarge(req, res, next);
   return jsonSmall(req, res, next);
 });
 
@@ -1124,6 +1148,162 @@ app.get(
       res.json(out);
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+// ── Fintech-кабинет клиента: вход по телефону+SMS (отдельно от кабинета скупки) ──
+function fintechTokenFromReq(req) {
+  const h = String(req.headers.authorization || '');
+  if (h.startsWith('Bearer ')) return h.slice(7);
+  return '';
+}
+
+function requireFintechSession(req, res) {
+  const session = verifyFintechToken(fintechTokenFromReq(req));
+  if (!session) {
+    res.status(401).json({ error: 'Сессия недействительна, войдите снова' });
+    return null;
+  }
+  return session;
+}
+
+app.post(
+  '/api/public/fintech-auth/request-code',
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await requestFintechCode(supabase, { phone: req.body?.phone, origin: clientPortalOrigin(req) });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.post(
+  '/api/public/fintech-auth/verify',
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await verifyFintechCode(supabase, { phone: req.body?.phone, code: req.body?.code });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.get(
+  '/api/public/fintech/profile',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await getFintechClientProfile(supabase, session.clientId);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.patch(
+  '/api/public/fintech/profile',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await updateClientContactInfo(supabase, session.clientId, {
+        fullName: req.body?.fullName,
+        email: req.body?.email,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.post(
+  '/api/public/fintech/kyc/upload',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await uploadKycDocument(supabase, {
+        clientId: session.clientId,
+        docType: req.body?.docType,
+        base64: req.body?.base64,
+        mimeType: req.body?.mimeType,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.post(
+  '/api/public/fintech/kyc/submit',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await submitForReview(supabase, session.clientId);
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.get(
+  '/api/public/fintech/portfolio',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await getFintechPortfolio(supabase, session.clientId);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.get(
+  '/api/public/fintech/ledger',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
+      const offset = Math.max(0, Number(req.query.offset) || 0);
+      const out = await getFintechLedger(supabase, session.clientId, { limit, offset });
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ entries: out });
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.post(
+  '/api/public/fintech/buy',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await buyGold(supabase, {
+        clientId: session.clientId,
+        rubAmount: req.body?.rubAmount,
+        grams: req.body?.grams,
+        idempotencyKey: req.body?.idempotencyKey,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка', code: e.code });
     }
   })
 );
@@ -2424,6 +2604,101 @@ app.delete(
     const { error: dErr } = await supabase.auth.admin.deleteUser(uid);
     if (dErr) throw dErr;
     res.json({ ok: true });
+  })
+);
+
+// ── Fintech: модерация клиентов биржи (admin/super_admin) ───────────────────
+app.get(
+  '/api/fintech/admin/clients',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
+    const offset = Math.max(0, parseInt(String(req.query.offset || '0'), 10) || 0);
+    const out = await listFintechClients(supabase, { status: req.query.status, q: req.query.q, limit, offset });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(out);
+  })
+);
+
+app.get(
+  '/api/fintech/admin/clients/:id',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await getClientDetailForStaff(supabase, req.params.id);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.get(
+  '/api/fintech/admin/documents/:id/signed-url',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await getKycDocumentSignedUrl(supabase, req.params.id);
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.patch(
+  '/api/fintech/admin/documents/:id/review',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await reviewKycDocument(supabase, {
+        documentId: req.params.id,
+        status: req.body?.status,
+        staffId: req.user.id,
+        rejectReason: req.body?.rejectReason,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.patch(
+  '/api/fintech/admin/clients/:id/status',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await decideClientStatus(supabase, {
+        clientId: req.params.id,
+        decision: req.body?.decision,
+        staffId: req.user.id,
+        rejectReason: req.body?.rejectReason,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.post(
+  '/api/fintech/admin/clients/:id/topup',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await fintechManualTopup(supabase, {
+        clientId: req.params.id,
+        rubAmount: req.body?.rubAmount,
+        staffId: req.user.id,
+        comment: req.body?.comment,
+        idempotencyKey: req.body?.idempotencyKey,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
   })
 );
 

@@ -464,6 +464,78 @@ export const clientApi = {
   },
 };
 
+// ── Fintech-кабинет (вход по телефону + SMS-код, отдельная сессия от clientApi) ──
+const FINTECH_TOKEN_KEY = 'cg_fintech_token';
+
+export function getFintechToken() {
+  try {
+    return localStorage.getItem(FINTECH_TOKEN_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setFintechToken(token) {
+  try {
+    if (token) localStorage.setItem(FINTECH_TOKEN_KEY, token);
+    else localStorage.removeItem(FINTECH_TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+async function fintechFetch(path, opts = {}) {
+  const r = await fetch(withBase(path), {
+    ...opts,
+    headers: {
+      ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+      Authorization: `Bearer ${getFintechToken()}`,
+      ...(opts.headers || {}),
+    },
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const err = new Error(j.error || `Ошибка ${r.status}`);
+    err.status = r.status;
+    err.code = j.code;
+    throw err;
+  }
+  return j;
+}
+
+export const fintechApi = {
+  requestCode: async (phone) => {
+    const r = await fetch(withBase('/public/fintech-auth/request-code'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    return j;
+  },
+  verify: async (phone, code) => {
+    const r = await fetch(withBase('/public/fintech-auth/verify'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, code }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    if (j.token) setFintechToken(j.token);
+    return j;
+  },
+  profile: () => fintechFetch('/public/fintech/profile'),
+  updateProfile: (fullName, email) =>
+    fintechFetch('/public/fintech/profile', { method: 'PATCH', body: JSON.stringify({ fullName, email }) }),
+  uploadKycDoc: (docType, base64, mimeType) =>
+    fintechFetch('/public/fintech/kyc/upload', { method: 'POST', body: JSON.stringify({ docType, base64, mimeType }) }),
+  submitForReview: () => fintechFetch('/public/fintech/kyc/submit', { method: 'POST' }),
+  portfolio: () => fintechFetch('/public/fintech/portfolio'),
+  ledger: (limit = 100, offset = 0) => fintechFetch(`/public/fintech/ledger?limit=${limit}&offset=${offset}`),
+  buy: (payload) => fintechFetch('/public/fintech/buy', { method: 'POST', body: JSON.stringify(payload) }),
+};
+
 export async function publicFieldDealSessionSendReceipt(token, channel, target) {
   const r = await fetch(withBase(`/public/field-deal-session/${encodeURIComponent(token)}/receipt`), {
     method: 'POST',
@@ -692,4 +764,30 @@ export const api = {
     request(`/gold-index/competitors/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) }),
   goldIndexDeleteCompetitor: (id) =>
     request(`/gold-index/competitors/${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
+  /** Модерация клиентов fintech-биржи (admin/super_admin). */
+  fintechAdminClients: (opts = {}) => {
+    const q = new URLSearchParams();
+    if (opts.status) q.set('status', opts.status);
+    if (opts.q) q.set('q', opts.q);
+    if (opts.limit != null) q.set('limit', String(opts.limit));
+    if (opts.offset != null) q.set('offset', String(opts.offset));
+    return request(`/fintech/admin/clients?${q.toString()}`);
+  },
+  fintechAdminClientDetail: (id) => request(`/fintech/admin/clients/${encodeURIComponent(String(id))}`),
+  fintechAdminDocSignedUrl: (id) => request(`/fintech/admin/documents/${encodeURIComponent(String(id))}/signed-url`),
+  fintechAdminReviewDoc: (id, status, rejectReason) =>
+    request(`/fintech/admin/documents/${encodeURIComponent(String(id))}/review`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, rejectReason }),
+    }),
+  fintechAdminDecideClient: (id, decision, rejectReason) =>
+    request(`/fintech/admin/clients/${encodeURIComponent(String(id))}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ decision, rejectReason }),
+    }),
+  fintechAdminTopup: (id, rubAmount, comment) =>
+    request(`/fintech/admin/clients/${encodeURIComponent(String(id))}/topup`, {
+      method: 'POST',
+      body: JSON.stringify({ rubAmount, comment, idempotencyKey: crypto.randomUUID() }),
+    }),
 };

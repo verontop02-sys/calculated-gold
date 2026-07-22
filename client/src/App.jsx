@@ -13,6 +13,7 @@ import { TeamPerformance } from './TeamPerformance.jsx';
 import { ClientsPage } from './ClientsPage.jsx';
 import { SettingsPage } from './SettingsPage.jsx';
 import { GoldIndex } from './GoldIndex.jsx';
+import { FintechAdminPage } from './FintechAdminPage.jsx';
 import { Dashboard } from './Dashboard.jsx';
 import { EmployeeDeals } from './EmployeeDeals.jsx';
 import { Sidebar } from './Sidebar.jsx';
@@ -509,7 +510,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const role = user.role;
-    if ((tab === 'team' || tab === 'settings') && !isUserManagerRole(role)) {
+    if ((tab === 'team' || tab === 'settings' || tab === 'fintech-clients') && !isUserManagerRole(role)) {
       setTab('dashboard');
     } else if (tab === 'gold-index' && !isSuperAdminRole(role)) {
       setTab('dashboard');
@@ -757,6 +758,9 @@ export default function App() {
             )}
             {tab === 'settings' && isUserManagerRole(user.role) && (
               <SettingsPage user={user} formatMoney={formatMoney} price={price} />
+            )}
+            {tab === 'fintech-clients' && isUserManagerRole(user.role) && (
+              <FintechAdminPage toast={toast} />
             )}
           </div>
         </main>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { clientApi, getClientToken, setClientToken } from './api.js';
+import { FintechInvest } from './FintechInvest.jsx';
 
 function formatMoney(n) {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -241,10 +242,18 @@ export function ClientPortal() {
               >
                 Мои сделки
               </button>
+              <button
+                type="button"
+                className={`cpx-tab${tab === 'invest' ? ' cpx-tab--on' : ''}`}
+                onClick={() => setTab('invest')}
+              >
+                Инвестиции
+              </button>
             </div>
 
             {tab === 'calc' && <ClientCalculator />}
             {tab === 'history' && <ClientDeals onAuthExpired={logout} />}
+            {tab === 'invest' && <FintechInvest initialPhone={phone} />}
           </div>
         )}
       </main>
