@@ -173,12 +173,17 @@ export function TeamPerformance({ formatMoney, toast, user }) {
   async function exportPdf() {
     setPdfBusy(true);
     try {
-      const ids = [...selectedIds];
-      const blob = await api.teamPerformancePdf(from, to, ids.length > 0 ? ids : undefined);
-      const pf = String(from || '').replace(/[^\d-]/g, '') || 'from';
-      const pt = String(to || '').replace(/[^\d-]/g, '') || 'to';
-      downloadBlob(blob, `komanda-kpi-${pf}_${pt}.pdf`);
-      toast?.('PDF скачан — можно отправить в архив или распечатать', 'success');
+      const { openTeamReport } = await import('./teamReport.js');
+      const authorName = user?.displayName || user?.email || '';
+      const ok = await openTeamReport({
+        data,
+        formatMoney,
+        authorName,
+        periodLabel,
+        chartSeries,
+      });
+      if (!ok) toast?.('Не удалось скачать PDF-отчёт', 'error');
+      else toast?.('PDF-отчёт скачан', 'success');
     } catch (e) {
       toast?.(e?.message || 'Не удалось сформировать PDF', 'error');
     } finally {
@@ -605,7 +610,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
           color: var(--text-muted); font-weight: 600;
         }
         .tm-mode__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
-        .tm-mode--mgr { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+        .tm-mode--mgr { border-color: var(--accent); background: var(--accent-soft); color: #fff; }
         .tm-mode--mgr .tm-mode__dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
 
         /* Presets */
@@ -624,8 +629,9 @@ export function TeamPerformance({ formatMoney, toast, user }) {
         .tm-date__label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); font-weight: 600; }
         .tm-date input {
           padding: 9px 12px; border-radius: 10px; border: 1px solid var(--stroke-soft);
-          background: var(--bg-elevated); color: var(--text); font-family: inherit; font-size: 0.86rem;
+          background: var(--bg-elevated); color: var(--text-strong); font-family: inherit; font-size: 0.86rem;
           min-width: 9rem; transition: border-color 180ms, box-shadow 180ms;
+          color-scheme: dark light;
         }
         .tm-date input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
         .tm-btn {

@@ -152,7 +152,17 @@ export async function buildGoldIndexReportPdfBuffer(overview, options = {}) {
   }));
 
   const docDef = {
-    ...baseDocDefinition(C, { footerLabel: 'REAKTIVO PRO · Индекс золота', pageW: PAGE_W, marginX: PAGE_MARGIN_X }),
+    ...baseDocDefinition(C, {
+      footerLabel: 'REAKTIVO PRO · Индекс золота',
+      pageW: PAGE_W,
+      marginX: PAGE_MARGIN_X,
+      pageHeader: {
+        sectionTitle: 'Индекс золота',
+        authorName: options?.authorName || '',
+        generatedAt: generated,
+        logo: logo || null,
+      },
+    }),
     content,
   };
   if (logo) docDef.images = { brandLogo: logo };

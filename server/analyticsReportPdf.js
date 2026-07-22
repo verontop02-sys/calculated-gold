@@ -9,16 +9,16 @@ const pdfmakeRoot = dirname(require.resolve('pdfmake/package.json'));
 
 // Палитра отчёта (Stage 7): фирменный красный + нейтральные серые.
 const C = {
-  accent: '#e02d5f',
-  accentDim: '#b51e4a',
-  ink: '#16181d',
+  accent: '#fe0000',
+  accentDim: '#c40000',
+  ink: '#1a1c1e',
   inkSoft: '#3d3830',
-  muted: '#6b655a',
-  hairline: '#e6e2dc',
-  headFill: '#f4eef0',
-  rowEven: '#faf9fa',
+  muted: '#5c636b',
+  hairline: '#dde0e3',
+  headFill: '#f8ecec',
+  rowEven: '#f7f8f9',
   rowOdd: '#ffffff',
-  thFill: '#f0e8eb',
+  thFill: '#f0e8e8',
 };
 
 pdfMake.setFonts({

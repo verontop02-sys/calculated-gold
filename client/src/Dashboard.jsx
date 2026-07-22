@@ -908,19 +908,17 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
 
     setReportBusy(true);
     try {
-      const blob = await api.dashboardReportPdf(payload);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '-');
-      a.download = `dashboard-${date}.pdf`;
-      a.rel = 'noopener';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const { openDashboardReport } = await import('./dashboardReport.js');
+      const ok = await openDashboardReport({
+        ...payload,
+        formatMoney,
+        generatedAt: new Date().toLocaleString('ru-RU', {
+          day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+        }),
+      });
+      if (!ok) alert('Не удалось скачать PDF-отчёт. Попробуйте ещё раз.');
     } catch (e) {
-      alert(`Не удалось сформировать отчёт: ${e?.message || 'ошибка сервера'}`);
+      alert(`Не удалось сформировать отчёт: ${e?.message || 'ошибка'}`);
     } finally {
       setReportBusy(false);
     }
@@ -963,7 +961,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
           <button type="button" className="dx-qa dx-qa--pdf" onClick={exportReport} disabled={reportBusy} title="Сформировать PDF-отчёт по дашборду">
             {reportBusy
               ? <><span className="dx-qa-spin" aria-hidden /> Формируем…</>
-              : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5 5-5"/><path d="M12 16V4"/></svg> Отчёт PDF</>
+              : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5 5-5"/><path d="M12 16V4"/></svg> Выгрузить PDF</>
             }
           </button>
         </div>
@@ -1606,9 +1604,27 @@ const CSS = `
   box-shadow: 0 4px 18px var(--accent-glow);
 }
 .dx-qa--primary:hover { filter: brightness(1.07); transform: translateY(-1px); }
-.dx-qa--pdf { display: inline-flex; align-items: center; gap: 7px; }
-.dx-qa--pdf:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.dx-qa--pdf {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--accent-grad);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 16px var(--accent-glow);
+}
+.dx-qa--pdf:hover:not(:disabled) {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px var(--accent-glow);
+  color: #fff;
+  background: var(--accent-grad);
+}
 .dx-qa--pdf:disabled { opacity: 0.65; cursor: not-allowed; }
+.dx-qa--pdf .dx-qa-spin {
+  border-color: rgba(255,255,255,0.35);
+  border-top-color: #fff;
+}
 .dx-qa-spin {
   display: inline-block; width: 13px; height: 13px; border-radius: 50%;
   border: 2px solid var(--stroke-strong); border-top-color: var(--accent);

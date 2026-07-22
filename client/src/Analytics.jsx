@@ -415,11 +415,24 @@ export function Analytics({ formatMoney, toast }) {
     }
     setPdfBusy(true);
     try {
-      const blob = await api.analyticsSummaryPdf(from, to, group, keys);
-      const pf = String(from || '').replace(/[^\d-]/g, '') || 'from';
-      const pt = String(to || '').replace(/[^\d-]/g, '') || 'to';
-      downloadBlob(blob, `analitika-${pf}_${pt}.pdf`);
-      toast?.('PDF скачан', 'success');
+      const { openAnalyticsReport } = await import('./analyticsReport.js');
+      let authorName = '';
+      try {
+        const me = await api.me();
+        authorName = me?.user?.displayName || me?.user?.email || '';
+      } catch { /* ignore */ }
+      const ok = await openAnalyticsReport({
+        data,
+        prevData,
+        sections: keys,
+        formatMoney,
+        periodLabel: `${humanDate(from)} — ${humanDate(to)}`,
+        moneySeries,
+        authorName,
+        group,
+      });
+      if (!ok) toast?.('Не удалось скачать PDF-отчёт', 'error');
+      else toast?.('PDF-отчёт скачан', 'success');
     } catch (e) {
       toast?.(e?.message || 'Не удалось сформировать PDF', 'error');
     } finally {
@@ -562,12 +575,22 @@ export function Analytics({ formatMoney, toast }) {
           <button type="button" className="btn-ghost" onClick={load} disabled={loading}>
             {loading ? '…' : '↻ Обновить'}
           </button>
+          <button
+            type="button"
+            className="an-export-pdf"
+            onClick={exportPdf}
+            disabled={loading || pdfBusy}
+            title="Скачать PDF с выбранными разделами"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5 5-5"/><path d="M12 16V4"/></svg>
+            {pdfBusy ? 'Формируем…' : 'Выгрузить PDF'}
+          </button>
         </div>
 
         <details className="an-pdf-block">
           <summary>
-            <span className="an-pdf-summary-l">PDF-отчёт</span>
-            <span className="an-pdf-summary-r muted small">выбрать разделы и скачать</span>
+            <span className="an-pdf-summary-l">Разделы PDF-отчёта</span>
+            <span className="an-pdf-summary-r muted small">отметьте, что войдёт в выгрузку</span>
           </summary>
           <div className="an-pdf-row">
             <div className="an-pdf-controls">
@@ -593,15 +616,6 @@ export function Analytics({ formatMoney, toast }) {
                   onClick={() => setPdfSec({ summary: true, operators: true, probe: true, series: true })}
                 >
                   Всё
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary an-pdf-download"
-                  onClick={exportPdf}
-                  disabled={loading || pdfBusy}
-                  title="Скачать PDF с выбранными разделами"
-                >
-                  {pdfBusy ? '…' : 'Скачать PDF'}
                 </button>
               </div>
             </div>
@@ -1140,10 +1154,9 @@ const ANALYTICS_CSS = `
   font-family: var(--font-display);
   font-size: clamp(1.65rem, 1.2rem + 1.8vw, 2.25rem);
   font-weight: 600;
-  color: var(--gold);
+  color: var(--text-strong);
   line-height: 1.05;
   letter-spacing: -0.015em;
-  text-shadow: 0 2px 24px var(--gold-glow);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1170,10 +1183,11 @@ const ANALYTICS_CSS = `
 .an-pill:hover { border-color: var(--gold); color: var(--gold); }
 .an-pill--active {
   background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
-  color: #1c1108;
+  color: #fff;
   border-color: var(--gold);
   box-shadow: 0 2px 12px var(--gold-glow);
 }
+.an-pill--active:hover { color: #fff; border-color: var(--gold); }
 
 /* FILTERS */
 .an-filters {
@@ -1189,11 +1203,12 @@ const ANALYTICS_CSS = `
 .an-field input {
   background: var(--input-bg);
   border: 1px solid var(--stroke-soft);
-  color: var(--text);
+  color: var(--text-strong);
   border-radius: 10px;
   padding: 8px 10px;
   font-size: 0.85rem;
   min-width: 9rem;
+  color-scheme: dark light;
 }
 .an-field input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
 .an-group-btns {
@@ -1210,6 +1225,31 @@ const ANALYTICS_CSS = `
   color: var(--gold);
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
+
+/* PDF export — как в «Команда и KPI» */
+.an-export-pdf {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: var(--accent-grad);
+  color: #fff;
+  box-shadow: 0 4px 16px var(--accent-glow);
+  transition: transform 180ms cubic-bezier(0.22,1,0.36,1), box-shadow 180ms, filter 180ms, opacity 180ms;
+  font-family: inherit;
+}
+.an-export-pdf:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px var(--accent-glow);
+  filter: brightness(1.05);
+}
+.an-export-pdf:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* PDF block */
 .an-pdf-block {
@@ -1242,7 +1282,6 @@ const ANALYTICS_CSS = `
 .an-pdf-cb { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; cursor: pointer; }
 .an-pdf-cb input { width: 16px; height: 16px; accent-color: var(--gold); }
 .an-pdf-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
-.an-pdf-download { font-weight: 700; }
 
 /* DELTA BADGE */
 .an-delta {
@@ -1294,7 +1333,7 @@ const ANALYTICS_CSS = `
   background: linear-gradient(135deg, var(--bg-panel-solid) 0%, var(--gold-soft) 100%);
   border-color: var(--gold);
 }
-.an-kpi-card--hero .an-kpi-card__value { color: var(--gold); }
+.an-kpi-card--hero .an-kpi-card__value { color: var(--text-strong); }
 .an-kpi-card__head { display: flex; align-items: center; gap: 8px; }
 .an-kpi-card__icon {
   display: inline-flex; align-items: center; justify-content: center;
@@ -1561,8 +1600,8 @@ const ANALYTICS_CSS = `
   word-break: break-word;
   margin-bottom: 6px;
 }
-.an-insight--gold    .an-insight__value { color: var(--accent); }
-.an-insight--emerald .an-insight__value { color: var(--emerald); }
+.an-insight--gold    .an-insight__value { color: var(--text-strong); }
+.an-insight--emerald .an-insight__value { color: var(--text-strong); }
 
 .an-insight__sub {
   font-size: 0.73rem;

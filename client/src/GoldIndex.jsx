@@ -706,13 +706,27 @@ export function GoldIndex({ formatMoney, toast }) {
   async function handlePdf() {
     setPdfBusy(true);
     try {
-      const blob = await api.goldIndexReportPdf({
-        regionCode: regionFilter || undefined,
-        from: pdfFrom || undefined,
-        to: pdfTo || undefined,
+      const { openGoldIndexReport } = await import('./goldIndexReport.js');
+      let authorName = '';
+      try {
+        const me = await api.me();
+        authorName = me?.user?.displayName || me?.user?.email || '';
+      } catch { /* ignore */ }
+      const regionName = (data?.regions || []).find((r) => String(r.regionCode) === String(regionFilter))?.regionName;
+      const ok = await openGoldIndexReport({
+        data,
+        formatMoney,
+        authorName,
+        mapEl: mapRef.current,
+        filters: {
+          regionName: regionFilter ? regionName || regionFilter : '',
+          from: pdfFrom || '',
+          to: pdfTo || '',
+        },
+        regionsChart: regionsChart.map((r) => ({ name: r.full || r.name, value: r.ratio })),
       });
-      downloadBlob(blob, `gold-index-${new Date().toISOString().slice(0, 10)}.pdf`);
-      toast('PDF сохранён', 'success');
+      if (!ok) toast('Не удалось скачать PDF-отчёт', 'error');
+      else toast('PDF-отчёт скачан', 'success');
     } catch (e) {
       toast(e?.message || 'Ошибка PDF', 'error');
     } finally {
@@ -1408,7 +1422,7 @@ export function GoldIndex({ formatMoney, toast }) {
             </button>
             <button type="button" className="gi-tool-btn gi-tool-btn--accent" disabled={pdfBusy || loading || refreshing} onClick={handlePdf}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5 5-5"/><path d="M12 16V4"/></svg>
-              PDF
+              {pdfBusy ? 'Формируем…' : 'Выгрузить PDF'}
             </button>
           </div>
         </div>
@@ -2344,8 +2358,9 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-period__sep { color: var(--text-dim); }
         .gi-date-input {
           padding: 8px 10px; border-radius: 10px; border: 1px solid var(--stroke-soft);
-          background: var(--bg-panel-solid); color: var(--text); font-family: inherit; font-size: 0.84rem;
+          background: var(--bg-panel-solid); color: var(--text-strong); font-family: inherit; font-size: 0.84rem;
           width: min(140px, 38vw); transition: border-color 170ms, box-shadow 170ms;
+          color-scheme: dark light;
         }
         .gi-date-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
         .gi-export-btns { display: flex; gap: 8px; }
@@ -2518,7 +2533,7 @@ export function GoldIndex({ formatMoney, toast }) {
           display: inline-flex; align-items: center; gap: 7px;
           padding: 9px 18px; border-radius: 10px; border: none; cursor: pointer;
           background: var(--accent-grad);
-          color: #1a0e00; font-weight: 700; font-size: 0.9rem;
+          color: #fff; font-weight: 700; font-size: 0.9rem;
           transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
           box-shadow: 0 2px 8px rgba(106,90,224,0.25);
         }
@@ -2610,7 +2625,7 @@ export function GoldIndex({ formatMoney, toast }) {
           letter-spacing: 0.08em; color: var(--text-muted);
         }
         .gi-comp-count {
-          background: var(--gold); color: #1a1000;
+          background: var(--gold); color: #fff;
           font-size: 0.7rem; font-weight: 700;
           border-radius: 99px; padding: 1px 7px; line-height: 1.6;
         }

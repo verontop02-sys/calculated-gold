@@ -4,6 +4,8 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
@@ -51,6 +53,14 @@ import {
   subscribeDisplay,
   normalizeDisplayCode,
 } from './clientDisplay.js';
+import {
+  deviceTrustEnabled,
+  deviceHashFromReq,
+  isDeviceTrusted,
+  checkDeviceAndMaybeSendCode,
+  verifyDeviceCode,
+  logLoginEvent,
+} from './deviceTrust.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // npm run dev из корня монорепо: cwd ≠ server/, иначе dotenv не видит server/.env
@@ -195,6 +205,20 @@ function mapSupabaseAuthAdminError(err) {
   return null;
 }
 
+// За Render/прокси — иначе req.ip у всех одинаковый и rate limit бьёт по всем сразу.
+app.set('trust proxy', 1);
+
+// Security headers. CSP отключён: SPA раздаётся с этого же origin со своими inline-стилями,
+// а строгий CSP без нонсов сломал бы Vite-бандл; остальные заголовки (nosniff, frame-deny,
+// referrer-policy, HSTS на https) работают.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
 app.use(
   cors({
     origin(origin, callback) {
@@ -203,10 +227,40 @@ app.use(
       callback(null, false);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Device-Token'],
     // Чтобы фронт на другом домене мог прочитать id созданной сделки и догрузить фото.
     exposedHeaders: ['X-Deal-Id'],
   })
+);
+
+// ── Rate limiting ────────────────────────────────────────────────────────────
+// Общий потолок на /api: щедрый, чтобы не мешать работе панели (SSE не считаем).
+const apiLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path.endsWith('/stream'),
+  message: { error: 'Слишком много запросов. Подождите минуту.' },
+});
+
+// Жёсткий лимит на публичные auth/verify-ручки — от перебора кодов и SMS-бомбинга.
+const authBurstLimiter = rateLimit({
+  windowMs: 10 * 60_000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много попыток. Подождите 10 минут.' },
+});
+
+app.use('/api', apiLimiter);
+app.use(
+  [
+    '/api/public/client-auth',
+    '/api/public/field-deal-session/:token/verify',
+    '/api/auth/device',
+  ],
+  authBurstLimiter
 );
 // Загрузка фото изделия шлёт base64 (несколько МБ) — для этого маршрута поднимаем лимит,
 // для остальных оставляем строгие 100kb. Глобальный парсер иначе режет тело раньше роутового.
@@ -616,6 +670,18 @@ async function authMiddleware(req, res, next) {
       return res.status(401).json({ error: 'Сессия недействительна' });
     }
     req.user = user;
+
+    // Пароль верный, но устройство ещё не подтверждено кодом с почты → не пускаем к API.
+    if (deviceTrustEnabled()) {
+      const deviceHash = deviceHashFromReq(req);
+      if (!deviceHash || !(await isDeviceTrusted(supabase, user.id, deviceHash))) {
+        return res.status(403).json({
+          error: 'Подтвердите вход кодом из письма',
+          code: 'device_unverified',
+        });
+      }
+    }
+
     await ensureProfileAndBootstrap(user.id);
     const rawRole = await loadProfileRole(user.id);
     const metaRole = user.app_metadata?.role ?? user.user_metadata?.role ?? null;
@@ -889,6 +955,12 @@ app.get(
     const rawToken = authHeader.slice(7);
     const { user, error } = await getUserFromAccessToken(rawToken);
     if (error || !user?.id) return res.status(401).json({ error: 'Сессия недействительна' });
+    if (deviceTrustEnabled()) {
+      const dh = deviceHashFromReq(req);
+      if (!dh || !(await isDeviceTrusted(supabase, user.id, dh))) {
+        return res.status(403).json({ error: 'Подтвердите вход кодом из письма', code: 'device_unverified' });
+      }
+    }
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -921,6 +993,12 @@ app.post(
     const token = authHeader.slice(7);
     const { user, error } = await getUserFromAccessToken(token);
     if (error || !user?.id) return res.status(401).json({ error: 'Сессия недействительна' });
+    if (deviceTrustEnabled()) {
+      const dh = deviceHashFromReq(req);
+      if (!dh || !(await isDeviceTrusted(supabase, user.id, dh))) {
+        return res.status(403).json({ error: 'Подтвердите вход кодом из письма', code: 'device_unverified' });
+      }
+    }
     await ensureProfileAndBootstrap(user.id);
     await refreshXautPriceCache(true);
     const data = await refreshPriceCache(true);
@@ -1043,6 +1121,62 @@ app.get(
     try {
       const out = await getClientDeals(supabase, session.phoneNormalized);
       res.setHeader('Cache-Control', 'no-store');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+// ── Доверенные устройства: подтверждение кодом с почты при первом входе ─────
+// До authMiddleware: JWT проверяем сами, а enforcement устройства здесь не нужен —
+// иначе было бы невозможно подтвердить новое устройство.
+async function requireJwtUser(req, res) {
+  const authHeader = req.headers.authorization || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Требуется вход' });
+    return null;
+  }
+  const { user, error } = await getUserFromAccessToken(authHeader.slice(7));
+  if (error || !user?.id) {
+    res.status(401).json({ error: 'Сессия недействительна' });
+    return null;
+  }
+  return user;
+}
+
+app.post(
+  '/api/auth/device/check',
+  asyncHandler(async (req, res) => {
+    const user = await requireJwtUser(req, res);
+    if (!user) return;
+    try {
+      const out = await checkDeviceAndMaybeSendCode(supabase, {
+        user,
+        deviceHash: deviceHashFromReq(req),
+        ip: clientIp(req),
+        userAgent: req.headers['user-agent'],
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.post(
+  '/api/auth/device/verify',
+  asyncHandler(async (req, res) => {
+    const user = await requireJwtUser(req, res);
+    if (!user) return;
+    try {
+      const out = await verifyDeviceCode(supabase, {
+        user,
+        deviceHash: deviceHashFromReq(req),
+        code: req.body?.code,
+        ip: clientIp(req),
+        userAgent: req.headers['user-agent'],
+      });
       res.json(out);
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message || 'Ошибка' });

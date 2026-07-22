@@ -9,6 +9,39 @@ if (import.meta.env.PROD && !import.meta.env.VITE_API_BASE) {
 }
 
 const AUTH_EXPIRED_EVENT = 'cg:session-expired';
+const DEVICE_UNVERIFIED_EVENT = 'cg:device-unverified';
+
+// ── Токен устройства: случайный id в localStorage, сервер хранит только его хеш.
+// Первый вход с нового устройства подтверждается кодом на почту.
+const DEVICE_TOKEN_KEY = 'cg_device_token';
+
+export function getDeviceToken() {
+  try {
+    let t = localStorage.getItem(DEVICE_TOKEN_KEY);
+    if (!t || t.length < 16) {
+      const bytes = new Uint8Array(32);
+      crypto.getRandomValues(bytes);
+      t = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem(DEVICE_TOKEN_KEY, t);
+    }
+    return t;
+  } catch {
+    return '';
+  }
+}
+
+export function onDeviceUnverified(fn) {
+  window.addEventListener(DEVICE_UNVERIFIED_EVENT, fn);
+  return () => window.removeEventListener(DEVICE_UNVERIFIED_EVENT, fn);
+}
+
+function notifyDeviceUnverified() {
+  window.dispatchEvent(new CustomEvent(DEVICE_UNVERIFIED_EVENT));
+}
+
+function isDeviceUnverifiedBody(data) {
+  return data && typeof data === 'object' && data.code === 'device_unverified';
+}
 
 /** Один «всплеск» протухшей сессии — много параллельных 401 не должны слать N тостов. */
 let authExpiredArmed = true;
@@ -77,7 +110,12 @@ async function request(path, options = {}) {
   const token = await getAccessToken();
   let res;
   try {
-    const hdrs = { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(fetchOpts.headers || {}) };
+    const deviceToken = getDeviceToken();
+    const hdrs = {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(deviceToken ? { 'X-Device-Token': deviceToken } : {}),
+      ...(fetchOpts.headers || {}),
+    };
     if (fetchOpts.body != null && !hdrs['Content-Type'] && !hdrs['content-type']) {
       hdrs['Content-Type'] = 'application/json';
     }
@@ -120,6 +158,9 @@ async function request(path, options = {}) {
     if (res.status === 401) {
       notifyAuthExpired();
     }
+    if (res.status === 403 && isDeviceUnverifiedBody(data)) {
+      notifyDeviceUnverified();
+    }
     const err = new Error(data?.error || `HTTP ${res.status}`);
     err.status = res.status;
     err.body = data;
@@ -136,7 +177,12 @@ async function requestBlob(path, options = {}) {
     ...opt
   } = options;
   const token = await getAccessToken();
-  const h = { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(opt.headers || {}) };
+  const deviceToken = getDeviceToken();
+  const h = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(deviceToken ? { 'X-Device-Token': deviceToken } : {}),
+    ...(opt.headers || {}),
+  };
   if (opt.body != null) h['Content-Type'] = 'application/json';
   const body = opt.body != null ? JSON.stringify(opt.body) : undefined;
 
@@ -237,6 +283,7 @@ export async function connectPriceStream(onData, onError) {
         headers: {
           Accept: 'text/event-stream',
           Authorization: `Bearer ${token}`,
+          ...(getDeviceToken() ? { 'X-Device-Token': getDeviceToken() } : {}),
         },
         signal: controller.signal,
       });
@@ -440,6 +487,11 @@ function fetchMeOnce() {
 
 export const api = {
   me: () => fetchMeOnce(),
+  /** Проверка устройства после входа: доверено или отправлен код на почту. */
+  deviceCheck: () => request('/auth/device/check', { method: 'POST', body: JSON.stringify({}) }),
+  /** Подтверждение устройства 6-значным кодом из письма. */
+  deviceVerify: (code) =>
+    request('/auth/device/verify', { method: 'POST', body: JSON.stringify({ code }) }),
   prefetchMe: () => {
     void fetchMeOnce();
   },

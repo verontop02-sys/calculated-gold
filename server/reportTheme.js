@@ -6,59 +6,59 @@
  * становится чёрным/невидимым. Поэтому полупрозрачные тона темы заранее сведены
  * к плотному hex поверх фона панели.
  *
- * Тёмная тема повторяет дашборд: графит + фиолетовый акцент.
+ * Тёмная тема: графит + фирменный красный (#fe0000).
  */
 
 export const PALETTE = {
   dark: {
-    page:       '#101218',
-    panel:      '#16181e',
-    elevated:   '#1c1f27',
-    accent:     '#8b7cff',
-    accentDim:  '#6a5ae0',
-    accentSoft: '#22243a',
+    page:       '#141516',
+    panel:      '#222427',
+    elevated:   '#2a2c30',
+    accent:     '#fe0000',
+    accentDim:  '#c40000',
+    accentSoft: '#3a1a1c',
     emerald:    '#4ade80',
     emeraldSoft:'#16271f',
-    crimson:    '#fb7185',
-    crimsonSoft:'#2a1820',
+    crimson:    '#ff5a63',
+    crimsonSoft:'#3a1a1c',
     amber:      '#fbbf24',
-    ink:        '#f4f5f7',
+    ink:        '#eef0f2',
     inkMuted:   '#9ea1ad',
     inkDim:     '#6b6e79',
-    stroke:     '#2b2e39',
-    strokeSoft: '#23262f',
-    thFill:     '#222536',
-    headTxt:    '#a799ff',
-    rowOdd:     '#181a21',
-    rowEven:    '#1c1f27',
-    chartBg:    '#1a1c24',
-    chartGrid:  '#2b2e39',
+    stroke:     '#3a3d44',
+    strokeSoft: '#2e3138',
+    thFill:     '#2e2224',
+    headTxt:    '#ff2a2a',
+    rowOdd:     '#1c1e21',
+    rowEven:    '#222427',
+    chartBg:    '#1a1b1e',
+    chartGrid:  '#3a3d44',
     chartText:  '#7e818d',
   },
   light: {
-    page:       '#f4f4f6',
+    page:       '#eceeef',
     panel:      '#ffffff',
-    elevated:   '#faf9fb',
-    accent:     '#e02d5f',
-    accentDim:  '#b51e4a',
-    accentSoft: '#fbe9ef',
+    elevated:   '#f7f8f9',
+    accent:     '#e60000',
+    accentDim:  '#b30000',
+    accentSoft: '#fde8e8',
     emerald:    '#12824f',
     emeraldSoft:'#eafaf2',
-    crimson:    '#d92d3a',
+    crimson:    '#d41922',
     crimsonSoft:'#fdecec',
     amber:      '#b45309',
-    ink:        '#16181d',
-    inkMuted:   '#5c5b63',
+    ink:        '#1a1c1e',
+    inkMuted:   '#5c636b',
     inkDim:     '#8a8990',
-    stroke:     '#e3e0e6',
-    strokeSoft: '#eeecf1',
-    thFill:     '#f3eef1',
-    headTxt:    '#b51e4a',
+    stroke:     '#dde0e3',
+    strokeSoft: '#eceeef',
+    thFill:     '#f8ecec',
+    headTxt:    '#b30000',
     rowOdd:     '#ffffff',
-    rowEven:    '#faf9fb',
-    chartBg:    '#faf8f4',
-    chartGrid:  '#e2ddd4',
-    chartText:  '#5c5348',
+    rowEven:    '#f7f8f9',
+    chartBg:    '#f7f8f9',
+    chartGrid:  '#dde0e3',
+    chartText:  '#5c636b',
   },
 };
 
@@ -204,12 +204,21 @@ export function statCard(C, { label, value, valueColor, footColumns }) {
   };
 }
 
-/** Базовое определение документа (фон, шрифт, футер) для тёмной/светлой темы. */
-export function baseDocDefinition(C, { footerLabel = 'REAKTIVO PRO', pageW = 595.28, pageH = 841.89, marginX = 28, orientation = 'portrait' } = {}) {
-  return {
+/** Базовое определение документа (фон, шрифт, футер, опц. повторяющаяся шапка). */
+export function baseDocDefinition(C, {
+  footerLabel = 'REAKTIVO PRO',
+  pageW = 595.28,
+  pageH = 841.89,
+  marginX = 28,
+  orientation = 'portrait',
+  /** @type {{ sectionTitle?: string, authorName?: string, generatedAt?: string, logo?: string|null }|null} */
+  pageHeader = null,
+} = {}) {
+  const topMargin = pageHeader ? 72 : 28;
+  const def = {
     pageSize: 'A4',
     pageOrientation: orientation,
-    pageMargins: [marginX, 28, marginX, 30],
+    pageMargins: [marginX, topMargin, marginX, 30],
     background: () => ({ canvas: [{ type: 'rect', x: 0, y: 0, w: pageW, h: pageH, color: C.page }] }),
     defaultStyle: { font: 'Roboto', fontSize: 9, color: C.ink, lineHeight: 1.3 },
     footer: (cur, tot) => ({
@@ -220,4 +229,38 @@ export function baseDocDefinition(C, { footerLabel = 'REAKTIVO PRO', pageW = 595
       ],
     }),
   };
+
+  if (pageHeader) {
+    const section = String(pageHeader.sectionTitle || 'Отчёт');
+    const who = pageHeader.authorName
+      ? `Сформировал: ${pageHeader.authorName}`
+      : 'Сформировал: —';
+    const when = pageHeader.generatedAt || '';
+    def.header = () => {
+      const cols = [];
+      if (pageHeader.logo) {
+        cols.push({ width: 28, image: 'brandLogo', fit: [28, 28], margin: [0, 0, 8, 0] });
+      }
+      cols.push({
+        width: '*',
+        stack: [
+          { text: 'Reaktivo.PRO', fontSize: 9, bold: true, color: C.ink },
+          { text: section, fontSize: 8, bold: true, color: C.accent, margin: [0, 1, 0, 0] },
+          { text: `${who}${when ? ` · ${when}` : ''}`, fontSize: 6.5, color: C.inkMuted, margin: [0, 1, 0, 0] },
+        ],
+      });
+      return {
+        margin: [marginX, 12, marginX, 0],
+        columns: cols,
+        columnGap: 8,
+      };
+    };
+  }
+
+  return def;
+}
+
+/** Маркер pageBreak перед следующей секцией (для pdfmake content). */
+export function sectionPageBreak() {
+  return { text: '', pageBreak: 'before' };
 }

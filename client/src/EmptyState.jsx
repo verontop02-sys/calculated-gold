@@ -244,7 +244,7 @@ const EMPTY_CSS = `
   border-radius: 999px;
   border: 1px solid var(--gold);
   background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
-  color: #1c1108;
+  color: #fff;
   font-weight: 700;
   font-size: 0.88rem;
   letter-spacing: 0.02em;

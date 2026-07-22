@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, connectPriceStream, onSessionExpired, pingApiHealth, isTransientProfileLoadError, resetAuthExpiredGate } from './api.js';
+import { api, connectPriceStream, onSessionExpired, onDeviceUnverified, pingApiHealth, isTransientProfileLoadError, resetAuthExpiredGate } from './api.js';
 import { supabase } from './supabase.js';
 import { readProfileCache, writeProfileCache, clearProfileCache } from './profileCache.js';
 import { useToast } from './ToastContext.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
 import { Login } from './Login.jsx';
+import { DeviceVerify } from './DeviceVerify.jsx';
 import { CalculatorPage } from './CalculatorPage.jsx';
 import { ContractPage } from './ContractPage.jsx';
 import { Analytics } from './Analytics.jsx';
@@ -193,6 +194,7 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState(null);
   const [user, setUser] = useState(undefined);
   const [profileErr, setProfileErr] = useState(null);
+  const [deviceVerifyNeeded, setDeviceVerifyNeeded] = useState(false);
   const [tab, setTab] = useState('dashboard'); // dashboard | calc | contract | clients | analytics | team | gold-index | settings
   const [contractPrefill, setContractPrefill] = useState(null);
   const [contractMounted, setContractMounted] = useState(false);
@@ -273,6 +275,12 @@ export default function App() {
       } catch (e) {
         lastErr = e;
         console.error(e);
+        if (e?.body?.code === 'device_unverified') {
+          // Пароль верный, но устройство новое — нужен код с почты.
+          setDeviceVerifyNeeded(true);
+          setProfileErr(null);
+          return;
+        }
         const transient = isTransientProfileLoadError(e);
         if (!transient || attempt === maxAttempts - 1) {
           if (cached && transient) {
@@ -360,11 +368,18 @@ export default function App() {
       void supabase.auth.signOut();
       toast('Сессия истекла, войдите снова', 'info');
     });
+    const unsubDevice = onDeviceUnverified(() => setDeviceVerifyNeeded(true));
     return () => {
       subscription.unsubscribe();
       unsub();
+      unsubDevice();
     };
   }, [toast]);
+
+  // Сброс шага подтверждения устройства при выходе/смене аккаунта.
+  useEffect(() => {
+    if (!sessionUser?.id) setDeviceVerifyNeeded(false);
+  }, [sessionUser?.id]);
 
   useEffect(() => {
     if (sessionUser?.id) resetAuthExpiredGate();
@@ -512,6 +527,19 @@ export default function App() {
     );
   }
 
+  if (sessionUser && deviceVerifyNeeded) {
+    return (
+      <DeviceVerify
+        onVerified={() => {
+          setDeviceVerifyNeeded(false);
+          setUser(undefined);
+          loadMe();
+        }}
+        onSignOut={() => supabase.auth.signOut()}
+      />
+    );
+  }
+
   if (sessionUser && user === undefined && !profileErr) {
     return (
       <div className="shell">
@@ -587,7 +615,7 @@ export default function App() {
         <header className="cg-topbar">
           <div className="cg-topbar__title">
             <span className="cg-topbar__logo" aria-hidden>
-              <img src="/logo_reactivo1.png" alt="REAKTIVO PRO" />
+              <img src="/logo-reaktivo-mark.svg" alt="" />
             </span>
             <div className="cg-topbar__title-text">
               <h1 className="cg-topbar__heading">{TAB_TITLES[tab] || 'Панель'}</h1>
@@ -800,7 +828,7 @@ export default function App() {
         .cg-topbar__title { min-width: 0; display: flex; align-items: center; gap: 10px; }
         .cg-topbar__title-text { min-width: 0; display: flex; align-items: baseline; gap: 10px; }
         .cg-topbar__logo { display: none; }
-        .cg-topbar__logo img { width: 100%; height: 100%; object-fit: contain; filter: brightness(0) invert(1); }
+        .cg-topbar__logo img { width: 100%; height: 100%; object-fit: cover; }
         .cg-topbar__heading {
           font-size: 0.95rem;
           font-weight: 600;

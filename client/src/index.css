@@ -6,54 +6,55 @@
    компонент: указывает на фирменный красный, а не золото.
    ============================================================================ */
 :root[data-theme='dark'] {
-  --bg-deep: #121314;
-  --bg-panel: rgba(28, 30, 32, 0.82);
-  --bg-panel-solid: #1a1c1e;
-  --bg-elevated: rgba(36, 38, 41, 0.96);
-  --surface: rgba(32, 34, 37, 0.65);
-  --surface-elevated: #222426;
-  --sidebar-bg: linear-gradient(180deg, #1a1c1e 0%, #121314 100%);
+  /* Чистый графит — без красного свечения снаружи блоков */
+  --bg-deep: #141516;
+  --bg-panel: rgba(32, 34, 37, 0.90);
+  --bg-panel-solid: #222427;
+  --bg-elevated: rgba(38, 40, 44, 0.96);
+  --surface: rgba(36, 38, 42, 0.75);
+  --surface-elevated: #2a2c30;
+  --sidebar-bg: linear-gradient(180deg, #1c1e21 0%, #141516 100%);
   --sidebar-stroke: rgba(255, 255, 255, 0.08);
   --stroke: rgba(255, 255, 255, 0.10);
   --stroke-soft: rgba(255, 255, 255, 0.06);
   --stroke-strong: rgba(255, 255, 255, 0.20);
-  --gold: #e21b24;
-  --gold-soft-bg: rgba(226, 27, 36, 0.12);
-  --gold-dim: #b4141c;
-  --gold-glow: rgba(226, 27, 36, 0.34);
-  --gold-soft: rgba(226, 27, 36, 0.14);
-  --accent: #e21b24;
-  --accent-strong: #ff3b42;
-  --accent-dim: #b4141c;
-  --accent-soft: rgba(226, 27, 36, 0.14);
-  --accent-glow: rgba(226, 27, 36, 0.34);
-  --accent-grad: linear-gradient(135deg, #ff3b42 0%, #e21b24 48%, #b4141c 100%);
-  --indigo: #8a9099;
-  --indigo-soft: rgba(138, 144, 153, 0.14);
+  --gold: #fe0000;
+  --gold-soft-bg: rgba(254, 0, 0, 0.12);
+  --gold-dim: #c40000;
+  --gold-glow: rgba(254, 0, 0, 0.28);
+  --gold-soft: rgba(254, 0, 0, 0.12);
+  --accent: #fe0000;
+  --accent-strong: #ff2a2a;
+  --accent-dim: #c40000;
+  --accent-soft: rgba(254, 0, 0, 0.12);
+  --accent-glow: rgba(254, 0, 0, 0.28);
+  --accent-grad: linear-gradient(135deg, #ff2a2a 0%, #fe0000 48%, #c40000 100%);
+  --indigo: #8e949c;
+  --indigo-soft: rgba(142, 148, 156, 0.12);
   --emerald: #4ade80;
-  --emerald-soft: rgba(74, 222, 128, 0.14);
+  --emerald-soft: rgba(74, 222, 128, 0.12);
   --emerald-strong: #22c55e;
   --crimson: #ff5a63;
-  --crimson-soft: rgba(226, 27, 36, 0.14);
-  --crimson-strong: #e21b24;
-  --text: #f2f3f4;
+  --crimson-soft: rgba(254, 0, 0, 0.12);
+  --crimson-strong: #fe0000;
+  --text: #eef0f2;
   --text-strong: #ffffff;
-  --text-muted: rgba(242, 243, 244, 0.68);
-  --text-dim: rgba(242, 243, 244, 0.48);
+  --text-muted: rgba(238, 240, 242, 0.66);
+  --text-dim: rgba(238, 240, 242, 0.46);
   --danger: #ff5a63;
   --ok: #4ade80;
-  --warn-bg: rgba(251, 191, 36, 0.14);
-  --warn-border: rgba(251, 191, 36, 0.28);
+  --warn-bg: rgba(251, 191, 36, 0.12);
+  --warn-border: rgba(251, 191, 36, 0.26);
   --warn-text: #fcd34d;
   --warn-dot: #f59e0b;
-  --input-bg: rgba(255, 255, 255, 0.04);
-  --spinner-track: rgba(255, 255, 255, 0.12);
-  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  --input-bg: rgba(0, 0, 0, 0.28);
+  --spinner-track: rgba(255, 255, 255, 0.10);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.50), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
   --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.55);
   --bg-gradient:
-    radial-gradient(ellipse 120% 80% at 50% -12%, rgba(226, 27, 36, 0.10), transparent 55%),
-    radial-gradient(ellipse 70% 45% at 100% 100%, rgba(60, 64, 70, 0.35), transparent),
-    linear-gradient(180deg, #181a1c 0%, #121314 45%, #0d0e0f 100%);
+    radial-gradient(ellipse 85% 55% at 0% 100%, rgba(55, 58, 64, 0.40), transparent),
+    radial-gradient(ellipse 75% 50% at 100% 0%, rgba(48, 50, 56, 0.35), transparent),
+    linear-gradient(180deg, #1a1b1e 0%, #141516 50%, #101113 100%);
 }
 
 :root[data-theme='light'] {
@@ -68,17 +69,17 @@
   --stroke: rgba(30, 34, 38, 0.10);
   --stroke-soft: rgba(30, 34, 38, 0.06);
   --stroke-strong: rgba(30, 34, 38, 0.22);
-  --gold: #d41922;
-  --gold-soft-bg: rgba(212, 25, 34, 0.07);
-  --gold-dim: #a81219;
-  --gold-glow: rgba(212, 25, 34, 0.18);
-  --gold-soft: rgba(212, 25, 34, 0.09);
-  --accent: #d41922;
-  --accent-strong: #e21b24;
-  --accent-dim: #a81219;
-  --accent-soft: rgba(212, 25, 34, 0.09);
-  --accent-glow: rgba(212, 25, 34, 0.18);
-  --accent-grad: linear-gradient(135deg, #e21b24 0%, #d41922 50%, #a81219 100%);
+  --gold: #e60000;
+  --gold-soft-bg: rgba(230, 0, 0, 0.07);
+  --gold-dim: #b30000;
+  --gold-glow: rgba(230, 0, 0, 0.18);
+  --gold-soft: rgba(230, 0, 0, 0.09);
+  --accent: #e60000;
+  --accent-strong: #fe0000;
+  --accent-dim: #b30000;
+  --accent-soft: rgba(230, 0, 0, 0.09);
+  --accent-glow: rgba(230, 0, 0, 0.18);
+  --accent-grad: linear-gradient(135deg, #fe0000 0%, #e60000 50%, #b30000 100%);
   --indigo: #5c636b;
   --indigo-soft: rgba(92, 99, 107, 0.10);
   --emerald: #12824f;
@@ -102,7 +103,7 @@
   --shadow-card: 0 10px 40px rgba(20, 24, 28, 0.07), 0 0 0 1px rgba(30, 34, 38, 0.06);
   --shadow-pop: 0 20px 60px rgba(20, 24, 28, 0.14);
   --bg-gradient:
-    radial-gradient(ellipse 130% 80% at 50% -10%, rgba(212, 25, 34, 0.05), transparent 50%),
+    radial-gradient(ellipse 130% 80% at 50% -10%, rgba(254, 0, 0, 0.05), transparent 50%),
     radial-gradient(ellipse 80% 50% at 100% 0%, rgba(80, 88, 96, 0.06), transparent),
     linear-gradient(180deg, #f7f8f9 0%, #eceeef 50%, #e4e6e8 100%);
 }

@@ -83,10 +83,10 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpen
     <aside className={`cg-sidebar${pinned ? ' cg-sidebar--pinned' : ''}`}>
       <div className="cg-sidebar__brand">
         <span className="cg-sidebar__brand-mark">
-          <img src="/logo_reactivo1.png" alt="REAKTIVO PRO" />
+          <img src="/logo-reaktivo-mark.svg" alt="" />
         </span>
         <div className="cg-sidebar__brand-text">
-          <span className="cg-sidebar__brand-title">REAKTIVO <b>PRO</b></span>
+          <span className="cg-sidebar__brand-title">Reaktivo <b>PRO</b></span>
           <span className="cg-sidebar__brand-sub">панель оценки</span>
         </div>
         <button
@@ -323,15 +323,14 @@ const SIDEBAR_CSS = `
 .cg-sidebar__brand-mark {
   width: 34px; height: 34px;
   border-radius: 9px;
-  background: var(--accent);
+  background: transparent;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
   box-shadow: 0 2px 8px var(--accent-glow);
 }
 .cg-sidebar__brand-mark img {
-  width: 26px; height: 26px; object-fit: contain;
-  filter: brightness(0) invert(1);
+  width: 100%; height: 100%; object-fit: cover;
 }
 .cg-sidebar__brand-text {
   display: flex; flex-direction: column;

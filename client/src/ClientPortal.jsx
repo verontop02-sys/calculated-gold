@@ -133,9 +133,9 @@ export function ClientPortal() {
       <header className="cpx-topbar">
         <span className="cpx-brand">
           <span className="cpx-brand-mark">
-            <img src="/logo_reactivo1.png" alt="REAKTIVO" />
+            <img src="/logo-reaktivo-mark.svg" alt="" />
           </span>
-          REAKTIVO <span className="cpx-brand-pro">кабинет</span>
+          Reaktivo <span className="cpx-brand-pro">кабинет</span>
         </span>
         {phase === 'authed' && (
           <button type="button" className="cpx-logout" onClick={logout}>
@@ -483,11 +483,11 @@ const CSS = `
   color: #fff;
 }
 .cpx-brand-mark {
-  width: 38px; height: 38px; border-radius: 11px; background: #fff;
+  width: 38px; height: 38px; border-radius: 10px; background: transparent;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
-  box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 18px rgba(254, 0, 0, 0.35);
 }
-.cpx-brand-mark img { width: 100%; height: 100%; object-fit: contain; padding: 5px; box-sizing: border-box; }
+.cpx-brand-mark img { width: 100%; height: 100%; object-fit: cover; box-sizing: border-box; }
 .cpx-brand-pro { font-size: 0.72rem; font-weight: 600; color: var(--cpx-accent); letter-spacing: 0.12em; text-transform: uppercase; }
 .cpx-logout {
   border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.06);

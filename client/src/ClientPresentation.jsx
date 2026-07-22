@@ -123,7 +123,7 @@ export function ClientPresentation({ open, onClose, formatMoney, price, weight, 
         <header className="cg-cp__header">
           <div className="cg-cp__brand">
             <span className="cg-cp__brand-mark">
-              <img src="/logo_reactivo1.png" alt={brandName} />
+              <img src="/logo-reaktivo-mark.svg" alt={brandName} />
             </span>
             <span className="cg-cp__brand-name">{brandName}</span>
           </div>
@@ -171,9 +171,9 @@ ${CLIENT_RESULT_CSS}
   position: fixed; inset: 0;
   z-index: 200;
   background:
-    radial-gradient(ellipse 110% 75% at 50% -15%, rgba(226, 27, 36, 0.14), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(74, 222, 128, 0.08), transparent 60%),
-    linear-gradient(180deg, #181a1c 0%, #121314 100%);
+    radial-gradient(ellipse 80% 50% at 0% 100%, rgba(55, 58, 64, 0.35), transparent 60%),
+    radial-gradient(ellipse 70% 45% at 100% 0%, rgba(48, 50, 56, 0.30), transparent 55%),
+    linear-gradient(180deg, #1a1b1e 0%, #141516 100%);
   color: #f4f5f7;
   color-scheme: dark;
   display: flex;
@@ -217,13 +217,13 @@ ${CLIENT_RESULT_CSS}
 .cg-cp__brand-mark {
   width: 44px; height: 44px;
   border-radius: 12px;
-  background: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  border: none;
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
-  box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 18px rgba(254, 0, 0, 0.35);
 }
-.cg-cp__brand-mark img { width: 100%; height: 100%; object-fit: contain; padding: 5px; box-sizing: border-box; }
+.cg-cp__brand-mark img { width: 100%; height: 100%; object-fit: cover; box-sizing: border-box; }
 .cg-cp__brand-name {
   font-size: 1.05rem;
   font-weight: 700;

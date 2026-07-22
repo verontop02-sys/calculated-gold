@@ -94,7 +94,7 @@ export function Login() {
       <div className="lg-stage">
         <header className="lg-head lg-anim" style={{ '--d': '0ms' }}>
           <span className="lg-mark" aria-hidden>
-            <img src="/logo_reactivo1.png" alt="" />
+            <img src="/logo-reaktivo-mark.svg" alt="" />
           </span>
           <h1 className="lg-brand">
             Reaktivo<span className="lg-brand-dot">.</span>PRO
@@ -102,11 +102,13 @@ export function Login() {
         </header>
 
         <div className="lg-cards">
-          {/* ── Вход для сотрудников (на всю высоту колонки) ── */}
+          {/* ── Вход для сотрудников ── */}
           <section className="lg-card lg-card--staff lg-anim" style={{ '--d': '90ms' }}>
-            <span className="lg-badge">Для сотрудников</span>
-            <h2 className="lg-card-title">Вход в панель</h2>
-            <p className="lg-card-sub">Калькулятор выкупа, договоры, аналитика и команда</p>
+            <div className="lg-staff-copy">
+              <span className="lg-badge lg-badge--solid">Для сотрудников</span>
+              <h2 className="lg-card-title">Вход в панель</h2>
+              <p className="lg-card-sub">Калькулятор выкупа, договоры, аналитика и команда</p>
+            </div>
 
             <form onSubmit={handleSubmit} className="lg-form">
               <label className="lg-field">
@@ -182,7 +184,7 @@ export function Login() {
               </li>
             </ul>
 
-            <a className="lg-client-btn" href={CLIENT_SITE_URL} target="_blank" rel="noopener noreferrer">
+            <a className="lg-client-btn lg-client-btn--fill" href={CLIENT_SITE_URL} target="_blank" rel="noopener noreferrer">
               Перейти на Reaktivo.ru
               <span aria-hidden>→</span>
             </a>
@@ -193,13 +195,13 @@ export function Login() {
             <span className="lg-badge lg-badge--solid">Кабинет</span>
             <h2 className="lg-card-title">Вход для клиентов</h2>
             <p className="lg-card-sub">
-              Завести карту Reaktivo, Ваш золотой счет, управление доходностью
+              Выпустить карту Reaktivo, Ваш золотой счет, управление доходностью
             </p>
 
             <ul className="lg-perks lg-perks--compact">
               <li>
                 <span className="lg-perk-ico" aria-hidden>✓</span>
-                Карта Reaktivo
+                Выпуск карты Reaktivo
               </li>
               <li>
                 <span className="lg-perk-ico" aria-hidden>✓</span>
@@ -250,19 +252,19 @@ const CSS = `
   will-change: transform;
 }
 .lg-orb--a {
-  top: -18%; left: -8%;
-  width: 46vw; height: 46vw;
+  top: -20%; left: -12%;
+  width: 48vw; height: 48vw;
   max-width: 640px; max-height: 640px;
-  background: radial-gradient(circle, var(--accent-glow), transparent 65%);
-  opacity: 0.45;
+  background: radial-gradient(circle, rgba(90, 94, 102, 0.35), transparent 65%);
+  opacity: 0.7;
   animation: lgFloatA 16s ease-in-out infinite alternate;
 }
 .lg-orb--b {
   bottom: -22%; right: -10%;
-  width: 40vw; height: 40vw;
-  max-width: 560px; max-height: 560px;
-  background: radial-gradient(circle, rgba(120, 128, 136, 0.28), transparent 65%);
-  opacity: 0.75;
+  width: 44vw; height: 44vw;
+  max-width: 620px; max-height: 620px;
+  background: radial-gradient(circle, rgba(70, 74, 82, 0.40), transparent 65%);
+  opacity: 0.85;
   animation: lgFloatB 19s ease-in-out infinite alternate;
 }
 @keyframes lgFloatA { from { transform: translate3d(0,0,0); } to { transform: translate3d(4vw, 3vh, 0); } }
@@ -290,7 +292,7 @@ const CSS = `
   position: relative;
   z-index: 2;
   width: 100%;
-  max-width: 980px;
+  max-width: 920px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -311,18 +313,18 @@ const CSS = `
 .lg-head { display: flex; align-items: center; gap: 18px; }
 .lg-mark {
   width: 72px; height: 72px;
-  border-radius: 18px;
-  background: #0d0e0f;
-  border: 1px solid var(--stroke);
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
+  border-radius: 16px;
+  background: transparent;
+  border: none;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
   flex-shrink: 0;
 }
 .lg-mark img {
-  width: 118%;
-  height: 118%;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   display: block;
 }
 .lg-brand {
@@ -338,21 +340,21 @@ const CSS = `
   color: var(--accent);
 }
 
-/* ── карточки: слева вход на 2 ряда, справа два блока ── */
+/* ── карточки: сверху вход, снизу два равных клиентских блока ── */
 .lg-cards {
   display: grid;
-  grid-template-columns: 1.08fr 0.92fr;
-  grid-template-rows: auto auto;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    "staff staff"
+    "sell client";
   gap: 14px;
   width: 100%;
   align-items: stretch;
 }
-.lg-card--staff {
-  grid-column: 1;
-  grid-row: 1 / span 2;
-}
-.lg-card--sell { grid-column: 2; grid-row: 1; }
-.lg-card--client { grid-column: 2; grid-row: 2; }
+.lg-card--staff { grid-area: staff; }
+.lg-card--sell { grid-area: sell; }
+.lg-card--client { grid-area: client; }
+
 .lg-card {
   border-radius: 20px;
   padding: 26px 26px 24px;
@@ -363,6 +365,30 @@ const CSS = `
   display: flex;
   flex-direction: column;
 }
+
+/* Сотрудники: текст слева, компактная форма справа — без пустоты */
+.lg-card--staff {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(240px, 320px);
+  gap: 28px 36px;
+  align-items: center;
+  padding: 28px 30px;
+}
+.lg-staff-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+.lg-staff-copy .lg-badge { margin-bottom: 12px; }
+.lg-staff-copy .lg-card-title {
+  font-size: clamp(1.35rem, 1.15rem + 0.8vw, 1.7rem);
+}
+.lg-staff-copy .lg-card-sub {
+  margin-top: 10px;
+  max-width: 34ch;
+}
+
 :root[data-theme='dark'] .lg-card--staff {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0) 38%),
@@ -412,9 +438,9 @@ const CSS = `
 .lg-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  margin-top: 22px;
-  flex: 1;
+  gap: 12px;
+  margin: 0;
+  width: 100%;
 }
 .lg-field { display: flex; flex-direction: column; gap: 6px; }
 .lg-field-label {
@@ -426,7 +452,7 @@ const CSS = `
 }
 .lg-err { color: var(--danger); font-size: 0.84rem; margin: 0; }
 .lg-submit {
-  margin-top: auto;
+  margin-top: 4px;
   width: 100%;
   padding: 13px 18px;
   border: none;
@@ -453,40 +479,32 @@ const CSS = `
 .lg-card--client {
   position: relative;
   overflow: hidden;
-  border-color: color-mix(in srgb, var(--accent) 26%, var(--stroke-soft));
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--stroke-soft));
+  padding-bottom: 28px;
+  min-height: 360px;
 }
 .lg-card--sell {
-  background:
-    linear-gradient(165deg, color-mix(in srgb, var(--accent) 16%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 62%);
+  background: var(--bg-panel-solid);
 }
 .lg-card--client {
-  background:
-    linear-gradient(165deg, color-mix(in srgb, var(--accent) 10%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 70%);
+  background: var(--bg-panel-solid);
 }
 :root[data-theme='dark'] .lg-card--sell {
-  background:
-    linear-gradient(165deg, color-mix(in srgb, var(--accent) 22%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 64%);
+  background: var(--bg-panel-solid);
 }
 :root[data-theme='dark'] .lg-card--client {
-  background:
-    linear-gradient(165deg, color-mix(in srgb, var(--accent) 14%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 68%);
+  background: var(--bg-panel-solid);
 }
 .lg-card--sell::before,
 .lg-card--client::before {
-  content: '';
-  position: absolute;
-  top: -40%; right: -28%;
-  width: 85%; height: 95%;
-  background: radial-gradient(circle, var(--accent-soft), transparent 62%);
-  opacity: 0.75;
-  pointer-events: none;
+  display: none;
 }
 .lg-card--sell > *,
 .lg-card--client > * { position: relative; }
 
 .lg-perks {
   list-style: none;
-  margin: 16px 0 0;
+  margin: 16px 0 28px;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -513,7 +531,8 @@ const CSS = `
 }
 
 .lg-client-btn {
-  margin-top: auto;
+  margin-top: 0;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -552,14 +571,17 @@ const CSS = `
 @media (max-width: 760px) {
   .lg-cards {
     grid-template-columns: 1fr;
-    grid-template-rows: none;
+    grid-template-areas:
+      "staff"
+      "sell"
+      "client";
   }
-  .lg-card--staff,
-  .lg-card--sell,
-  .lg-card--client {
-    grid-column: auto;
-    grid-row: auto;
+  .lg-card--staff {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 22px 20px 20px;
   }
+  .lg-staff-copy .lg-card-sub { max-width: none; }
   .lg-card { padding: 22px 20px 20px; }
   .lg-stage { gap: 18px; }
   .lg-mark { width: 60px; height: 60px; border-radius: 15px; }

@@ -15,6 +15,7 @@ import { createCanvas, loadImage } from '@napi-rs/canvas';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const CANDIDATES = [
+  join(__dirname, '..', 'client', 'public', 'logo-reaktivo-mark.svg'),
   join(__dirname, '..', 'client', 'public', 'logo_reactivo1.png'),
   join(__dirname, '..', 'logo_reactivo1.png'),
 ];

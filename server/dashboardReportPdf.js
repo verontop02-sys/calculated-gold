@@ -299,7 +299,17 @@ export async function buildDashboardReportPdf(payload) {
   }
 
   const docDef = {
-    ...baseDocDefinition(C, { footerLabel: 'REAKTIVO PRO · отчёт по дашборду', pageW: PAGE_W, marginX: MARGIN_X }),
+    ...baseDocDefinition(C, {
+      footerLabel: 'REAKTIVO PRO · отчёт по дашборду',
+      pageW: PAGE_W,
+      marginX: MARGIN_X,
+      pageHeader: {
+        sectionTitle: 'Сводка дашборда',
+        authorName: payload?.userName || '',
+        generatedAt: nowStr,
+        logo: images.brandLogo || null,
+      },
+    }),
     content,
   };
   if (Object.keys(images).length) docDef.images = images;

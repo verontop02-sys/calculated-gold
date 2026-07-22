@@ -365,7 +365,7 @@ const MOBNAV_CSS = `
   width: 40px; height: 40px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--gold), var(--gold-dim));
-  color: #1c1108;
+  color: #fff;
   font-weight: 700;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 2px 10px var(--gold-glow);

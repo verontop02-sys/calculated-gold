@@ -183,7 +183,19 @@ export async function buildTeamPerformancePdfBuffer(data, options = {}) {
   }
 
   const docDef = {
-    ...baseDocDefinition(C, { footerLabel: 'REAKTIVO PRO · команда и KPI', pageW: PAGE_W, pageH: PAGE_H, marginX: PAGE_MARGIN_X, orientation: 'landscape' }),
+    ...baseDocDefinition(C, {
+      footerLabel: 'REAKTIVO PRO · команда и KPI',
+      pageW: PAGE_W,
+      pageH: PAGE_H,
+      marginX: PAGE_MARGIN_X,
+      orientation: 'landscape',
+      pageHeader: {
+        sectionTitle: 'Команда и KPI',
+        authorName: options?.authorName || '',
+        generatedAt: nowStr,
+        logo: logo || null,
+      },
+    }),
     content,
   };
   if (Object.keys(images).length) docDef.images = images;
