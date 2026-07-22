@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { fintechApi, getFintechToken, setFintechToken } from './api.js';
+import { fintechApi, getFintechToken, setFintechToken, onFintechSessionExpired } from './api.js';
 import { openFintechStatementReport } from './fintechStatementReport.js';
 
 const DOC_LABELS = {
@@ -84,6 +84,13 @@ export function FintechInvest({ initialPhone = '' }) {
     loadProfile();
   }, [loadProfile]);
 
+  // Сессия могла истечь не только при первой загрузке, но и в середине работы
+  // (покупка, загрузка документа, обновление ledger) — в этом случае тихо возвращаем на вход.
+  useEffect(() => onFintechSessionExpired(() => {
+    setProfile(null);
+    setPhase('login');
+  }), []);
+
   // Пока документы на проверке — тихо обновляем статус, чтобы не заставлять жать «Обновить».
   useEffect(() => {
     if (profile?.status !== 'pending_review') return undefined;
@@ -135,6 +142,7 @@ function FintechLogin({ initialPhone, onDone }) {
   const [busy, setBusy] = useState(false);
   const [phoneMasked, setPhoneMasked] = useState('');
   const [resendIn, setResendIn] = useState(0);
+  const [smsWarn, setSmsWarn] = useState('');
 
   useEffect(() => {
     if (resendIn <= 0) return undefined;
@@ -153,6 +161,7 @@ function FintechLogin({ initialPhone, onDone }) {
     try {
       const out = await fintechApi.requestCode(`7${phone}`);
       setPhoneMasked(out.phoneMasked || '');
+      setSmsWarn(out.smsOk === false ? 'СМС не удалось отправить. Подождите немного и нажмите «Отправить код ещё раз» — либо свяжитесь с менеджером.' : '');
       setStep('code');
       setResendIn(60);
     } catch (e2) {
@@ -214,6 +223,7 @@ function FintechLogin({ initialPhone, onDone }) {
       {step === 'code' && (
         <form onSubmit={verifyCode} className="cpx-form">
           <p className="cpx-code-hint">Код отправлен на {phoneMasked || 'ваш номер'}. Введите 6 цифр из SMS.</p>
+          {smsWarn && <p className="cpx-err" style={{ color: 'var(--warn-dot)' }}>{smsWarn}</p>}
           <label className="cpx-field">
             <span className="cpx-field-label">Код из SMS</span>
             <input
@@ -231,7 +241,7 @@ function FintechLogin({ initialPhone, onDone }) {
             {busy ? <><span className="cpx-spinner" /> Проверяем…</> : 'Войти'}
           </button>
           <div className="cpx-code-actions">
-            <button type="button" className="cpx-link" onClick={() => { setStep('phone'); setCode(''); setErr(''); }}>
+            <button type="button" className="cpx-link" onClick={() => { setStep('phone'); setCode(''); setErr(''); setSmsWarn(''); }}>
               Изменить номер
             </button>
             <button type="button" className="cpx-link" disabled={resendIn > 0 || busy} onClick={requestCode}>

@@ -17,6 +17,11 @@ const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const REQUIRED_DOC_TYPES = ['passport_main', 'selfie'];
+const DOC_TYPE_LABELS = {
+  passport_main: 'паспорт (разворот с фото)',
+  passport_registration: 'паспорт (страница с регистрацией)',
+  selfie: 'селфи с паспортом',
+};
 
 function secretPepper() {
   const p = (process.env.FIELD_DEAL_CODE_PEPPER || process.env.SUPABASE_SERVICE_ROLE_KEY || 'dev-only').trim();
@@ -290,12 +295,14 @@ export async function uploadKycDocument(supabase, { clientId, docType, base64, m
     .single();
   if (insErr) throw insErr;
 
-  // Новый документ обесценивает предыдущий отказ — модератору нужно посмотреть заново.
+  // Статус клиента НЕ переключаем здесь: пока не загружены все обязательные документы
+  // и не нажата явная «Отправить на проверку» (submitForReview), заявка не должна улетать
+  // модератору. Снимаем только старую причину отказа, чтобы не путать клиента при новой попытке.
   await supabase
     .from('fintech_clients')
-    .update({ status: 'pending_review', reject_reason: null, updated_at: new Date().toISOString() })
+    .update({ reject_reason: null, updated_at: new Date().toISOString() })
     .eq('id', clientId)
-    .in('status', ['new', 'rejected']);
+    .eq('status', 'rejected');
 
   return { id: doc.id, docType: doc.doc_type, status: doc.status, createdAt: doc.created_at };
 }
@@ -310,7 +317,7 @@ export async function submitForReview(supabase, clientId) {
   const types = new Set((docs || []).map((d) => d.doc_type));
   const missing = REQUIRED_DOC_TYPES.filter((t) => !types.has(t));
   if (missing.length) {
-    const err = new Error(`Загрузите документы: ${missing.join(', ')}`);
+    const err = new Error(`Загрузите документы: ${missing.map((t) => DOC_TYPE_LABELS[t] || t).join(', ')}`);
     err.status = 400;
     throw err;
   }

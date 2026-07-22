@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { clientApi, getClientToken, setClientToken } from './api.js';
 import { FintechInvest } from './FintechInvest.jsx';
+import { ThemeToggle } from './ThemeToggle.jsx';
 
 function formatMoney(n) {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -138,11 +139,14 @@ export function ClientPortal() {
           </span>
           Reaktivo <span className="cpx-brand-pro">кабинет</span>
         </span>
-        {phase === 'authed' && (
-          <button type="button" className="cpx-logout" onClick={logout}>
-            Выйти
-          </button>
-        )}
+        <div className="cpx-topbar-actions">
+          <ThemeToggle />
+          {phase === 'authed' && (
+            <button type="button" className="cpx-logout" onClick={logout}>
+              Выйти
+            </button>
+          )}
+        </div>
       </header>
 
       <main className="cpx-main">
@@ -444,22 +448,24 @@ function ClientDeals({ onAuthExpired }) {
 }
 
 const CSS = `
+/* Палитра кабинета клиента алиасится на общие токены REAKTIVO PRO (index.css) —
+   те же переменные, что использует админ-панель, поэтому цвета совпадают 1 в 1
+   и переключаются вместе со светлой/тёмной темой (data-theme на <html>). */
 .cpx-root {
-  --cpx-bg: #0e1116;
-  --cpx-panel: #ffffff;
-  --cpx-ink: #1a1d23;
-  --cpx-muted: #6b7280;
-  --cpx-stroke: #e6e8ec;
-  --cpx-accent: #b8893a;
-  --cpx-accent-soft: rgba(184, 137, 58, 0.12);
-  --cpx-gold: #a9772b;
-  --cpx-emerald: #1e6b4f;
+  --cpx-bg: var(--bg-deep);
+  --cpx-panel: var(--bg-panel-solid);
+  --cpx-ink: var(--text);
+  --cpx-muted: var(--text-muted);
+  --cpx-stroke: var(--stroke);
+  --cpx-accent: var(--accent);
+  --cpx-accent-soft: var(--accent-soft);
+  --cpx-gold: var(--accent);
+  --cpx-emerald: var(--emerald);
   position: relative;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(1200px 600px at 50% -10%, #1b2230 0%, #0e1116 60%);
+  background: var(--bg-gradient), var(--bg-deep);
   color: var(--cpx-ink);
   font-family: var(--font-ui, system-ui, sans-serif);
   overflow-x: hidden;
@@ -471,8 +477,8 @@ const CSS = `
   pointer-events: none;
   z-index: 0;
 }
-.cpx-orb--a { top: -10%; left: -8%; width: 44vw; height: 44vw; max-width: 560px; max-height: 560px; background: radial-gradient(circle, rgba(184,137,58,0.35), transparent 65%); }
-.cpx-orb--b { bottom: -14%; right: -10%; width: 40vw; height: 40vw; max-width: 520px; max-height: 520px; background: radial-gradient(circle, rgba(30,107,79,0.3), transparent 65%); }
+.cpx-orb--a { top: -10%; left: -8%; width: 44vw; height: 44vw; max-width: 560px; max-height: 560px; background: radial-gradient(circle, var(--accent-glow), transparent 65%); }
+.cpx-orb--b { bottom: -14%; right: -10%; width: 40vw; height: 40vw; max-width: 520px; max-height: 520px; background: radial-gradient(circle, var(--emerald-soft), transparent 65%); }
 
 .cpx-topbar {
   position: relative;
@@ -489,34 +495,35 @@ const CSS = `
   display: flex; align-items: center; gap: 10px;
   font-family: var(--font-display, serif);
   font-size: 1.15rem; font-weight: 700; letter-spacing: 0.04em;
-  color: #fff;
+  color: var(--text-strong);
 }
 .cpx-brand-mark {
   width: 38px; height: 38px; border-radius: 10px; background: transparent;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
-  box-shadow: 0 4px 18px rgba(254, 0, 0, 0.35);
+  box-shadow: 0 4px 18px var(--accent-glow);
 }
 .cpx-brand-mark img { width: 100%; height: 100%; object-fit: cover; box-sizing: border-box; }
 .cpx-brand-pro { font-size: 0.72rem; font-weight: 600; color: var(--cpx-accent); letter-spacing: 0.12em; text-transform: uppercase; }
+.cpx-topbar-actions { display: flex; align-items: center; gap: 10px; }
 .cpx-logout {
-  border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.06);
-  color: #fff; border-radius: 9px; padding: 8px 14px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--stroke-strong); background: var(--stroke);
+  color: var(--text-strong); border-radius: 9px; padding: 8px 14px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
   transition: background 0.16s;
 }
-.cpx-logout:hover { background: rgba(255,255,255,0.14); }
+.cpx-logout:hover { background: var(--stroke-strong); }
 
 .cpx-main {
   position: relative; z-index: 2;
   flex: 1; width: 100%; max-width: 720px; margin: 0 auto; padding: 8px 20px 28px;
 }
-.cpx-center { color: #fff; text-align: center; padding: 60px 0; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.cpx-center { color: var(--text-strong); text-align: center; padding: 60px 0; display: flex; align-items: center; justify-content: center; gap: 10px; }
 
 .cpx-card {
   background: var(--cpx-panel);
   border: 1px solid var(--cpx-stroke);
   border-radius: 18px;
   padding: 22px 20px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.18);
+  box-shadow: var(--shadow-card);
   margin-bottom: 14px;
 }
 .cpx-login { max-width: 440px; margin: 24px auto 0; }
@@ -530,14 +537,15 @@ const CSS = `
 .cpx-field-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; color: var(--cpx-muted); }
 .cpx-field input, .cpx-phone input {
   width: 100%; padding: 13px 14px; border-radius: 11px; border: 1px solid var(--cpx-stroke);
-  font-size: 1rem; color: var(--cpx-ink); background: #fff; box-sizing: border-box; outline: none;
+  font-size: 1rem; color: var(--cpx-ink); background: var(--input-bg); box-sizing: border-box; outline: none;
   transition: border-color 0.16s, box-shadow 0.16s;
 }
+.cpx-field input::placeholder, .cpx-phone input::placeholder { color: var(--text-dim); }
 .cpx-field input:focus, .cpx-phone input:focus { border-color: var(--cpx-accent); box-shadow: 0 0 0 3px var(--cpx-accent-soft); }
 .cpx-phone { display: flex; align-items: stretch; gap: 8px; }
 .cpx-phone-prefix {
   display: flex; align-items: center; padding: 0 14px; border-radius: 11px;
-  border: 1px solid var(--cpx-stroke); background: #f6f7f9; font-weight: 700; color: var(--cpx-ink);
+  border: 1px solid var(--cpx-stroke); background: var(--surface); font-weight: 700; color: var(--cpx-ink);
 }
 .cpx-phone input { flex: 1; min-width: 0; }
 .cpx-code-input { letter-spacing: 0.5em; font-size: 1.4rem; text-align: center; font-weight: 700; }
@@ -545,9 +553,9 @@ const CSS = `
 
 .cpx-btn {
   margin-top: 4px; width: 100%; padding: 14px 18px; border: none; border-radius: 12px;
-  background: linear-gradient(135deg, #c79544, #a9772b); color: #fff; font-size: 0.95rem; font-weight: 700;
+  background: var(--accent-grad); color: #fff; font-size: 0.95rem; font-weight: 700;
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
-  box-shadow: 0 6px 22px rgba(169,119,43,0.35); transition: filter 0.16s, transform 0.14s;
+  box-shadow: 0 6px 22px var(--accent-glow); transition: filter 0.16s, transform 0.14s;
 }
 .cpx-btn:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-1px); }
 .cpx-btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -557,29 +565,29 @@ const CSS = `
 .cpx-link:disabled { color: var(--cpx-muted); cursor: not-allowed; }
 .cpx-link:hover:not(:disabled) { text-decoration: underline; }
 
-.cpx-err { color: #d14343; font-size: 0.85rem; margin: 0; }
+.cpx-err { color: var(--crimson); font-size: 0.85rem; margin: 0; }
 
-.cpx-tabs { display: flex; gap: 8px; margin-bottom: 14px; background: rgba(255,255,255,0.08); padding: 5px; border-radius: 13px; }
+.cpx-tabs { display: flex; gap: 8px; margin-bottom: 14px; background: var(--stroke); padding: 5px; border-radius: 13px; }
 .cpx-tab {
   flex: 1; padding: 11px 14px; border: none; border-radius: 9px; background: transparent;
-  color: rgba(255,255,255,0.75); font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.16s, color 0.16s;
+  color: var(--text-muted); font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.16s, color 0.16s;
 }
-.cpx-tab--on { background: #fff; color: var(--cpx-ink); box-shadow: 0 3px 12px rgba(0,0,0,0.2); }
+.cpx-tab--on { background: var(--cpx-panel); color: var(--cpx-ink); box-shadow: 0 3px 12px rgba(0,0,0,0.2); }
 
 .cpx-calc-fields { display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; }
 .cpx-probes { display: flex; gap: 8px; flex-wrap: wrap; }
 .cpx-probe {
-  padding: 10px 16px; border-radius: 10px; border: 1px solid var(--cpx-stroke); background: #fff;
+  padding: 10px 16px; border-radius: 10px; border: 1px solid var(--cpx-stroke); background: var(--cpx-panel);
   color: var(--cpx-muted); font-size: 0.92rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
 }
 .cpx-probe--on { background: var(--cpx-accent-soft); border-color: var(--cpx-accent); color: var(--cpx-gold); }
 
 .cpx-result {
   text-align: center; padding: 22px 16px; border-radius: 14px;
-  background: linear-gradient(135deg, rgba(184,137,58,0.1), rgba(184,137,58,0.04));
+  background: var(--cpx-accent-soft);
   border: 1px solid var(--cpx-accent-soft);
 }
-.cpx-result--empty { background: #f6f7f9; border-color: var(--cpx-stroke); }
+.cpx-result--empty { background: var(--surface); border-color: var(--cpx-stroke); }
 .cpx-result-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--cpx-muted); font-weight: 700; }
 .cpx-result-range { font-family: var(--font-display, serif); font-size: 1.7rem; font-weight: 700; color: var(--cpx-gold); margin: 8px 0 4px; line-height: 1.2; }
 .cpx-dash { color: var(--cpx-muted); font-weight: 400; }
@@ -601,7 +609,7 @@ const CSS = `
 .cpx-deal-row-name { color: var(--cpx-ink); }
 .cpx-deal-row-price { color: var(--cpx-muted); white-space: nowrap; }
 
-.cpx-foot { position: relative; z-index: 2; text-align: center; padding: 18px; font-size: 0.72rem; color: rgba(255,255,255,0.5); }
+.cpx-foot { position: relative; z-index: 2; text-align: center; padding: 18px; font-size: 0.72rem; color: var(--text-dim); }
 
 .cpx-spinner {
   width: 1em; height: 1em; border-radius: 50%;
@@ -616,8 +624,8 @@ const CSS = `
 }
 
 /* ── Инвестиции (fintech-кабинет): расширения общего дизайна кабинета ───── */
-.cpx-fin-banner { border-color: rgba(212, 25, 34, 0.25); background: linear-gradient(135deg, rgba(212,25,34,0.08), transparent); }
-.cpx-fin-banner-title { font-weight: 700; color: #b23c3c; display: block; margin-bottom: 4px; }
+.cpx-fin-banner { border-color: var(--crimson-soft); background: linear-gradient(135deg, var(--crimson-soft), transparent); }
+.cpx-fin-banner-title { font-weight: 700; color: var(--crimson); display: block; margin-bottom: 4px; }
 
 .cpx-fin-form-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 .cpx-fin-form-row .cpx-field { flex: 1; min-width: 160px; }
@@ -626,11 +634,11 @@ const CSS = `
 .cpx-fin-doc-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--cpx-stroke); flex-wrap: wrap; }
 .cpx-fin-doc-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .cpx-fin-doc-label { font-size: 0.88rem; font-weight: 600; color: var(--cpx-ink); }
-.cpx-fin-doc-reason { font-size: 0.78rem; color: #b23c3c; }
+.cpx-fin-doc-reason { font-size: 0.78rem; color: var(--crimson); }
 .cpx-fin-badge { font-size: 0.7rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; width: fit-content; }
-.cpx-fin-badge--pending { background: #fff3d6; color: #8a6300; }
-.cpx-fin-badge--approved { background: #e3f5ea; color: var(--cpx-emerald); }
-.cpx-fin-badge--rejected { background: #fdeaea; color: #b23c3c; }
+.cpx-fin-badge--pending { background: rgba(251, 191, 36, 0.16); color: var(--warn-dot); }
+.cpx-fin-badge--approved { background: var(--emerald-soft); color: var(--cpx-emerald); }
+.cpx-fin-badge--rejected { background: var(--crimson-soft); color: var(--crimson); }
 .cpx-fin-doc-btn {
   padding: 10px 14px; border-radius: 10px; border: 1px solid var(--cpx-accent); background: transparent;
   color: var(--cpx-gold); font-weight: 700; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; gap: 6px;
@@ -640,24 +648,24 @@ const CSS = `
 
 .cpx-fin-pending-icon { color: var(--cpx-accent); margin-bottom: 6px; }
 .cpx-fin-doc-status-list { width: 100%; display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
-.cpx-fin-doc-status-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 9px 12px; border-radius: 10px; background: #f6f7f9; }
+.cpx-fin-doc-status-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 9px 12px; border-radius: 10px; background: var(--surface); }
 
 .cpx-fin-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .cpx-fin-kpi { background: var(--cpx-panel); border: 1px solid var(--cpx-stroke); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
 .cpx-fin-kpi--hero { background: linear-gradient(135deg, var(--cpx-accent-soft), transparent); border-color: var(--cpx-accent-soft); }
 .cpx-fin-kpi--pos .cpx-fin-kpi-value { color: var(--cpx-emerald); }
-.cpx-fin-kpi--neg .cpx-fin-kpi-value { color: #d14343; }
+.cpx-fin-kpi--neg .cpx-fin-kpi-value { color: var(--crimson); }
 .cpx-fin-kpi-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--cpx-muted); font-weight: 700; }
 .cpx-fin-kpi-value { font-size: 1.12rem; font-weight: 700; color: var(--cpx-ink); }
 .cpx-fin-kpi-pct { font-size: 0.76rem; font-weight: 600; }
 
-.cpx-fin-topup-hint { display: flex; align-items: flex-start; gap: 10px; background: #f6f4ee; border-color: var(--cpx-accent-soft); }
+.cpx-fin-topup-hint { display: flex; align-items: flex-start; gap: 10px; background: var(--cpx-accent-soft); border-color: var(--cpx-accent-soft); }
 .cpx-fin-topup-icon { color: var(--cpx-gold); font-weight: 700; flex-shrink: 0; }
 .cpx-fin-topup-hint p { margin: 0; font-size: 0.84rem; color: var(--cpx-ink); line-height: 1.5; }
 
-.cpx-fin-mode-switch { display: flex; gap: 8px; background: #f6f7f9; padding: 4px; border-radius: 11px; }
+.cpx-fin-mode-switch { display: flex; gap: 8px; background: var(--surface); padding: 4px; border-radius: 11px; }
 .cpx-fin-mode-btn { flex: 1; padding: 10px 12px; border: none; border-radius: 8px; background: transparent; color: var(--cpx-muted); font-weight: 600; font-size: 0.85rem; cursor: pointer; }
-.cpx-fin-mode-btn--on { background: #fff; color: var(--cpx-ink); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.cpx-fin-mode-btn--on { background: var(--cpx-panel); color: var(--cpx-ink); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
 .cpx-fin-estimate { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--cpx-gold); }
 .cpx-fin-ok { color: var(--cpx-emerald); font-size: 0.85rem; margin: 0; font-weight: 600; }
 
@@ -670,7 +678,7 @@ const CSS = `
 .cpx-fin-ledger-date { font-size: 0.75rem; color: var(--cpx-muted); }
 .cpx-fin-ledger-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .cpx-fin-pos { color: var(--cpx-emerald); font-weight: 600; }
-.cpx-fin-neg { color: #d14343; font-weight: 600; }
+.cpx-fin-neg { color: var(--crimson); font-weight: 600; }
 
 .cpx-btn--sm { width: auto; padding: 11px 18px; flex-shrink: 0; margin-top: 0; }
 `;

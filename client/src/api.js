@@ -466,6 +466,13 @@ export const clientApi = {
 
 // ── Fintech-кабинет (вход по телефону + SMS-код, отдельная сессия от clientApi) ──
 const FINTECH_TOKEN_KEY = 'cg_fintech_token';
+const FINTECH_SESSION_EXPIRED_EVENT = 'cg:fintech-session-expired';
+
+/** Подписка на истечение fintech-сессии (401 в любой момент, не только при первой загрузке). */
+export function onFintechSessionExpired(fn) {
+  window.addEventListener(FINTECH_SESSION_EXPIRED_EVENT, fn);
+  return () => window.removeEventListener(FINTECH_SESSION_EXPIRED_EVENT, fn);
+}
 
 export function getFintechToken() {
   try {
@@ -495,6 +502,10 @@ async function fintechFetch(path, opts = {}) {
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) {
+    if (r.status === 401) {
+      setFintechToken('');
+      window.dispatchEvent(new CustomEvent(FINTECH_SESSION_EXPIRED_EVENT));
+    }
     const err = new Error(j.error || `Ошибка ${r.status}`);
     err.status = r.status;
     err.code = j.code;
