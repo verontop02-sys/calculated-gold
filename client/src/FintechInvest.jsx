@@ -54,7 +54,7 @@ function formatPhoneInput(raw) {
  * Дизайн переиспользует общие cpx-* стили кабинета (см. ClientPortal.jsx) —
  * никакой отдельной темы/CSS-блока здесь нет, чтобы вкладка не выглядела чужой.
  */
-export function FintechInvest({ initialPhone = '' }) {
+export function FintechInvest({ clientToken = '' }) {
   const [phase, setPhase] = useState('checking'); // checking | login | app
   const [profile, setProfile] = useState(null);
   const [loadErr, setLoadErr] = useState('');
@@ -77,12 +77,21 @@ export function FintechInvest({ initialPhone = '' }) {
   }, []);
 
   useEffect(() => {
-    if (!getFintechToken()) {
-      setPhase('login');
+    if (getFintechToken()) {
+      loadProfile();
       return;
     }
-    loadProfile();
-  }, [loadProfile]);
+    // Телефон уже подтверждён SMS-кодом в общем кабинете (клиент вошёл на /kabinet) —
+    // не спрашиваем код повторно, тихо выпускаем fintech-сессию тем же номером.
+    if (clientToken) {
+      fintechApi
+        .sessionFromClient(clientToken)
+        .then(() => loadProfile())
+        .catch(() => setPhase('login'));
+      return;
+    }
+    setPhase('login');
+  }, [loadProfile, clientToken]);
 
   // Сессия могла истечь не только при первой загрузке, но и в середине работы
   // (покупка, загрузка документа, обновление ledger) — в этом случае тихо возвращаем на вход.
@@ -99,7 +108,7 @@ export function FintechInvest({ initialPhone = '' }) {
   }, [profile?.status, loadProfile]);
 
   if (phase === 'login') {
-    return <FintechLogin initialPhone={initialPhone} onDone={loadProfile} />;
+    return <FintechLogin onDone={loadProfile} />;
   }
 
   if (phase === 'checking') {
@@ -134,9 +143,9 @@ export function FintechInvest({ initialPhone = '' }) {
 }
 
 // ── Вход (телефон + SMS-код) — 1 в 1 с главным логином кабинета ────────────
-function FintechLogin({ initialPhone, onDone }) {
+function FintechLogin({ onDone }) {
   const [step, setStep] = useState('phone');
-  const [phone, setPhone] = useState(formatPhoneInput(initialPhone));
+  const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);

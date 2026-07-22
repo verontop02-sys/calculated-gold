@@ -284,7 +284,7 @@ function IconLogout() {
   );
 }
 
-const SIDEBAR_CSS = `
+export const SIDEBAR_CSS = `
 /* ─── Sidebar — slide-in drawer ────────────────────────────────────────────
    Not pinned: hidden off-screen, 4px accent strip visible as hover trigger.
    Pinned: 240px fixed, content shifted.

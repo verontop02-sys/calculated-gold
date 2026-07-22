@@ -65,6 +65,7 @@ import {
   requestFintechCode,
   verifyFintechCode,
   verifyFintechToken,
+  exchangeClientSessionForFintech,
   getClientProfile as getFintechClientProfile,
   updateClientContactInfo,
   uploadKycDocument,
@@ -1185,6 +1186,22 @@ app.post(
   asyncHandler(async (req, res) => {
     try {
       const out = await verifyFintechCode(supabase, { phone: req.body?.phone, code: req.body?.code });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+// Клиент уже вошёл в общий кабинет (calc/deals) по SMS-коду — тот же номер телефона,
+// повторный код для вкладки «Инвестиции» не нужен. Принимает clientApi-токен (Authorization).
+app.post(
+  '/api/public/fintech-auth/from-client-session',
+  asyncHandler(async (req, res) => {
+    try {
+      const session = verifyClientToken(clientTokenFromReq(req));
+      if (!session) return res.status(401).json({ error: 'Сессия недействительна, войдите снова' });
+      const out = await exchangeClientSessionForFintech(supabase, { phoneNormalized: session.phoneNormalized });
       res.json(out);
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message || 'Ошибка' });

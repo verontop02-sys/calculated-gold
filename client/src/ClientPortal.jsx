@@ -2,6 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { clientApi, getClientToken, setClientToken } from './api.js';
 import { FintechInvest } from './FintechInvest.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
+import { ClientSidebar } from './ClientSidebar.jsx';
+
+const TAB_TITLES = { calc: 'Калькулятор', history: 'Мои сделки', invest: 'Инвестиции' };
+const TAB_SUBTITLES = {
+  calc: 'Оценка золота по текущему биржевому курсу',
+  history: 'История ваших сделок с Reaktivo',
+  invest: 'Золотой счёт: покупка, баланс, выписки',
+};
+
+function maskPhoneClient(normalized) {
+  const d = String(normalized || '').replace(/\D/g, '');
+  return d.length >= 4 ? `+7 ••• ••• ${d.slice(-4, -2)} ${d.slice(-2)}` : '';
+}
 
 function formatMoney(n) {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -52,6 +65,23 @@ export function ClientPortal() {
   const [busy, setBusy] = useState(false);
   const [phoneMasked, setPhoneMasked] = useState('');
   const [resendIn, setResendIn] = useState(0);
+  const [phoneNormalized, setPhoneNormalized] = useState('');
+  const [sidebarPinned, setSidebarPinned] = useState(() => {
+    try {
+      const v = localStorage.getItem('cpx_sidebar_pinned');
+      return v == null ? true : v === '1';
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('cpx_sidebar_pinned', sidebarPinned ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [sidebarPinned]);
 
   // Проверяем сохранённый токен.
   useEffect(() => {
@@ -61,7 +91,10 @@ export function ClientPortal() {
     }
     clientApi
       .me()
-      .then(() => setPhase('authed'))
+      .then((out) => {
+        setPhoneNormalized(out?.phoneNormalized || '');
+        setPhase('authed');
+      })
       .catch(() => {
         setClientToken('');
         setPhase('login');
@@ -108,6 +141,7 @@ export function ClientPortal() {
     setBusy(true);
     try {
       await clientApi.verify(`7${phoneDigits}`, c);
+      setPhoneNormalized(phoneDigits);
       setPhase('authed');
       setCode('');
     } catch (e2) {
@@ -127,6 +161,50 @@ export function ClientPortal() {
     setPhoneMasked('');
   }, []);
 
+  if (phase === 'authed') {
+    return (
+      <div className={`cpx-root cpx-shell${sidebarPinned ? ' cpx-shell--pinned' : ''}`}>
+        <ClientSidebar
+          tab={tab}
+          onChange={setTab}
+          phoneMasked={maskPhoneClient(phoneNormalized)}
+          onSignOut={logout}
+          pinned={sidebarPinned}
+          onPinnedChange={setSidebarPinned}
+        />
+
+        <div className="cpx-shell__main">
+          <header className="cpx-topbar cpx-topbar--shell">
+            <div className="cpx-topbar__title">
+              <h1 className="cpx-topbar__heading">{TAB_TITLES[tab] || 'Кабинет'}</h1>
+              <p className="cpx-topbar__sub">{TAB_SUBTITLES[tab] || ''}</p>
+            </div>
+            <div className="cpx-topbar-actions">
+              <ThemeToggle />
+              <button type="button" className="cpx-logout" onClick={logout}>
+                Выйти
+              </button>
+            </div>
+          </header>
+
+          <main className="cpx-shell__content">
+            {tab === 'calc' && <ClientCalculator />}
+            {tab === 'history' && <ClientDeals onAuthExpired={logout} />}
+            {tab === 'invest' && <FintechInvest clientToken={getClientToken()} />}
+          </main>
+
+          <nav className="cpx-mobile-tabs" aria-label="Разделы">
+            <button type="button" className={`cpx-mobile-tab${tab === 'calc' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('calc')}>Калькулятор</button>
+            <button type="button" className={`cpx-mobile-tab${tab === 'history' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('history')}>Сделки</button>
+            <button type="button" className={`cpx-mobile-tab${tab === 'invest' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('invest')}>Инвестиции</button>
+          </nav>
+        </div>
+
+        <style>{CSS}</style>
+      </div>
+    );
+  }
+
   return (
     <div className="cpx-root">
       <div className="cpx-orb cpx-orb--a" aria-hidden />
@@ -141,11 +219,6 @@ export function ClientPortal() {
         </span>
         <div className="cpx-topbar-actions">
           <ThemeToggle />
-          {phase === 'authed' && (
-            <button type="button" className="cpx-logout" onClick={logout}>
-              Выйти
-            </button>
-          )}
         </div>
       </header>
 
@@ -226,38 +299,6 @@ export function ClientPortal() {
                 </div>
               </form>
             )}
-          </div>
-        )}
-
-        {phase === 'authed' && (
-          <div className="cpx-authed">
-            <div className="cpx-tabs">
-              <button
-                type="button"
-                className={`cpx-tab${tab === 'calc' ? ' cpx-tab--on' : ''}`}
-                onClick={() => setTab('calc')}
-              >
-                Калькулятор
-              </button>
-              <button
-                type="button"
-                className={`cpx-tab${tab === 'history' ? ' cpx-tab--on' : ''}`}
-                onClick={() => setTab('history')}
-              >
-                Мои сделки
-              </button>
-              <button
-                type="button"
-                className={`cpx-tab${tab === 'invest' ? ' cpx-tab--on' : ''}`}
-                onClick={() => setTab('invest')}
-              >
-                Инвестиции
-              </button>
-            </div>
-
-            {tab === 'calc' && <ClientCalculator />}
-            {tab === 'history' && <ClientDeals onAuthExpired={logout} />}
-            {tab === 'invest' && <FintechInvest initialPhone={phone} />}
           </div>
         )}
       </main>
@@ -480,6 +521,69 @@ const CSS = `
 .cpx-orb--a { top: -10%; left: -8%; width: 44vw; height: 44vw; max-width: 560px; max-height: 560px; background: radial-gradient(circle, var(--accent-glow), transparent 65%); }
 .cpx-orb--b { bottom: -14%; right: -10%; width: 40vw; height: 40vw; max-width: 520px; max-height: 520px; background: radial-gradient(circle, var(--emerald-soft), transparent 65%); }
 
+/* ── Shell-раскладка авторизованного кабинета: сайдбар + топбар + контент,
+   1 в 1 повторяет структуру и переменные админ-панели (App.jsx cg-shell). ── */
+.cpx-shell { display: block; background: var(--bg-gradient), var(--bg-deep); background-attachment: fixed; }
+.cpx-shell__main {
+  padding-left: 0;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  transition: padding-left 0.26s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+.cpx-shell--pinned .cpx-shell__main { padding-left: 240px; }
+@media (max-width: 900px) { .cpx-shell__main { padding-left: 0 !important; } }
+
+.cpx-topbar--shell {
+  max-width: none;
+  margin: 0;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 60px;
+  border-bottom: 1px solid var(--stroke-soft);
+  background: var(--bg-panel-solid);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+.cpx-topbar__title { min-width: 0; }
+.cpx-topbar__heading { font-size: 0.95rem; font-weight: 600; margin: 0; color: var(--text-strong); letter-spacing: -0.01em; }
+.cpx-topbar__sub { margin: 2px 0 0; font-size: 0.78rem; color: var(--text-dim); }
+
+.cpx-shell__content {
+  flex: 1;
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 22px 24px 90px;
+  box-sizing: border-box;
+}
+@media (max-width: 900px) { .cpx-shell__content { padding: 16px 16px 84px; } }
+
+.cpx-mobile-tabs {
+  display: none;
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 40;
+  background: var(--bg-panel-solid);
+  border-top: 1px solid var(--stroke-soft);
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  gap: 6px;
+}
+@media (max-width: 900px) { .cpx-mobile-tabs { display: flex; } }
+.cpx-mobile-tab {
+  flex: 1;
+  padding: 10px 6px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cpx-mobile-tab--on { background: var(--accent-soft); color: var(--accent); }
+
 .cpx-topbar {
   position: relative;
   z-index: 2;
@@ -566,13 +670,6 @@ const CSS = `
 .cpx-link:hover:not(:disabled) { text-decoration: underline; }
 
 .cpx-err { color: var(--crimson); font-size: 0.85rem; margin: 0; }
-
-.cpx-tabs { display: flex; gap: 8px; margin-bottom: 14px; background: var(--stroke); padding: 5px; border-radius: 13px; }
-.cpx-tab {
-  flex: 1; padding: 11px 14px; border: none; border-radius: 9px; background: transparent;
-  color: var(--text-muted); font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.16s, color 0.16s;
-}
-.cpx-tab--on { background: var(--cpx-panel); color: var(--cpx-ink); box-shadow: 0 3px 12px rgba(0,0,0,0.2); }
 
 .cpx-calc-fields { display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; }
 .cpx-probes { display: flex; gap: 8px; flex-wrap: wrap; }

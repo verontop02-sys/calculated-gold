@@ -152,6 +152,28 @@ export async function requestFintechCode(supabase, { phone, origin }) {
   return out;
 }
 
+/**
+ * Клиент уже подтвердил этот номер телефона SMS-кодом в общем кабинете (клиент-портал,
+ * калькулятор/сделки) — тот же человек, тот же телефон. Чтобы не заставлять его вводить
+ * SMS-код повторно при первом открытии вкладки «Инвестиции», молча выпускаем fintech-сессию
+ * на основании уже верифицированного clientApi-токена (без нового OTP).
+ */
+export async function exchangeClientSessionForFintech(supabase, { phoneNormalized }) {
+  const norm = normalizeFintechPhone(phoneNormalized);
+  if (!norm) {
+    const err = new Error('Некорректный номер телефона');
+    err.status = 400;
+    throw err;
+  }
+  const client = await getOrCreateClient(supabase, norm);
+  return {
+    ok: true,
+    token: signFintechToken(client.id, norm),
+    phoneMasked: maskPhone(norm),
+    status: client.status,
+  };
+}
+
 export async function verifyFintechCode(supabase, { phone, code }) {
   const phoneNormalized = normalizeFintechPhone(phone);
   if (!phoneNormalized) {

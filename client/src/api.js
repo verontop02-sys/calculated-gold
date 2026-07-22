@@ -536,6 +536,21 @@ export const fintechApi = {
     if (j.token) setFintechToken(j.token);
     return j;
   },
+  /**
+   * Клиент уже верифицировал номер по SMS в общем кабинете (calc/deals) — молча
+   * выпускаем fintech-сессию тем же телефоном, без повторного ввода кода.
+   * Требует активный clientApi-токен (см. getClientToken из этого же модуля).
+   */
+  sessionFromClient: async (clientToken) => {
+    const r = await fetch(withBase('/public/fintech-auth/from-client-session'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${clientToken}` },
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    if (j.token) setFintechToken(j.token);
+    return j;
+  },
   profile: () => fintechFetch('/public/fintech/profile'),
   updateProfile: (fullName, email) =>
     fintechFetch('/public/fintech/profile', { method: 'PATCH', body: JSON.stringify({ fullName, email }) }),
