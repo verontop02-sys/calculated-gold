@@ -560,6 +560,8 @@ export const fintechApi = {
   portfolio: () => fintechFetch('/public/fintech/portfolio'),
   ledger: (limit = 100, offset = 0) => fintechFetch(`/public/fintech/ledger?limit=${limit}&offset=${offset}`),
   buy: (payload) => fintechFetch('/public/fintech/buy', { method: 'POST', body: JSON.stringify(payload) }),
+  /** Дневная история курса золота (GLDRUBF) для графика в кабинете. */
+  goldHistory: (days = 365) => fintechFetch(`/public/fintech/gold-history?days=${days}`),
 };
 
 export async function publicFieldDealSessionSendReceipt(token, channel, target) {

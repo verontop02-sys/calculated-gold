@@ -305,3 +305,113 @@ export async function sendDealReceiptTextEmailIfConfigured({ toEmail, subject, t
   });
   return { sent: true, id: j?.id };
 }
+
+/**
+ * Письмо клиенту fintech-кабинета о решении по его заявке (KYC).
+ * decision: 'approved' | 'rejected' | 'blocked'. Best-effort — вызывающий код не должен
+ * падать, если почта не настроена или Resend вернул ошибку.
+ */
+export async function sendFintechDecisionEmailIfConfigured({ toEmail, fullName, decision, rejectReason, cabinetUrl }) {
+  const key = (process.env.RESEND_API_KEY || '').trim();
+  const from = (process.env.DEAL_RECEIPT_EMAIL_FROM || '').trim();
+  if (!key || !from || !toEmail) {
+    if (toEmail) console.info('[email fintech decision] skip: RESEND_API_KEY or DEAL_RECEIPT_EMAIL_FROM missing');
+    return { sent: false, reason: 'not_configured' };
+  }
+
+  const approved = decision === 'approved';
+  const name = String(fullName || '').trim();
+  const greeting = name ? `Здравствуйте, ${name}!` : 'Здравствуйте!';
+  const url = String(cabinetUrl || '').trim();
+
+  const subject = approved
+    ? 'Ваш счёт Reaktivo Invest открыт — добро пожаловать!'
+    : decision === 'blocked'
+      ? 'Доступ к Reaktivo Invest приостановлен'
+      : 'Заявка Reaktivo Invest: требуются уточнения';
+
+  const statusBadge = approved
+    ? '<span style="background:rgba(255,255,255,0.22);color:#ffffff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;letter-spacing:0.04em;">ОДОБРЕНО</span>'
+    : '<span style="background:rgba(255,255,255,0.22);color:#ffffff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;letter-spacing:0.04em;">ТРЕБУЕТСЯ ВНИМАНИЕ</span>';
+
+  const heroBg = approved
+    ? 'linear-gradient(135deg,#12824f,#0f7a4a)'
+    : 'linear-gradient(135deg,#b45309,#92400e)';
+
+  const heroText = approved
+    ? 'Документы проверены — золотой счёт активен'
+    : decision === 'blocked'
+      ? 'Доступ к операциям временно приостановлен'
+      : 'Заявка отклонена — можно загрузить документы повторно';
+
+  const bodyText = approved
+    ? 'Теперь вам доступны покупка золота от 1 грамма, отслеживание стоимости портфеля и история операций в личном кабинете.'
+    : decision === 'blocked'
+      ? 'Для уточнения деталей свяжитесь с менеджером Reaktivo.'
+      : 'Проверьте комментарий модератора ниже, загрузите документы ещё раз — и заявка автоматически уйдёт на повторную проверку.';
+
+  const reasonHtml = !approved && rejectReason
+    ? `<tr><td style="padding:0 32px 18px;">
+         <table width="100%" cellpadding="0" cellspacing="0" style="background:#fdf2f2;border:1px solid #f5c6c6;border-radius:12px;">
+           <tr><td style="padding:14px 18px;">
+             <p style="margin:0;font-size:11px;color:#b23c3c;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;">Комментарий модератора</p>
+             <p style="margin:6px 0 0;font-size:14px;color:#16181d;">${String(rejectReason)}</p>
+           </td></tr>
+         </table>
+       </td></tr>`
+    : '';
+
+  const ctaHtml = url
+    ? `<tr><td style="padding:4px 32px 26px;" align="center">
+         <a href="${url}" style="display:inline-block;background:linear-gradient(135deg,#f0437a 0%,#e02d5f 55%,#c22052 100%);color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 34px;border-radius:12px;">Открыть кабинет</a>
+       </td></tr>`
+    : '';
+
+  const html = `<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${subject}</title></head>
+<body style="margin:0;padding:0;background:#f4f4f6;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:32px 0;">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(20,22,40,0.10);">
+      <tr>
+        <td style="background:linear-gradient(135deg,#f0437a 0%,#e02d5f 55%,#c22052 100%);padding:30px 32px;text-align:center;">
+          <p style="margin:0;font-size:23px;font-weight:800;color:#ffffff;letter-spacing:0.10em;">REAKTIVO <span style="opacity:0.85;">INVEST</span></p>
+          <p style="margin:7px 0 0;font-size:13px;color:#ffffff;opacity:0.85;">Инвестиции в золото · статус заявки</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:24px 32px 12px;">
+          <p style="margin:0;font-size:18px;font-weight:700;color:#16181d;">${greeting}</p>
+          <p style="margin:8px 0 0;font-size:14px;color:#5c6270;line-height:1.55;">${bodyText}</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:6px 32px 18px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:${heroBg};border-radius:16px;">
+            <tr>
+              <td style="padding:20px 22px;">
+                <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:0.08em;">Статус заявки</p>
+                <p style="margin:6px 0 0;font-size:19px;font-weight:800;color:#ffffff;letter-spacing:-0.01em;">${heroText}</p>
+              </td>
+              <td style="padding:20px 22px;text-align:right;vertical-align:middle;">${statusBadge}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      ${reasonHtml}
+      ${ctaHtml}
+      <tr>
+        <td style="padding:0 32px 28px;">
+          <p style="margin:0;font-size:12px;color:#9aa0aa;line-height:1.6;">Это автоматическое письмо сервиса Reaktivo Invest. Если вы не подавали заявку — просто проигнорируйте его или сообщите нам.</p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
+
+  const j = await resendSend({ to: [toEmail], subject, html });
+  return { sent: true, id: j?.id };
+}

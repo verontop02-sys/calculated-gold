@@ -62,6 +62,12 @@ export function ClientSidebar({ tab, onChange, phoneMasked, onSignOut, pinned, o
           </div>
         </div>
         <div className="cg-sidebar__footer-actions">
+          <a className="cg-sidebar__logout" href="/" title="Вернуться на главную страницу" style={{ textDecoration: 'none', boxSizing: 'border-box' }}>
+            <IconHome />
+            <span className="cg-sidebar__logout-label">На главную</span>
+          </a>
+        </div>
+        <div className="cg-sidebar__footer-actions">
           <button type="button" className="cg-sidebar__logout" onClick={onSignOut} title="Выйти">
             <IconLogout />
             <span className="cg-sidebar__logout-label">Выйти</span>
@@ -117,6 +123,15 @@ function IconSidebarOpen() {
       <rect x="3" y="3" width="18" height="18" rx="2.5" />
       <path d="M9 3v18" />
       <path d="M11 9l3 3-3 3" />
+    </svg>
+  );
+}
+function IconHome() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 10.5L12 3l9 7.5" />
+      <path d="M5 9.5V21h14V9.5" />
+      <path d="M10 21v-6h4v6" />
     </svg>
   );
 }

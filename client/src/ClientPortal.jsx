@@ -187,7 +187,7 @@ export function ClientPortal() {
             </div>
           </header>
 
-          <main className="cpx-shell__content">
+          <main className={`cpx-shell__content${tab === 'invest' ? ' cpx-shell__content--wide' : ''}`}>
             {tab === 'calc' && <ClientCalculator />}
             {tab === 'history' && <ClientDeals onAuthExpired={logout} />}
             {tab === 'invest' && <FintechInvest clientToken={getClientToken()} />}
@@ -211,13 +211,14 @@ export function ClientPortal() {
       <div className="cpx-orb cpx-orb--b" aria-hidden />
 
       <header className="cpx-topbar">
-        <span className="cpx-brand">
+        <a className="cpx-brand" href="/" title="На главную страницу" style={{ textDecoration: 'none' }}>
           <span className="cpx-brand-mark">
             <img src="/logo-reaktivo-mark.svg" alt="" />
           </span>
           Reaktivo <span className="cpx-brand-pro">кабинет</span>
-        </span>
+        </a>
         <div className="cpx-topbar-actions">
+          <a className="cpx-logout" href="/" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>← На главную</a>
           <ThemeToggle />
         </div>
       </header>
@@ -558,7 +559,51 @@ const CSS = `
   padding: 22px 24px 90px;
   box-sizing: border-box;
 }
+/* «Инвестиции» — полноценный ПК-дашборд, а не мобильная колонка. */
+.cpx-shell__content--wide { max-width: 1380px; }
 @media (max-width: 900px) { .cpx-shell__content { padding: 16px 16px 84px; } }
+
+/* ── ПК-раскладка дашборда инвестиций ── */
+.cpx-fin-greeting { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
+.cpx-fin-greeting-title { font-family: var(--font-display, serif); font-size: 1.45rem; font-weight: 700; margin: 0; color: var(--text-strong); letter-spacing: -0.02em; }
+.cpx-fin-greeting-sub { margin: 3px 0 0; font-size: 0.82rem; color: var(--text-dim); }
+.cpx-fin-pdf-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 16px; border-radius: 10px;
+  border: 1px solid var(--stroke); background: var(--bg-panel-solid);
+  color: var(--text); font-size: 0.84rem; font-weight: 600; cursor: pointer;
+  transition: border-color 0.16s, color 0.16s, background 0.16s;
+}
+.cpx-fin-pdf-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.cpx-fin-pdf-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.cpx-fin-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+.cpx-fin-main { min-width: 0; }
+.cpx-fin-side { display: flex; flex-direction: column; min-width: 0; position: sticky; top: 76px; }
+@media (max-width: 1120px) {
+  .cpx-fin-layout { grid-template-columns: 1fr; }
+  .cpx-fin-side { position: static; }
+}
+
+.cpx-fin-chart-card { padding: 20px; }
+.cpx-fin-chart-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.cpx-fin-chart-titles { display: flex; flex-direction: column; gap: 4px; }
+.cpx-fin-chart-rate { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.cpx-fin-chart-price { font-size: 1.6rem; font-weight: 700; color: var(--text-strong); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.cpx-fin-chart-per { font-size: 0.85rem; font-weight: 500; color: var(--text-muted); }
+.cpx-fin-chart-delta { font-size: 0.82rem; font-weight: 700; }
+.cpx-fin-chart-upd { font-size: 0.72rem; color: var(--text-dim); }
+.cpx-fin-chart-body { margin: 4px -6px 0; }
+
+.cpx-fin-range { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--stroke-soft); padding: 3px; border-radius: 10px; height: fit-content; }
+.cpx-fin-range-btn {
+  padding: 6px 12px; border: none; border-radius: 7px; background: transparent;
+  color: var(--text-muted); font-size: 0.76rem; font-weight: 700; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.cpx-fin-range-btn--on { background: var(--accent); color: #fff; }
+
+.cpx-fin-buy-card { border-color: var(--accent-soft); }
 
 .cpx-mobile-tabs {
   display: none;

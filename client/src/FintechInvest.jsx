@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { fintechApi, getFintechToken, setFintechToken, onFintechSessionExpired } from './api.js';
 import { openFintechStatementReport } from './fintechStatementReport.js';
 
@@ -316,10 +317,23 @@ function FintechOnboarding({ profile, onUpdated }) {
     && docsByType.get('passport_main').status !== 'rejected'
     && docsByType.get('selfie').status !== 'rejected';
 
+  const missingSteps = [];
+  if (!fullName.trim()) missingSteps.push('укажите ФИО');
+  if (!docsByType.has('passport_main') || docsByType.get('passport_main').status === 'rejected') missingSteps.push('загрузите паспорт (разворот с фото)');
+  if (!docsByType.has('selfie') || docsByType.get('selfie').status === 'rejected') missingSteps.push('загрузите селфи с паспортом');
+
   async function submit() {
     setSubmitting(true);
     setErr('');
     try {
+      if (!fullName.trim()) {
+        setErr('Укажите ФИО — оно нужно модератору для сверки с паспортом');
+        return;
+      }
+      // ФИО/email могли быть введены, но не сохранены кнопкой — сохраняем сами,
+      // чтобы заявка не улетела «Без имени».
+      await fintechApi.updateProfile(fullName, email);
+      setInfoSaved(true);
       await fintechApi.submitForReview();
       await onUpdated?.();
     } catch (e2) {
@@ -377,10 +391,12 @@ function FintechOnboarding({ profile, onUpdated }) {
           })}
         </div>
         {err && <p className="cpx-err">{err}</p>}
-        <button type="button" className="cpx-btn" disabled={!hasRequired || submitting} onClick={submit}>
+        <button type="button" className="cpx-btn" disabled={!hasRequired || !fullName.trim() || submitting} onClick={submit}>
           {submitting ? <><span className="cpx-spinner" /> Отправляем…</> : 'Отправить на проверку'}
         </button>
-        {!hasRequired && <p className="cpx-fin-hint">Загрузите паспорт (разворот) и селфи с паспортом.</p>}
+        {missingSteps.length > 0 && (
+          <p className="cpx-fin-hint">Чтобы отправить заявку: {missingSteps.join(', ')}.</p>
+        )}
       </div>
     </>
   );
@@ -444,6 +460,150 @@ function FintechPendingReview({ profile, onRefresh }) {
       <button type="button" className="cpx-btn cpx-btn--sm" disabled={refreshing} onClick={refresh}>
         {refreshing ? <span className="cpx-spinner" /> : 'Обновить статус'}
       </button>
+    </div>
+  );
+}
+
+// ── График курса золота ─────────────────────────────────────────────────────
+const CHART_RANGES = [
+  { key: '1m', label: '1М', days: 31 },
+  { key: '3m', label: '3М', days: 92 },
+  { key: '6m', label: '6М', days: 183 },
+  { key: '1y', label: '1Г', days: 366 },
+];
+
+function formatChartDate(iso, rangeKey) {
+  try {
+    const d = new Date(`${iso}T00:00:00`);
+    if (rangeKey === '1y' || rangeKey === '6m') {
+      return d.toLocaleDateString('ru-RU', { month: 'short', year: '2-digit' });
+    }
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  } catch {
+    return iso;
+  }
+}
+
+function GoldChartCard({ currentRate, rateUpdatedAt }) {
+  const [points, setPoints] = useState(null); // null = loading, [] = error/empty
+  const [range, setRange] = useState('3m');
+
+  useEffect(() => {
+    let alive = true;
+    fintechApi
+      .goldHistory(366)
+      .then((out) => { if (alive) setPoints(out.points || []); })
+      .catch(() => { if (alive) setPoints([]); });
+    return () => { alive = false; };
+  }, []);
+
+  const visible = useMemo(() => {
+    if (!points?.length) return [];
+    const days = CHART_RANGES.find((r) => r.key === range)?.days || 92;
+    const cutoff = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+    return points.filter((p) => p.date >= cutoff);
+  }, [points, range]);
+
+  const delta = useMemo(() => {
+    if (visible.length < 2) return null;
+    const first = visible[0].price;
+    const last = visible[visible.length - 1].price;
+    if (!first) return null;
+    return Math.round(((last - first) / first) * 1000) / 10;
+  }, [visible]);
+
+  const yDomain = useMemo(() => {
+    if (!visible.length) return ['auto', 'auto'];
+    const values = visible.map((p) => p.price);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const pad = Math.max((max - min) * 0.08, max * 0.004);
+    return [Math.floor(min - pad), Math.ceil(max + pad)];
+  }, [visible]);
+
+  return (
+    <div className="cpx-card cpx-fin-chart-card">
+      <div className="cpx-fin-chart-head">
+        <div className="cpx-fin-chart-titles">
+          <span className="cpx-fin-kpi-label">Курс золота · Мосбиржа GLDRUBF</span>
+          <div className="cpx-fin-chart-rate">
+            <span className="cpx-fin-chart-price">{currentRate != null ? formatMoney(currentRate) : '—'}<span className="cpx-fin-chart-per"> / г</span></span>
+            {delta != null && (
+              <span className={`cpx-fin-chart-delta ${delta >= 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}`}>
+                {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toLocaleString('ru-RU')}% за {CHART_RANGES.find((r) => r.key === range)?.label?.toLowerCase()}
+              </span>
+            )}
+          </div>
+          {rateUpdatedAt && <span className="cpx-fin-chart-upd">обновлено {formatDateTime(rateUpdatedAt)}</span>}
+        </div>
+        <div className="cpx-fin-range">
+          {CHART_RANGES.map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              className={`cpx-fin-range-btn${range === r.key ? ' cpx-fin-range-btn--on' : ''}`}
+              onClick={() => setRange(r.key)}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="cpx-fin-chart-body">
+        {points === null && <div className="cpx-muted" style={{ padding: '40px 0', justifyContent: 'center' }}><span className="cpx-spinner" /> Загружаем график…</div>}
+        {points !== null && visible.length === 0 && <div className="cpx-muted" style={{ padding: '40px 0', justifyContent: 'center' }}>История курса временно недоступна</div>}
+        {visible.length > 1 && (
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={visible} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
+              <defs>
+                <linearGradient id="finGoldFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.32} />
+                  <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--stroke-soft)" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tickFormatter={(v) => formatChartDate(v, range)}
+                tick={{ fill: 'var(--text-dim)', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                minTickGap={42}
+              />
+              <YAxis
+                domain={yDomain}
+                tickFormatter={(v) => `${Math.round(v).toLocaleString('ru-RU')}`}
+                tick={{ fill: 'var(--text-dim)', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                width={52}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: 'var(--bg-panel-solid)',
+                  border: '1px solid var(--stroke)',
+                  borderRadius: 10,
+                  fontSize: 12,
+                  color: 'var(--text)',
+                }}
+                labelStyle={{ color: 'var(--text-muted)', marginBottom: 4 }}
+                formatter={(v) => [`${Number(v).toLocaleString('ru-RU')} ₽/г`, 'Курс']}
+                labelFormatter={(v) => new Date(`${v}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+              />
+              <Area
+                type="monotone"
+                dataKey="price"
+                stroke="var(--accent)"
+                strokeWidth={2.2}
+                fill="url(#finGoldFill)"
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
     </div>
   );
 }
@@ -529,8 +689,20 @@ function FintechDashboard({ profile }) {
   if (loading) return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Загружаем портфель…</div>;
   if (err) return <div className="cpx-card"><p className="cpx-err">{err}</p><button type="button" className="cpx-btn cpx-btn--sm" onClick={load}>Повторить</button></div>;
 
+  const firstName = String(profile?.fullName || '').trim().split(/\s+/)[1] || String(profile?.fullName || '').trim().split(/\s+/)[0] || '';
+
   return (
-    <>
+    <div className="cpx-finx">
+      <div className="cpx-fin-greeting">
+        <div>
+          <h2 className="cpx-fin-greeting-title">{firstName ? `${firstName}, ваш портфель` : 'Ваш портфель'}</h2>
+          <p className="cpx-fin-greeting-sub">Reaktivo Invest · золотой счёт от 1 грамма</p>
+        </div>
+        <button type="button" className="cpx-fin-pdf-btn" disabled={pdfBusy} onClick={downloadStatement}>
+          {pdfBusy ? <><span className="cpx-spinner" /> Готовим…</> : 'Выписка PDF'}
+        </button>
+      </div>
+
       <div className="cpx-fin-kpis">
         <div className="cpx-fin-kpi cpx-fin-kpi--hero">
           <span className="cpx-fin-kpi-label">Золото на счёте</span>
@@ -557,65 +729,71 @@ function FintechDashboard({ profile }) {
         </div>
       </div>
 
-      <div className="cpx-card cpx-fin-topup-hint">
-        <span className="cpx-fin-topup-icon" aria-hidden>ℹ</span>
-        <p>
-          Пополнение — банковским переводом по реквизитам Reaktivo (уточните у менеджера).
-          После поступления средств баланс пополнит модератор — обычно в течение рабочего дня.
-        </p>
-      </div>
+      <div className="cpx-fin-layout">
+        <div className="cpx-fin-main">
+          <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
 
-      <div className="cpx-card">
-        <h2 className="cpx-h2">Купить золото</h2>
-        <form onSubmit={submitBuy} className="cpx-form">
-          <div className="cpx-fin-mode-switch">
-            <button type="button" className={`cpx-fin-mode-btn${mode === 'rub' ? ' cpx-fin-mode-btn--on' : ''}`} onClick={() => { setMode('rub'); setAmount(''); }}>В рублях</button>
-            <button type="button" className={`cpx-fin-mode-btn${mode === 'grams' ? ' cpx-fin-mode-btn--on' : ''}`} onClick={() => { setMode('grams'); setAmount(''); }}>В граммах</button>
+          <div className="cpx-card">
+            <div className="cpx-fin-history-head">
+              <h2 className="cpx-h2">История операций</h2>
+            </div>
+            {ledger.length === 0 && <p className="cpx-muted">Операций пока нет — купите первый грамм, и он появится здесь.</p>}
+            {ledger.map((e) => (
+              <div key={e.id} className="cpx-fin-ledger-row">
+                <div className="cpx-fin-ledger-main">
+                  <span className="cpx-fin-ledger-type">{ENTRY_LABELS[e.entryType] || e.entryType}</span>
+                  <span className="cpx-fin-ledger-date">{formatDateTime(e.createdAt)}</span>
+                </div>
+                <div className="cpx-fin-ledger-right">
+                  {!!e.rubDelta && <span className={e.rubDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.rubDelta > 0 ? '+' : ''}{formatMoney(e.rubDelta)}</span>}
+                  {!!e.goldGramsDelta && <span className={e.goldGramsDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.goldGramsDelta > 0 ? '+' : ''}{formatGrams(e.goldGramsDelta)}</span>}
+                </div>
+              </div>
+            ))}
           </div>
-          <label className="cpx-field">
-            <span className="cpx-field-label">{mode === 'rub' ? 'Сумма, ₽' : 'Вес, г'}</span>
-            <input
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder={mode === 'rub' ? 'например 10000' : 'например 1.5'}
-            />
-          </label>
-          {estimate && (
-            <p className="cpx-fin-estimate">
-              {mode === 'rub' ? `≈ ${formatGrams(estimate.grams)}` : `≈ ${formatMoney(estimate.rub)}`}
-              <span className="cpx-muted" style={{ display: 'inline', fontSize: '0.78rem' }}> (ориентир, точная сумма — при подтверждении)</span>
-            </p>
-          )}
-          {buyErr && <p className="cpx-err">{buyErr}</p>}
-          {buyOk && <p className="cpx-fin-ok">{buyOk}</p>}
-          <button type="submit" className="cpx-btn" disabled={buying}>
-            {buying ? <><span className="cpx-spinner" /> Покупаем…</> : 'Купить'}
-          </button>
-        </form>
-      </div>
-
-      <div className="cpx-card">
-        <div className="cpx-fin-history-head">
-          <h2 className="cpx-h2">История операций</h2>
-          <button type="button" className="cpx-link" disabled={pdfBusy} onClick={downloadStatement}>
-            {pdfBusy ? 'Готовим PDF…' : 'Скачать выписку (PDF)'}
-          </button>
         </div>
-        {ledger.length === 0 && <p className="cpx-muted">Операций пока нет.</p>}
-        {ledger.map((e) => (
-          <div key={e.id} className="cpx-fin-ledger-row">
-            <div className="cpx-fin-ledger-main">
-              <span className="cpx-fin-ledger-type">{ENTRY_LABELS[e.entryType] || e.entryType}</span>
-              <span className="cpx-fin-ledger-date">{formatDateTime(e.createdAt)}</span>
-            </div>
-            <div className="cpx-fin-ledger-right">
-              {!!e.rubDelta && <span className={e.rubDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.rubDelta > 0 ? '+' : ''}{formatMoney(e.rubDelta)}</span>}
-              {!!e.goldGramsDelta && <span className={e.goldGramsDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.goldGramsDelta > 0 ? '+' : ''}{formatGrams(e.goldGramsDelta)}</span>}
-            </div>
+
+        <aside className="cpx-fin-side">
+          <div className="cpx-card cpx-fin-buy-card">
+            <h2 className="cpx-h2">Купить золото</h2>
+            <p className="cpx-sub" style={{ marginBottom: 12 }}>По биржевому курсу, от 1 грамма или на любую сумму.</p>
+            <form onSubmit={submitBuy} className="cpx-form">
+              <div className="cpx-fin-mode-switch">
+                <button type="button" className={`cpx-fin-mode-btn${mode === 'rub' ? ' cpx-fin-mode-btn--on' : ''}`} onClick={() => { setMode('rub'); setAmount(''); }}>В рублях</button>
+                <button type="button" className={`cpx-fin-mode-btn${mode === 'grams' ? ' cpx-fin-mode-btn--on' : ''}`} onClick={() => { setMode('grams'); setAmount(''); }}>В граммах</button>
+              </div>
+              <label className="cpx-field">
+                <span className="cpx-field-label">{mode === 'rub' ? 'Сумма, ₽' : 'Вес, г'}</span>
+                <input
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder={mode === 'rub' ? 'например 10000' : 'например 1.5'}
+                />
+              </label>
+              {estimate && (
+                <p className="cpx-fin-estimate">
+                  {mode === 'rub' ? `≈ ${formatGrams(estimate.grams)}` : `≈ ${formatMoney(estimate.rub)}`}
+                  <span className="cpx-muted" style={{ display: 'inline', fontSize: '0.78rem' }}> (ориентир, точная сумма — при подтверждении)</span>
+                </p>
+              )}
+              {buyErr && <p className="cpx-err">{buyErr}</p>}
+              {buyOk && <p className="cpx-fin-ok">{buyOk}</p>}
+              <button type="submit" className="cpx-btn" disabled={buying}>
+                {buying ? <><span className="cpx-spinner" /> Покупаем…</> : 'Купить золото'}
+              </button>
+            </form>
           </div>
-        ))}
+
+          <div className="cpx-card cpx-fin-topup-hint">
+            <span className="cpx-fin-topup-icon" aria-hidden>ℹ</span>
+            <p>
+              Пополнение — банковским переводом по реквизитам Reaktivo (уточните у менеджера).
+              После поступления средств баланс пополнит модератор — обычно в течение рабочего дня.
+            </p>
+          </div>
+        </aside>
       </div>
-    </>
+    </div>
   );
 }

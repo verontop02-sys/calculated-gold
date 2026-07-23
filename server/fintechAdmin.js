@@ -7,6 +7,7 @@
  * и fintech_clients (reject_reason), отдельная таблица журнала не нужна на этом этапе.
  */
 import { manualTopup as manualTopupOp, getClientPortfolio, getClientLedger } from './fintechLedger.js';
+import { sendFintechDecisionEmailIfConfigured } from './emailDealReceipt.js';
 
 export async function listFintechClients(supabase, { status, q, limit = 50, offset = 0 } = {}) {
   let query = supabase
@@ -148,8 +149,26 @@ export async function decideClientStatus(supabase, { clientId, decision, staffId
     reject_reason: decision === 'approved' ? null : (String(rejectReason || '').trim() || 'Не указана причина'),
     updated_at: new Date().toISOString(),
   };
-  const { error } = await supabase.from('fintech_clients').update(patch).eq('id', clientId);
+  const { data: client, error } = await supabase
+    .from('fintech_clients')
+    .update(patch)
+    .eq('id', clientId)
+    .select('email, full_name')
+    .maybeSingle();
   if (error) throw error;
+
+  // Письмо клиенту о решении — best-effort: сбой почты не должен ломать модерацию.
+  if (client?.email) {
+    const cabinetUrl = (process.env.PUBLIC_APP_ORIGIN || '').trim().replace(/\/$/, '');
+    sendFintechDecisionEmailIfConfigured({
+      toEmail: client.email,
+      fullName: client.full_name,
+      decision,
+      rejectReason: patch.reject_reason,
+      cabinetUrl: cabinetUrl ? `${cabinetUrl}/kabinet` : '',
+    }).catch((e) => console.warn('[fintech decision email]', e?.message || e));
+  }
+
   return { ok: true, status: decision, decidedBy: staffId };
 }
 

@@ -330,6 +330,19 @@ export async function uploadKycDocument(supabase, { clientId, docType, base64, m
 }
 
 export async function submitForReview(supabase, clientId) {
+  // ФИО обязательно — без него модератору не с чем сверять паспорт.
+  const { data: clientRow, error: cliErr } = await supabase
+    .from('fintech_clients')
+    .select('full_name')
+    .eq('id', clientId)
+    .maybeSingle();
+  if (cliErr) throw cliErr;
+  if (!String(clientRow?.full_name || '').trim()) {
+    const err = new Error('Укажите ФИО в данных для регистрации — оно нужно для сверки с паспортом');
+    err.status = 400;
+    throw err;
+  }
+
   const { data: docs, error } = await supabase
     .from('fintech_kyc_documents')
     .select('doc_type')

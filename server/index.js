@@ -1325,6 +1325,61 @@ app.post(
   })
 );
 
+// ── История курса золота для графика в кабинете (дневные свечи GLDRUBF) ─────
+const MOEX_GOLD_CANDLES_URL =
+  'https://iss.moex.com/iss/engines/futures/markets/forts/securities/GLDRUBF/candles.json';
+
+async function fetchGoldHistoryDaily(days) {
+  const cacheKey = `fintech_gold_history:${days}`;
+  const hit = cacheGet(cacheKey);
+  if (hit) return hit;
+
+  const from = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  const points = [];
+  let start = 0;
+  // ISS отдаёт максимум 500 свечей за запрос — листаем, годовая история влезает в 1-2 страницы.
+  for (let page = 0; page < 8; page++) {
+    const { data } = await axios.get(MOEX_GOLD_CANDLES_URL, {
+      params: { 'iss.meta': 'off', interval: 24, from, start },
+      timeout: 20000,
+      headers: { 'User-Agent': 'CalculatedGold/1.0' },
+      validateStatus: (s) => s === 200,
+    });
+    const cols = data?.candles?.columns || [];
+    const rows = data?.candles?.data || [];
+    if (!rows.length) break;
+    const iClose = cols.indexOf('close');
+    const iBegin = cols.indexOf('begin');
+    for (const r of rows) {
+      const close = Number(r[iClose]);
+      const date = String(r[iBegin] || '').slice(0, 10);
+      if (Number.isFinite(close) && close > 0 && date) points.push({ date, price: close });
+    }
+    if (rows.length < 500) break;
+    start += rows.length;
+  }
+
+  const out = { points, source: 'moex', security: 'GLDRUBF' };
+  if (points.length) cacheSet(cacheKey, out, 30 * 60 * 1000);
+  return out;
+}
+
+app.get(
+  '/api/public/fintech/gold-history',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const days = Math.min(1830, Math.max(30, Number(req.query.days) || 365));
+      const out = await fetchGoldHistoryDaily(days);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось загрузить историю курса' });
+    }
+  })
+);
+
 // ── Доверенные устройства: подтверждение кодом с почты при первом входе ─────
 // До authMiddleware: JWT проверяем сами, а enforcement устройства здесь не нужен —
 // иначе было бы невозможно подтвердить новое устройство.

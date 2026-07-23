@@ -172,6 +172,7 @@ function ClientDetailPanel({ clientId, toast, onChanged, onClose }) {
   const [topupAmount, setTopupAmount] = useState('');
   const [topupComment, setTopupComment] = useState('');
   const [topupBusy, setTopupBusy] = useState(false);
+  const [docPreview, setDocPreview] = useState(null); // { url, label, isPdf }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -188,10 +189,13 @@ function ClientDetailPanel({ clientId, toast, onChanged, onClose }) {
 
   useEffect(() => { load(); }, [load]);
 
-  async function viewDoc(docId) {
+  async function viewDoc(docId, label) {
     try {
       const out = await api.fintechAdminDocSignedUrl(docId);
-      if (out.url) window.open(out.url, '_blank', 'noopener');
+      if (!out.url) return;
+      // Просмотр в окне на странице; PDF браузер показывает через iframe.
+      const isPdf = /\.pdf(\?|$)/i.test(out.url);
+      setDocPreview({ url: out.url, label: label || 'Документ', isPdf });
     } catch (e) {
       toast?.(e?.message || 'Не удалось открыть документ', 'error');
     }
@@ -293,7 +297,7 @@ function ClientDetailPanel({ clientId, toast, onChanged, onClose }) {
                 <span className={`fea-badge fea-badge--${d.status}`}>{d.status === 'approved' ? 'Одобрено' : d.status === 'rejected' ? 'Отклонено' : 'На проверке'}</span>
               </div>
               <div className="fea-doc-actions">
-                <button type="button" className="fea-btn-sm" onClick={() => viewDoc(d.id)}>Открыть</button>
+                <button type="button" className="fea-btn-sm" onClick={() => viewDoc(d.id, DOC_LABEL[d.docType] || d.docType)}>Открыть</button>
                 {d.status !== 'approved' && (
                   <button type="button" className="fea-btn-sm fea-btn-sm--ok" disabled={busyDoc === d.id} onClick={() => reviewDoc(d.id, 'approved')}>Одобрить</button>
                 )}
@@ -366,7 +370,39 @@ function ClientDetailPanel({ clientId, toast, onChanged, onClose }) {
           </div>
         ))}
       </div>
+
+      {docPreview && <DocPreviewModal preview={docPreview} onClose={() => setDocPreview(null)} />}
     </>
+  );
+}
+
+/** Просмотр KYC-документа в окне поверх страницы (Ruslan: «окошечко на странице»). */
+function DocPreviewModal({ preview, onClose }) {
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fea-modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label={preview.label}>
+      <div className="fea-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="fea-modal-head">
+          <span className="fea-modal-title">{preview.label}</span>
+          <div className="fea-modal-head-actions">
+            <a className="fea-btn-sm" href={preview.url} target="_blank" rel="noopener noreferrer">В новой вкладке</a>
+            <button type="button" className="fea-btn-sm" onClick={onClose}>Закрыть ✕</button>
+          </div>
+        </div>
+        <div className="fea-modal-body">
+          {preview.isPdf ? (
+            <iframe src={preview.url} title={preview.label} className="fea-modal-frame" />
+          ) : (
+            <img src={preview.url} alt={preview.label} className="fea-modal-img" />
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -447,4 +483,36 @@ const CSS = `
 
 .fea-spinner { width: 1em; height: 1em; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; display: inline-block; animation: feaSpin 0.7s linear infinite; }
 @keyframes feaSpin { to { transform: rotate(360deg); } }
+
+.fea-modal-backdrop {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(8, 9, 12, 0.72);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  animation: cgFadeIn 160ms ease;
+}
+.fea-modal {
+  background: var(--bg-panel-solid);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  max-width: min(920px, 94vw);
+  max-height: 92vh;
+  width: 100%;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+}
+.fea-modal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--stroke-soft);
+  flex-shrink: 0;
+}
+.fea-modal-title { font-weight: 700; font-size: 0.9rem; color: var(--text-strong); }
+.fea-modal-head-actions { display: flex; gap: 8px; align-items: center; }
+.fea-modal-head-actions a { text-decoration: none; display: inline-flex; align-items: center; }
+.fea-modal-body { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; background: var(--surface); min-height: 240px; }
+.fea-modal-img { max-width: 100%; max-height: calc(92vh - 60px); object-fit: contain; display: block; }
+.fea-modal-frame { width: 100%; height: calc(92vh - 60px); border: none; }
 `;
