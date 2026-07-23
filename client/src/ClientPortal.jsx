@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { clientApi, getClientToken, setClientToken, fintechApi, getFintechToken } from './api.js';
 import { FintechInvest } from './FintechInvest.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
@@ -280,7 +280,7 @@ export function ClientPortal() {
             </div>
           </header>
 
-          <main className={`cpx-shell__content${tab === 'invest' || tab === 'home' || tab === 'settings' ? ' cpx-shell__content--wide' : ''}`}>
+          <main className={`cpx-shell__content${tab === 'invest' || tab === 'home' || tab === 'settings' || tab === 'history' ? ' cpx-shell__content--wide' : ''}`}>
             {tab === 'home' && (
               <ClientHome
                 hasPin={hasPin}
@@ -1126,6 +1126,8 @@ function ClientDeals({ onAuthExpired }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [openId, setOpenId] = useState(null);
+  const [q, setQ] = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -1142,53 +1144,176 @@ function ClientDeals({ onAuthExpired }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const deals = useMemo(() => {
+    const list = data?.deals || [];
+    const needle = q.trim().toLowerCase();
+    if (!needle) return list;
+    return list.filter((d) => {
+      const hay = [
+        d.contractNo,
+        d.firstProbe,
+        ...(Array.isArray(d.rows) ? d.rows.map((r) => [r.itemName, r.probe, r.metal].filter(Boolean).join(' ')) : []),
+      ].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(needle) || formatMoney(d.totalRub).toLowerCase().includes(needle);
+    });
+  }, [data?.deals, q]);
+
   if (loading) return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Загружаем сделки…</div>;
   if (err) return <div className="cpx-card cpx-err">{err}</div>;
 
-  const deals = data?.deals || [];
+  const avg = (data?.dealsCount > 0 && data?.totalRub != null)
+    ? Math.round(Number(data.totalRub) / Number(data.dealsCount))
+    : null;
 
   return (
     <div className="cpx-deals">
-      <div className="cpx-card cpx-deals-summary">
-        <div className="cpx-summary-item">
-          <span className="cpx-summary-k">Всего сделок</span>
-          <span className="cpx-summary-v">{data?.dealsCount ?? 0}</span>
+      <div className="cpx-deals-kpis">
+        <div className="cpx-deals-kpi">
+          <span className="cpx-deals-kpi-label">Всего сделок</span>
+          <span className="cpx-deals-kpi-value">{data?.dealsCount ?? 0}</span>
         </div>
-        <div className="cpx-summary-item">
-          <span className="cpx-summary-k">На сумму</span>
-          <span className="cpx-summary-v cpx-summary-v--gold">{formatMoney(data?.totalRub)}</span>
+        <div className="cpx-deals-kpi cpx-deals-kpi--accent">
+          <span className="cpx-deals-kpi-label">На сумму</span>
+          <span className="cpx-deals-kpi-value">{formatMoney(data?.totalRub)}</span>
+        </div>
+        <div className="cpx-deals-kpi">
+          <span className="cpx-deals-kpi-label">Средний чек</span>
+          <span className="cpx-deals-kpi-value">{formatMoney(avg)}</span>
+        </div>
+        <div className="cpx-deals-kpi">
+          <span className="cpx-deals-kpi-label">Последняя</span>
+          <span className="cpx-deals-kpi-value cpx-deals-kpi-value--sm">{formatDate(data?.deals?.[0]?.createdAt) || '—'}</span>
         </div>
       </div>
 
-      {deals.length === 0 && (
-        <div className="cpx-card cpx-muted">Сделок по вашему номеру пока нет.</div>
-      )}
-
-      {deals.map((d) => (
-        <div key={d.id} className="cpx-card cpx-deal">
-          <div className="cpx-deal-head">
-            <div>
-              <div className="cpx-deal-no">{d.contractNo ? `Договор № ${d.contractNo}` : 'Без номера'}</div>
-              <div className="cpx-deal-date">{formatDate(d.createdAt)}</div>
-            </div>
-            <div className="cpx-deal-sum">{formatMoney(d.totalRub)}</div>
+      <div className="cpx-card cpx-deals-panel">
+        <div className="cpx-deals-toolbar">
+          <div>
+            <h2 className="cpx-deals-panel-title">История сделок</h2>
+            <p className="cpx-deals-panel-sub">Скупки по вашему номеру телефона</p>
           </div>
-          {Array.isArray(d.rows) && d.rows.length > 0 && (
-            <ul className="cpx-deal-rows">
-              {d.rows.filter((r) => r.itemName || r.probe || r.priceRub).map((r, i) => (
-                <li key={i} className="cpx-deal-row">
-                  <span className="cpx-deal-row-name">
-                    {r.itemName || 'Изделие'}
-                    {r.probe ? ` · проба ${r.probe}` : ''}
-                    {r.weightGross ? ` · ${r.weightGross} г` : ''}
-                  </span>
-                  {r.priceRub != null && <span className="cpx-deal-row-price">{formatMoney(r.priceRub)}</span>}
-                </li>
-              ))}
-            </ul>
-          )}
+          <input
+            className="cpx-deals-search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Поиск: договор, изделие, проба…"
+          />
         </div>
-      ))}
+
+        {deals.length === 0 ? (
+          <p className="cpx-muted" style={{ margin: '8px 0 0' }}>
+            {q.trim() ? 'Ничего не найдено по запросу.' : 'Сделок по вашему номеру пока нет.'}
+          </p>
+        ) : (
+          <>
+            {/* Desktop table */}
+            <div className="cpx-deals-table-wrap">
+              <table className="cpx-deals-table">
+                <thead>
+                  <tr>
+                    <th>Дата</th>
+                    <th>Договор</th>
+                    <th>Состав</th>
+                    <th>Проба / вес</th>
+                    <th className="cpx-deals-num">Сумма</th>
+                    <th aria-label="Подробнее" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {deals.map((d) => {
+                    const rows = Array.isArray(d.rows) ? d.rows.filter((r) => r.itemName || r.probe || r.priceRub) : [];
+                    const preview = rows.slice(0, 2).map((r) => r.itemName || 'Изделие').join(', ')
+                      || (d.firstProbe ? `Проба ${d.firstProbe}` : '—');
+                    const more = rows.length > 2 ? ` +${rows.length - 2}` : '';
+                    const probe = d.firstProbe || rows.find((r) => r.probe)?.probe || '—';
+                    const weight = d.firstWeightGross ?? rows.find((r) => r.weightGross)?.weightGross;
+                    const open = openId === d.id;
+                    return (
+                      <Fragment key={d.id}>
+                        <tr className={open ? 'cpx-deals-tr--open' : ''} onClick={() => setOpenId(open ? null : d.id)}>
+                          <td className="cpx-deals-date">{formatDate(d.createdAt)}</td>
+                          <td className="cpx-deals-contract">{d.contractNo ? `№ ${d.contractNo}` : 'Без номера'}</td>
+                          <td className="cpx-deals-items">{preview}{more}</td>
+                          <td className="cpx-deals-meta">
+                            {probe !== '—' ? `пр. ${probe}` : '—'}
+                            {weight != null ? ` · ${weight} г` : ''}
+                          </td>
+                          <td className="cpx-deals-num cpx-deals-sum">{formatMoney(d.totalRub)}</td>
+                          <td className="cpx-deals-chevron">{open ? '▾' : '▸'}</td>
+                        </tr>
+                        {open && (
+                          <tr className="cpx-deals-detail-tr">
+                            <td colSpan={6}>
+                              {rows.length === 0 ? (
+                                <p className="cpx-muted" style={{ margin: 0 }}>Детализация по позициям недоступна.</p>
+                              ) : (
+                                <table className="cpx-deals-detail">
+                                  <thead>
+                                    <tr>
+                                      <th>Изделие</th>
+                                      <th>Металл</th>
+                                      <th>Проба</th>
+                                      <th className="cpx-deals-num">Вес, г</th>
+                                      <th className="cpx-deals-num">Сумма</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {rows.map((r, i) => (
+                                      <tr key={i}>
+                                        <td>{r.itemName || 'Изделие'}</td>
+                                        <td>{r.metal || '—'}</td>
+                                        <td>{r.probe || '—'}</td>
+                                        <td className="cpx-deals-num">{r.weightGross ?? r.weightNet ?? '—'}</td>
+                                        <td className="cpx-deals-num">{r.priceRub != null ? formatMoney(r.priceRub) : '—'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="cpx-deals-cards">
+              {deals.map((d) => {
+                const rows = Array.isArray(d.rows) ? d.rows.filter((r) => r.itemName || r.probe || r.priceRub) : [];
+                return (
+                  <div key={d.id} className="cpx-deal-card">
+                    <div className="cpx-deal-head">
+                      <div>
+                        <div className="cpx-deal-no">{d.contractNo ? `Договор № ${d.contractNo}` : 'Без номера'}</div>
+                        <div className="cpx-deal-date">{formatDate(d.createdAt)}</div>
+                      </div>
+                      <div className="cpx-deal-sum">{formatMoney(d.totalRub)}</div>
+                    </div>
+                    {rows.length > 0 && (
+                      <ul className="cpx-deal-rows">
+                        {rows.map((r, i) => (
+                          <li key={i} className="cpx-deal-row">
+                            <span className="cpx-deal-row-name">
+                              {r.itemName || 'Изделие'}
+                              {r.probe ? ` · проба ${r.probe}` : ''}
+                              {r.weightGross ? ` · ${r.weightGross} г` : ''}
+                            </span>
+                            {r.priceRub != null && <span className="cpx-deal-row-price">{formatMoney(r.priceRub)}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -1573,6 +1698,79 @@ const CSS = `
 .cpx-dash { color: var(--cpx-muted); font-weight: 400; }
 .cpx-result-mid { font-size: 0.82rem; color: var(--cpx-muted); }
 .cpx-quote-meta { margin: 14px 0 0; font-size: 0.76rem; color: var(--cpx-muted); text-align: center; }
+
+.cpx-deals { max-width: 1400px; margin: 0 auto; width: 100%; }
+.cpx-deals-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+@media (max-width: 900px) { .cpx-deals-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cpx-deals-kpi {
+  background: var(--cpx-panel); border: 1px solid var(--cpx-stroke); border-radius: 12px;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 4px;
+}
+.cpx-deals-kpi--accent { border-color: var(--accent-soft); background: linear-gradient(135deg, var(--accent-soft), transparent); }
+.cpx-deals-kpi-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--cpx-muted); font-weight: 700; }
+.cpx-deals-kpi-value { font-size: 1.2rem; font-weight: 700; color: var(--cpx-ink); font-variant-numeric: tabular-nums; }
+.cpx-deals-kpi-value--sm { font-size: 1rem; }
+.cpx-deals-kpi--accent .cpx-deals-kpi-value { color: var(--cpx-gold); }
+
+.cpx-deals-panel { padding: 16px 18px; margin-bottom: 0; }
+.cpx-deals-toolbar {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.cpx-deals-panel-title { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-strong); }
+.cpx-deals-panel-sub { margin: 3px 0 0; font-size: 0.78rem; color: var(--text-dim); }
+.cpx-deals-search {
+  width: min(320px, 100%);
+  height: 38px; padding: 0 12px; border-radius: 9px;
+  border: 1px solid var(--cpx-stroke); background: var(--input-bg); color: var(--cpx-ink);
+  font-size: 0.84rem; outline: none; box-sizing: border-box;
+}
+.cpx-deals-search:focus { border-color: var(--cpx-accent); box-shadow: 0 0 0 3px var(--cpx-accent-soft); }
+
+.cpx-deals-table-wrap { width: 100%; overflow: auto; margin: 0 -4px; }
+.cpx-deals-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; min-width: 720px; }
+.cpx-deals-table th {
+  text-align: left; padding: 10px 12px; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-dim); border-bottom: 1px solid var(--stroke-strong); background: var(--surface); white-space: nowrap;
+  position: sticky; top: 0;
+}
+.cpx-deals-table td {
+  padding: 12px; border-bottom: 1px solid var(--stroke-soft); color: var(--cpx-ink); vertical-align: middle;
+}
+.cpx-deals-table tbody tr:not(.cpx-deals-detail-tr) { cursor: pointer; transition: background 0.12s; }
+.cpx-deals-table tbody tr:not(.cpx-deals-detail-tr):hover { background: var(--surface); }
+.cpx-deals-tr--open { background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+.cpx-deals-num { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cpx-deals-sum { font-weight: 700; color: var(--cpx-gold); }
+.cpx-deals-contract { font-weight: 600; white-space: nowrap; }
+.cpx-deals-date { color: var(--text-muted); white-space: nowrap; }
+.cpx-deals-items { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cpx-deals-meta { color: var(--text-muted); white-space: nowrap; }
+.cpx-deals-chevron { width: 28px; text-align: center; color: var(--text-dim); font-size: 0.75rem; }
+
+.cpx-deals-detail-tr td { padding: 0 12px 14px; background: var(--surface); border-bottom: 1px solid var(--stroke); }
+.cpx-deals-detail { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 4px; }
+.cpx-deals-detail th {
+  text-align: left; padding: 8px 10px; font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-dim); border-bottom: 1px solid var(--stroke-soft); background: transparent;
+}
+.cpx-deals-detail td { padding: 8px 10px; border-bottom: 1px solid var(--stroke-soft); }
+.cpx-deals-detail tr:last-child td { border-bottom: none; }
+
+.cpx-deals-cards { display: none; }
+@media (max-width: 820px) {
+  .cpx-deals-table-wrap { display: none; }
+  .cpx-deals-cards { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+  .cpx-deals-search { width: 100%; }
+}
+.cpx-deal-card {
+  border: 1px solid var(--stroke-soft); border-radius: 12px; padding: 14px; background: var(--surface);
+}
 
 .cpx-deals-summary { display: flex; gap: 16px; }
 .cpx-summary-item { flex: 1; display: flex; flex-direction: column; gap: 4px; }
