@@ -3,13 +3,15 @@ import { clientApi, getClientToken, setClientToken, fintechApi, getFintechToken 
 import { FintechInvest } from './FintechInvest.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
 import { ClientSidebar } from './ClientSidebar.jsx';
+import { applyTheme, getStoredTheme } from './theme.js';
 
-const TAB_TITLES = { home: 'Личный кабинет', calc: 'Калькулятор', history: 'Мои сделки', invest: 'Инвестиции' };
+const TAB_TITLES = { home: 'Личный кабинет', calc: 'Калькулятор', history: 'Мои сделки', invest: 'Инвестиции', settings: 'Настройки' };
 const TAB_SUBTITLES = {
   home: 'Обзор сделок, инвестиций и безопасность входа',
   calc: 'Оценка золота по текущему биржевому курсу',
   history: 'История ваших сделок с Reaktivo',
   invest: 'Золотой счёт: покупка, портфель, аналитика',
+  settings: 'Профиль, тема, уведомления и PIN-код',
 };
 
 function maskPhoneClient(normalized) {
@@ -278,7 +280,7 @@ export function ClientPortal() {
             </div>
           </header>
 
-          <main className={`cpx-shell__content${tab === 'invest' || tab === 'home' ? ' cpx-shell__content--wide' : ''}`}>
+          <main className={`cpx-shell__content${tab === 'invest' || tab === 'home' || tab === 'settings' ? ' cpx-shell__content--wide' : ''}`}>
             {tab === 'home' && (
               <ClientHome
                 hasPin={hasPin}
@@ -290,6 +292,17 @@ export function ClientPortal() {
             {tab === 'calc' && <ClientCalculator />}
             {tab === 'history' && <ClientDeals onAuthExpired={logout} />}
             {tab === 'invest' && <FintechInvest clientToken={getClientToken()} />}
+            {tab === 'settings' && (
+              <ClientSettings
+                hasPin={hasPin}
+                onPinChanged={() => setHasPin(true)}
+                phoneMasked={maskPhoneClient(phoneNormalized)}
+                sidebarPinned={sidebarPinned}
+                onSidebarPinnedChange={setSidebarPinned}
+                onLogout={logout}
+                onNavigate={setTab}
+              />
+            )}
           </main>
 
           <nav className="cpx-mobile-tabs" aria-label="Разделы">
@@ -297,6 +310,7 @@ export function ClientPortal() {
             <button type="button" className={`cpx-mobile-tab${tab === 'calc' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('calc')}>Калькулятор</button>
             <button type="button" className={`cpx-mobile-tab${tab === 'history' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('history')}>Сделки</button>
             <button type="button" className={`cpx-mobile-tab${tab === 'invest' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('invest')}>Инвестиции</button>
+            <button type="button" className={`cpx-mobile-tab${tab === 'settings' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('settings')}>Ещё</button>
           </nav>
         </div>
 
@@ -646,13 +660,273 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
         </div>
       </div>
 
-      <ClientPinForm hasPin={hasPin} onPinChanged={onPinChanged} phoneMasked={phoneMasked} />
+      <div className="cpx-card cpx-home-pin-cta">
+        <div>
+          <h3 className="cpx-home-section-title">Безопасность входа</h3>
+          <p className="cpx-muted" style={{ margin: '4px 0 0' }}>
+            {hasPin ? 'PIN-код установлен — быстрый вход без SMS.' : 'PIN ещё не задан — вход только по SMS.'}
+            {' '}Тема, уведомления и смена PIN — в настройках.
+          </p>
+        </div>
+        <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('settings')}>
+          Открыть настройки
+        </button>
+      </div>
     </div>
   );
 }
 
-/** Форма PIN внутри обзора кабинета. */
-function ClientPinForm({ hasPin, onPinChanged, phoneMasked }) {
+const NOTIFY_KEY = 'cpx_notify_prefs';
+function readNotifyPrefs() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(NOTIFY_KEY) || '{}');
+    return {
+      kycEmail: raw.kycEmail !== false,
+      investOps: raw.investOps !== false,
+      dealsSms: !!raw.dealsSms,
+      marketing: !!raw.marketing,
+    };
+  } catch {
+    return { kycEmail: true, investOps: true, dealsSms: false, marketing: false };
+  }
+}
+function writeNotifyPrefs(prefs) {
+  try { localStorage.setItem(NOTIFY_KEY, JSON.stringify(prefs)); } catch { /* ignore */ }
+}
+
+/** Полноценные настройки кабинета: профиль, тема, уведомления, PIN, сессия. */
+function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSidebarPinnedChange, onLogout, onNavigate }) {
+  const [theme, setTheme] = useState(() => getStoredTheme());
+  const [notify, setNotify] = useState(() => readNotifyPrefs());
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [fintechStatus, setFintechStatus] = useState(null);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileErr, setProfileErr] = useState('');
+  const [profileOk, setProfileOk] = useState('');
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setProfileLoading(true);
+      try {
+        if (!getFintechToken() && getClientToken()) {
+          await fintechApi.sessionFromClient(getClientToken()).catch(() => null);
+        }
+        if (!getFintechToken()) {
+          if (!cancelled) setFintechStatus('none');
+          return;
+        }
+        const p = await fintechApi.profile();
+        if (cancelled) return;
+        setFullName(p.fullName || '');
+        setEmail(p.email || '');
+        setFintechStatus(p.status || 'none');
+      } catch {
+        if (!cancelled) setFintechStatus('none');
+      } finally {
+        if (!cancelled) setProfileLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  function setThemeMode(mode) {
+    setTheme(mode);
+    applyTheme(mode);
+  }
+
+  function toggleNotify(key) {
+    setNotify((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      writeNotifyPrefs(next);
+      return next;
+    });
+  }
+
+  async function saveProfile(e) {
+    e.preventDefault();
+    setProfileErr('');
+    setProfileOk('');
+    if (!getFintechToken()) {
+      setProfileErr('Сначала откройте раздел «Инвестиции» и пройдите регистрацию — тогда ФИО и почта сохранятся в профиле.');
+      return;
+    }
+    setProfileBusy(true);
+    try {
+      await fintechApi.updateProfile(fullName, email);
+      setProfileOk('Контакты сохранены');
+    } catch (err) {
+      setProfileErr(err?.message || 'Не удалось сохранить');
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
+  const statusLabel = {
+    approved: 'Инвестиции одобрены',
+    pending_review: 'Заявка на проверке',
+    rejected: 'Заявка отклонена — нужна доработка',
+    blocked: 'Аккаунт заблокирован',
+    new: 'Регистрация не завершена',
+    none: 'Инвестиции ещё не подключены',
+  }[fintechStatus] || '—';
+
+  return (
+    <div className="cpx-settings">
+      <div className="cpx-settings-grid">
+        <section className="cpx-card cpx-settings-card">
+          <h2 className="cpx-settings-title">Профиль</h2>
+          <p className="cpx-settings-lead">Телефон привязан к кабинету. ФИО и почта используются для инвестиций и писем о статусе KYC.</p>
+          {profileLoading ? (
+            <p className="cpx-muted"><span className="cpx-spinner" /> Загружаем…</p>
+          ) : (
+            <form onSubmit={saveProfile} className="cpx-form">
+              <label className="cpx-field">
+                <span className="cpx-field-label">Телефон</span>
+                <input value={phoneMasked || '—'} disabled readOnly />
+              </label>
+              <label className="cpx-field">
+                <span className="cpx-field-label">ФИО</span>
+                <input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Как в паспорте"
+                  maxLength={200}
+                />
+              </label>
+              <label className="cpx-field">
+                <span className="cpx-field-label">Email</span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  maxLength={200}
+                />
+              </label>
+              <p className="cpx-settings-meta">Статус инвестиций: <b>{statusLabel}</b></p>
+              {profileErr && <p className="cpx-err">{profileErr}</p>}
+              {profileOk && <p className="cpx-fin-ok">{profileOk}</p>}
+              <div className="cpx-settings-actions">
+                <button type="submit" className="cpx-btn cpx-btn--inline" disabled={profileBusy}>
+                  {profileBusy ? <><span className="cpx-spinner" /> Сохраняем…</> : 'Сохранить профиль'}
+                </button>
+                {fintechStatus !== 'approved' && (
+                  <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>К инвестициям</button>
+                )}
+              </div>
+            </form>
+          )}
+        </section>
+
+        <section className="cpx-card cpx-settings-card">
+          <h2 className="cpx-settings-title">Оформление</h2>
+          <p className="cpx-settings-lead">Тема интерфейса и поведение бокового меню.</p>
+          <div className="cpx-settings-theme">
+            <button
+              type="button"
+              className={`cpx-settings-theme-opt${theme === 'light' ? ' cpx-settings-theme-opt--on' : ''}`}
+              onClick={() => setThemeMode('light')}
+            >
+              <span className="cpx-settings-theme-ico">☀</span>
+              <span>Светлая</span>
+            </button>
+            <button
+              type="button"
+              className={`cpx-settings-theme-opt${theme === 'dark' ? ' cpx-settings-theme-opt--on' : ''}`}
+              onClick={() => setThemeMode('dark')}
+            >
+              <span className="cpx-settings-theme-ico">☾</span>
+              <span>Тёмная</span>
+            </button>
+          </div>
+          <label className="cpx-settings-switch">
+            <input
+              type="checkbox"
+              checked={!!sidebarPinned}
+              onChange={(e) => onSidebarPinnedChange?.(e.target.checked)}
+            />
+            <span>
+              <strong>Закрепить боковое меню</strong>
+              <em>На широком экране меню всегда развёрнуто</em>
+            </span>
+          </label>
+        </section>
+
+        <section className="cpx-card cpx-settings-card">
+          <h2 className="cpx-settings-title">Уведомления</h2>
+          <p className="cpx-settings-lead">Какие сообщения хотите получать. Предпочтения сохраняются на этом устройстве.</p>
+          <div className="cpx-settings-toggles">
+            <label className="cpx-settings-switch">
+              <input type="checkbox" checked={notify.kycEmail} onChange={() => toggleNotify('kycEmail')} />
+              <span>
+                <strong>Письма о проверке документов</strong>
+                <em>Одобрение или отказ KYC на email</em>
+              </span>
+            </label>
+            <label className="cpx-settings-switch">
+              <input type="checkbox" checked={notify.investOps} onChange={() => toggleNotify('investOps')} />
+              <span>
+                <strong>Операции по золотому счёту</strong>
+                <em>Покупка, пополнение, важные изменения баланса</em>
+              </span>
+            </label>
+            <label className="cpx-settings-switch">
+              <input type="checkbox" checked={notify.dealsSms} onChange={() => toggleNotify('dealsSms')} />
+              <span>
+                <strong>SMS о сделках скупки</strong>
+                <em>Когда появится новая сделка по вашему номеру</em>
+              </span>
+            </label>
+            <label className="cpx-settings-switch">
+              <input type="checkbox" checked={notify.marketing} onChange={() => toggleNotify('marketing')} />
+              <span>
+                <strong>Новости и спецпредложения</strong>
+                <em>Редкие письма о сервисе Reaktivo</em>
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <section className="cpx-card cpx-settings-card">
+          <h2 className="cpx-settings-title">Безопасность</h2>
+          <p className="cpx-settings-lead">
+            {hasPin ? 'PIN установлен. Для смены введите текущий код.' : 'Задайте 6-значный PIN для быстрого входа без ожидания SMS.'}
+          </p>
+          <ClientPinForm hasPin={hasPin} onPinChanged={onPinChanged} phoneMasked={phoneMasked} embedded />
+        </section>
+
+        <section className="cpx-card cpx-settings-card cpx-settings-card--wide">
+          <h2 className="cpx-settings-title">Сессия и помощь</h2>
+          <div className="cpx-settings-session">
+            <div className="cpx-settings-session-item">
+              <strong>Текущий вход</strong>
+              <span>{phoneMasked || '—'} · {hasPin ? 'PIN' : 'SMS'}</span>
+            </div>
+            <div className="cpx-settings-session-item">
+              <strong>Быстрые разделы</strong>
+              <div className="cpx-settings-actions">
+                <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('home')}>Обзор кабинета</button>
+                <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>Инвестиции</button>
+                <a className="cpx-fin-pdf-btn" href="/" style={{ textDecoration: 'none' }}>На главную</a>
+              </div>
+            </div>
+            <div className="cpx-settings-session-item">
+              <strong>Выход</strong>
+              <p className="cpx-muted" style={{ margin: '4px 0 10px' }}>Сессия завершится на этом устройстве. Для входа снова понадобится PIN или SMS.</p>
+              <button type="button" className="cpx-btn cpx-btn--inline cpx-btn--danger" onClick={onLogout}>Выйти из кабинета</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+/** Форма PIN — в настройках (embedded) или отдельно. */
+function ClientPinForm({ hasPin, onPinChanged, phoneMasked, embedded = false }) {
   const [currentPin, setCurrentPin] = useState('');
   const [p1, setP1] = useState('');
   const [p2, setP2] = useState('');
@@ -685,58 +959,59 @@ function ClientPinForm({ hasPin, onPinChanged, phoneMasked }) {
   }
 
   return (
-    <div className="cpx-card cpx-home-pin" style={{ maxWidth: 520 }}>
-      <h3 className="cpx-home-section-title">{hasPin ? 'Сменить PIN-код' : 'Установить PIN-код'}</h3>
-      <p className="cpx-sub">
-        Номер {phoneMasked || '—'} · {hasPin ? 'PIN уже установлен' : 'пока вход только по SMS'}.
-        Если забудете PIN — войдите по SMS.
-      </p>
-      <form onSubmit={submit} className="cpx-form">
-        {hasPin && (
-          <label className="cpx-field">
-            <span className="cpx-field-label">Текущий PIN-код</span>
-            <input
-              className="cpx-code-input"
-              type="password"
-              inputMode="numeric"
-              autoComplete="current-password"
-              value={currentPin}
-              onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="••••••"
-            />
-          </label>
-        )}
+    <form onSubmit={submit} className="cpx-form">
+      {!embedded && (
+        <>
+          <h3 className="cpx-home-section-title">{hasPin ? 'Сменить PIN-код' : 'Установить PIN-код'}</h3>
+          <p className="cpx-sub">
+            Номер {phoneMasked || '—'} · {hasPin ? 'PIN уже установлен' : 'пока вход только по SMS'}.
+          </p>
+        </>
+      )}
+      {hasPin && (
         <label className="cpx-field">
-          <span className="cpx-field-label">Новый PIN-код</span>
+          <span className="cpx-field-label">Текущий PIN-код</span>
           <input
             className="cpx-code-input"
             type="password"
             inputMode="numeric"
-            autoComplete="new-password"
-            value={p1}
-            onChange={(e) => setP1(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            autoComplete="current-password"
+            value={currentPin}
+            onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
             placeholder="••••••"
           />
         </label>
-        <label className="cpx-field">
-          <span className="cpx-field-label">Повторите новый PIN-код</span>
-          <input
-            className="cpx-code-input"
-            type="password"
-            inputMode="numeric"
-            autoComplete="new-password"
-            value={p2}
-            onChange={(e) => setP2(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            placeholder="••••••"
-          />
-        </label>
-        {err && <p className="cpx-err">{err}</p>}
-        {ok && <p className="cpx-fin-ok">{ok}</p>}
-        <button type="submit" className="cpx-btn" disabled={busy} style={{ maxWidth: 280 }}>
-          {busy ? <><span className="cpx-spinner" /> Сохраняем…</> : 'Сохранить PIN-код'}
-        </button>
-      </form>
-    </div>
+      )}
+      <label className="cpx-field">
+        <span className="cpx-field-label">Новый PIN-код</span>
+        <input
+          className="cpx-code-input"
+          type="password"
+          inputMode="numeric"
+          autoComplete="new-password"
+          value={p1}
+          onChange={(e) => setP1(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          placeholder="••••••"
+        />
+      </label>
+      <label className="cpx-field">
+        <span className="cpx-field-label">Повторите новый PIN-код</span>
+        <input
+          className="cpx-code-input"
+          type="password"
+          inputMode="numeric"
+          autoComplete="new-password"
+          value={p2}
+          onChange={(e) => setP2(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          placeholder="••••••"
+        />
+      </label>
+      {err && <p className="cpx-err">{err}</p>}
+      {ok && <p className="cpx-fin-ok">{ok}</p>}
+      <button type="submit" className="cpx-btn cpx-btn--inline" disabled={busy}>
+        {busy ? <><span className="cpx-spinner" /> Сохраняем…</> : 'Сохранить PIN-код'}
+      </button>
+    </form>
   );
 }
 
@@ -1462,6 +1737,59 @@ const CSS = `
 .cpx-home-nav-desc { font-size: 0.76rem; color: var(--text-dim); }
 .cpx-home-pin { margin-bottom: 0; }
 .cpx-home-pin .cpx-sub { margin-bottom: 12px; }
+.cpx-home-pin-cta {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  padding: 16px 18px;
+}
+
+/* ── Настройки ── */
+.cpx-settings { max-width: 1280px; margin: 0 auto; width: 100%; }
+.cpx-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 960px) { .cpx-settings-grid { grid-template-columns: 1fr; } }
+.cpx-settings-card { margin-bottom: 0; padding: 18px 18px 16px; }
+.cpx-settings-card--wide { grid-column: 1 / -1; }
+.cpx-settings-title { margin: 0 0 4px; font-size: 1.05rem; font-weight: 700; color: var(--text-strong); letter-spacing: -0.01em; }
+.cpx-settings-lead { margin: 0 0 14px; font-size: 0.82rem; color: var(--text-dim); line-height: 1.45; }
+.cpx-settings-meta { margin: 0; font-size: 0.8rem; color: var(--text-muted); }
+.cpx-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; }
+
+.cpx-settings-theme { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.cpx-settings-theme-opt {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border-radius: 10px;
+  border: 1px solid var(--stroke); background: var(--surface);
+  color: var(--text); font-size: 0.88rem; font-weight: 600; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.cpx-settings-theme-opt--on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.cpx-settings-theme-ico { font-size: 1.1rem; line-height: 1; }
+
+.cpx-settings-toggles { display: flex; flex-direction: column; gap: 4px; }
+.cpx-settings-switch {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 4px; cursor: pointer; border-radius: 8px;
+}
+.cpx-settings-switch input {
+  margin-top: 3px; width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--accent);
+}
+.cpx-settings-switch span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cpx-settings-switch strong { font-size: 0.88rem; font-weight: 600; color: var(--text-strong); }
+.cpx-settings-switch em { font-style: normal; font-size: 0.76rem; color: var(--text-dim); line-height: 1.35; }
+
+.cpx-settings-session { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 900px) { .cpx-settings-session { grid-template-columns: 1fr; } }
+.cpx-settings-session-item { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cpx-settings-session-item > strong { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.cpx-settings-session-item > span { font-size: 0.9rem; color: var(--text-strong); font-weight: 600; }
+
+.cpx-btn--inline { width: auto; max-width: none; margin-top: 0; padding: 11px 18px; font-size: 0.88rem; }
+.cpx-btn--danger { background: var(--crimson, #c0392b); box-shadow: none; }
+.cpx-btn--danger:hover:not(:disabled) { filter: brightness(1.08); }
 .cpx-fin-pos { color: var(--cpx-emerald); font-weight: 600; }
 .cpx-fin-neg { color: var(--crimson); font-weight: 600; }
 
