@@ -621,6 +621,7 @@ function AssistantCard() {
     try {
       const out = await fintechApi.assistant(q);
       setData(out);
+      if (q) setQuestion('');
     } catch (e) {
       setErr(e?.message || 'Ассистент временно недоступен');
     } finally {
@@ -638,24 +639,23 @@ function AssistantCard() {
   }
 
   const scenarios = data?.forecast?.scenarios || [];
-  const horizons = scenarios[0]?.values?.map((v) => v.years) || [];
 
   return (
     <div className="cpx-card cpx-fin-ai-card">
       <div className="cpx-fin-ai-head">
         <div className="cpx-fin-ai-title-wrap">
           <span className="cpx-fin-ai-icon" aria-hidden>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2a4 4 0 0 1 4 4c1.5.5 3 2 3 4a4 4 0 0 1-1 2.65A4 4 0 0 1 16 19a4 4 0 0 1-8 0 4 4 0 0 1-2-6.35A4 4 0 0 1 5 10c0-2 1.5-3.5 3-4a4 4 0 0 1 4-4z" />
               <path d="M9 13a3 3 0 0 0 6 0" />
             </svg>
           </span>
-          <h2 className="cpx-h2" style={{ margin: 0 }}>AI-ассистент</h2>
+          <h2 className="cpx-fin-ai-heading">AI-ассистент</h2>
           <span className={`cpx-fin-ai-badge${data?.source === 'grok' ? ' cpx-fin-ai-badge--grok' : ''}`}>
             {data?.source === 'grok' ? 'Grok' : 'Анализ'}
           </span>
         </div>
-        <button type="button" className="cpx-link" disabled={busy} onClick={() => ask('')}>Обновить анализ</button>
+        <button type="button" className="cpx-link" disabled={busy} onClick={() => ask('')}>Обновить</button>
       </div>
 
       {busy && !data && <p className="cpx-muted"><span className="cpx-spinner" /> Анализируем портфель…</p>}
@@ -669,27 +669,26 @@ function AssistantCard() {
         <div className="cpx-fin-ai-forecast">
           <div className="cpx-fin-ai-forecast-title">
             {data?.forecast?.accumulation
-              ? `Прогноз накопления при покупке ${data.forecast.monthlyGrams} г в месяц`
-              : 'Прогноз стоимости вашего золота'}
+              ? `Прогноз при покупке ${data.forecast.monthlyGrams} г / мес · горизонт 5 лет`
+              : 'Прогноз стоимости · горизонт 5 лет'}
           </div>
-          <table className="cpx-fin-ai-table">
-            <thead>
-              <tr>
-                <th>Сценарий</th>
-                {horizons.map((y) => <th key={y}>{y === 1 ? '1 год' : `${y} ${y < 5 ? 'года' : 'лет'}`}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {scenarios.map((s) => (
-                <tr key={s.key}>
-                  <td>{s.label}</td>
-                  {s.values.map((v) => (
-                    <td key={v.years} className="cpx-fin-ai-num">{formatMoney(v.valueRub)}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="cpx-fin-ai-scenarios">
+            {scenarios.map((s) => {
+              const y5 = s.values?.find((v) => v.years === 5) || s.values?.[s.values.length - 1];
+              return (
+                <div key={s.key} className={`cpx-fin-ai-scenario${s.key === 'hist' ? ' cpx-fin-ai-scenario--accent' : ''}`}>
+                  <span className="cpx-fin-ai-scenario-label">{s.label}</span>
+                  <span className="cpx-fin-ai-scenario-value">{formatMoney(y5?.valueRub)}</span>
+                  <span className="cpx-fin-ai-scenario-meta">
+                    {[1, 3].map((y) => {
+                      const row = s.values?.find((v) => v.years === y);
+                      return row ? `${y}г: ${formatMoney(row.valueRub)}` : null;
+                    }).filter(Boolean).join(' · ')}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -697,14 +696,15 @@ function AssistantCard() {
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Спросите ассистента: «что будет, если покупать по 5 г в месяц?»"
+          placeholder="Спросите: что будет, если покупать по 5 г в месяц?"
           maxLength={500}
+          disabled={busy}
         />
-        <button type="submit" className="cpx-btn cpx-fin-ai-ask-btn" disabled={busy || !question.trim()}>
+        <button type="submit" className="cpx-fin-ai-ask-btn" disabled={busy || !question.trim()}>
           {busy ? <span className="cpx-spinner" /> : 'Спросить'}
         </button>
       </form>
-      <p className="cpx-fin-ai-disclaimer">Прогноз построен на исторических данных и не является инвестиционной рекомендацией.</p>
+      <p className="cpx-fin-ai-disclaimer">Прогноз на исторических данных, не инвестиционная рекомендация.</p>
     </div>
   );
 }
@@ -834,40 +834,19 @@ function FintechDashboard({ profile }) {
       <div className="cpx-fin-layout">
         <div className="cpx-fin-main">
           <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
-
-          <AssistantCard />
-
-          <div className="cpx-card">
-            <div className="cpx-fin-history-head">
-              <h2 className="cpx-h2">История операций</h2>
-            </div>
-            {ledger.length === 0 && <p className="cpx-muted">Операций пока нет — купите первый грамм, и он появится здесь.</p>}
-            {ledger.map((e) => (
-              <div key={e.id} className="cpx-fin-ledger-row">
-                <div className="cpx-fin-ledger-main">
-                  <span className="cpx-fin-ledger-type">{ENTRY_LABELS[e.entryType] || e.entryType}</span>
-                  <span className="cpx-fin-ledger-date">{formatDateTime(e.createdAt)}</span>
-                </div>
-                <div className="cpx-fin-ledger-right">
-                  {!!e.rubDelta && <span className={e.rubDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.rubDelta > 0 ? '+' : ''}{formatMoney(e.rubDelta)}</span>}
-                  {!!e.goldGramsDelta && <span className={e.goldGramsDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.goldGramsDelta > 0 ? '+' : ''}{formatGrams(e.goldGramsDelta)}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
 
         <aside className="cpx-fin-side">
           <div className="cpx-card cpx-fin-buy-card">
-            <h2 className="cpx-h2">Купить золото</h2>
-            <p className="cpx-sub" style={{ marginBottom: 12 }}>
-              По биржевому курсу, от 1 грамма или на любую сумму.
-              {portfolio?.buyFeePercent != null && ` Комиссия при покупке: ${portfolio.buyFeePercent}%.`}
+            <h2 className="cpx-fin-side-title">Купить золото</h2>
+            <p className="cpx-fin-side-sub">
+              От 1 г или на любую сумму
+              {portfolio?.buyFeePercent != null ? ` · комиссия ${portfolio.buyFeePercent}%` : ''}
             </p>
-            <form onSubmit={submitBuy} className="cpx-form">
+            <form onSubmit={submitBuy} className="cpx-form cpx-fin-buy-form">
               <div className="cpx-fin-mode-switch">
-                <button type="button" className={`cpx-fin-mode-btn${mode === 'rub' ? ' cpx-fin-mode-btn--on' : ''}`} onClick={() => { setMode('rub'); setAmount(''); }}>В рублях</button>
-                <button type="button" className={`cpx-fin-mode-btn${mode === 'grams' ? ' cpx-fin-mode-btn--on' : ''}`} onClick={() => { setMode('grams'); setAmount(''); }}>В граммах</button>
+                <button type="button" className={`cpx-fin-mode-btn${mode === 'rub' ? ' cpx-fin-mode-btn--on' : ''}`} onClick={() => { setMode('rub'); setAmount(''); }}>В ₽</button>
+                <button type="button" className={`cpx-fin-mode-btn${mode === 'grams' ? ' cpx-fin-mode-btn--on' : ''}`} onClick={() => { setMode('grams'); setAmount(''); }}>В г</button>
               </div>
               <label className="cpx-field">
                 <span className="cpx-field-label">{mode === 'rub' ? 'Сумма, ₽' : 'Вес, г'}</span>
@@ -875,29 +854,51 @@ function FintechDashboard({ profile }) {
                   inputMode="decimal"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder={mode === 'rub' ? 'например 10000' : 'например 1.5'}
+                  placeholder={mode === 'rub' ? '10000' : '1.5'}
                 />
               </label>
               {estimate && (
                 <p className="cpx-fin-estimate">
                   {mode === 'rub' ? `≈ ${formatGrams(estimate.grams)}` : `≈ ${formatMoney(estimate.rub)}`}
-                  <span className="cpx-muted" style={{ display: 'inline', fontSize: '0.78rem' }}> (ориентир, точная сумма — при подтверждении)</span>
                 </p>
               )}
               {buyErr && <p className="cpx-err">{buyErr}</p>}
               {buyOk && <p className="cpx-fin-ok">{buyOk}</p>}
               <button type="submit" className="cpx-btn" disabled={buying}>
-                {buying ? <><span className="cpx-spinner" /> Покупаем…</> : 'Купить золото'}
+                {buying ? <><span className="cpx-spinner" /> Покупаем…</> : 'Купить'}
               </button>
             </form>
           </div>
 
           <div className="cpx-card cpx-fin-topup-hint">
             <span className="cpx-fin-topup-icon" aria-hidden>ℹ</span>
-            <p>
-              Пополнение — банковским переводом по реквизитам Reaktivo (уточните у менеджера).
-              После поступления средств баланс пополнит модератор — обычно в течение рабочего дня.
-            </p>
+            <p>Пополнение — переводом по реквизитам. Баланс обновит модератор в течение рабочего дня.</p>
+          </div>
+        </aside>
+      </div>
+
+      <div className="cpx-fin-layout cpx-fin-layout--lower">
+        <div className="cpx-fin-main">
+          <AssistantCard />
+        </div>
+        <aside className="cpx-fin-side">
+          <div className="cpx-card cpx-fin-history-card">
+            <h2 className="cpx-fin-side-title">История операций</h2>
+            {ledger.length === 0 && <p className="cpx-muted" style={{ margin: 0 }}>Операций пока нет.</p>}
+            <div className="cpx-fin-ledger-list">
+              {ledger.slice(0, 12).map((e) => (
+                <div key={e.id} className="cpx-fin-ledger-row">
+                  <div className="cpx-fin-ledger-main">
+                    <span className="cpx-fin-ledger-type">{ENTRY_LABELS[e.entryType] || e.entryType}</span>
+                    <span className="cpx-fin-ledger-date">{formatDateTime(e.createdAt)}</span>
+                  </div>
+                  <div className="cpx-fin-ledger-right">
+                    {!!e.rubDelta && <span className={e.rubDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.rubDelta > 0 ? '+' : ''}{formatMoney(e.rubDelta)}</span>}
+                    {!!e.goldGramsDelta && <span className={e.goldGramsDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.goldGramsDelta > 0 ? '+' : ''}{formatGrams(e.goldGramsDelta)}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </aside>
       </div>
