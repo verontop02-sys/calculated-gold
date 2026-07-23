@@ -2,15 +2,14 @@ import { SIDEBAR_CSS } from './Sidebar.jsx';
 
 /**
  * Боковое меню кабинета клиента (/kabinet) — визуально идентично Sidebar админ-панели
- * (тот же SIDEBAR_CSS), но со своим фиксированным набором разделов и футером
- * без ролей (только маскированный телефон клиента).
+ * (тот же SIDEBAR_CSS), но со своим фиксированным набором разделов.
+ * Блок «Личный кабинет» в футере открывает обзор со статистикой.
  */
-export function ClientSidebar({ tab, onChange, phoneMasked, onSignOut, pinned, onPinnedChange }) {
+export function ClientSidebar({ tab, onChange, phoneMasked, onOpenCabinet, onSignOut, pinned, onPinnedChange }) {
   const items = [
     { key: 'calc', label: 'Калькулятор', icon: <IconCalc /> },
     { key: 'history', label: 'Мои сделки', icon: <IconClients /> },
     { key: 'invest', label: 'Инвестиции', icon: <IconInvest /> },
-    { key: 'settings', label: 'Настройки', icon: <IconSettings /> },
   ];
 
   return (
@@ -55,13 +54,21 @@ export function ClientSidebar({ tab, onChange, phoneMasked, onSignOut, pinned, o
       </nav>
 
       <div className="cg-sidebar__footer">
-        <div className="cg-sidebar__user" style={{ cursor: 'default' }}>
+        <button
+          type="button"
+          className={`cg-sidebar__user${tab === 'home' ? ' cg-sidebar__user--active' : ''}`}
+          onClick={() => onOpenCabinet?.()}
+          title="Открыть личный кабинет"
+        >
           <span className="cg-sidebar__user-avatar" aria-hidden>К</span>
           <div className="cg-sidebar__user-text">
             <span className="cg-sidebar__user-email">{phoneMasked || 'Клиент'}</span>
             <span className="cg-sidebar__user-role">Личный кабинет</span>
           </div>
-        </div>
+          <span className="cg-sidebar__user-chevron" aria-hidden>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </span>
+        </button>
         <div className="cg-sidebar__footer-actions">
           <a className="cg-sidebar__logout" href="/" title="Вернуться на главную страницу" style={{ textDecoration: 'none', boxSizing: 'border-box' }}>
             <IconHome />
@@ -77,6 +84,13 @@ export function ClientSidebar({ tab, onChange, phoneMasked, onSignOut, pinned, o
       </div>
 
       <style>{SIDEBAR_CSS}</style>
+      <style>{`
+        .cg-sidebar__user--active {
+          background: var(--accent-soft);
+          border-color: var(--accent-soft);
+        }
+        .cg-sidebar__user--active .cg-sidebar__user-role { color: var(--accent); }
+      `}</style>
     </aside>
   );
 }
@@ -124,14 +138,6 @@ function IconSidebarOpen() {
       <rect x="3" y="3" width="18" height="18" rx="2.5" />
       <path d="M9 3v18" />
       <path d="M11 9l3 3-3 3" />
-    </svg>
-  );
-}
-function IconSettings() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.6 1.6 0 0 0 .32 1.76l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.76-.32 1.6 1.6 0 0 0-.97 1.46V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1.05-1.46 1.6 1.6 0 0 0-1.76.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.6 1.6 0 0 0 .32-1.76 1.6 1.6 0 0 0-1.46-.97H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.46-1.05 1.6 1.6 0 0 0-.32-1.76l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.6 1.6 0 0 0 1.76.32H9a1.6 1.6 0 0 0 .97-1.46V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 .97 1.46 1.6 1.6 0 0 0 1.76-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.32 1.76V9c.4.61 1.01.97 1.69.97H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" />
     </svg>
   );
 }
