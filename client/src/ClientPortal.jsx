@@ -4,11 +4,12 @@ import { FintechInvest } from './FintechInvest.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
 import { ClientSidebar } from './ClientSidebar.jsx';
 
-const TAB_TITLES = { calc: 'Калькулятор', history: 'Мои сделки', invest: 'Инвестиции' };
+const TAB_TITLES = { calc: 'Калькулятор', history: 'Мои сделки', invest: 'Инвестиции', settings: 'Настройки' };
 const TAB_SUBTITLES = {
   calc: 'Оценка золота по текущему биржевому курсу',
   history: 'История ваших сделок с Reaktivo',
-  invest: 'Золотой счёт: покупка, баланс, выписки',
+  invest: 'Золотой счёт: покупка, портфель, аналитика',
+  settings: 'PIN-код и безопасность входа',
 };
 
 function maskPhoneClient(normalized) {
@@ -58,9 +59,13 @@ export function ClientPortal() {
   const [tab, setTab] = useState('calc');
 
   // login state
-  const [step, setStep] = useState('phone'); // 'phone' | 'code'
+  const [step, setStep] = useState('phone'); // 'phone' | 'pin' | 'code' | 'setpin'
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
+  const [pin, setPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [newPin2, setNewPin2] = useState('');
+  const [hasPin, setHasPin] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [phoneMasked, setPhoneMasked] = useState('');
@@ -93,6 +98,7 @@ export function ClientPortal() {
       .me()
       .then((out) => {
         setPhoneNormalized(out?.phoneNormalized || '');
+        setHasPin(!!out?.hasPin);
         setPhase('authed');
       })
       .catch(() => {
@@ -109,6 +115,34 @@ export function ClientPortal() {
   }, [resendIn]);
 
   const phoneDigits = phone.replace(/\D/g, '');
+
+  // Шаг 1: телефон → узнаём способ входа. Есть PIN — просим его, нет — шлём SMS.
+  async function submitPhone(e) {
+    e?.preventDefault?.();
+    setErr('');
+    if (phoneDigits.length !== 10) {
+      setErr('Введите номер телефона полностью');
+      return;
+    }
+    setBusy(true);
+    try {
+      const m = await clientApi.loginMethod(`7${phoneDigits}`);
+      setPhoneMasked(m.phoneMasked || '');
+      setHasPin(!!m.hasPin);
+      if (m.hasPin) {
+        setStep('pin');
+      } else {
+        const out = await clientApi.requestCode(`7${phoneDigits}`);
+        setPhoneMasked(out.phoneMasked || '');
+        setStep('code');
+        setResendIn(60);
+      }
+    } catch (e2) {
+      setErr(e2?.message || 'Не удалось выполнить вход');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function requestCode(e) {
     e?.preventDefault?.();
@@ -130,6 +164,27 @@ export function ClientPortal() {
     }
   }
 
+  async function verifyPinLogin(e) {
+    e?.preventDefault?.();
+    setErr('');
+    const p = pin.replace(/\D/g, '');
+    if (p.length !== 6) {
+      setErr('Введите 6 цифр PIN-кода');
+      return;
+    }
+    setBusy(true);
+    try {
+      await clientApi.verifyPin(`7${phoneDigits}`, p);
+      setPhoneNormalized(phoneDigits);
+      setPin('');
+      setPhase('authed');
+    } catch (e2) {
+      setErr(e2?.message || 'Неверный PIN-код');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function verifyCode(e) {
     e?.preventDefault?.();
     setErr('');
@@ -142,10 +197,42 @@ export function ClientPortal() {
     try {
       await clientApi.verify(`7${phoneDigits}`, c);
       setPhoneNormalized(phoneDigits);
-      setPhase('authed');
       setCode('');
+      // Первый вход без PIN — предлагаем придумать его для быстрых последующих входов.
+      if (!hasPin) {
+        setStep('setpin');
+      } else {
+        setPhase('authed');
+      }
     } catch (e2) {
       setErr(e2?.message || 'Неверный код');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitCreatePin(e) {
+    e?.preventDefault?.();
+    setErr('');
+    const p1 = newPin.replace(/\D/g, '');
+    const p2 = newPin2.replace(/\D/g, '');
+    if (p1.length !== 6) {
+      setErr('PIN-код — ровно 6 цифр');
+      return;
+    }
+    if (p1 !== p2) {
+      setErr('PIN-коды не совпадают');
+      return;
+    }
+    setBusy(true);
+    try {
+      await clientApi.setPin(p1);
+      setHasPin(true);
+      setNewPin('');
+      setNewPin2('');
+      setPhase('authed');
+    } catch (e2) {
+      setErr(e2?.message || 'Не удалось сохранить PIN-код');
     } finally {
       setBusy(false);
     }
@@ -157,6 +244,9 @@ export function ClientPortal() {
     setStep('phone');
     setPhone('');
     setCode('');
+    setPin('');
+    setNewPin('');
+    setNewPin2('');
     setErr('');
     setPhoneMasked('');
   }, []);
@@ -191,12 +281,16 @@ export function ClientPortal() {
             {tab === 'calc' && <ClientCalculator />}
             {tab === 'history' && <ClientDeals onAuthExpired={logout} />}
             {tab === 'invest' && <FintechInvest clientToken={getClientToken()} />}
+            {tab === 'settings' && (
+              <ClientSecuritySettings hasPin={hasPin} onPinChanged={() => setHasPin(true)} phoneMasked={maskPhoneClient(phoneNormalized)} />
+            )}
           </main>
 
           <nav className="cpx-mobile-tabs" aria-label="Разделы">
             <button type="button" className={`cpx-mobile-tab${tab === 'calc' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('calc')}>Калькулятор</button>
             <button type="button" className={`cpx-mobile-tab${tab === 'history' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('history')}>Сделки</button>
             <button type="button" className={`cpx-mobile-tab${tab === 'invest' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('invest')}>Инвестиции</button>
+            <button type="button" className={`cpx-mobile-tab${tab === 'settings' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('settings')}>Профиль</button>
           </nav>
         </div>
 
@@ -234,11 +328,15 @@ export function ClientPortal() {
           <div className="cpx-card cpx-login">
             <h1 className="cpx-title">Личный кабинет</h1>
             <p className="cpx-sub">
-              Вход по номеру телефона, указанному в договоре. Мы отправим SMS с кодом подтверждения.
+              {step === 'pin'
+                ? 'Быстрый вход по PIN-коду, который вы установили.'
+                : step === 'setpin'
+                  ? 'Последний шаг: придумайте PIN-код для быстрого входа.'
+                  : 'Вход по номеру телефона. Первый раз подтвердим его SMS-кодом, дальше — быстрый вход по PIN.'}
             </p>
 
             {step === 'phone' && (
-              <form onSubmit={requestCode} className="cpx-form">
+              <form onSubmit={submitPhone} className="cpx-form">
                 <label className="cpx-field">
                   <span className="cpx-field-label">Номер телефона</span>
                   <div className="cpx-phone">
@@ -255,8 +353,43 @@ export function ClientPortal() {
                 </label>
                 {err && <p className="cpx-err">{err}</p>}
                 <button type="submit" className="cpx-btn" disabled={busy}>
-                  {busy ? <><span className="cpx-spinner" /> Отправляем…</> : 'Получить код'}
+                  {busy ? <><span className="cpx-spinner" /> Проверяем…</> : 'Продолжить'}
                 </button>
+              </form>
+            )}
+
+            {step === 'pin' && (
+              <form onSubmit={verifyPinLogin} className="cpx-form">
+                <p className="cpx-code-hint">Номер {phoneMasked || 'подтверждён'}. Введите ваш PIN-код.</p>
+                <label className="cpx-field">
+                  <span className="cpx-field-label">PIN-код</span>
+                  <input
+                    className="cpx-code-input"
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="current-password"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="••••••"
+                    autoFocus
+                  />
+                </label>
+                {err && <p className="cpx-err">{err}</p>}
+                <button type="submit" className="cpx-btn" disabled={busy}>
+                  {busy ? <><span className="cpx-spinner" /> Входим…</> : 'Войти'}
+                </button>
+                <div className="cpx-code-actions">
+                  <button
+                    type="button"
+                    className="cpx-link"
+                    onClick={() => { setStep('phone'); setPin(''); setErr(''); }}
+                  >
+                    Изменить номер
+                  </button>
+                  <button type="button" className="cpx-link" disabled={busy} onClick={requestCode}>
+                    Забыли PIN? Войти по SMS
+                  </button>
+                </div>
               </form>
             )}
 
@@ -300,6 +433,48 @@ export function ClientPortal() {
                 </div>
               </form>
             )}
+
+            {step === 'setpin' && (
+              <form onSubmit={submitCreatePin} className="cpx-form">
+                <p className="cpx-code-hint">
+                  6 цифр — как на банковской карте. Понадобится при каждом следующем входе; сменить можно в настройках кабинета.
+                </p>
+                <label className="cpx-field">
+                  <span className="cpx-field-label">Придумайте PIN-код</span>
+                  <input
+                    className="cpx-code-input"
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    value={newPin}
+                    onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="••••••"
+                    autoFocus
+                  />
+                </label>
+                <label className="cpx-field">
+                  <span className="cpx-field-label">Повторите PIN-код</span>
+                  <input
+                    className="cpx-code-input"
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    value={newPin2}
+                    onChange={(e) => setNewPin2(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="••••••"
+                  />
+                </label>
+                {err && <p className="cpx-err">{err}</p>}
+                <button type="submit" className="cpx-btn" disabled={busy}>
+                  {busy ? <><span className="cpx-spinner" /> Сохраняем…</> : 'Сохранить и войти'}
+                </button>
+                <div className="cpx-code-actions">
+                  <button type="button" className="cpx-link" onClick={() => setPhase('authed')}>
+                    Пропустить — установлю позже
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         )}
       </main>
@@ -308,6 +483,102 @@ export function ClientPortal() {
 
       <style>{CSS}</style>
     </div>
+  );
+}
+
+/** Настройки безопасности: установка и смена PIN-кода для быстрого входа. */
+function ClientSecuritySettings({ hasPin, onPinChanged, phoneMasked }) {
+  const [currentPin, setCurrentPin] = useState('');
+  const [p1, setP1] = useState('');
+  const [p2, setP2] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState('');
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr('');
+    setOk('');
+    const d1 = p1.replace(/\D/g, '');
+    const d2 = p2.replace(/\D/g, '');
+    if (d1.length !== 6) { setErr('PIN-код — ровно 6 цифр'); return; }
+    if (d1 !== d2) { setErr('PIN-коды не совпадают'); return; }
+    if (hasPin && currentPin.replace(/\D/g, '').length !== 6) { setErr('Введите текущий PIN-код'); return; }
+    setBusy(true);
+    try {
+      await clientApi.setPin(d1, hasPin ? currentPin.replace(/\D/g, '') : undefined);
+      setOk(hasPin ? 'PIN-код обновлён' : 'PIN-код установлен — теперь вход будет быстрым');
+      setCurrentPin('');
+      setP1('');
+      setP2('');
+      onPinChanged?.();
+    } catch (e2) {
+      setErr(e2?.message || 'Не удалось сохранить PIN-код');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="cpx-card">
+        <h2 className="cpx-h2">Вход в кабинет</h2>
+        <p className="cpx-sub" style={{ marginBottom: 0 }}>
+          Номер: <b>{phoneMasked || '—'}</b> · способ входа: {hasPin ? 'PIN-код (установлен)' : 'SMS-код (PIN не установлен)'}.
+          {' '}Если забудете PIN — всегда можно войти по SMS, и PIN-вход разблокируется.
+        </p>
+      </div>
+
+      <div className="cpx-card" style={{ maxWidth: 480 }}>
+        <h2 className="cpx-h2">{hasPin ? 'Сменить PIN-код' : 'Установить PIN-код'}</h2>
+        <p className="cpx-sub">6 цифр для быстрого входа без ожидания SMS.</p>
+        <form onSubmit={submit} className="cpx-form">
+          {hasPin && (
+            <label className="cpx-field">
+              <span className="cpx-field-label">Текущий PIN-код</span>
+              <input
+                className="cpx-code-input"
+                type="password"
+                inputMode="numeric"
+                autoComplete="current-password"
+                value={currentPin}
+                onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="••••••"
+              />
+            </label>
+          )}
+          <label className="cpx-field">
+            <span className="cpx-field-label">Новый PIN-код</span>
+            <input
+              className="cpx-code-input"
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              value={p1}
+              onChange={(e) => setP1(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="••••••"
+            />
+          </label>
+          <label className="cpx-field">
+            <span className="cpx-field-label">Повторите новый PIN-код</span>
+            <input
+              className="cpx-code-input"
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              value={p2}
+              onChange={(e) => setP2(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="••••••"
+            />
+          </label>
+          {err && <p className="cpx-err">{err}</p>}
+          {ok && <p className="cpx-fin-ok">{ok}</p>}
+          <button type="submit" className="cpx-btn" disabled={busy}>
+            {busy ? <><span className="cpx-spinner" /> Сохраняем…</> : 'Сохранить PIN-код'}
+          </button>
+        </form>
+      </div>
+    </>
   );
 }
 
@@ -604,6 +875,48 @@ const CSS = `
 .cpx-fin-range-btn--on { background: var(--accent); color: #fff; }
 
 .cpx-fin-buy-card { border-color: var(--accent-soft); }
+
+/* ── AI-ассистент ── */
+.cpx-fin-ai-card { border-color: var(--accent-soft); }
+.cpx-fin-ai-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.cpx-fin-ai-title-wrap { display: flex; align-items: center; gap: 10px; }
+.cpx-fin-ai-icon {
+  width: 32px; height: 32px; border-radius: 9px;
+  background: var(--accent-soft); color: var(--accent);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.cpx-fin-ai-badge {
+  font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 999px;
+  background: var(--stroke); color: var(--text-muted);
+}
+.cpx-fin-ai-badge--grok { background: var(--accent-soft); color: var(--accent); }
+.cpx-fin-ai-answer {
+  white-space: pre-wrap; font-size: 0.9rem; line-height: 1.6; color: var(--cpx-ink);
+  background: var(--surface); border: 1px solid var(--stroke-soft); border-radius: 12px;
+  padding: 14px 16px; margin-bottom: 14px;
+  transition: opacity 0.2s;
+}
+.cpx-fin-ai-answer--busy { opacity: 0.55; }
+.cpx-fin-ai-forecast { margin-bottom: 14px; }
+.cpx-fin-ai-forecast-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 8px; }
+.cpx-fin-ai-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.cpx-fin-ai-table th {
+  text-align: left; padding: 8px 10px; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-dim); border-bottom: 1px solid var(--stroke-strong); background: var(--surface); white-space: nowrap;
+}
+.cpx-fin-ai-table th:not(:first-child), .cpx-fin-ai-table td.cpx-fin-ai-num { text-align: right; }
+.cpx-fin-ai-table td { padding: 9px 10px; border-bottom: 1px solid var(--stroke-soft); color: var(--cpx-ink); }
+.cpx-fin-ai-table tr:last-child td { border-bottom: none; }
+.cpx-fin-ai-num { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.cpx-fin-ai-ask { display: flex; gap: 8px; align-items: stretch; }
+.cpx-fin-ai-ask input {
+  flex: 1; min-width: 0; padding: 11px 14px; border-radius: 11px; border: 1px solid var(--cpx-stroke);
+  font-size: 0.88rem; color: var(--cpx-ink); background: var(--input-bg); outline: none; box-sizing: border-box;
+}
+.cpx-fin-ai-ask input:focus { border-color: var(--cpx-accent); box-shadow: 0 0 0 3px var(--cpx-accent-soft); }
+.cpx-fin-ai-ask-btn { width: auto; margin-top: 0; padding: 11px 20px; flex-shrink: 0; }
+.cpx-fin-ai-disclaimer { margin: 10px 0 0; font-size: 0.72rem; color: var(--text-dim); }
 
 .cpx-mobile-tabs {
   display: none;

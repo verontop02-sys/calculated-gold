@@ -10,6 +10,7 @@ export function ClientSidebar({ tab, onChange, phoneMasked, onSignOut, pinned, o
     { key: 'calc', label: 'Калькулятор', icon: <IconCalc /> },
     { key: 'history', label: 'Мои сделки', icon: <IconClients /> },
     { key: 'invest', label: 'Инвестиции', icon: <IconInvest /> },
+    { key: 'settings', label: 'Настройки', icon: <IconSettings /> },
   ];
 
   return (
@@ -123,6 +124,14 @@ function IconSidebarOpen() {
       <rect x="3" y="3" width="18" height="18" rx="2.5" />
       <path d="M9 3v18" />
       <path d="M11 9l3 3-3 3" />
+    </svg>
+  );
+}
+function IconSettings() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.6 1.6 0 0 0 .32 1.76l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.76-.32 1.6 1.6 0 0 0-.97 1.46V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1.05-1.46 1.6 1.6 0 0 0-1.76.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.6 1.6 0 0 0 .32-1.76 1.6 1.6 0 0 0-1.46-.97H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.46-1.05 1.6 1.6 0 0 0-.32-1.76l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.6 1.6 0 0 0 1.76.32H9a1.6 1.6 0 0 0 .97-1.46V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 .97 1.46 1.6 1.6 0 0 0 1.76-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.32 1.76V9c.4.61 1.01.97 1.69.97H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" />
     </svg>
   );
 }

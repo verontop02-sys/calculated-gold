@@ -46,6 +46,10 @@ import {
   verifyClientCode,
   verifyClientToken,
   getClientDeals,
+  getClientLoginMethod,
+  verifyClientPin,
+  setClientPin,
+  getClientPinStatus,
 } from './clientPortal.js';
 import {
   setDisplayState,
@@ -1129,12 +1133,57 @@ app.post(
   })
 );
 
+// Каким способом входить этому номеру: PIN (если установлен) или SMS.
+app.post(
+  '/api/public/client-auth/method',
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await getClientLoginMethod(supabase, { phone: req.body?.phone });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.post(
+  '/api/public/client-auth/login-pin',
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await verifyClientPin(supabase, { phone: req.body?.phone, pin: req.body?.pin });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
 app.get(
   '/api/public/client/me',
   asyncHandler(async (req, res) => {
     const session = verifyClientToken(clientTokenFromReq(req));
     if (!session) return res.status(401).json({ error: 'Сессия недействительна, войдите снова' });
-    res.json({ ok: true, phoneNormalized: session.phoneNormalized });
+    const pinStatus = await getClientPinStatus(supabase, session.phoneNormalized).catch(() => ({ hasPin: false }));
+    res.json({ ok: true, phoneNormalized: session.phoneNormalized, hasPin: pinStatus.hasPin });
+  })
+);
+
+// Установка/смена PIN — внутри авторизованной сессии кабинета.
+app.post(
+  '/api/public/client/pin',
+  asyncHandler(async (req, res) => {
+    const session = verifyClientToken(clientTokenFromReq(req));
+    if (!session) return res.status(401).json({ error: 'Сессия недействительна, войдите снова' });
+    try {
+      const out = await setClientPin(supabase, {
+        phoneNormalized: session.phoneNormalized,
+        pin: req.body?.pin,
+        currentPin: req.body?.currentPin,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
   })
 );
 
@@ -1376,6 +1425,158 @@ app.get(
       res.json(out);
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message || 'Не удалось загрузить историю курса' });
+    }
+  })
+);
+
+// ── AI-ассистент (Stage 10: Grok) ────────────────────────────────────────────
+// Анализ портфеля и прогноз по сценариям. Сценарии считаются детерминированно на
+// сервере; текстовый комментарий — Grok (x.ai), а без XAI_API_KEY — локальный текст.
+function computePortfolioForecast(portfolio, historyPoints) {
+  let yearlyGrowthPct = null;
+  if (Array.isArray(historyPoints) && historyPoints.length > 30) {
+    const first = historyPoints[0];
+    const last = historyPoints[historyPoints.length - 1];
+    const spanDays = (new Date(last.date) - new Date(first.date)) / 86_400_000;
+    if (first.price > 0 && spanDays > 30) {
+      const total = last.price / first.price;
+      yearlyGrowthPct = Math.round((Math.pow(total, 365 / spanDays) - 1) * 1000) / 10;
+    }
+  }
+
+  const grams = Number(portfolio?.goldGrams || 0);
+  const rate = Number(portfolio?.currentRatePerGram || 0);
+  const scenarios = [];
+  // Пустой портфель — показываем накопительный пример из Stage 10 (5 г в месяц).
+  const accumulation = grams <= 0;
+  const monthlyGrams = 5;
+
+  if (rate > 0) {
+    const gHist = yearlyGrowthPct != null ? yearlyGrowthPct / 100 : 0.1;
+    const defs = [
+      { key: 'flat', label: 'Без роста цены', annual: 0 },
+      {
+        key: 'hist',
+        label: yearlyGrowthPct != null
+          ? `Темп последнего года (${yearlyGrowthPct > 0 ? '+' : ''}${yearlyGrowthPct}%/год)`
+          : 'Умеренный рост (+10%/год)',
+        annual: gHist,
+      },
+      { key: 'strong', label: 'Оптимистичный (×1.5 темпа)', annual: gHist * 1.5 },
+    ];
+    for (const d of defs) {
+      scenarios.push({
+        key: d.key,
+        label: d.label,
+        annualPct: Math.round(d.annual * 1000) / 10,
+        values: [1, 3, 5].map((y) => {
+          const totalGrams = accumulation ? monthlyGrams * 12 * y : grams;
+          return { years: y, grams: totalGrams, valueRub: Math.round(totalGrams * rate * Math.pow(1 + d.annual, y)) };
+        }),
+      });
+    }
+  }
+
+  return { yearlyGrowthPct, ratePerGram: rate || null, accumulation, monthlyGrams: accumulation ? monthlyGrams : null, scenarios };
+}
+
+function buildLocalAssistantAnswer(portfolio, forecast) {
+  const lines = [];
+  const grams = Number(portfolio?.goldGrams || 0);
+  const fmtRub = (n) => `${Math.round(Number(n) || 0).toLocaleString('ru-RU')} ₽`;
+
+  if (grams > 0) {
+    lines.push(`На вашем счёте ${grams.toFixed(4)} г золота — при текущем курсе это ${fmtRub(portfolio.marketValueRub)}.`);
+    if (portfolio.pnlRub != null && portfolio.investedRub > 0) {
+      const sign = portfolio.pnlRub >= 0 ? 'плюсе' : 'минусе';
+      lines.push(`Вы вложили ${fmtRub(portfolio.investedRub)}; сейчас портфель в ${sign}: ${portfolio.pnlRub >= 0 ? '+' : ''}${fmtRub(portfolio.pnlRub)} (${portfolio.pnlPercent > 0 ? '+' : ''}${portfolio.pnlPercent}%).`);
+    }
+  } else {
+    lines.push('Золота на счёте пока нет — ниже пример, как может расти накопление при покупке 5 г каждый месяц.');
+  }
+
+  if (forecast.yearlyGrowthPct != null) {
+    lines.push(`За последний год биржевой курс золота изменился примерно на ${forecast.yearlyGrowthPct > 0 ? '+' : ''}${forecast.yearlyGrowthPct}% в годовом выражении.`);
+  }
+
+  const hist = forecast.scenarios.find((s) => s.key === 'hist');
+  const five = hist?.values?.find((v) => v.years === 5);
+  if (five) {
+    lines.push(`Если темп сохранится, через 5 лет ${forecast.accumulation ? `накопленные ${five.grams} г` : 'ваш объём золота'} может стоить около ${fmtRub(five.valueRub)}.`);
+  }
+
+  lines.push('Регулярные небольшие покупки сглаживают колебания курса: вы копите не рубли, а граммы металла.');
+  lines.push('Прогноз не является гарантией доходности или инвестиционной рекомендацией — цена золота может как расти, так и снижаться.');
+  return lines.join('\n\n');
+}
+
+async function callGrokAssistant({ portfolio, forecast, question }) {
+  const key = (process.env.XAI_API_KEY || '').trim();
+  if (!key) return null;
+  const model = (process.env.XAI_MODEL || 'grok-3-mini').trim();
+
+  const system = [
+    'Ты — встроенный AI-ассистент сервиса Reaktivo Invest (покупка настоящего физического золота от 1 грамма, агентская модель, хранение и обратный выкуп).',
+    'Отвечай по-русски, дружелюбно и кратко (до 180 слов), без markdown-заголовков, можно списки с «—».',
+    'Опирайся ТОЛЬКО на переданные данные портфеля и сценарии. Не выдумывай цифры.',
+    'Никогда не обещай гарантированную доходность; в конце всегда одна короткая фраза-дисклеймер, что это не инвестиционная рекомендация.',
+  ].join(' ');
+
+  const user = [
+    `Данные портфеля клиента: ${JSON.stringify(portfolio)}`,
+    `Расчётные сценарии (сервер): ${JSON.stringify(forecast)}`,
+    question ? `Вопрос клиента: ${question}` : 'Вопроса нет — сделай краткий анализ портфеля и перспектив.',
+  ].join('\n');
+
+  const { data } = await axios.post(
+    'https://api.x.ai/v1/chat/completions',
+    {
+      model,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      temperature: 0.4,
+      max_tokens: 700,
+    },
+    { headers: { Authorization: `Bearer ${key}` }, timeout: 45000 }
+  );
+  return data?.choices?.[0]?.message?.content?.trim() || null;
+}
+
+app.post(
+  '/api/public/fintech/assistant',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const cdKey = `fintech_assistant_cd:${session.clientId}`;
+      if (cacheGet(cdKey)) {
+        return res.status(429).json({ error: 'Ассистент отвечает не чаще раза в 10 секунд — подождите немного.' });
+      }
+      cacheSet(cdKey, 1, 10_000);
+
+      const question = String(req.body?.question || '').trim().slice(0, 500);
+      const [portfolio, history] = await Promise.all([
+        getFintechPortfolio(supabase, session.clientId),
+        fetchGoldHistoryDaily(366).catch(() => ({ points: [] })),
+      ]);
+      const forecast = computePortfolioForecast(portfolio, history.points);
+
+      let answer = null;
+      let source = 'local';
+      try {
+        answer = await callGrokAssistant({ portfolio, forecast, question });
+        if (answer) source = 'grok';
+      } catch (e) {
+        console.warn('[grok assistant]', e?.response?.data?.error || e?.message || e);
+      }
+      if (!answer) answer = buildLocalAssistantAnswer(portfolio, forecast);
+
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ source, answer, forecast });
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ассистент временно недоступен' });
     }
   })
 );

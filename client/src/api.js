@@ -420,6 +420,40 @@ export const clientApi = {
     if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
     return j;
   },
+  /** Каким способом входить: PIN (если установлен) или SMS. */
+  loginMethod: async (phone) => {
+    const r = await fetch(withBase('/public/client-auth/method'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    return j;
+  },
+  /** Быстрый вход по 6-значному PIN-коду. */
+  verifyPin: async (phone, pin) => {
+    const r = await fetch(withBase('/public/client-auth/login-pin'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, pin }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    if (j.token) setClientToken(j.token);
+    return j;
+  },
+  /** Установка/смена PIN внутри сессии (currentPin обязателен, если PIN уже был). */
+  setPin: async (pin, currentPin) => {
+    const r = await fetch(withBase('/public/client/pin'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getClientToken()}` },
+      body: JSON.stringify({ pin, ...(currentPin ? { currentPin } : {}) }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    return j;
+  },
   verify: async (phone, code) => {
     const r = await fetch(withBase('/public/client-auth/verify'), {
       method: 'POST',
@@ -562,6 +596,8 @@ export const fintechApi = {
   buy: (payload) => fintechFetch('/public/fintech/buy', { method: 'POST', body: JSON.stringify(payload) }),
   /** Дневная история курса золота (GLDRUBF) для графика в кабинете. */
   goldHistory: (days = 365) => fintechFetch(`/public/fintech/gold-history?days=${days}`),
+  /** AI-ассистент: анализ портфеля и прогноз (Grok или локальный расчёт). */
+  assistant: (question) => fintechFetch('/public/fintech/assistant', { method: 'POST', body: JSON.stringify({ question: question || '' }) }),
 };
 
 export async function publicFieldDealSessionSendReceipt(token, channel, target) {

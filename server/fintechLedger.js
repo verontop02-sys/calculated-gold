@@ -209,6 +209,7 @@ async function getBalance(supabase, clientId) {
 export async function getClientPortfolio(supabase, clientId) {
   const balance = await getBalance(supabase, clientId);
   const { rate: currentRate, cachedAt } = await getLiveGoldRatePerGram(supabase).catch(() => ({ rate: null, cachedAt: null }));
+  const settings = await getFintechSettings(supabase).catch(() => null);
 
   const { data: buys, error } = await supabase
     .from('fintech_ledger_entries')
@@ -236,6 +237,8 @@ export async function getClientPortfolio(supabase, clientId) {
     currentRatePerGram: currentRate,
     rateUpdatedAt: cachedAt,
     balanceUpdatedAt: balance.updatedAt,
+    // Комиссия при покупке — клиент видит её до подтверждения (прозрачность по Stage 10).
+    buyFeePercent: settings ? Number(settings.buyFeePercent || 0) : null,
   };
 }
 

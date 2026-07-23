@@ -86,30 +86,15 @@ export function verifyClientToken(token) {
   return { phoneNormalized: String(payload.ph) };
 }
 
-async function phoneExistsInDeals(supabase, phoneNormalized) {
-  const { data, error } = await supabase
-    .from('scrap_deals')
-    .select('id')
-    .eq('phone_normalized', phoneNormalized)
-    .limit(1)
-    .maybeSingle();
-  if (error && error.code !== 'PGRST116') throw error;
-  return !!data?.id;
-}
-
 // ── Запрос кода ─────────────────────────────────────────────────────────────
+// Раньше вход был только для тех, чей телефон есть в scrap_deals. По Stage 10 кабинет —
+// это ещё и вход в инвестиции для новых клиентов, поэтому ограничение по сделкам снято:
+// вкладка «Мои сделки» просто покажет пустой список.
 export async function requestClientCode(supabase, { phone, origin }) {
   const phoneNormalized = normalizeClientPhone(phone);
   if (!phoneNormalized) {
     const err = new Error('Укажите корректный номер телефона (РФ, 10 цифр)');
     err.status = 400;
-    throw err;
-  }
-
-  const exists = await phoneExistsInDeals(supabase, phoneNormalized);
-  if (!exists) {
-    const err = new Error('По этому номеру сделок не найдено. Обратитесь к сотруднику.');
-    err.status = 404;
     throw err;
   }
 
@@ -187,11 +172,149 @@ export async function verifyClientCode(supabase, { phone, code }) {
   }
 
   await kvDel(supabase, otpKey(phoneNormalized));
+  // SMS-вход подтверждает владение номером — сбрасываем счётчик неудачных PIN-попыток.
+  await resetPinFailures(supabase, phoneNormalized).catch(() => {});
   return {
     ok: true,
     token: signClientToken(phoneNormalized),
     phoneMasked: maskPhone(phoneNormalized),
   };
+}
+
+// ── PIN-код для быстрого входа ───────────────────────────────────────────────
+// Клиент придумывает 6-значный PIN после первого SMS-входа и дальше входит по нему.
+// Хранится только HMAC-хеш (pepper сервера + телефон как соль). Перебор ограничен:
+// 5 неверных попыток → блокировка PIN-входа на 15 минут (SMS-вход остаётся доступен).
+const PIN_MAX_FAILS = 5;
+const PIN_LOCK_MS = 15 * 60 * 1000;
+
+function pinKey(phoneNormalized) {
+  return `client_pin:${phoneNormalized}`;
+}
+
+function hashPin(phoneNormalized, pin) {
+  return crypto
+    .createHmac('sha256', secretPepper())
+    .update(`pin:${phoneNormalized}:${String(pin).trim()}`)
+    .digest('hex');
+}
+
+function assertValidPin(pin) {
+  const digits = String(pin || '').replace(/\D/g, '');
+  if (digits.length !== 6) {
+    const err = new Error('PIN-код — ровно 6 цифр');
+    err.status = 400;
+    throw err;
+  }
+  if (/^(\d)\1{5}$/.test(digits) || digits === '123456' || digits === '654321') {
+    const err = new Error('Слишком простой PIN-код — выберите другой');
+    err.status = 400;
+    throw err;
+  }
+  return digits;
+}
+
+async function resetPinFailures(supabase, phoneNormalized) {
+  const stored = await kvGet(supabase, pinKey(phoneNormalized));
+  if (stored?.pinHash && (stored.failCount || stored.lockedUntil)) {
+    await kvSet(supabase, pinKey(phoneNormalized), { ...stored, failCount: 0, lockedUntil: null });
+  }
+}
+
+/** Есть ли у номера PIN — чтобы экран входа сразу показал нужный шаг. */
+export async function getClientLoginMethod(supabase, { phone }) {
+  const phoneNormalized = normalizeClientPhone(phone);
+  if (!phoneNormalized) {
+    const err = new Error('Укажите корректный номер телефона (РФ, 10 цифр)');
+    err.status = 400;
+    throw err;
+  }
+  const stored = await kvGet(supabase, pinKey(phoneNormalized));
+  return { hasPin: !!stored?.pinHash, phoneMasked: maskPhone(phoneNormalized) };
+}
+
+export async function verifyClientPin(supabase, { phone, pin }) {
+  const phoneNormalized = normalizeClientPhone(phone);
+  if (!phoneNormalized) {
+    const err = new Error('Укажите корректный номер телефона');
+    err.status = 400;
+    throw err;
+  }
+  const digits = String(pin || '').replace(/\D/g, '');
+  if (digits.length !== 6) {
+    const err = new Error('Введите 6 цифр PIN-кода');
+    err.status = 400;
+    throw err;
+  }
+
+  const stored = await kvGet(supabase, pinKey(phoneNormalized));
+  if (!stored?.pinHash) {
+    const err = new Error('PIN-код не установлен. Войдите по SMS-коду.');
+    err.status = 400;
+    throw err;
+  }
+  if (stored.lockedUntil && Date.now() < new Date(stored.lockedUntil).getTime()) {
+    const err = new Error('PIN-вход временно заблокирован после неверных попыток. Войдите по SMS-коду.');
+    err.status = 429;
+    throw err;
+  }
+
+  if (hashPin(phoneNormalized, digits) !== stored.pinHash) {
+    const failCount = (stored.failCount || 0) + 1;
+    const locked = failCount >= PIN_MAX_FAILS;
+    await kvSet(supabase, pinKey(phoneNormalized), {
+      ...stored,
+      failCount: locked ? 0 : failCount,
+      lockedUntil: locked ? new Date(Date.now() + PIN_LOCK_MS).toISOString() : null,
+    });
+    const err = new Error(
+      locked
+        ? 'Слишком много неверных попыток — PIN-вход заблокирован на 15 минут. Войдите по SMS-коду.'
+        : `Неверный PIN-код. Осталось попыток: ${PIN_MAX_FAILS - failCount}`
+    );
+    err.status = locked ? 429 : 400;
+    throw err;
+  }
+
+  await resetPinFailures(supabase, phoneNormalized);
+  return {
+    ok: true,
+    token: signClientToken(phoneNormalized),
+    phoneMasked: maskPhone(phoneNormalized),
+  };
+}
+
+/**
+ * Установка/смена PIN — только внутри авторизованной сессии.
+ * Если PIN уже установлен, для смены требуется текущий PIN (защита от чужих рук
+ * за открытым кабинетом).
+ */
+export async function setClientPin(supabase, { phoneNormalized, pin, currentPin }) {
+  const digits = assertValidPin(pin);
+  const stored = await kvGet(supabase, pinKey(phoneNormalized));
+
+  if (stored?.pinHash) {
+    const cur = String(currentPin || '').replace(/\D/g, '');
+    if (!cur || hashPin(phoneNormalized, cur) !== stored.pinHash) {
+      const err = new Error('Текущий PIN-код указан неверно');
+      err.status = 400;
+      throw err;
+    }
+  }
+
+  await kvSet(supabase, pinKey(phoneNormalized), {
+    pinHash: hashPin(phoneNormalized, digits),
+    setAt: new Date().toISOString(),
+    failCount: 0,
+    lockedUntil: null,
+  });
+  return { ok: true };
+}
+
+/** Статус PIN для настроек кабинета. */
+export async function getClientPinStatus(supabase, phoneNormalized) {
+  const stored = await kvGet(supabase, pinKey(phoneNormalized));
+  return { hasPin: !!stored?.pinHash, setAt: stored?.setAt || null };
 }
 
 // ── Данные кабинета ─────────────────────────────────────────────────────────

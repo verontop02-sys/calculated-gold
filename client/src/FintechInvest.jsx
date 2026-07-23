@@ -608,6 +608,107 @@ function GoldChartCard({ currentRate, rateUpdatedAt }) {
   );
 }
 
+// ── AI-ассистент (Stage 10: Grok) ────────────────────────────────────────────
+function AssistantCard() {
+  const [data, setData] = useState(null); // { source, answer, forecast }
+  const [busy, setBusy] = useState(false);
+  const [question, setQuestion] = useState('');
+  const [err, setErr] = useState('');
+
+  const ask = useCallback(async (q) => {
+    setBusy(true);
+    setErr('');
+    try {
+      const out = await fintechApi.assistant(q);
+      setData(out);
+    } catch (e) {
+      setErr(e?.message || 'Ассистент временно недоступен');
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => { ask(''); }, [ask]);
+
+  function submitQuestion(e) {
+    e.preventDefault();
+    const q = question.trim();
+    if (!q || busy) return;
+    ask(q);
+  }
+
+  const scenarios = data?.forecast?.scenarios || [];
+  const horizons = scenarios[0]?.values?.map((v) => v.years) || [];
+
+  return (
+    <div className="cpx-card cpx-fin-ai-card">
+      <div className="cpx-fin-ai-head">
+        <div className="cpx-fin-ai-title-wrap">
+          <span className="cpx-fin-ai-icon" aria-hidden>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2a4 4 0 0 1 4 4c1.5.5 3 2 3 4a4 4 0 0 1-1 2.65A4 4 0 0 1 16 19a4 4 0 0 1-8 0 4 4 0 0 1-2-6.35A4 4 0 0 1 5 10c0-2 1.5-3.5 3-4a4 4 0 0 1 4-4z" />
+              <path d="M9 13a3 3 0 0 0 6 0" />
+            </svg>
+          </span>
+          <h2 className="cpx-h2" style={{ margin: 0 }}>AI-ассистент</h2>
+          <span className={`cpx-fin-ai-badge${data?.source === 'grok' ? ' cpx-fin-ai-badge--grok' : ''}`}>
+            {data?.source === 'grok' ? 'Grok' : 'Анализ'}
+          </span>
+        </div>
+        <button type="button" className="cpx-link" disabled={busy} onClick={() => ask('')}>Обновить анализ</button>
+      </div>
+
+      {busy && !data && <p className="cpx-muted"><span className="cpx-spinner" /> Анализируем портфель…</p>}
+      {err && <p className="cpx-err">{err}</p>}
+
+      {data?.answer && (
+        <div className={`cpx-fin-ai-answer${busy ? ' cpx-fin-ai-answer--busy' : ''}`}>{data.answer}</div>
+      )}
+
+      {scenarios.length > 0 && (
+        <div className="cpx-fin-ai-forecast">
+          <div className="cpx-fin-ai-forecast-title">
+            {data?.forecast?.accumulation
+              ? `Прогноз накопления при покупке ${data.forecast.monthlyGrams} г в месяц`
+              : 'Прогноз стоимости вашего золота'}
+          </div>
+          <table className="cpx-fin-ai-table">
+            <thead>
+              <tr>
+                <th>Сценарий</th>
+                {horizons.map((y) => <th key={y}>{y === 1 ? '1 год' : `${y} ${y < 5 ? 'года' : 'лет'}`}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {scenarios.map((s) => (
+                <tr key={s.key}>
+                  <td>{s.label}</td>
+                  {s.values.map((v) => (
+                    <td key={v.years} className="cpx-fin-ai-num">{formatMoney(v.valueRub)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <form onSubmit={submitQuestion} className="cpx-fin-ai-ask">
+        <input
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="Спросите ассистента: «что будет, если покупать по 5 г в месяц?»"
+          maxLength={500}
+        />
+        <button type="submit" className="cpx-btn cpx-fin-ai-ask-btn" disabled={busy || !question.trim()}>
+          {busy ? <span className="cpx-spinner" /> : 'Спросить'}
+        </button>
+      </form>
+      <p className="cpx-fin-ai-disclaimer">Прогноз построен на исторических данных и не является инвестиционной рекомендацией.</p>
+    </div>
+  );
+}
+
 // ── Дашборд после одобрения ─────────────────────────────────────────────────
 function FintechDashboard({ profile }) {
   const [portfolio, setPortfolio] = useState(null);
@@ -640,12 +741,13 @@ function FintechDashboard({ profile }) {
   const estimate = useMemo(() => {
     const v = parseFloat(String(amount).replace(',', '.'));
     if (!Number.isFinite(v) || v <= 0 || !portfolio?.currentRatePerGram) return null;
-    const feeMult = 1.015; // ориентир — точная комиссия считается на сервере
+    // Реальная комиссия приходит с сервера вместе с портфелем — расчёт совпадает с покупкой.
+    const feeMult = 1 + (Number(portfolio?.buyFeePercent) || 0) / 100;
     if (mode === 'rub') {
       return { grams: v / (portfolio.currentRatePerGram * feeMult) };
     }
     return { rub: v * portfolio.currentRatePerGram * feeMult };
-  }, [amount, mode, portfolio?.currentRatePerGram]);
+  }, [amount, mode, portfolio?.currentRatePerGram, portfolio?.buyFeePercent]);
 
   async function submitBuy(e) {
     e.preventDefault();
@@ -733,6 +835,8 @@ function FintechDashboard({ profile }) {
         <div className="cpx-fin-main">
           <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
 
+          <AssistantCard />
+
           <div className="cpx-card">
             <div className="cpx-fin-history-head">
               <h2 className="cpx-h2">История операций</h2>
@@ -756,7 +860,10 @@ function FintechDashboard({ profile }) {
         <aside className="cpx-fin-side">
           <div className="cpx-card cpx-fin-buy-card">
             <h2 className="cpx-h2">Купить золото</h2>
-            <p className="cpx-sub" style={{ marginBottom: 12 }}>По биржевому курсу, от 1 грамма или на любую сумму.</p>
+            <p className="cpx-sub" style={{ marginBottom: 12 }}>
+              По биржевому курсу, от 1 грамма или на любую сумму.
+              {portfolio?.buyFeePercent != null && ` Комиссия при покупке: ${portfolio.buyFeePercent}%.`}
+            </p>
             <form onSubmit={submitBuy} className="cpx-form">
               <div className="cpx-fin-mode-switch">
                 <button type="button" className={`cpx-fin-mode-btn${mode === 'rub' ? ' cpx-fin-mode-btn--on' : ''}`} onClick={() => { setMode('rub'); setAmount(''); }}>В рублях</button>
