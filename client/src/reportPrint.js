@@ -150,6 +150,29 @@ export function reportLogoPngDataUrl() {
   return REPORT_LOGO_PNG;
 }
 
+/**
+ * Загружает картинку (тот же origin /cities/*.jpg и т.п.) в data-URL,
+ * чтобы html2canvas в iframe стабильно отрисовал её в PDF.
+ */
+export async function loadImageDataUrl(url) {
+  if (!url) return '';
+  if (String(url).startsWith('data:')) return String(url);
+  try {
+    const abs = new URL(url, window.location.origin).href;
+    const res = await fetch(abs, { cache: 'force-cache' });
+    if (!res.ok) return '';
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(reader.error || new Error('FileReader failed'));
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return '';
+  }
+}
+
 /** Шапка отчёта (один раз в начале документа). */
 export function sheetHeaderHtml({
   sectionTitle,

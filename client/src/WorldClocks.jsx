@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
  * дашборде сотрудников, и в кабинете клиента (вкладка «Инвестиции»).
  * Тёмная тема — ночные виды, светлая — солнечные дневные (та же композиция).
  */
-const WORLD_CITIES = [
+export const WORLD_CITIES = [
   { key: 'moscow', label: 'Москва', code: 'MSK', tz: 'Europe/Moscow', imgDark: '/cities/moscow.jpg', imgLight: '/cities/moscow-day.jpg' },
   { key: 'newyork', label: 'Нью-Йорк', code: 'NYC', tz: 'America/New_York', imgDark: '/cities/newyork.jpg', imgLight: '/cities/newyork-day.jpg' },
   { key: 'london', label: 'Лондон', code: 'LDN', tz: 'Europe/London', imgDark: '/cities/london.jpg', imgLight: '/cities/london-day.jpg' },
@@ -26,7 +26,7 @@ function useHtmlTheme() {
   return theme;
 }
 
-function tzParts(now, tz) {
+export function tzParts(now, tz) {
   try {
     const parts = new Intl.DateTimeFormat('ru-RU', {
       timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
@@ -38,7 +38,7 @@ function tzParts(now, tz) {
   }
 }
 
-function tzDateLabel(now, tz) {
+export function tzDateLabel(now, tz) {
   try {
     const s = new Intl.DateTimeFormat('ru-RU', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'long' }).format(now);
     return s.charAt(0).toUpperCase() + s.slice(1);
@@ -47,7 +47,7 @@ function tzDateLabel(now, tz) {
   }
 }
 
-function tzOffsetLabel(now, tz) {
+export function tzOffsetLabel(now, tz) {
   try {
     const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' }).formatToParts(now);
     const name = parts.find((p) => p.type === 'timeZoneName')?.value || '';

@@ -5,7 +5,8 @@
 
 import { createRequire } from 'module';
 import { dirname, join } from 'path';
-import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
+import { fileURLToPath } from 'url';
+import { createCanvas, GlobalFonts, loadImage } from '@napi-rs/canvas';
 import { getReportLogoDataUri } from './reportLogo.js';
 import {
   pickPalette, fmtRub, deltaParts, dataTableLayout, th, sectionTitle,
@@ -15,6 +16,7 @@ import {
 const require = createRequire(import.meta.url);
 const pdfMake = require('pdfmake');
 const pdfmakeRoot = dirname(require.resolve('pdfmake/package.json'));
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 pdfMake.setFonts({
   Roboto: {
@@ -120,6 +122,132 @@ async function renderFlowChart(series, C, W = 1480, H = 320) {
   return `data:image/png;base64,${buf.toString('base64')}`;
 }
 
+const WORLD_CLOCK_CITIES = [
+  { key: 'moscow', label: 'Москва', code: 'MSK', tz: 'Europe/Moscow', dark: 'moscow.jpg', light: 'moscow-day.jpg' },
+  { key: 'newyork', label: 'Нью-Йорк', code: 'NYC', tz: 'America/New_York', dark: 'newyork.jpg', light: 'newyork-day.jpg' },
+  { key: 'london', label: 'Лондон', code: 'LDN', tz: 'Europe/London', dark: 'london.jpg', light: 'london-day.jpg' },
+];
+
+const CITY_IMG_DIRS = [
+  join(__dirname, '..', 'client', 'public', 'cities'),
+  join(__dirname, '..', 'client', 'dist', 'cities'),
+];
+
+function tzHm(now, tz) {
+  try {
+    const parts = new Intl.DateTimeFormat('ru-RU', {
+      timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(now);
+    const get = (t) => parts.find((p) => p.type === t)?.value || '00';
+    return `${get('hour')}:${get('minute')}`;
+  } catch {
+    return '—:—';
+  }
+}
+
+function tzDateShort(now, tz) {
+  try {
+    const s = new Intl.DateTimeFormat('ru-RU', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'long' }).format(now);
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  } catch {
+    return '';
+  }
+}
+
+/** Три плитки мирового времени с фото городов → data-URL PNG. */
+async function renderWorldClockTiles(theme = 'dark', W = 1480, H = 220) {
+  ensureCanvasFonts();
+  const now = new Date();
+  const isLight = theme === 'light';
+  const gap = 14;
+  const tileW = Math.floor((W - gap * 2) / 3);
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  for (let i = 0; i < WORLD_CLOCK_CITIES.length; i++) {
+    const c = WORLD_CLOCK_CITIES[i];
+    const x = i * (tileW + gap);
+    const file = isLight ? c.light : c.dark;
+    let loaded = null;
+    for (const dir of CITY_IMG_DIRS) {
+      try {
+        loaded = await loadImage(join(dir, file));
+        break;
+      } catch {
+        /* next */
+      }
+    }
+
+    // фон / фото
+    ctx.save();
+    roundRectPath(ctx, x, 0, tileW, H, 14);
+    ctx.clip();
+    if (loaded) {
+      const scale = Math.max(tileW / loaded.width, H / loaded.height);
+      const dw = loaded.width * scale;
+      const dh = loaded.height * scale;
+      ctx.drawImage(loaded, x + (tileW - dw) / 2, (H - dh) * 0.38 - dh * 0.38, dw, dh);
+    } else {
+      ctx.fillStyle = '#1a1c1f';
+      ctx.fillRect(x, 0, tileW, H);
+    }
+    // затемнение
+    const shade = ctx.createLinearGradient(x, 0, x, H);
+    shade.addColorStop(0, 'rgba(8,9,12,0.62)');
+    shade.addColorStop(0.42, 'rgba(8,9,12,0.18)');
+    shade.addColorStop(1, 'rgba(8,9,12,0.66)');
+    ctx.fillStyle = shade;
+    ctx.fillRect(x, 0, tileW, H);
+    if (c.key === 'moscow') {
+      const red = ctx.createLinearGradient(x, 0, x + tileW, H);
+      red.addColorStop(0, 'rgba(254,0,0,0.22)');
+      red.addColorStop(0.55, 'rgba(254,0,0,0)');
+      ctx.fillStyle = red;
+      ctx.fillRect(x, 0, tileW, H);
+    }
+
+    // текст
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 22px "DRptB"';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(c.label, x + 18, 16);
+
+    ctx.font = 'bold 14px "DRpt"';
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    ctx.textAlign = 'right';
+    ctx.fillText(c.code, x + tileW - 18, 20);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 42px "DRptB"';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(tzHm(now, c.tz), x + 18, H - 18);
+
+    ctx.font = '600 16px "DRpt"';
+    ctx.fillStyle = 'rgba(255,255,255,0.78)';
+    ctx.textAlign = 'right';
+    ctx.fillText(tzDateShort(now, c.tz), x + tileW - 18, H - 22);
+
+    ctx.restore();
+  }
+
+  const buf = await canvas.encode('png');
+  return `data:image/png;base64,${buf.toString('base64')}`;
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
 export async function buildDashboardReportPdf(payload) {
   const theme = payload.theme === 'dark' ? 'dark' : 'light';
   const C = pickPalette(theme);
@@ -138,11 +266,13 @@ export async function buildDashboardReportPdf(payload) {
   const today = payload.today || {};
 
   const chartB64 = flow.length >= 2 ? await renderFlowChart(flow, C) : null;
+  const clocksB64 = await renderWorldClockTiles(theme);
   const logo = await getReportLogoDataUri();
 
   const images = {};
   if (logo) images.brandLogo = logo;
   if (chartB64) images.flowChart = chartB64;
+  if (clocksB64) images.worldClocks = clocksB64;
 
   const layout = dataTableLayout(C);
   const tbl = (body, widths, m = [0, 0, 0, 0]) => ({ table: { widths, body }, layout, margin: m });
@@ -192,6 +322,11 @@ export async function buildDashboardReportPdf(payload) {
 
   content.push({ columns: headerCols, columnGap: 12, margin: [0, 0, 0, 8] });
   content.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: CONTENT_W, y2: 0, lineWidth: 1.5, lineColor: C.accent }], margin: [0, 0, 0, 14] });
+
+  // ── Мировое время с фото городов ──
+  if (clocksB64) {
+    content.push({ image: 'worldClocks', width: CONTENT_W, margin: [0, 0, 0, 12] });
+  }
 
   // ── KPI 2×2 ──
   content.push({ columns: [{ width: '*', ...kpiSum }, { width: 10, text: '' }, { width: '*', ...kpiDeals }], margin: [0, 0, 0, 10] });

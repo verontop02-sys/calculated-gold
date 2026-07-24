@@ -12,7 +12,9 @@ import {
   lineAreaChartSvg,
   sparklineSvg,
   kpiCardHtml,
+  loadImageDataUrl,
 } from './reportPrint.js';
+import { WORLD_CITIES, tzParts, tzDateLabel, tzOffsetLabel } from './WorldClocks.jsx';
 
 function deltaPct(cur, prev) {
   if (cur == null || prev == null || !Number.isFinite(cur) || !Number.isFinite(prev) || prev === 0) return null;
@@ -40,6 +42,38 @@ function kpiCard(label, valueHtml, cur, prev, prevHtml, icon = 'money', tone = '
   });
 }
 
+/** Блок мирового времени с фото городов — как на дашборде. */
+async function worldClocksHtml(themeName) {
+  const now = new Date();
+  const isLight = themeName === 'light';
+  const tiles = await Promise.all(
+    WORLD_CITIES.map(async (c) => {
+      const srcPath = isLight ? c.imgLight : c.imgDark;
+      const dataUrl = await loadImageDataUrl(srcPath);
+      const { hm } = tzParts(now, c.tz);
+      const date = tzDateLabel(now, c.tz);
+      const offset = tzOffsetLabel(now, c.tz);
+      const bg = dataUrl
+        ? `<img class="r-clock__bg" src="${dataUrl}" alt="" decoding="sync" />`
+        : '';
+      return `
+        <div class="r-clock r-clock--${escapeHtml(c.key)}">
+          ${bg}
+          <div class="r-clock__shade" aria-hidden="true"></div>
+          <div class="r-clock__top">
+            <span class="r-clock__city">${escapeHtml(c.label)}</span>
+            <span class="r-clock__code">${escapeHtml(c.code)}${offset ? ` · ${escapeHtml(offset)}` : ''}</span>
+          </div>
+          <div class="r-clock__bottom">
+            <span class="r-clock__time mono-nums">${escapeHtml(hm)}</span>
+            <span class="r-clock__date">${escapeHtml(date)}</span>
+          </div>
+        </div>`;
+    })
+  );
+  return `<div class="r-clocks">${tiles.join('')}</div>`;
+}
+
 /* Стили 1 в 1 с классами сайта: .dx-card--today, .dx-probe, .dx-staff-row, .dx-market-row, .dx-deal */
 const EXTRA_CSS = `
 .r-card--today {
@@ -52,6 +86,95 @@ const EXTRA_CSS = `
 .r-today__stat { display: flex; flex-direction: column; }
 .r-today__v { font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; color: var(--text-strong); line-height: 1.1; }
 .r-today__k { font-size: 0.75rem; color: var(--text-muted); margin-top: 1px; }
+
+.r-clocks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.r-clock {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  min-height: 108px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: #1a1c1f;
+  isolation: isolate;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.r-clock__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 38%;
+  z-index: 0;
+  pointer-events: none;
+}
+.r-clock__shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(8, 9, 12, 0.62) 0%, rgba(8, 9, 12, 0.18) 42%, rgba(8, 9, 12, 0.66) 100%);
+  pointer-events: none;
+}
+.r-clock--moscow .r-clock__shade {
+  background:
+    linear-gradient(180deg, rgba(8, 9, 12, 0.62) 0%, rgba(8, 9, 12, 0.18) 42%, rgba(8, 9, 12, 0.66) 100%),
+    linear-gradient(120deg, rgba(254, 0, 0, 0.22), transparent 55%);
+}
+.r-clock__top,
+.r-clock__bottom {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.r-clock__city {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+}
+.r-clock__code {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.86);
+  background: rgba(10, 11, 15, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.r-clock__time {
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #fff;
+  line-height: 1;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+.r-clock__date {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+}
 
 .r-probes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 @media print { .r-probes { grid-template-columns: repeat(2, 1fr); } }
@@ -135,6 +258,8 @@ export async function openDashboardReport(d) {
     kpiCard('Средний чек', k.avg?.cur != null ? fm(Math.round(k.avg.cur)) : '—', k.avg?.cur, k.avg?.prev, k.avg?.prev != null ? fm(Math.round(k.avg.prev)) : '—', 'avg'),
   ].join('');
 
+  const clocksHtml = await worldClocksHtml(t.theme);
+
   const probesHtml = (d.probes || []).length
     ? (d.probes || [])
         .map(
@@ -207,6 +332,7 @@ export async function openDashboardReport(d) {
     : '<div class="r-empty">Сделок пока нет</div>';
 
   const blocks = [
+    reportBlock(null, clocksHtml),
     reportBlock(`KPI · ${d.rangeLabel || ''}`, `<div class="r-kpis">${kpisHtml}</div>`),
     reportBlock(
       null,
