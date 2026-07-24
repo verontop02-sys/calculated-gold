@@ -272,7 +272,7 @@ export function ClientPortal() {
 
   if (phase === 'authed') {
     return (
-      <div className={`cpx-root cpx-shell${sidebarPinned ? ' cpx-shell--pinned' : ''}`}>
+      <div className={`cpx-root cpx-shell${sidebarPinned ? ' cpx-shell--pinned' : ''}${tab === 'support' ? ' cpx-shell--chat' : ''}`}>
         <ClientSidebar
           tab={tab}
           onChange={setTab}
@@ -298,7 +298,7 @@ export function ClientPortal() {
             </div>
           </header>
 
-          <main className={`cpx-shell__content${tab === 'invest' || tab === 'home' || tab === 'settings' || tab === 'history' || tab === 'support' ? ' cpx-shell__content--wide' : ''}`}>
+          <main className={`cpx-shell__content${tab === 'invest' || tab === 'home' || tab === 'settings' || tab === 'history' ? ' cpx-shell__content--wide' : ''}${tab === 'support' ? ' cpx-shell__content--chat' : ''}`}>
             {tab === 'home' && (
               <ClientHome
                 hasPin={hasPin}
@@ -1446,78 +1446,86 @@ function ClientSupportChat({ onUnreadCleared }) {
   }, [messages]);
 
   return (
-    <div className="cpx-chat-page">
-      <div className="cpx-card cpx-chat">
-        <div className="cpx-chat-head">
-          <span className="cpx-chat-head__icon" aria-hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
-            </svg>
+    <div className="cpx-chat">
+      <div className="cpx-chat-head">
+        <span className="cpx-chat-head__icon" aria-hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
+          </svg>
+        </span>
+        <div className="cpx-chat-head__text">
+          <span className="cpx-chat-head__title">Поддержка Reaktivo</span>
+          <span className="cpx-chat-head__sub">
+            <span className="cpx-chat-head__dot" aria-hidden />
+            Онлайн · отвечаем в рабочее время
           </span>
-          <div className="cpx-chat-head__text">
-            <span className="cpx-chat-head__title">Поддержка Reaktivo</span>
-            <span className="cpx-chat-head__sub">
-              <span className="cpx-chat-head__dot" aria-hidden />
-              Онлайн · отвечаем в рабочее время
-            </span>
-          </div>
         </div>
+      </div>
 
-        <div className="cpx-chat-list" ref={listRef} onScroll={onListScroll}>
-          {loading && <div className="cpx-chat-empty">Загружаем переписку…</div>}
-          {!loading && messages.length === 0 && (
-            <div className="cpx-chat-empty">
-              <div className="cpx-chat-empty__title">Напишите нам</div>
-              <p className="cpx-chat-empty__sub">
-                Поможем с проверкой документов, сделками, покупкой золота и любыми вопросами по кабинету.
-                Ответ придёт прямо сюда.
-              </p>
+      <div className="cpx-chat-list" ref={listRef} onScroll={onListScroll}>
+        {loading && <div className="cpx-chat-empty">Загружаем переписку…</div>}
+        {!loading && messages.length === 0 && (
+          <div className="cpx-chat-empty">
+            <div className="cpx-chat-empty__icon" aria-hidden>
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
+              </svg>
             </div>
-          )}
-          {grouped.map((item) =>
-            item.type === 'day' ? (
-              <div key={item.key} className="cpx-chat-day"><span>{item.label}</span></div>
-            ) : (
-              <div key={item.key} className={`cpx-chat-msg${item.msg.sender === 'client' ? ' cpx-chat-msg--me' : ''}`}>
-                <div className="cpx-chat-bubble">
-                  {item.msg.sender === 'staff' && (
-                    <span className="cpx-chat-author">{item.msg.staffName || 'Поддержка Reaktivo'}</span>
-                  )}
-                  <span className="cpx-chat-text">{item.msg.body}</span>
-                  <span className="cpx-chat-time mono-nums">{chatTime(item.msg.createdAt)}</span>
-                </div>
+            <div className="cpx-chat-empty__title">Напишите нам</div>
+            <p className="cpx-chat-empty__sub">
+              Поможем с документами, сделками и покупкой золота.
+              Ответ придёт прямо сюда.
+            </p>
+          </div>
+        )}
+        {grouped.map((item) =>
+          item.type === 'day' ? (
+            <div key={item.key} className="cpx-chat-day"><span>{item.label}</span></div>
+          ) : (
+            <div key={item.key} className={`cpx-chat-msg${item.msg.sender === 'client' ? ' cpx-chat-msg--me' : ''}`}>
+              <div className="cpx-chat-bubble">
+                {item.msg.sender === 'staff' && (
+                  <span className="cpx-chat-author">{item.msg.staffName || 'Поддержка Reaktivo'}</span>
+                )}
+                <span className="cpx-chat-text">{item.msg.body}</span>
+                <span className="cpx-chat-time mono-nums">{chatTime(item.msg.createdAt)}</span>
               </div>
-            )
-          )}
-        </div>
+            </div>
+          )
+        )}
+      </div>
 
-        {err && <p className="cpx-chat-err">{err}</p>}
+      {err && <p className="cpx-chat-err">{err}</p>}
 
-        <div className="cpx-chat-compose">
-          <textarea
-            className="cpx-chat-input"
-            rows={1}
-            placeholder="Сообщение…"
-            value={text}
-            maxLength={2000}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={onKeyDown}
-            disabled={sending}
-          />
-          <button
-            type="button"
-            className="cpx-chat-send"
-            onClick={send}
-            disabled={sending || !text.trim()}
-            title="Отправить (Enter)"
-            aria-label="Отправить сообщение"
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 2L11 13" />
-              <path d="M22 2l-7 20-4-9-9-4 20-7z" />
-            </svg>
-          </button>
-        </div>
+      <div className="cpx-chat-compose">
+        <textarea
+          className="cpx-chat-input"
+          rows={1}
+          placeholder="Напишите сообщение…"
+          value={text}
+          maxLength={2000}
+          onChange={(e) => {
+            setText(e.target.value);
+            const el = e.target;
+            el.style.height = 'auto';
+            el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+          }}
+          onKeyDown={onKeyDown}
+          disabled={sending}
+        />
+        <button
+          type="button"
+          className="cpx-chat-send"
+          onClick={send}
+          disabled={sending || !text.trim()}
+          title="Отправить (Enter)"
+          aria-label="Отправить сообщение"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 2L11 13" />
+            <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+          </svg>
+        </button>
       </div>
     </div>
   );
@@ -1568,6 +1576,12 @@ const CSS = `
 }
 .cpx-shell--pinned .cpx-shell__main { padding-left: 240px; }
 @media (max-width: 900px) { .cpx-shell__main { padding-left: 0 !important; } }
+/* Режим чата: фиксируем высоту экрана, скролл только внутри переписки */
+.cpx-shell--chat .cpx-shell__main {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
 
 /* Shell-топбар — как cg-topbar в админке: на всю ширину, без «карточки».
    Правила стоят ПОСЛЕ .cpx-topbar ниже по файлу через повторный блок. */
@@ -1588,9 +1602,20 @@ const CSS = `
   max-width: none;
   padding: 18px 28px 48px;
 }
+/* Чат поддержки — без отступов и «карточки», на всю рабочую область */
+.cpx-shell__content--chat {
+  max-width: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
 @media (max-width: 900px) {
   .cpx-shell__content { padding: 16px 16px 84px; }
   .cpx-shell__content--wide { padding: 16px 16px 84px; }
+  .cpx-shell__content--chat { padding: 0 0 56px; flex: 1; }
 }
 
 /* ── ПК-раскладка дашборда инвестиций ── */
@@ -1761,151 +1786,196 @@ const CSS = `
 }
 .cpx-fin-ai-disclaimer { margin: 8px 0 0; font-size: 0.68rem; color: var(--text-dim); line-height: 1.4; }
 
-/* ── Чат поддержки ── */
-.cpx-chat-page { max-width: 860px; margin: 0 auto; width: 100%; }
+/* ── Чат поддержки (без карточной подложки) ── */
 .cpx-chat {
   display: flex;
   flex-direction: column;
-  padding: 0;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   overflow: hidden;
-  height: calc(100dvh - 190px);
-  min-height: 420px;
-}
-@media (max-width: 900px) {
-  .cpx-chat { height: calc(100dvh - 250px); min-height: 360px; }
 }
 .cpx-chat-head {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 18px;
+  padding: 12px 20px;
   border-bottom: 1px solid var(--stroke-soft);
-  background: var(--surface);
+  background: transparent;
+  flex-shrink: 0;
 }
 .cpx-chat-head__icon {
-  width: 38px; height: 38px;
-  border-radius: 12px;
+  width: 36px; height: 36px;
+  border-radius: 10px;
   background: var(--accent-soft);
   color: var(--accent);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
 .cpx-chat-head__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.cpx-chat-head__title { font-size: 0.94rem; font-weight: 700; color: var(--text-strong); }
+.cpx-chat-head__title { font-size: 0.9rem; font-weight: 700; color: var(--text-strong); }
 .cpx-chat-head__sub {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 0.74rem; color: var(--text-muted);
+  font-size: 0.72rem; color: var(--text-muted);
 }
 .cpx-chat-head__dot {
   width: 7px; height: 7px; border-radius: 50%;
-  background: var(--emerald);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--emerald) 70%, transparent);
+  background: var(--emerald, #22c55e);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--emerald, #22c55e) 70%, transparent);
+}
+@media (max-width: 900px) {
+  /* На мобилке топбар уже говорит «Поддержка» — шапка чата компактнее */
+  .cpx-chat-head { padding: 10px 16px; }
+  .cpx-chat-head__icon { width: 32px; height: 32px; border-radius: 9px; }
+  .cpx-chat-head__title { font-size: 0.84rem; }
 }
 .cpx-chat-list {
   flex: 1;
   overflow-y: auto;
-  padding: 18px;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 20px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  background:
-    radial-gradient(ellipse 90% 55% at 50% -10%, color-mix(in srgb, var(--accent-soft) 40%, transparent), transparent 70%);
+  gap: 6px;
+  min-height: 0;
+  background: transparent;
+}
+@media (max-width: 900px) {
+  .cpx-chat-list { padding: 12px 14px 8px; }
 }
 .cpx-chat-empty {
   margin: auto;
   text-align: center;
-  max-width: 40ch;
+  max-width: 34ch;
   color: var(--text-muted);
   font-size: 0.86rem;
   line-height: 1.55;
+  padding: 24px 12px;
 }
-.cpx-chat-empty__title { font-size: 1.02rem; font-weight: 700; color: var(--text-strong); margin-bottom: 6px; }
+.cpx-chat-empty__icon {
+  width: 52px; height: 52px;
+  border-radius: 16px;
+  margin: 0 auto 12px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.cpx-chat-empty__title { font-size: 1.05rem; font-weight: 700; color: var(--text-strong); margin-bottom: 6px; }
 .cpx-chat-empty__sub { margin: 0; }
 .cpx-chat-day {
   display: flex;
   justify-content: center;
-  margin: 8px 0 4px;
+  margin: 10px 0 6px;
 }
 .cpx-chat-day span {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-dim);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
   border: 1px solid var(--stroke-soft);
   border-radius: 999px;
-  padding: 4px 12px;
+  padding: 3px 11px;
 }
 .cpx-chat-msg { display: flex; }
 .cpx-chat-msg--me { justify-content: flex-end; }
 .cpx-chat-bubble {
-  max-width: min(78%, 520px);
-  padding: 9px 12px 6px;
-  border-radius: 14px 14px 14px 4px;
-  background: var(--bg-panel-solid);
+  max-width: min(82%, 480px);
+  padding: 9px 12px 5px;
+  border-radius: 16px 16px 16px 5px;
+  background: var(--surface);
   border: 1px solid var(--stroke-soft);
-  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
   gap: 2px;
+  box-shadow: none;
 }
 .cpx-chat-msg--me .cpx-chat-bubble {
-  border-radius: 14px 14px 4px 14px;
-  background: color-mix(in srgb, var(--accent) 88%, #000);
+  border-radius: 16px 16px 5px 16px;
+  background: var(--accent);
   border-color: transparent;
 }
-.cpx-chat-author { font-size: 0.7rem; font-weight: 700; color: var(--accent); }
+.cpx-chat-author { font-size: 0.68rem; font-weight: 700; color: var(--accent); margin-bottom: 1px; }
 .cpx-chat-text {
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   color: var(--text);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
 }
 .cpx-chat-msg--me .cpx-chat-text { color: #fff; }
-.cpx-chat-time { align-self: flex-end; font-size: 0.64rem; color: var(--text-dim); }
-.cpx-chat-msg--me .cpx-chat-time { color: rgba(255, 255, 255, 0.72); }
-.cpx-chat-err { margin: 0; padding: 8px 18px; font-size: 0.8rem; color: var(--danger); }
+.cpx-chat-time { align-self: flex-end; font-size: 0.62rem; color: var(--text-dim); margin-top: 2px; }
+.cpx-chat-msg--me .cpx-chat-time { color: rgba(255, 255, 255, 0.7); }
+.cpx-chat-err { margin: 0; padding: 6px 16px; font-size: 0.8rem; color: var(--danger); flex-shrink: 0; }
 .cpx-chat-compose {
   display: flex;
   align-items: flex-end;
   gap: 10px;
-  padding: 12px 14px;
+  padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0));
   border-top: 1px solid var(--stroke-soft);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--bg-panel-solid) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  flex-shrink: 0;
+}
+@media (max-width: 900px) {
+  .cpx-chat-compose {
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0));
+    /* На мобилке нижнее меню уже даёт safe-area — не дублируем */
+    padding-bottom: 10px;
+  }
 }
 .cpx-chat-input {
   flex: 1;
-  min-height: 42px;
+  min-height: 44px;
   max-height: 120px;
-  padding: 11px 13px;
-  border-radius: 12px;
-  border: 1px solid var(--cpx-stroke);
+  padding: 11px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
   background: var(--input-bg);
-  color: var(--cpx-ink);
-  font-size: 0.88rem;
+  color: var(--text-strong);
+  font-size: 0.92rem;
   font-family: inherit;
   line-height: 1.4;
   resize: none;
   outline: none;
   box-sizing: border-box;
 }
-.cpx-chat-input:focus { border-color: var(--cpx-accent); box-shadow: 0 0 0 3px var(--cpx-accent-soft); }
+.cpx-chat-input::placeholder { color: var(--text-dim); }
+.cpx-chat-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+@media (max-width: 900px) {
+  .cpx-chat-input {
+    min-height: 46px;
+    font-size: 1rem; /* iOS не зумит при фокусе */
+    padding: 12px 14px;
+  }
+}
 .cpx-chat-send {
-  width: 42px; height: 42px;
+  width: 44px; height: 44px;
   flex-shrink: 0;
   border: none;
-  border-radius: 12px;
-  background: var(--accent-grad);
+  border-radius: 14px;
+  background: var(--accent-grad, var(--accent));
   color: #fff;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 5px 16px var(--accent-glow);
-  transition: filter 0.16s, transform 0.15s;
+  transition: filter 0.16s, transform 0.15s, opacity 0.15s;
 }
-.cpx-chat-send:hover:not(:disabled) { filter: brightness(1.07); transform: translateY(-1px); }
-.cpx-chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+.cpx-chat-send:hover:not(:disabled) { filter: brightness(1.07); }
+.cpx-chat-send:active:not(:disabled) { transform: scale(0.95); }
+.cpx-chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+@media (max-width: 900px) {
+  .cpx-chat-send { width: 46px; height: 46px; }
+}
 
 .cpx-topbar {
   position: relative;
