@@ -111,6 +111,10 @@ export async function clientSupportUnread(supabase, phoneNormalized) {
 export async function clientSendSupportMessage(supabase, { phoneNormalized, body: rawBody }) {
   const body = sanitizeBody(rawBody);
   const thread = await getOrCreateThread(supabase, phoneNormalized);
+  // Уведомление в Telegram только когда поддержка уже «прочитала» диалог
+  // (staff_unread === 0). Серия сообщений подряд до открытия чата = один пуш,
+  // а не спам на каждое сообщение. Ответы сотрудников в TG не уходят.
+  const isFirstUnread = !(thread.staff_unread > 0);
 
   const { data: msg, error } = await supabase
     .from('support_messages')
@@ -132,9 +136,11 @@ export async function clientSendSupportMessage(supabase, { phoneNormalized, body
     .eq('id', thread.id);
   if (upErr) throw upErr;
 
-  notifySupportTelegram({ phoneNormalized, body }).catch((e) =>
-    console.warn('[support tg notify]', e?.message || e)
-  );
+  if (isFirstUnread) {
+    notifySupportTelegram({ phoneNormalized, body }).catch((e) =>
+      console.warn('[support tg notify]', e?.message || e)
+    );
+  }
 
   return { ok: true, message: mapMessage(msg) };
 }
@@ -286,10 +292,12 @@ async function notifySupportTelegram({ phoneNormalized, body }) {
     : `+${digits}`;
 
   const text = [
-    '💬 Новое сообщение в поддержку Reaktivo',
+    '💬 Новое обращение в поддержку Reaktivo',
     `Клиент: ${phonePretty}`,
     '',
     body.length > 500 ? `${body.slice(0, 499)}…` : body,
+    '',
+    '→ Ответить в панели: раздел «Поддержка»',
   ].join('\n');
 
   const controller = new AbortController();
