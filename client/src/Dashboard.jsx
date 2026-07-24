@@ -245,12 +245,27 @@ function fmtAxisUsd(v) {
   return `$${fmtAxisNum.format(Math.round(v))}`;
 }
 
-/** Мировое время: Москва / Нью-Йорк / Лондон — плитки с фото городов. */
+/** Мировое время: Москва / Нью-Йорк / Лондон — плитки с фото городов.
+ *  Тёмная тема — ночные виды, светлая — солнечные дневные (та же композиция). */
 const WORLD_CITIES = [
-  { key: 'moscow', label: 'Москва', code: 'MSK', tz: 'Europe/Moscow', img: '/cities/moscow.jpg' },
-  { key: 'newyork', label: 'Нью-Йорк', code: 'NYC', tz: 'America/New_York', img: '/cities/newyork.jpg' },
-  { key: 'london', label: 'Лондон', code: 'LDN', tz: 'Europe/London', img: '/cities/london.jpg' },
+  { key: 'moscow', label: 'Москва', code: 'MSK', tz: 'Europe/Moscow', imgDark: '/cities/moscow.jpg', imgLight: '/cities/moscow-day.jpg' },
+  { key: 'newyork', label: 'Нью-Йорк', code: 'NYC', tz: 'America/New_York', imgDark: '/cities/newyork.jpg', imgLight: '/cities/newyork-day.jpg' },
+  { key: 'london', label: 'Лондон', code: 'LDN', tz: 'Europe/London', imgDark: '/cities/london.jpg', imgLight: '/cities/london-day.jpg' },
 ];
+
+/** Текущая тема из data-theme на <html> + подписка на переключение (ThemeToggle меняет атрибут). */
+function useHtmlTheme() {
+  const [theme, setTheme] = useState(() => document.documentElement.getAttribute('data-theme') || 'dark');
+  useEffect(() => {
+    const el = document.documentElement;
+    const obs = new MutationObserver(() => {
+      setTheme(el.getAttribute('data-theme') || 'dark');
+    });
+    obs.observe(el, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => obs.disconnect();
+  }, []);
+  return theme;
+}
 
 function tzParts(now, tz) {
   try {
@@ -285,6 +300,7 @@ function tzOffsetLabel(now, tz) {
 
 function WorldClocksCard({ delay = '40ms' }) {
   const [now, setNow] = useState(() => new Date());
+  const theme = useHtmlTheme();
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -295,8 +311,9 @@ function WorldClocksCard({ delay = '40ms' }) {
     <section className="dx-card dx-card--clocks dx-in" style={{ '--d': delay }} aria-label="Мировое время">
       {WORLD_CITIES.map((c) => {
         const { hm, s } = tzParts(now, c.tz);
+        const img = theme === 'light' ? c.imgLight : c.imgDark;
         return (
-          <div key={c.key} className={`dx-clock dx-clock--${c.key}`} style={{ backgroundImage: `url(${c.img})` }}>
+          <div key={c.key} className={`dx-clock dx-clock--${c.key} dx-clock--${theme}`} style={{ backgroundImage: `url(${img})` }}>
             <div className="dx-clock__top">
               <span className="dx-clock__city">
                 <span className="dx-clock__live" aria-hidden />
@@ -2548,8 +2565,17 @@ const CSS = `
 @media (max-width: 640px) {
   .dx { gap: 14px; }
   .dx-grid { gap: 10px; }
-  .dx-card--clocks { grid-template-columns: 1fr; padding: 8px; gap: 8px; }
-  .dx-clock { min-height: 92px; padding: 12px 14px; }
+  /* Без «подложки»-карточки — на мобиле фото городов идут сами по себе, край в край */
+  .dx-card--clocks {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 0 !important;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  .dx-card--clocks:hover { transform: none !important; box-shadow: none !important; }
+  .dx-clock { min-height: 92px; padding: 12px 14px; border-radius: 14px; }
   .dx-card { padding: 15px 16px; border-radius: 15px; }
   .dx-kpi { grid-column: span 6; }
   .dx-kpi__v { font-size: 1.3rem; }

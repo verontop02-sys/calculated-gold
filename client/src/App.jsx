@@ -1027,12 +1027,17 @@ export default function App() {
             grid-template-columns: auto 1fr auto;
             grid-template-areas: "logo title actions" "rate rate rate";
             height: auto;
-            padding: 10px 14px;
-            gap: 8px;
+            padding: 10px 14px 12px;
+            gap: 10px;
           }
           .cg-topbar__title { grid-area: title; }
           .cg-topbar__actions { grid-area: actions; }
-          .cg-topbar__rate { grid-area: rate; }
+          .cg-topbar__rate {
+            grid-area: rate;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
+          }
           .cg-topbar__sub { display: none; }
           .cg-topbar__logo {
             grid-area: logo;
@@ -1046,8 +1051,10 @@ export default function App() {
           }
           .cg-topbar__logo img { width: 22px; height: 22px; }
           .cg-shell__content { padding: 14px 12px calc(90px + env(safe-area-inset-bottom, 0)); }
-          .cg-rate { padding: 5px 8px; }
-          .cg-quote-tab { padding: 4px 8px; font-size: 0.68rem; }
+          .cg-quote-tabs { width: 100%; box-sizing: border-box; }
+          .cg-quote-tab { flex: 1; text-align: center; padding: 6px 8px; font-size: 0.74rem; }
+          .cg-rate { width: 100%; box-sizing: border-box; padding: 7px 10px; justify-content: space-between; }
+          .cg-rate__main { flex: 1; min-width: 0; }
         }
 
         @media (max-width: 520px) {
