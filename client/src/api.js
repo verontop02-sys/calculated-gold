@@ -496,6 +496,38 @@ export const clientApi = {
     if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
     return j;
   },
+  /** Чат поддержки: история сообщений (открытие обнуляет непрочитанное у клиента). */
+  supportChat: async () => {
+    const r = await fetch(withBase('/public/client/support'), {
+      headers: { Authorization: `Bearer ${getClientToken()}` },
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const err = new Error(j.error || `Ошибка ${r.status}`);
+      err.status = r.status;
+      throw err;
+    }
+    return j;
+  },
+  supportSend: async (body) => {
+    const r = await fetch(withBase('/public/client/support/message'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getClientToken()}` },
+      body: JSON.stringify({ body }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    return j;
+  },
+  /** Бейдж непрочитанных ответов поддержки (не сбрасывает счётчик). */
+  supportUnread: async () => {
+    const r = await fetch(withBase('/public/client/support/unread'), {
+      headers: { Authorization: `Bearer ${getClientToken()}` },
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    return j;
+  },
 };
 
 // ── Fintech-кабинет (вход по телефону + SMS-код, отдельная сессия от clientApi) ──
@@ -853,5 +885,21 @@ export const api = {
     request(`/fintech/admin/clients/${encodeURIComponent(String(id))}/topup`, {
       method: 'POST',
       body: JSON.stringify({ rubAmount, comment, idempotencyKey: crypto.randomUUID() }),
+    }),
+
+  // ── Чат поддержки (сторона сотрудников) ──
+  supportThreads: (status) =>
+    request(`/support/threads${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  supportUnread: () => request('/support/unread'),
+  supportThread: (id) => request(`/support/threads/${encodeURIComponent(String(id))}`),
+  supportReply: (id, body) =>
+    request(`/support/threads/${encodeURIComponent(String(id))}/reply`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+  supportSetStatus: (id, status) =>
+    request(`/support/threads/${encodeURIComponent(String(id))}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
     }),
 };

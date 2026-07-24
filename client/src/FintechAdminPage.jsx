@@ -334,6 +334,18 @@ function ClientDetailPanel({ clientId, toast, onChanged, onClose }) {
         </div>
       )}
 
+      {detail.status === 'blocked' && (
+        <div className="fea-card">
+          <div className="fea-card__title">Разблокировка</div>
+          <p className="fea-muted" style={{ margin: '0 0 10px' }}>
+            Клиент заблокирован{detail.rejectReason ? `: ${detail.rejectReason}` : ''}. Разблокировка вернёт статус «Подтверждён» и доступ к покупке золота.
+          </p>
+          <button type="button" className="fea-btn fea-btn--ok" disabled={busyDecision} onClick={() => decideClient('approved')}>
+            Разблокировать клиента
+          </button>
+        </div>
+      )}
+
       <div className="fea-card">
         <div className="fea-card__title">Ручное пополнение</div>
         <form onSubmit={submitTopup} className="fea-topup-form">

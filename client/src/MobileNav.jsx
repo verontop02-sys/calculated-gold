@@ -6,7 +6,7 @@ import { ThemeToggle } from './ThemeToggle.jsx';
  * Мобильная навигация: нижний bar с 4-5 ключевыми разделами + кнопка «Ещё»,
  * которая открывает drawer-меню с остальными пунктами, темой и выходом.
  */
-export function MobileNav({ tab, onChange, user, onSignOut, onOpenProfile }) {
+export function MobileNav({ tab, onChange, user, onSignOut, onOpenProfile, supportUnread = 0 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const isSuper = isSuperAdminRole(user?.role);
   const isAdmin = isUserManagerRole(user?.role);
@@ -27,6 +27,7 @@ export function MobileNav({ tab, onChange, user, onSignOut, onOpenProfile }) {
     ...(isAdmin ? [{ key: 'employees', label: 'Сделки сотрудников', icon: <IconClients /> }] : []),
     ...(isSuper ? [{ key: 'gold-index', label: 'Индекс золота', icon: <IconMap /> }] : []),
     ...(isAdmin ? [{ key: 'fintech-clients', label: 'Клиенты биржи', icon: <IconInvest /> }] : []),
+    ...(isAdmin ? [{ key: 'support-chat', label: 'Поддержка', icon: <IconChatBubble />, badge: supportUnread }] : []),
     ...(isAdmin ? [{
       key: 'settings',
       label: isSuper ? 'Настройки и доступы' : 'Пользователи',
@@ -130,6 +131,7 @@ export function MobileNav({ tab, onChange, user, onSignOut, onOpenProfile }) {
                   >
                     <span className="cg-drawer__item-icon">{it.icon}</span>
                     <span className="cg-drawer__item-label">{it.label}</span>
+                    {it.badge > 0 && <span className="cg-drawer__item-badge">{it.badge > 99 ? '99+' : it.badge}</span>}
                     <span className="cg-drawer__item-arrow">›</span>
                   </button>
                 ))}
@@ -230,6 +232,14 @@ function IconInvest() {
       <path d="M9 9h4.5a2.25 2.25 0 0 1 0 4.5H9z" />
       <path d="M9 9v8" />
       <path d="M7.5 15.5H12" />
+    </svg>
+  );
+}
+function IconChatBubble() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
+      <path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01" />
     </svg>
   );
 }
@@ -450,6 +460,16 @@ const MOBNAV_CSS = `
 }
 .cg-drawer__item-label { flex: 1; }
 .cg-drawer__item-arrow { color: var(--text-dim); font-size: 1.1rem; }
+.cg-drawer__item-badge {
+  flex-shrink: 0;
+  min-width: 19px; height: 19px;
+  border-radius: 999px;
+  padding: 0 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.66rem; font-weight: 800;
+  display: inline-flex; align-items: center; justify-content: center;
+}
 
 .cg-drawer__row {
   display: flex;

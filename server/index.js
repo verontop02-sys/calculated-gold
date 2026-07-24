@@ -88,6 +88,16 @@ import {
   decideClientStatus,
   manualTopup as fintechManualTopup,
 } from './fintechAdmin.js';
+import {
+  clientGetSupportChat,
+  clientSendSupportMessage,
+  clientSupportUnread,
+  staffListSupportThreads,
+  staffGetSupportThread,
+  staffReplySupport,
+  staffSetSupportThreadStatus,
+  staffSupportUnreadTotal,
+} from './supportChat.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // npm run dev из корня монорепо: cwd ≠ server/, иначе dotenv не видит server/.env
@@ -278,6 +288,15 @@ const authBurstLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много попыток. Подождите 10 минут.' },
+});
+
+// Чат поддержки: от спама сообщениями (и флуда в Telegram-уведомления).
+const supportMessageLimiter = rateLimit({
+  windowMs: 5 * 60_000,
+  limit: 25,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много сообщений подряд. Подождите пару минут.' },
 });
 
 app.use('/api', apiLimiter);
@@ -1195,6 +1214,55 @@ app.get(
     try {
       const out = await getClientDeals(supabase, session.phoneNormalized);
       res.setHeader('Cache-Control', 'no-store');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+// ── Чат поддержки (клиентская сторона) ──────────────────────────────────────
+app.get(
+  '/api/public/client/support/unread',
+  asyncHandler(async (req, res) => {
+    const session = verifyClientToken(clientTokenFromReq(req));
+    if (!session) return res.status(401).json({ error: 'Сессия недействительна, войдите снова' });
+    try {
+      const out = await clientSupportUnread(supabase, session.phoneNormalized);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.get(
+  '/api/public/client/support',
+  asyncHandler(async (req, res) => {
+    const session = verifyClientToken(clientTokenFromReq(req));
+    if (!session) return res.status(401).json({ error: 'Сессия недействительна, войдите снова' });
+    try {
+      const out = await clientGetSupportChat(supabase, session.phoneNormalized);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.post(
+  '/api/public/client/support/message',
+  supportMessageLimiter,
+  asyncHandler(async (req, res) => {
+    const session = verifyClientToken(clientTokenFromReq(req));
+    if (!session) return res.status(401).json({ error: 'Сессия недействительна, войдите снова' });
+    try {
+      const out = await clientSendSupportMessage(supabase, {
+        phoneNormalized: session.phoneNormalized,
+        body: req.body?.body,
+      });
       res.json(out);
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
@@ -2968,6 +3036,77 @@ app.post(
         comment: req.body?.comment,
         idempotencyKey: req.body?.idempotencyKey,
       });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+// ── Чат поддержки (сторона сотрудников, admin/super_admin) ──────────────────
+app.get(
+  '/api/support/threads',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    const out = await staffListSupportThreads(supabase, { status: req.query.status });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(out);
+  })
+);
+
+app.get(
+  '/api/support/unread',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (_req, res) => {
+    const out = await staffSupportUnreadTotal(supabase);
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(out);
+  })
+);
+
+app.get(
+  '/api/support/threads/:id',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await staffGetSupportThread(supabase, req.params.id);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.post(
+  '/api/support/threads/:id/reply',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      let staffName = null;
+      try {
+        const { data: prof } = await supabase.from('profiles').select('display_name').eq('id', req.user.id).maybeSingle();
+        staffName = prof?.display_name || req.user?.email?.split('@')[0] || null;
+      } catch { /* имя — best-effort */ }
+      const out = await staffReplySupport(supabase, {
+        threadId: req.params.id,
+        staffId: req.user.id,
+        staffName,
+        body: req.body?.body,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.patch(
+  '/api/support/threads/:id/status',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await staffSetSupportThreadStatus(supabase, { threadId: req.params.id, status: req.body?.status });
       res.json(out);
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message || 'Ошибка' });

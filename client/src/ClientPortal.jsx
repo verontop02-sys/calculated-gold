@@ -1,16 +1,17 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clientApi, getClientToken, setClientToken, fintechApi, getFintechToken } from './api.js';
 import { FintechInvest } from './FintechInvest.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
 import { ClientSidebar } from './ClientSidebar.jsx';
 import { applyTheme, getStoredTheme } from './theme.js';
 
-const TAB_TITLES = { home: 'Личный кабинет', calc: 'Калькулятор', history: 'Мои сделки', invest: 'Инвестиции', settings: 'Настройки' };
+const TAB_TITLES = { home: 'Личный кабинет', calc: 'Калькулятор', history: 'Мои сделки', invest: 'Инвестиции', support: 'Поддержка', settings: 'Настройки' };
 const TAB_SUBTITLES = {
   home: 'Обзор сделок, инвестиций и безопасность входа',
   calc: 'Оценка золота по текущему биржевому курсу',
   history: 'История ваших сделок с Reaktivo',
   invest: 'Золотой счёт: покупка, портфель, аналитика',
+  support: 'Чат с командой Reaktivo — как в банке',
   settings: 'Профиль, тема, уведомления и PIN-код',
 };
 
@@ -89,6 +90,21 @@ export function ClientPortal() {
       /* ignore */
     }
   }, [sidebarPinned]);
+
+  // Бейдж «ответ поддержки»: лёгкий опрос раз в минуту, пока клиент в кабинете.
+  const [supportUnread, setSupportUnread] = useState(0);
+  useEffect(() => {
+    if (phase !== 'authed') return undefined;
+    let cancelled = false;
+    const poll = () => {
+      clientApi.supportUnread()
+        .then((out) => { if (!cancelled) setSupportUnread(out?.unread || 0); })
+        .catch(() => { /* бейдж — не критично */ });
+    };
+    poll();
+    const id = setInterval(poll, 60_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [phase]);
 
   // Проверяем сохранённый токен.
   useEffect(() => {
@@ -264,6 +280,7 @@ export function ClientPortal() {
           onSignOut={logout}
           pinned={sidebarPinned}
           onPinnedChange={setSidebarPinned}
+          supportUnread={supportUnread}
         />
 
         <div className="cpx-shell__main">
@@ -280,7 +297,7 @@ export function ClientPortal() {
             </div>
           </header>
 
-          <main className={`cpx-shell__content${tab === 'invest' || tab === 'home' || tab === 'settings' || tab === 'history' ? ' cpx-shell__content--wide' : ''}`}>
+          <main className={`cpx-shell__content${tab === 'invest' || tab === 'home' || tab === 'settings' || tab === 'history' || tab === 'support' ? ' cpx-shell__content--wide' : ''}`}>
             {tab === 'home' && (
               <ClientHome
                 hasPin={hasPin}
@@ -292,6 +309,7 @@ export function ClientPortal() {
             {tab === 'calc' && <ClientCalculator />}
             {tab === 'history' && <ClientDeals onAuthExpired={logout} />}
             {tab === 'invest' && <FintechInvest clientToken={getClientToken()} />}
+            {tab === 'support' && <ClientSupportChat onUnreadCleared={() => setSupportUnread(0)} />}
             {tab === 'settings' && (
               <ClientSettings
                 hasPin={hasPin}
@@ -307,9 +325,13 @@ export function ClientPortal() {
 
           <nav className="cpx-mobile-tabs" aria-label="Разделы">
             <button type="button" className={`cpx-mobile-tab${tab === 'home' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('home')}>Кабинет</button>
-            <button type="button" className={`cpx-mobile-tab${tab === 'calc' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('calc')}>Калькулятор</button>
+            <button type="button" className={`cpx-mobile-tab${tab === 'calc' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('calc')}>Кальк.</button>
             <button type="button" className={`cpx-mobile-tab${tab === 'history' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('history')}>Сделки</button>
-            <button type="button" className={`cpx-mobile-tab${tab === 'invest' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('invest')}>Инвестиции</button>
+            <button type="button" className={`cpx-mobile-tab${tab === 'invest' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('invest')}>Инвест.</button>
+            <button type="button" className={`cpx-mobile-tab cpx-mobile-tab--chat${tab === 'support' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('support')}>
+              Чат
+              {supportUnread > 0 && <span className="cpx-mobile-tab__badge" aria-hidden />}
+            </button>
             <button type="button" className={`cpx-mobile-tab${tab === 'settings' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('settings')}>Ещё</button>
           </nav>
         </div>
@@ -656,6 +678,10 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
               <span className="cpx-home-nav-title">Инвестиции</span>
               <span className="cpx-home-nav-desc">{investLabel}</span>
             </button>
+            <button type="button" className="cpx-home-nav-item" onClick={() => onNavigate?.('support')}>
+              <span className="cpx-home-nav-title">Поддержка</span>
+              <span className="cpx-home-nav-desc">Чат с командой Reaktivo</span>
+            </button>
           </div>
         </div>
       </div>
@@ -910,6 +936,7 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
               <div className="cpx-settings-actions">
                 <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('home')}>Обзор кабинета</button>
                 <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>Инвестиции</button>
+                <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('support')}>Написать в поддержку</button>
                 <a className="cpx-fin-pdf-btn" href="/" style={{ textDecoration: 'none' }}>На главную</a>
               </div>
             </div>
@@ -1318,6 +1345,186 @@ function ClientDeals({ onAuthExpired }) {
   );
 }
 
+/* ── Чат поддержки: клиент ↔ команда Reaktivo (как в онлайн-банке) ─────────── */
+
+function chatDayLabel(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(d, today)) return 'Сегодня';
+  if (sameDay(d, yesterday)) return 'Вчера';
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+}
+
+function chatTime(iso) {
+  try {
+    return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+
+function ClientSupportChat({ onUnreadCleared }) {
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const listRef = useRef(null);
+  const stickToBottomRef = useRef(true);
+
+  const load = useCallback(async () => {
+    try {
+      const out = await clientApi.supportChat();
+      setMessages(out.messages || []);
+      setErr('');
+      onUnreadCleared?.();
+    } catch (e) {
+      setErr(e.message || 'Не удалось загрузить чат');
+    } finally {
+      setLoading(false);
+    }
+    // onUnreadCleared стабилен по смыслу (сброс бейджа)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 12_000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  // Автопрокрутка вниз, если пользователь не листает историю вверх.
+  useEffect(() => {
+    const el = listRef.current;
+    if (el && stickToBottomRef.current) el.scrollTop = el.scrollHeight;
+  }, [messages, loading]);
+
+  function onListScroll() {
+    const el = listRef.current;
+    if (!el) return;
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }
+
+  async function send() {
+    const body = text.trim();
+    if (!body || sending) return;
+    setSending(true);
+    setErr('');
+    try {
+      const out = await clientApi.supportSend(body);
+      setText('');
+      stickToBottomRef.current = true;
+      if (out?.message) setMessages((prev) => [...prev, out.message]);
+    } catch (e) {
+      setErr(e.message || 'Не удалось отправить сообщение');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function onKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  }
+
+  // Группировка по дням для разделителей.
+  const grouped = useMemo(() => {
+    const out = [];
+    let lastDay = '';
+    for (const m of messages) {
+      const day = chatDayLabel(m.createdAt);
+      if (day !== lastDay) {
+        out.push({ type: 'day', key: `day-${day}-${m.id}`, label: day });
+        lastDay = day;
+      }
+      out.push({ type: 'msg', key: m.id, msg: m });
+    }
+    return out;
+  }, [messages]);
+
+  return (
+    <div className="cpx-chat-page">
+      <div className="cpx-card cpx-chat">
+        <div className="cpx-chat-head">
+          <span className="cpx-chat-head__icon" aria-hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
+            </svg>
+          </span>
+          <div className="cpx-chat-head__text">
+            <span className="cpx-chat-head__title">Поддержка Reaktivo</span>
+            <span className="cpx-chat-head__sub">
+              <span className="cpx-chat-head__dot" aria-hidden />
+              Онлайн · отвечаем в рабочее время
+            </span>
+          </div>
+        </div>
+
+        <div className="cpx-chat-list" ref={listRef} onScroll={onListScroll}>
+          {loading && <div className="cpx-chat-empty">Загружаем переписку…</div>}
+          {!loading && messages.length === 0 && (
+            <div className="cpx-chat-empty">
+              <div className="cpx-chat-empty__title">Напишите нам</div>
+              <p className="cpx-chat-empty__sub">
+                Поможем с проверкой документов, сделками, покупкой золота и любыми вопросами по кабинету.
+                Ответ придёт прямо сюда.
+              </p>
+            </div>
+          )}
+          {grouped.map((item) =>
+            item.type === 'day' ? (
+              <div key={item.key} className="cpx-chat-day"><span>{item.label}</span></div>
+            ) : (
+              <div key={item.key} className={`cpx-chat-msg${item.msg.sender === 'client' ? ' cpx-chat-msg--me' : ''}`}>
+                <div className="cpx-chat-bubble">
+                  {item.msg.sender === 'staff' && (
+                    <span className="cpx-chat-author">{item.msg.staffName || 'Поддержка Reaktivo'}</span>
+                  )}
+                  <span className="cpx-chat-text">{item.msg.body}</span>
+                  <span className="cpx-chat-time mono-nums">{chatTime(item.msg.createdAt)}</span>
+                </div>
+              </div>
+            )
+          )}
+        </div>
+
+        {err && <p className="cpx-chat-err">{err}</p>}
+
+        <div className="cpx-chat-compose">
+          <textarea
+            className="cpx-chat-input"
+            rows={1}
+            placeholder="Сообщение…"
+            value={text}
+            maxLength={2000}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={onKeyDown}
+            disabled={sending}
+          />
+          <button
+            type="button"
+            className="cpx-chat-send"
+            onClick={send}
+            disabled={sending || !text.trim()}
+            title="Отправить (Enter)"
+            aria-label="Отправить сообщение"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 2L11 13" />
+              <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const CSS = `
 /* Палитра кабинета клиента алиасится на общие токены REAKTIVO PRO (index.css) —
    те же переменные, что использует админ-панель, поэтому цвета совпадают 1 в 1
@@ -1550,16 +1757,172 @@ const CSS = `
 @media (max-width: 900px) { .cpx-mobile-tabs { display: flex; } }
 .cpx-mobile-tab {
   flex: 1;
-  padding: 10px 6px;
+  padding: 10px 4px;
   border: none;
   border-radius: 10px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
+  position: relative;
 }
 .cpx-mobile-tab--on { background: var(--accent-soft); color: var(--accent); }
+.cpx-mobile-tab__badge {
+  position: absolute;
+  top: 5px; right: 8px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg-panel-solid);
+}
+
+/* ── Чат поддержки ── */
+.cpx-chat-page { max-width: 860px; margin: 0 auto; width: 100%; }
+.cpx-chat {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  height: calc(100dvh - 190px);
+  min-height: 420px;
+}
+@media (max-width: 900px) {
+  .cpx-chat { height: calc(100dvh - 250px); min-height: 360px; }
+}
+.cpx-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--stroke-soft);
+  background: var(--surface);
+}
+.cpx-chat-head__icon {
+  width: 38px; height: 38px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.cpx-chat-head__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cpx-chat-head__title { font-size: 0.94rem; font-weight: 700; color: var(--text-strong); }
+.cpx-chat-head__sub {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.74rem; color: var(--text-muted);
+}
+.cpx-chat-head__dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--emerald);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--emerald) 70%, transparent);
+}
+.cpx-chat-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background:
+    radial-gradient(ellipse 90% 55% at 50% -10%, color-mix(in srgb, var(--accent-soft) 40%, transparent), transparent 70%);
+}
+.cpx-chat-empty {
+  margin: auto;
+  text-align: center;
+  max-width: 40ch;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+.cpx-chat-empty__title { font-size: 1.02rem; font-weight: 700; color: var(--text-strong); margin-bottom: 6px; }
+.cpx-chat-empty__sub { margin: 0; }
+.cpx-chat-day {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 4px;
+}
+.cpx-chat-day span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--stroke-soft);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.cpx-chat-msg { display: flex; }
+.cpx-chat-msg--me { justify-content: flex-end; }
+.cpx-chat-bubble {
+  max-width: min(78%, 520px);
+  padding: 9px 12px 6px;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--bg-panel-solid);
+  border: 1px solid var(--stroke-soft);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cpx-chat-msg--me .cpx-chat-bubble {
+  border-radius: 14px 14px 4px 14px;
+  background: color-mix(in srgb, var(--accent) 88%, #000);
+  border-color: transparent;
+}
+.cpx-chat-author { font-size: 0.7rem; font-weight: 700; color: var(--accent); }
+.cpx-chat-text {
+  font-size: 0.88rem;
+  color: var(--text);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.cpx-chat-msg--me .cpx-chat-text { color: #fff; }
+.cpx-chat-time { align-self: flex-end; font-size: 0.64rem; color: var(--text-dim); }
+.cpx-chat-msg--me .cpx-chat-time { color: rgba(255, 255, 255, 0.72); }
+.cpx-chat-err { margin: 0; padding: 8px 18px; font-size: 0.8rem; color: var(--danger); }
+.cpx-chat-compose {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--stroke-soft);
+  background: var(--surface);
+}
+.cpx-chat-input {
+  flex: 1;
+  min-height: 42px;
+  max-height: 120px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  border: 1px solid var(--cpx-stroke);
+  background: var(--input-bg);
+  color: var(--cpx-ink);
+  font-size: 0.88rem;
+  font-family: inherit;
+  line-height: 1.4;
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+}
+.cpx-chat-input:focus { border-color: var(--cpx-accent); box-shadow: 0 0 0 3px var(--cpx-accent-soft); }
+.cpx-chat-send {
+  width: 42px; height: 42px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent-grad);
+  color: #fff;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 5px 16px var(--accent-glow);
+  transition: filter 0.16s, transform 0.15s;
+}
+.cpx-chat-send:hover:not(:disabled) { filter: brightness(1.07); transform: translateY(-1px); }
+.cpx-chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .cpx-topbar {
   position: relative;

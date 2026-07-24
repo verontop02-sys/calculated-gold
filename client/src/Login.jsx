@@ -17,11 +17,27 @@ const CLIENT_SITE_URL = 'https://reaktivo.ru';
 // Сколько секунд симулировать прогресс до 90% при прогреве
 const WARM_PROGRESS_DURATION = 55;
 
+const STAFF_LOGIN_FLAG = 'cg_staff_login';
+
+/** Вход сотрудников по умолчанию скрыт от посетителей-клиентов (Stage 10).
+ *  Показываем форму: по ссылке внизу, по ?staff / #staff, либо если с этого
+ *  устройства уже успешно входил сотрудник. */
+function staffInitiallyVisible() {
+  try {
+    if (new URLSearchParams(window.location.search).has('staff')) return true;
+    if (window.location.hash === '#staff') return true;
+    return localStorage.getItem(STAFF_LOGIN_FLAG) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
+  const [staffVisible, setStaffVisible] = useState(staffInitiallyVisible);
   // 'checking' | 'warming' | 'ready'
   const [serverStatus, setServerStatus] = useState('checking');
   const [warmProgress, setWarmProgress] = useState(0);
@@ -71,6 +87,7 @@ export function Login() {
       });
       if (error) throw error;
       if (!data.session?.access_token) throw new Error('Сессия не создана, попробуйте ещё раз');
+      try { localStorage.setItem(STAFF_LOGIN_FLAG, '1'); } catch { /* ignore */ }
       resetAuthExpiredGate();
       api.prefetchMe();
     } catch (ex) {
@@ -101,62 +118,64 @@ export function Login() {
           </h1>
         </header>
 
-        <div className="lg-cards">
-          {/* ── Вход для сотрудников ── */}
-          <section className="lg-card lg-card--staff lg-anim" style={{ '--d': '90ms' }}>
-            <div className="lg-staff-copy">
-              <span className="lg-badge lg-badge--solid">Для сотрудников</span>
-              <h2 className="lg-card-title">Вход в панель</h2>
-              <p className="lg-card-sub">Калькулятор выкупа, договоры, аналитика и команда</p>
-            </div>
+        <div className={`lg-cards${staffVisible ? '' : ' lg-cards--client-only'}`}>
+          {/* ── Вход для сотрудников (скрыт от клиентов, открывается ссылкой внизу) ── */}
+          {staffVisible && (
+            <section className="lg-card lg-card--staff lg-anim" style={{ '--d': '90ms' }}>
+              <div className="lg-staff-copy">
+                <span className="lg-badge lg-badge--solid">Для сотрудников</span>
+                <h2 className="lg-card-title">Вход в панель</h2>
+                <p className="lg-card-sub">Калькулятор выкупа, договоры, аналитика и команда</p>
+              </div>
 
-            <form onSubmit={handleSubmit} className="lg-form">
-              <label className="lg-field">
-                <span className="lg-field-label">Email</span>
-                <input
-                  autoComplete="username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@reaktivo.ru"
-                />
-              </label>
-              <label className="lg-field">
-                <span className="lg-field-label">Пароль</span>
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Пароль"
-                />
-              </label>
-              {err && <p className="lg-err">{err}</p>}
-              <button type="submit" className="lg-submit" disabled={loading}>
-                {loading ? (
-                  <>
-                    <span className="spinner inline" /> Вход…
-                  </>
-                ) : (
-                  'Войти в систему'
-                )}
-              </button>
+              <form onSubmit={handleSubmit} className="lg-form">
+                <label className="lg-field">
+                  <span className="lg-field-label">Email</span>
+                  <input
+                    autoComplete="username"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@reaktivo.ru"
+                  />
+                </label>
+                <label className="lg-field">
+                  <span className="lg-field-label">Пароль</span>
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Пароль"
+                  />
+                </label>
+                {err && <p className="lg-err">{err}</p>}
+                <button type="submit" className="lg-submit" disabled={loading}>
+                  {loading ? (
+                    <>
+                      <span className="spinner inline" /> Вход…
+                    </>
+                  ) : (
+                    'Войти в систему'
+                  )}
+                </button>
 
-              {serverStatus !== 'ready' && (
-                <div className={`lg-warm lg-warm--${serverStatus}`} aria-live="polite">
-                  <div className="lg-warm__bar">
-                    <div
-                      className="lg-warm__fill"
-                      style={{ width: `${warmProgress}%` }}
-                    />
+                {serverStatus !== 'ready' && (
+                  <div className={`lg-warm lg-warm--${serverStatus}`} aria-live="polite">
+                    <div className="lg-warm__bar">
+                      <div
+                        className="lg-warm__fill"
+                        style={{ width: `${warmProgress}%` }}
+                      />
+                    </div>
+                    <span className="lg-warm__label">
+                      {serverStatus === 'checking' && 'Подключение к серверу…'}
+                      {serverStatus === 'warming' && 'Сервер просыпается после паузы (~30–60 сек)…'}
+                    </span>
                   </div>
-                  <span className="lg-warm__label">
-                    {serverStatus === 'checking' && 'Подключение к серверу…'}
-                    {serverStatus === 'warming' && 'Сервер просыпается после паузы (~30–60 сек)…'}
-                  </span>
-                </div>
-              )}
-            </form>
-          </section>
+                )}
+              </form>
+            </section>
+          )}
 
           {/* ── Продажа золота → сайт ── */}
           <aside className="lg-card lg-card--sell lg-anim" style={{ '--d': '160ms' }}>
@@ -195,7 +214,7 @@ export function Login() {
             <span className="lg-badge lg-badge--solid">Кабинет</span>
             <h2 className="lg-card-title">Вход для клиентов</h2>
             <p className="lg-card-sub">
-              Выпустить карту Reaktivo, Ваш золотой счет, управление доходностью
+              Выпустить карту Reaktivo, Ваш золотой счёт, покупка золота
             </p>
 
             <ul className="lg-perks lg-perks--compact">
@@ -209,7 +228,7 @@ export function Login() {
               </li>
               <li>
                 <span className="lg-perk-ico" aria-hidden>✓</span>
-                Управление доходностью
+                Покупка золота
               </li>
             </ul>
 
@@ -222,6 +241,14 @@ export function Login() {
 
         <p className="lg-foot lg-anim" style={{ '--d': '300ms' }}>
           © {new Date().getFullYear()} Reaktivo.PRO · панель оценки и выкупа
+          {!staffVisible && (
+            <>
+              {' · '}
+              <button type="button" className="lg-staff-link" onClick={() => setStaffVisible(true)}>
+                Вход для сотрудников
+              </button>
+            </>
+          )}
         </p>
       </div>
 
@@ -354,6 +381,10 @@ const CSS = `
 .lg-card--staff { grid-area: staff; }
 .lg-card--sell { grid-area: sell; }
 .lg-card--client { grid-area: client; }
+/* Посетитель-клиент: только два клиентских блока, без формы сотрудников */
+.lg-cards--client-only {
+  grid-template-areas: "sell client";
+}
 
 .lg-card {
   border-radius: 20px;
@@ -567,12 +598,29 @@ const CSS = `
   font-size: 0.72rem;
   color: var(--text-dim);
 }
+.lg-staff-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.lg-staff-link:hover { color: var(--text); }
 
 @media (max-width: 760px) {
   .lg-cards {
     grid-template-columns: 1fr;
     grid-template-areas:
       "staff"
+      "sell"
+      "client";
+  }
+  .lg-cards--client-only {
+    grid-template-areas:
       "sell"
       "client";
   }

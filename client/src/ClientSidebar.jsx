@@ -5,11 +5,12 @@ import { SIDEBAR_CSS } from './Sidebar.jsx';
  * (тот же SIDEBAR_CSS), но со своим фиксированным набором разделов.
  * Блок «Личный кабинет» в футере открывает обзор со статистикой.
  */
-export function ClientSidebar({ tab, onChange, phoneMasked, onOpenCabinet, onSignOut, pinned, onPinnedChange }) {
+export function ClientSidebar({ tab, onChange, phoneMasked, onOpenCabinet, onSignOut, pinned, onPinnedChange, supportUnread = 0 }) {
   const items = [
     { key: 'calc', label: 'Калькулятор', icon: <IconCalc /> },
     { key: 'history', label: 'Мои сделки', icon: <IconClients /> },
     { key: 'invest', label: 'Инвестиции', icon: <IconInvest /> },
+    { key: 'support', label: 'Поддержка', icon: <IconChat />, badge: supportUnread },
     { key: 'settings', label: 'Настройки', icon: <IconSettings /> },
   ];
 
@@ -48,7 +49,8 @@ export function ClientSidebar({ tab, onChange, phoneMasked, onOpenCabinet, onSig
             >
               <span className="cg-sidebar__item-icon">{it.icon}</span>
               <span className="cg-sidebar__item-label">{it.label}</span>
-              {tab === it.key && <span className="cg-sidebar__item-dot" aria-hidden />}
+              {it.badge > 0 && <span className="cg-sidebar__item-badge">{it.badge > 99 ? '99+' : it.badge}</span>}
+              {tab === it.key && !(it.badge > 0) && <span className="cg-sidebar__item-dot" aria-hidden />}
             </button>
           ))}
         </div>
@@ -139,6 +141,14 @@ function IconSidebarOpen() {
       <rect x="3" y="3" width="18" height="18" rx="2.5" />
       <path d="M9 3v18" />
       <path d="M11 9l3 3-3 3" />
+    </svg>
+  );
+}
+function IconChat() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
+      <path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01" />
     </svg>
   );
 }

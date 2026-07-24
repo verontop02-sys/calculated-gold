@@ -11,7 +11,7 @@ import { isSuperAdminRole, isUserManagerRole, roleLabel } from './roles.js';
  * Состояние «свёрнут/развёрнут» сохраняется в localStorage,
  * плюс автоматически расширяется при наведении (CSS-only).
  */
-export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpenProfile }) {
+export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpenProfile, supportUnread = 0 }) {
   const [pinned, setPinned] = useState(() => {
     try {
       const v = localStorage.getItem('cg_sidebar_pinned');
@@ -41,6 +41,7 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpen
     ...(isAdmin ? [{ key: 'employees', label: 'Сделки сотрудников', icon: <IconEmployees /> }] : []),
     ...(isSuper ? [{ key: 'gold-index', label: 'Индекс золота', icon: <IconMap /> }] : []),
     ...(isAdmin ? [{ key: 'fintech-clients', label: 'Клиенты биржи', icon: <IconInvest /> }] : []),
+    ...(isAdmin ? [{ key: 'support-chat', label: 'Поддержка', icon: <IconChatBubble />, badge: supportUnread }] : []),
   ];
 
   const groups = [
@@ -116,7 +117,8 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpen
               >
                 <span className="cg-sidebar__item-icon">{it.icon}</span>
                 <span className="cg-sidebar__item-label">{it.label}</span>
-                {tab === it.key && <span className="cg-sidebar__item-dot" aria-hidden />}
+                {it.badge > 0 && <span className="cg-sidebar__item-badge">{it.badge > 99 ? '99+' : it.badge}</span>}
+                {tab === it.key && !(it.badge > 0) && <span className="cg-sidebar__item-dot" aria-hidden />}
               </button>
             ))}
           </div>
@@ -245,6 +247,14 @@ function IconInvest() {
       <path d="M9 9h4.5a2.25 2.25 0 0 1 0 4.5H9z" />
       <path d="M9 9v8" />
       <path d="M7.5 15.5H12" />
+    </svg>
+  );
+}
+function IconChatBubble() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
+      <path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01" />
     </svg>
   );
 }
@@ -492,6 +502,32 @@ export const SIDEBAR_CSS = `
   border-radius: 0 3px 3px 0;
   background: var(--accent);
   animation: cgFadeIn 280ms ease;
+}
+
+/* Счётчик непрочитанного (чат поддержки) */
+.cg-sidebar__item-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  min-width: 19px;
+  height: 19px;
+  border-radius: 999px;
+  padding: 0 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+/* В свёрнутом сайдбаре бейдж — точка на иконке */
+.cg-sidebar:not(.cg-sidebar--pinned):not(:hover) .cg-sidebar__item-badge {
+  position: absolute;
+  top: 6px; right: 6px;
+  min-width: 8px; width: 8px; height: 8px;
+  padding: 0;
+  font-size: 0;
 }
 
 /* ── Footer ── */

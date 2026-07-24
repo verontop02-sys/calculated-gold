@@ -273,6 +273,23 @@ function FintechOnboarding({ profile, onUpdated }) {
   const [err, setErr] = useState('');
   const [uploading, setUploading] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const lastSavedRef = useRef({ fullName: profile.fullName || '', email: profile.email || '' });
+
+  /** Тихое автосохранение при уходе из поля — имя не потеряется, даже если
+   *  клиент не нажал «Сохранить» (в админке пропадает «Без имени»). */
+  async function autoSaveInfo() {
+    const name = fullName.trim();
+    const mail = email.trim();
+    if (!name && !mail) return;
+    if (lastSavedRef.current.fullName === name && lastSavedRef.current.email === mail) return;
+    try {
+      await fintechApi.updateProfile(name, mail);
+      lastSavedRef.current = { fullName: name, email: mail };
+      setInfoSaved(true);
+    } catch {
+      /* best-effort: явное сохранение остаётся кнопкой или при submit */
+    }
+  }
 
   const docsByType = useMemo(() => {
     const map = new Map();
@@ -290,6 +307,7 @@ function FintechOnboarding({ profile, onUpdated }) {
     setErr('');
     try {
       await fintechApi.updateProfile(fullName, email);
+      lastSavedRef.current = { fullName: fullName.trim(), email: email.trim() };
       setInfoSaved(true);
     } catch (e2) {
       setErr(e2?.message || 'Не удалось сохранить данные');
@@ -333,6 +351,7 @@ function FintechOnboarding({ profile, onUpdated }) {
       // ФИО/email могли быть введены, но не сохранены кнопкой — сохраняем сами,
       // чтобы заявка не улетела «Без имени».
       await fintechApi.updateProfile(fullName, email);
+      lastSavedRef.current = { fullName: fullName.trim(), email: email.trim() };
       setInfoSaved(true);
       await fintechApi.submitForReview();
       await onUpdated?.();
@@ -359,11 +378,11 @@ function FintechOnboarding({ profile, onUpdated }) {
         <form onSubmit={saveInfo} className="cpx-fin-form-row">
           <label className="cpx-field">
             <span className="cpx-field-label">ФИО</span>
-            <input value={fullName} onChange={(e) => { setFullName(e.target.value); setInfoSaved(false); }} placeholder="Иванов Иван Иванович" />
+            <input value={fullName} onChange={(e) => { setFullName(e.target.value); setInfoSaved(false); }} onBlur={autoSaveInfo} placeholder="Иванов Иван Иванович" />
           </label>
           <label className="cpx-field">
             <span className="cpx-field-label">Email (для выписок)</span>
-            <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setInfoSaved(false); }} placeholder="you@example.com" />
+            <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setInfoSaved(false); }} onBlur={autoSaveInfo} placeholder="you@example.com" />
           </label>
           <button type="submit" className="cpx-btn cpx-btn--sm" disabled={savingInfo}>
             {savingInfo ? <span className="cpx-spinner" /> : infoSaved ? 'Сохранено ✓' : 'Сохранить'}

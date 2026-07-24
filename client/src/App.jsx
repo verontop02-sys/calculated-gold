@@ -14,6 +14,7 @@ import { ClientsPage } from './ClientsPage.jsx';
 import { SettingsPage } from './SettingsPage.jsx';
 import { GoldIndex } from './GoldIndex.jsx';
 import { FintechAdminPage } from './FintechAdminPage.jsx';
+import { SupportAdminPage } from './SupportAdminPage.jsx';
 import { Dashboard } from './Dashboard.jsx';
 import { EmployeeDeals } from './EmployeeDeals.jsx';
 import { Sidebar } from './Sidebar.jsx';
@@ -510,11 +511,29 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const role = user.role;
-    if ((tab === 'team' || tab === 'settings' || tab === 'fintech-clients') && !isUserManagerRole(role)) {
+    if ((tab === 'team' || tab === 'settings' || tab === 'fintech-clients' || tab === 'support-chat') && !isUserManagerRole(role)) {
       setTab('dashboard');
     } else if (tab === 'gold-index' && !isSuperAdminRole(role)) {
       setTab('dashboard');
     }
+  }, [user, tab]);
+
+  // Бейдж «непрочитанное в поддержке» для сайдбара (только у admin/super_admin).
+  const [supportUnread, setSupportUnread] = useState(0);
+  useEffect(() => {
+    if (!user || !isUserManagerRole(user.role)) {
+      setSupportUnread(0);
+      return undefined;
+    }
+    let cancelled = false;
+    const poll = () => {
+      api.supportUnread()
+        .then((out) => { if (!cancelled) setSupportUnread(out?.total || 0); })
+        .catch(() => { /* бейдж не критичен */ });
+    };
+    poll();
+    const id = setInterval(poll, 60_000);
+    return () => { cancelled = true; clearInterval(id); };
   }, [user, tab]);
 
   if (!authReady) {
@@ -610,6 +629,7 @@ export default function App() {
         onSignOut={handleSignOut}
         onPinnedChange={setSidebarPinned}
         onOpenProfile={() => setProfileOpen(true)}
+        supportUnread={supportUnread}
       />
 
       <div className="cg-shell__main">
@@ -762,6 +782,9 @@ export default function App() {
             {tab === 'fintech-clients' && isUserManagerRole(user.role) && (
               <FintechAdminPage toast={toast} />
             )}
+            {tab === 'support-chat' && isUserManagerRole(user.role) && (
+              <SupportAdminPage toast={toast} />
+            )}
           </div>
         </main>
 
@@ -771,6 +794,7 @@ export default function App() {
           user={user}
           onSignOut={handleSignOut}
           onOpenProfile={() => setProfileOpen(true)}
+          supportUnread={supportUnread}
         />
       </div>
 
