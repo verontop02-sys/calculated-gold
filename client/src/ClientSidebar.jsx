@@ -98,7 +98,7 @@ export function ClientSidebar({ tab, onChange, phoneMasked, onOpenCabinet, onSig
   );
 }
 
-function IconCalc() {
+export function IconCalc() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <rect x="4" y="3" width="16" height="18" rx="2.5" />
@@ -107,7 +107,7 @@ function IconCalc() {
     </svg>
   );
 }
-function IconClients() {
+export function IconClients() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
@@ -116,7 +116,7 @@ function IconClients() {
     </svg>
   );
 }
-function IconInvest() {
+export function IconInvest() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="9" />
@@ -144,7 +144,7 @@ function IconSidebarOpen() {
     </svg>
   );
 }
-function IconChat() {
+export function IconChat() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
@@ -152,7 +152,7 @@ function IconChat() {
     </svg>
   );
 }
-function IconSettings() {
+export function IconSettings() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3" />
@@ -160,7 +160,7 @@ function IconSettings() {
     </svg>
   );
 }
-function IconHome() {
+export function IconHome() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 10.5L12 3l9 7.5" />
@@ -169,7 +169,7 @@ function IconHome() {
     </svg>
   );
 }
-function IconLogout() {
+export function IconLogout() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />

@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { api } from './api.js';
 import { PageHint } from './PageHint.jsx';
+import { WorldClocksCard } from './WorldClocks.jsx';
 /**
  * Дашборд — главный рабочий экран после входа (Stage 7).
  *
@@ -243,96 +244,6 @@ function formatUsd(n) {
 function fmtAxisUsd(v) {
   if (v == null || !Number.isFinite(v)) return '—';
   return `$${fmtAxisNum.format(Math.round(v))}`;
-}
-
-/** Мировое время: Москва / Нью-Йорк / Лондон — плитки с фото городов.
- *  Тёмная тема — ночные виды, светлая — солнечные дневные (та же композиция). */
-const WORLD_CITIES = [
-  { key: 'moscow', label: 'Москва', code: 'MSK', tz: 'Europe/Moscow', imgDark: '/cities/moscow.jpg', imgLight: '/cities/moscow-day.jpg' },
-  { key: 'newyork', label: 'Нью-Йорк', code: 'NYC', tz: 'America/New_York', imgDark: '/cities/newyork.jpg', imgLight: '/cities/newyork-day.jpg' },
-  { key: 'london', label: 'Лондон', code: 'LDN', tz: 'Europe/London', imgDark: '/cities/london.jpg', imgLight: '/cities/london-day.jpg' },
-];
-
-/** Текущая тема из data-theme на <html> + подписка на переключение (ThemeToggle меняет атрибут). */
-function useHtmlTheme() {
-  const [theme, setTheme] = useState(() => document.documentElement.getAttribute('data-theme') || 'dark');
-  useEffect(() => {
-    const el = document.documentElement;
-    const obs = new MutationObserver(() => {
-      setTheme(el.getAttribute('data-theme') || 'dark');
-    });
-    obs.observe(el, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => obs.disconnect();
-  }, []);
-  return theme;
-}
-
-function tzParts(now, tz) {
-  try {
-    const parts = new Intl.DateTimeFormat('ru-RU', {
-      timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-    }).formatToParts(now);
-    const get = (t) => parts.find((p) => p.type === t)?.value || '00';
-    return { hm: `${get('hour')}:${get('minute')}`, s: get('second') };
-  } catch {
-    return { hm: '—:—', s: '' };
-  }
-}
-
-function tzDateLabel(now, tz) {
-  try {
-    const s = new Intl.DateTimeFormat('ru-RU', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'long' }).format(now);
-    return s.charAt(0).toUpperCase() + s.slice(1);
-  } catch {
-    return '';
-  }
-}
-
-function tzOffsetLabel(now, tz) {
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' }).formatToParts(now);
-    const name = parts.find((p) => p.type === 'timeZoneName')?.value || '';
-    return name.replace('GMT', 'UTC') || '';
-  } catch {
-    return '';
-  }
-}
-
-function WorldClocksCard({ delay = '40ms' }) {
-  const [now, setNow] = useState(() => new Date());
-  const theme = useHtmlTheme();
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  return (
-    <section className="dx-card dx-card--clocks dx-in" style={{ '--d': delay }} aria-label="Мировое время">
-      {WORLD_CITIES.map((c) => {
-        const { hm, s } = tzParts(now, c.tz);
-        const img = theme === 'light' ? c.imgLight : c.imgDark;
-        return (
-          <div key={c.key} className={`dx-clock dx-clock--${c.key} dx-clock--${theme}`} style={{ backgroundImage: `url(${img})` }}>
-            <div className="dx-clock__top">
-              <span className="dx-clock__city">
-                <span className="dx-clock__live" aria-hidden />
-                {c.label}
-              </span>
-              <span className="dx-clock__code mono-nums">{c.code} · {tzOffsetLabel(now, c.tz)}</span>
-            </div>
-            <div className="dx-clock__bottom">
-              <span className="dx-clock__time mono-nums">
-                {hm}
-                <span className="dx-clock__sec">:{s}</span>
-              </span>
-              <span className="dx-clock__date">{tzDateLabel(now, c.tz)}</span>
-            </div>
-          </div>
-        );
-      })}
-    </section>
-  );
 }
 
 /**
@@ -1756,105 +1667,6 @@ const CSS = `
   box-shadow: var(--shadow-pop), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-/* ── Мировое время: три плитки с фото городов ── */
-.dx-card--clocks {
-  grid-column: span 12;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  padding: 10px;
-}
-.dx-clock {
-  position: relative;
-  overflow: hidden;
-  border-radius: 12px;
-  min-height: 118px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  background-size: cover;
-  background-position: center 38%;
-  isolation: isolate;
-  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.dx-clock::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background:
-    linear-gradient(180deg, rgba(8, 9, 12, 0.62) 0%, rgba(8, 9, 12, 0.18) 42%, rgba(8, 9, 12, 0.66) 100%);
-}
-.dx-clock:hover { transform: scale(1.012); }
-.dx-clock__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.dx-clock__city {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: 0.01em;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
-}
-.dx-clock__live {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: #4ade80;
-  box-shadow: 0 0 8px rgba(74, 222, 128, 0.9);
-  animation: dxClockPulse 2.2s ease-in-out infinite;
-}
-@keyframes dxClockPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
-.dx-clock__code {
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.82);
-  background: rgba(10, 11, 15, 0.42);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
-  padding: 3px 9px;
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-  white-space: nowrap;
-}
-.dx-clock__bottom { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.dx-clock__time {
-  font-family: var(--font-display);
-  font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  color: #fff;
-  line-height: 1;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
-  font-variant-numeric: tabular-nums;
-}
-.dx-clock__sec {
-  font-size: 0.55em;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.66);
-  margin-left: 2px;
-}
-.dx-clock__date {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.78);
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
-  white-space: nowrap;
-}
-/* Москва — домашний рынок, лёгкая красная кромка в тон бренда */
-.dx-clock--moscow::before {
-  background:
-    linear-gradient(180deg, rgba(8, 9, 12, 0.62) 0%, rgba(8, 9, 12, 0.18) 42%, rgba(8, 9, 12, 0.66) 100%),
-    linear-gradient(120deg, color-mix(in srgb, var(--accent) 26%, transparent), transparent 55%);
-}
-
 .dx-card--quote { grid-column: span 8; display: flex; flex-direction: column; gap: 6px; min-height: 260px; position: relative; overflow: hidden; }
 /* Светящееся пятно в углу карточки котировки */
 .dx-card--quote::before {
@@ -2543,7 +2355,6 @@ const CSS = `
 /* ── tablet ── */
 @media (max-width: 1100px) {
   .dx-grid > * { order: 10; }
-  .dx-card--clocks { order: 0; grid-column: span 12; }
   .dx-card--quote-a { order: 1; grid-column: span 12; }
   .dx-card--quote-b { order: 2; grid-column: span 12; }
   .dx-card--today { order: 3; grid-column: span 12; }
@@ -2565,17 +2376,6 @@ const CSS = `
 @media (max-width: 640px) {
   .dx { gap: 14px; }
   .dx-grid { gap: 10px; }
-  /* Без «подложки»-карточки — на мобиле фото городов идут сами по себе, край в край */
-  .dx-card--clocks {
-    grid-template-columns: 1fr;
-    gap: 8px;
-    padding: 0 !important;
-    background: none !important;
-    border: none !important;
-    box-shadow: none !important;
-  }
-  .dx-card--clocks:hover { transform: none !important; box-shadow: none !important; }
-  .dx-clock { min-height: 92px; padding: 12px 14px; border-radius: 14px; }
   .dx-card { padding: 15px 16px; border-radius: 15px; }
   .dx-kpi { grid-column: span 6; }
   .dx-kpi__v { font-size: 1.3rem; }

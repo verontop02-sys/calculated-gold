@@ -3,6 +3,7 @@ import { clientApi, getClientToken, setClientToken, fintechApi, getFintechToken 
 import { FintechInvest } from './FintechInvest.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
 import { ClientSidebar } from './ClientSidebar.jsx';
+import { ClientMobileNav } from './ClientMobileNav.jsx';
 import { applyTheme, getStoredTheme } from './theme.js';
 
 const TAB_TITLES = { home: 'Личный кабинет', calc: 'Калькулятор', history: 'Мои сделки', invest: 'Инвестиции', support: 'Поддержка', settings: 'Настройки' };
@@ -323,17 +324,14 @@ export function ClientPortal() {
             )}
           </main>
 
-          <nav className="cpx-mobile-tabs" aria-label="Разделы">
-            <button type="button" className={`cpx-mobile-tab${tab === 'home' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('home')}>Кабинет</button>
-            <button type="button" className={`cpx-mobile-tab${tab === 'calc' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('calc')}>Кальк.</button>
-            <button type="button" className={`cpx-mobile-tab${tab === 'history' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('history')}>Сделки</button>
-            <button type="button" className={`cpx-mobile-tab${tab === 'invest' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('invest')}>Инвест.</button>
-            <button type="button" className={`cpx-mobile-tab cpx-mobile-tab--chat${tab === 'support' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('support')}>
-              Чат
-              {supportUnread > 0 && <span className="cpx-mobile-tab__badge" aria-hidden />}
-            </button>
-            <button type="button" className={`cpx-mobile-tab${tab === 'settings' ? ' cpx-mobile-tab--on' : ''}`} onClick={() => setTab('settings')}>Ещё</button>
-          </nav>
+          <ClientMobileNav
+            tab={tab}
+            onChange={setTab}
+            phoneMasked={maskPhoneClient(phoneNormalized)}
+            onOpenCabinet={() => setTab('home')}
+            onSignOut={logout}
+            supportUnread={supportUnread}
+          />
         </div>
 
         <style>{CSS}</style>
@@ -1610,6 +1608,8 @@ const CSS = `
 .cpx-fin-pdf-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .cpx-fin-pdf-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
+.cpx-fin-clocks { margin-bottom: 14px; }
+
 .cpx-fin-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
@@ -1742,41 +1742,24 @@ const CSS = `
 }
 .cpx-fin-ai-ask-btn:hover:not(:disabled) { filter: brightness(1.05); }
 .cpx-fin-ai-ask-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.cpx-fin-ai-disclaimer { margin: 8px 0 0; font-size: 0.68rem; color: var(--text-dim); line-height: 1.4; }
 
-.cpx-mobile-tabs {
-  display: none;
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  z-index: 40;
-  background: var(--bg-panel-solid);
-  border-top: 1px solid var(--stroke-soft);
-  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
-  gap: 6px;
+@media (max-width: 640px) {
+  .cpx-fin-ai-card { padding: 14px; }
+  .cpx-fin-ai-answer { font-size: 0.88rem; line-height: 1.6; max-height: none; padding: 12px 13px; }
+  .cpx-fin-ai-scenario-value { font-size: 1.1rem; }
+  .cpx-fin-ai-ask { flex-direction: column; align-items: stretch; gap: 10px; }
+  .cpx-fin-ai-ask input {
+    height: 46px;
+    font-size: 0.92rem;
+    width: 100%;
+  }
+  .cpx-fin-ai-ask-btn {
+    width: 100% !important;
+    height: 46px;
+    font-size: 0.9rem;
+  }
 }
-@media (max-width: 900px) { .cpx-mobile-tabs { display: flex; } }
-.cpx-mobile-tab {
-  flex: 1;
-  padding: 10px 4px;
-  border: none;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 0.74rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  position: relative;
-}
-.cpx-mobile-tab--on { background: var(--accent-soft); color: var(--accent); }
-.cpx-mobile-tab__badge {
-  position: absolute;
-  top: 5px; right: 8px;
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 2px var(--bg-panel-solid);
-}
+.cpx-fin-ai-disclaimer { margin: 8px 0 0; font-size: 0.68rem; color: var(--text-dim); line-height: 1.4; }
 
 /* ── Чат поддержки ── */
 .cpx-chat-page { max-width: 860px; margin: 0 auto; width: 100%; }

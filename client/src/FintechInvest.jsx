@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { fintechApi, getFintechToken, setFintechToken, onFintechSessionExpired } from './api.js';
 import { openFintechStatementReport } from './fintechStatementReport.js';
+import { WorldClocksCard } from './WorldClocks.jsx';
 
 const DOC_LABELS = {
   passport_main: 'Паспорт (разворот с фото)',
@@ -849,6 +850,8 @@ function FintechDashboard({ profile }) {
           <span className="cpx-fin-kpi-value">{formatMoney(portfolio?.rubBalance)}</span>
         </div>
       </div>
+
+      <WorldClocksCard delay="0ms" className="cpx-fin-clocks" />
 
       <div className="cpx-fin-layout">
         <div className="cpx-fin-main">
