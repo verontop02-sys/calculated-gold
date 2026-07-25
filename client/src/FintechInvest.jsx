@@ -3,6 +3,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { fintechApi, getFintechToken, setFintechToken, onFintechSessionExpired } from './api.js';
 import { openFintechStatementReport } from './fintechStatementReport.js';
 import { WorldClocksCard } from './WorldClocks.jsx';
+import { MissedBenefitCalc } from './MissedBenefitCalc.jsx';
 
 const DOC_LABELS = {
   passport_main: 'Паспорт (разворот с фото)',
@@ -749,195 +750,6 @@ function AssistantCard() {
   );
 }
 
-// ── Калькулятор упущенной выгоды (официальный курс ЦБ) ──────────────────────
-function MissedBenefitCard({ compact = false, onOpenFull }) {
-  const [points, setPoints] = useState(null);
-  const [investRub, setInvestRub] = useState(3_000_000);
-  const [buyYear, setBuyYear] = useState(2010);
-  const [err, setErr] = useState('');
-
-  useEffect(() => {
-    let alive = true;
-    fintechApi
-      .cbrGoldHistory()
-      .then((out) => {
-        if (!alive) return;
-        const pts = out.points || [];
-        setPoints(pts);
-        if (pts.length) {
-          const years = pts.map((p) => p.year);
-          const mid = years[Math.floor(years.length / 2)] || 2010;
-          setBuyYear((y) => (years.includes(y) ? y : mid));
-        }
-      })
-      .catch((e) => {
-        if (alive) {
-          setPoints([]);
-          setErr(e?.message || 'История ЦБ временно недоступна');
-        }
-      });
-    return () => { alive = false; };
-  }, []);
-
-  const yearBounds = useMemo(() => {
-    if (!points?.length) return { min: 2000, max: new Date().getFullYear() };
-    return { min: points[0].year, max: points[points.length - 1].year };
-  }, [points]);
-
-  const result = useMemo(() => {
-    if (!points?.length || !investRub) return null;
-    const past = [...points].reverse().find((p) => p.year <= buyYear) || points[0];
-    const now = points[points.length - 1];
-    if (!past?.price || !now?.price) return null;
-    const grams = investRub / past.price;
-    const todayValue = grams * now.price;
-    const profit = todayValue - investRub;
-    const pct = investRub > 0 ? (profit / investRub) * 100 : 0;
-    return {
-      pastPrice: past.price,
-      nowPrice: now.price,
-      pastYear: past.year,
-      grams,
-      todayValue,
-      profit,
-      pct,
-    };
-  }, [points, investRub, buyYear]);
-
-  const chartData = useMemo(() => {
-    if (!points?.length) return [];
-    return points.map((p) => ({ year: String(p.year), price: p.price }));
-  }, [points]);
-
-  if (compact) {
-    return (
-      <div className="cpx-card cpx-fin-benefit-compact">
-        <div className="cpx-fin-benefit-compact-head">
-          <div>
-            <span className="cpx-fin-kpi-label">Упущенная выгода</span>
-            <h3 className="cpx-fin-side-title" style={{ margin: '2px 0 0' }}>Сколько вы могли заработать?</h3>
-          </div>
-          <button type="button" className="cpx-link" onClick={onOpenFull}>Открыть →</button>
-        </div>
-        {result ? (
-          <div className="cpx-fin-benefit-compact-res">
-            <span className="cpx-fin-pos">+{formatMoney(result.profit)}</span>
-            <span className="cpx-fin-kpi-pct cpx-fin-pos">+{Math.round(result.pct).toLocaleString('ru-RU')}%</span>
-          </div>
-        ) : (
-          <p className="cpx-muted" style={{ margin: 0 }}>{points === null ? 'Считаем…' : 'Нет данных'}</p>
-        )}
-        <p className="cpx-fin-ai-disclaimer">Анализ по курсу ЦБ РФ, не инвестиционное предложение.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="cpx-card cpx-fin-benefit-card">
-      <div className="cpx-fin-chart-head">
-        <div>
-          <span className="cpx-fin-pill">Рост золота по данным ЦБ РФ</span>
-          <h2 className="cpx-fin-side-title" style={{ marginTop: 8 }}>Калькулятор упущенной выгоды</h2>
-          <p className="cpx-fin-side-sub">Сколько вы могли заработать, купив золото раньше?</p>
-        </div>
-      </div>
-
-      {err && <p className="cpx-err">{err}</p>}
-      {points === null && <p className="cpx-muted"><span className="cpx-spinner" /> Загружаем историю ЦБ…</p>}
-
-      {chartData.length > 1 && (
-        <div className="cpx-fin-chart-body" style={{ marginBottom: 16 }}>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={chartData} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
-              <defs>
-                <linearGradient id="finCbrFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.28} />
-                  <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--stroke-soft)" vertical={false} />
-              <XAxis dataKey="year" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false} minTickGap={28} />
-              <YAxis
-                tickFormatter={(v) => `${Math.round(v).toLocaleString('ru-RU')}`}
-                tick={{ fill: 'var(--text-dim)', fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-                width={52}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: 'var(--bg-panel-solid)',
-                  border: '1px solid var(--stroke)',
-                  borderRadius: 10,
-                  fontSize: 12,
-                  color: 'var(--text)',
-                }}
-                formatter={(v) => [`${Number(v).toLocaleString('ru-RU')} ₽/г`, 'ЦБ']}
-              />
-              <Area type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2} fill="url(#finCbrFill)" dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
-          <p className="cpx-fin-ai-disclaimer">*по официальным данным ЦБ РФ</p>
-        </div>
-      )}
-
-      <div className="cpx-fin-sliders">
-        <label className="cpx-fin-slider">
-          <div className="cpx-fin-slider-head">
-            <span>Сумма вложений в золото</span>
-            <strong>{formatMoney(investRub)}</strong>
-          </div>
-          <input
-            type="range"
-            min={100_000}
-            max={10_000_000}
-            step={50_000}
-            value={investRub}
-            onChange={(e) => setInvestRub(Number(e.target.value))}
-          />
-          <div className="cpx-fin-slider-ends"><span>100 000 ₽</span><span>10 000 000 ₽</span></div>
-        </label>
-        <label className="cpx-fin-slider">
-          <div className="cpx-fin-slider-head">
-            <span>Год приобретения золота</span>
-            <strong>{buyYear}</strong>
-          </div>
-          <input
-            type="range"
-            min={yearBounds.min}
-            max={yearBounds.max}
-            step={1}
-            value={Math.min(yearBounds.max, Math.max(yearBounds.min, buyYear))}
-            onChange={(e) => setBuyYear(Number(e.target.value))}
-            disabled={!points?.length}
-          />
-          <div className="cpx-fin-slider-ends"><span>{yearBounds.min}</span><span>{yearBounds.max}</span></div>
-        </label>
-      </div>
-
-      {result && (
-        <div className="cpx-fin-benefit-result">
-          <div className="cpx-fin-benefit-result-box">
-            <span className="cpx-fin-kpi-label">Вы могли бы заработать</span>
-            <div className="cpx-fin-benefit-nums">
-              <span className="cpx-fin-benefit-profit cpx-fin-pos">+ {formatMoney(result.profit)}</span>
-              <span className="cpx-fin-benefit-pct cpx-fin-pos">+{Math.round(result.pct).toLocaleString('ru-RU')}%</span>
-            </div>
-            <p className="cpx-fin-ai-disclaimer">*без учёта уплаты НДФЛ и комиссий</p>
-          </div>
-          <div className="cpx-fin-benefit-today">
-            <span className="cpx-fin-kpi-label">Сегодня у вас было бы</span>
-            <span className="cpx-fin-benefit-today-val">{formatMoney(result.todayValue)}</span>
-          </div>
-        </div>
-      )}
-      <p className="cpx-fin-ai-disclaimer" style={{ marginTop: 12 }}>
-        Материалы носят иллюстративный характер и не являются индивидуальной инвестиционной рекомендацией или обещанием доходности. Прошлый рост не гарантирует будущий результат.
-      </p>
-    </div>
-  );
-}
-
 function LedgerList({ ledger, limit = 12 }) {
   if (!ledger.length) return <p className="cpx-muted" style={{ margin: 0 }}>Операций пока нет.</p>;
   return (
@@ -1389,7 +1201,7 @@ function FintechDashboard({ profile }) {
                   </button>
                 </div>
               </div>
-              <MissedBenefitCard compact onOpenFull={() => setView('benefit')} />
+              <MissedBenefitCalc compact onOpenFull={() => setView('benefit')} />
               <div className="cpx-card cpx-fin-history-card">
                 <h2 className="cpx-fin-side-title">Последние операции</h2>
                 <LedgerList ledger={ledger} limit={8} />
@@ -1412,7 +1224,7 @@ function FintechDashboard({ profile }) {
 
       {view === 'sell' && <SellPanel portfolio={portfolio} onDone={load} />}
 
-      {view === 'benefit' && <MissedBenefitCard />}
+      {view === 'benefit' && <MissedBenefitCalc />}
     </div>
   );
 }
