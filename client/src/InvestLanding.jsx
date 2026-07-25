@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AnimatePresence,
   animate,
   motion,
   useInView,
+  useMotionValue,
   useMotionValueEvent,
   useScroll,
+  useSpring,
   useTransform,
 } from 'motion/react';
 import Lenis from 'lenis';
@@ -15,13 +17,17 @@ import { ThemeToggle } from './ThemeToggle.jsx';
 import { MissedBenefitCalc } from './MissedBenefitCalc.jsx';
 
 const EASE = [0.22, 1, 0.36, 1];
+const SPRING = { type: 'spring', stiffness: 230, damping: 28, mass: 0.9 };
 
 function formatMoney(n) {
   if (n == null || !Number.isFinite(Number(n))) return '—';
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(Number(n));
 }
 
-/* ── Иконки (инлайн SVG, наследуют currentColor) ── */
+const isFinePointer = () => typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
+const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ── Иконки (инлайн SVG) ── */
 const Ico = {
   scale: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -53,6 +59,11 @@ const Ico = {
       <path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z" /><path d="m9 12 2 2 4-4" />
     </svg>
   ),
+  check: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m5 13 4 4L19 7" />
+    </svg>
+  ),
 };
 
 const STEPS = [
@@ -82,16 +93,18 @@ const FAQ = [
 
 const MARQUEE = ['Курс ЦБ РФ', 'Биржевые котировки', 'От 1 грамма', 'Комиссия до сделки', 'PDF-выписки', 'AI-ассистент', 'Учёт до 0,0001 г', 'Продажа онлайн'];
 
-/* ── Анимационные примитивы ── */
+const STATEMENT_WORDS = 'Золото пережило войны, кризисы и дефолты. Сбережения в золоте — спокойствие, проверенное веками.'.split(' ');
 
-function Reveal({ children, className = '', delay = 0, y = 36, ...rest }) {
+/* ═══════════════ Анимационные примитивы ═══════════════ */
+
+function Reveal({ children, className = '', delay = 0, y = 34, ...rest }) {
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y, filter: 'blur(6px)' }}
-      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-      viewport={{ once: true, margin: '-12% 0px' }}
-      transition={{ duration: 0.9, delay, ease: EASE }}
+      initial={{ opacity: 0, y }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-10% 0px' }}
+      transition={{ duration: 0.85, delay, ease: EASE }}
       {...rest}
     >
       {children}
@@ -99,18 +112,15 @@ function Reveal({ children, className = '', delay = 0, y = 36, ...rest }) {
   );
 }
 
-const staggerParent = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
-};
+const staggerParent = { hidden: {}, show: { transition: { staggerChildren: 0.08, delayChildren: 0.04 } } };
 const staggerChild = {
-  hidden: { opacity: 0, y: 32, filter: 'blur(6px)' },
-  show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.8, ease: EASE } },
+  hidden: { opacity: 0, y: 36, scale: 0.985 },
+  show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.75, ease: EASE } },
 };
 
-function AnimatedNumber({ to, format, duration = 1.8, className = '' }) {
+function AnimatedNumber({ to, format, duration = 1.9, className = '' }) {
   const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: '-8% 0px' });
+  const inView = useInView(ref, { once: true, margin: '-6% 0px' });
   const [val, setVal] = useState(0);
   useEffect(() => {
     if (!inView || to == null) return;
@@ -120,7 +130,230 @@ function AnimatedNumber({ to, format, duration = 1.8, className = '' }) {
   return <span ref={ref} className={className}>{to == null ? '—' : format(val)}</span>;
 }
 
-/* ── Hero-заголовок: пословное появление с blur ── */
+/* Магнитная кнопка: тянется к курсору (только desktop) */
+function Magnetic({ children, strength = 0.28 }) {
+  const ref = useRef(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const sx = useSpring(x, { stiffness: 180, damping: 16, mass: 0.5 });
+  const sy = useSpring(y, { stiffness: 180, damping: 16, mass: 0.5 });
+
+  const onMove = useCallback((e) => {
+    if (!isFinePointer() || !ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    x.set((e.clientX - (r.left + r.width / 2)) * strength);
+    y.set((e.clientY - (r.top + r.height / 2)) * strength);
+  }, [strength, x, y]);
+  const onLeave = useCallback(() => { x.set(0); y.set(0); }, [x, y]);
+
+  return (
+    <motion.div ref={ref} className="il-magnetic" style={{ x: sx, y: sy }} onPointerMove={onMove} onPointerLeave={onLeave}>
+      {children}
+    </motion.div>
+  );
+}
+
+/* Мягкое свечение, следующее за курсором (desktop) */
+function CursorGlow() {
+  const [enabled, setEnabled] = useState(false);
+  const x = useMotionValue(-600);
+  const y = useMotionValue(-600);
+  const sx = useSpring(x, { stiffness: 90, damping: 24, mass: 0.8 });
+  const sy = useSpring(y, { stiffness: 90, damping: 24, mass: 0.8 });
+
+  useEffect(() => {
+    if (!isFinePointer() || prefersReducedMotion()) return undefined;
+    setEnabled(true);
+    const move = (e) => { x.set(e.clientX); y.set(e.clientY); };
+    window.addEventListener('pointermove', move, { passive: true });
+    return () => window.removeEventListener('pointermove', move);
+  }, [x, y]);
+
+  if (!enabled) return null;
+  return <motion.div className="il-cursor-glow" style={{ x: sx, y: sy }} aria-hidden />;
+}
+
+/* ═══════════════ Hero: колода карт ═══════════════ */
+
+const DECK_SLOTS = [
+  { x: 0, y: 0, scale: 1, rotate: 0, opacity: 1 },
+  { x: 34, y: 28, scale: 0.95, rotate: 3.5, opacity: 0.88 },
+  { x: 68, y: 56, scale: 0.9, rotate: 7, opacity: 0.65 },
+];
+
+function DeckPortfolioCard({ quote, growth }) {
+  const grams = 128.35;
+  const valueRub = quote?.goldRubPerGram ? grams * quote.goldRubPerGram : null;
+  return (
+    <>
+      <div className="il-card-top">
+        <span className="il-card-brand">REAKTIVO<i>·</i>Invest</span>
+        <span className="il-card-live"><i />live</span>
+      </div>
+      <span className="il-card-label">Портфель</span>
+      <div className="il-card-big">{grams.toFixed(4).replace('.', ',')} г</div>
+      <div className="il-card-row">
+        <span className="il-card-val">{valueRub ? formatMoney(valueRub) : '· · ·'}</span>
+        {growth && <span className="il-card-badge">+{Math.round((growth.multiple - 1) * 100).toLocaleString('ru-RU')}% за {growth.years} лет</span>}
+      </div>
+      <svg className="il-card-spark" viewBox="0 0 220 64" fill="none" preserveAspectRatio="none" aria-hidden>
+        <defs>
+          <linearGradient id="ilSparkFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.30" />
+            <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d="M2 56 C24 54 40 48 58 47 S92 40 108 36 S140 30 158 22 S196 10 218 6" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M2 56 C24 54 40 48 58 47 S92 40 108 36 S140 30 158 22 S196 10 218 6 L218 64 L2 64 Z" fill="url(#ilSparkFill)" opacity="0.7" />
+      </svg>
+      <div className="il-card-foot">
+        <span>Золото · 999,9</span>
+        <span>{quote?.goldRubPerGram ? `${Math.round(quote.goldRubPerGram).toLocaleString('ru-RU')} ₽/г` : ''}</span>
+      </div>
+    </>
+  );
+}
+
+const PRICE_BARS = [34, 41, 38, 47, 44, 56, 52, 63, 60, 72, 78, 92];
+
+function DeckPriceCard({ quote }) {
+  return (
+    <>
+      <div className="il-card-top">
+        <span className="il-card-brand">Курс золота</span>
+        <span className="il-card-live"><i />MOEX</span>
+      </div>
+      <span className="il-card-label">Сейчас за грамм</span>
+      <div className="il-card-big">{quote?.goldRubPerGram ? `${Math.round(quote.goldRubPerGram).toLocaleString('ru-RU')} ₽` : '· · ·'}</div>
+      <div className="il-card-row">
+        <span className="il-card-badge">обновляется в реальном времени</span>
+      </div>
+      <div className="il-card-bars" aria-hidden>
+        {PRICE_BARS.map((h, i) => (
+          <span key={i} style={{ height: `${h}%` }} className={i === PRICE_BARS.length - 1 ? 'is-hot' : ''} />
+        ))}
+      </div>
+      <div className="il-card-foot">
+        <span>Биржевые котировки</span>
+        <span>без наценок «с потолка»</span>
+      </div>
+    </>
+  );
+}
+
+function DeckDealCard({ quote }) {
+  const total = quote?.goldRubPerGram ? quote.goldRubPerGram * 10 : null;
+  return (
+    <>
+      <div className="il-card-top">
+        <span className="il-card-brand">Сделка</span>
+        <span className="il-card-live il-card-live--ok"><i />исполнена</span>
+      </div>
+      <span className="il-card-label">Покупка 10 г</span>
+      <div className="il-card-big">{total ? formatMoney(total) : '· · ·'}</div>
+      <ul className="il-card-checks">
+        <li><span className="il-card-check">{Ico.check}</span> Курс зафиксирован в моменте</li>
+        <li><span className="il-card-check">{Ico.check}</span> Комиссия показана до сделки</li>
+        <li><span className="il-card-check">{Ico.check}</span> Граммы зачислены на счёт</li>
+      </ul>
+      <div className="il-card-foot">
+        <span>Время сделки</span>
+        <span>меньше минуты</span>
+      </div>
+    </>
+  );
+}
+
+function HeroDeck({ quote, growth }) {
+  const [order, setOrder] = useState([0, 1, 2]);
+  const pausedRef = useRef(false);
+
+  useEffect(() => {
+    if (prefersReducedMotion()) return undefined;
+    const id = setInterval(() => {
+      if (!pausedRef.current) setOrder(([f, ...rest]) => [...rest, f]);
+    }, 4000);
+    return () => clearInterval(id);
+  }, []);
+
+  const advance = () => setOrder(([f, ...rest]) => [...rest, f]);
+  const bringToFront = (i) => setOrder((cur) => {
+    let next = cur;
+    for (let k = 0; k < 3 && next[0] !== i; k += 1) next = [...next.slice(1), next[0]];
+    return next;
+  });
+
+  /* лёгкий 3D-наклон за курсором */
+  const rx = useMotionValue(0);
+  const ry = useMotionValue(0);
+  const srx = useSpring(rx, { stiffness: 120, damping: 18 });
+  const sry = useSpring(ry, { stiffness: 120, damping: 18 });
+  const onTilt = (e) => {
+    if (!isFinePointer()) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    ry.set(((e.clientX - r.left) / r.width - 0.5) * 8);
+    rx.set(-((e.clientY - r.top) / r.height - 0.5) * 8);
+  };
+  const resetTilt = () => { rx.set(0); ry.set(0); };
+
+  const cards = [
+    <DeckPortfolioCard quote={quote} growth={growth} key="p" />,
+    <DeckPriceCard quote={quote} key="q" />,
+    <DeckDealCard quote={quote} key="d" />,
+  ];
+
+  return (
+    <motion.div
+      className="il-deck-wrap"
+      initial={{ opacity: 0, y: 60 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 1.1, delay: 0.5, ease: EASE }}
+    >
+      <motion.div
+        className="il-deck"
+        style={{ rotateX: srx, rotateY: sry, transformPerspective: 1100 }}
+        onPointerMove={onTilt}
+        onPointerEnter={() => { pausedRef.current = true; }}
+        onPointerLeave={() => { pausedRef.current = false; resetTilt(); }}
+        onClick={advance}
+        role="button"
+        tabIndex={0}
+        aria-label="Показать следующую карточку"
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); advance(); } }}
+      >
+        {cards.map((card, i) => {
+          const pos = order.indexOf(i);
+          return (
+            <motion.div
+              key={i}
+              className="il-deck-card"
+              style={{ zIndex: 3 - pos }}
+              animate={DECK_SLOTS[pos]}
+              transition={SPRING}
+            >
+              {card}
+            </motion.div>
+          );
+        })}
+      </motion.div>
+      <div className="il-deck-dots" role="tablist" aria-label="Карточки">
+        {[0, 1, 2].map((i) => (
+          <button
+            key={i}
+            type="button"
+            role="tab"
+            aria-selected={order[0] === i}
+            className={`il-deck-dot${order[0] === i ? ' is-active' : ''}`}
+            onClick={(e) => { e.stopPropagation(); bringToFront(i); }}
+          />
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+/* ═══════════════ Hero-заголовок ═══════════════ */
+
 const TITLE_WORDS = [
   { t: 'Настоящее' }, { t: 'золото', accent: true }, { t: 'в' }, { t: 'вашем' }, { t: 'портфеле' },
   { t: '—' }, { t: 'от' }, { t: '1' }, { t: 'грамма' },
@@ -130,97 +363,159 @@ function HeroTitle() {
   return (
     <motion.h1
       className="il-hero-title"
-      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.055, delayChildren: 0.15 } } }}
+      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.05, delayChildren: 0.12 } } }}
       initial="hidden"
       animate="show"
       aria-label={TITLE_WORDS.map((w) => w.t).join(' ')}
     >
       {TITLE_WORDS.map((w, i) => (
-        <motion.span
-          key={i}
-          className={`il-hero-word${w.accent ? ' il-accent-text' : ''}`}
-          variants={{
-            hidden: { opacity: 0, y: '0.6em', filter: 'blur(10px)' },
-            show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.75, ease: EASE } },
-          }}
-          aria-hidden
-        >
-          {w.t}
-        </motion.span>
+        <span key={i} className="il-hero-word-clip" aria-hidden>
+          <motion.span
+            className={`il-hero-word${w.accent ? ' il-accent-text' : ''}`}
+            variants={{
+              hidden: { y: '110%' },
+              show: { y: 0, transition: { duration: 0.85, ease: EASE } },
+            }}
+          >
+            {w.t}
+          </motion.span>
+        </span>
       ))}
     </motion.h1>
   );
 }
 
-/* ── Плавающая карточка портфеля в hero ── */
-function HeroCard({ quote, growth }) {
-  const grams = 128.35;
-  const valueRub = quote?.goldRubPerGram ? grams * quote.goldRubPerGram : null;
+/* ═══════════════ Заявление со скролл-проявлением слов ═══════════════ */
+
+function StatementWord({ progress, range, children }) {
+  const opacity = useTransform(progress, range, [0.14, 1]);
+  return <motion.span className="il-statement-word" style={{ opacity }}>{children}&nbsp;</motion.span>;
+}
+
+function Statement() {
+  const ref = useRef(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.82', 'end 0.42'] });
   return (
-    <motion.div
-      className="il-hero-visual"
-      initial={{ opacity: 0, y: 60, rotate: 2 }}
-      animate={{ opacity: 1, y: 0, rotate: 0 }}
-      transition={{ duration: 1.1, delay: 0.45, ease: EASE }}
-    >
-      <div className="il-hero-card-back" aria-hidden />
-      <motion.div
-        className="il-hero-card"
-        animate={{ y: [0, -12, 0] }}
-        transition={{ duration: 6.5, repeat: Infinity, ease: 'easeInOut', delay: 1.6 }}
-      >
-        <div className="il-hero-card-top">
-          <span className="il-hero-card-brand">REAKTIVO<i>·</i>Invest</span>
-          <span className="il-hero-card-live"><i />live</span>
-        </div>
-        <span className="il-hero-card-label">Портфель</span>
-        <div className="il-hero-card-grams">{grams.toFixed(4).replace('.', ',')} г</div>
-        <div className="il-hero-card-value">
-          {valueRub ? formatMoney(valueRub) : '· · ·'}
-          {growth && <span className="il-hero-card-badge">+{Math.round((growth.multiple - 1) * 100).toLocaleString('ru-RU')}% за {growth.years} лет</span>}
-        </div>
-        <svg className="il-hero-card-spark" viewBox="0 0 220 64" fill="none" preserveAspectRatio="none" aria-hidden>
-          <defs>
-            <linearGradient id="ilSparkFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.30" />
-              <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          <motion.path
-            d="M2 56 C24 54 40 48 58 47 S92 40 108 36 S140 30 158 22 S196 10 218 6"
-            stroke="var(--accent)"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 2, delay: 0.9, ease: EASE }}
-          />
-          <path d="M2 56 C24 54 40 48 58 47 S92 40 108 36 S140 30 158 22 S196 10 218 6 L218 64 L2 64 Z" fill="url(#ilSparkFill)" opacity="0.7" />
-        </svg>
-        <div className="il-hero-card-foot">
-          <span>Золото · 999,9</span>
-          <span>{quote?.goldRubPerGram ? `${Math.round(quote.goldRubPerGram).toLocaleString('ru-RU')} ₽/г` : ''}</span>
-        </div>
-      </motion.div>
-    </motion.div>
+    <section className="il-statement" ref={ref}>
+      <div className="il-section-inner">
+        <p className="il-statement-text">
+          {STATEMENT_WORDS.map((w, i) => (
+            <StatementWord key={i} progress={scrollYProgress} range={[i / STATEMENT_WORDS.length, (i + 1) / STATEMENT_WORDS.length]}>
+              {w}
+            </StatementWord>
+          ))}
+        </p>
+      </div>
+    </section>
   );
 }
+
+/* ═══════════════ Превью кабинета с 3D-наклоном ═══════════════ */
+
+function DashboardPreview({ chartData, quote }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: '-8% 0px' });
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.98', 'start 0.4'] });
+  const rotateX = useTransform(scrollYProgress, [0, 1], [16, 0]);
+  const y = useTransform(scrollYProgress, [0, 1], [70, 0]);
+  const opacity = useTransform(scrollYProgress, [0, 0.35, 1], [0, 0.75, 1]);
+  const scale = useTransform(scrollYProgress, [0, 1], [0.94, 1]);
+
+  return (
+    <div className="il-preview-perspective" ref={ref}>
+      <motion.div className="il-preview-window" style={{ rotateX, y, opacity, scale }}>
+        <div className="il-preview-bar">
+          <span className="il-preview-dots" aria-hidden><i /><i /><i /></span>
+          <span className="il-preview-url">reaktivo.pro/kabinet</span>
+          <span />
+        </div>
+        <div className="il-preview-body">
+          <aside className="il-preview-side" aria-hidden>
+            <span className="il-preview-logo" />
+            <span className="il-preview-navitem is-active" />
+            <span className="il-preview-navitem" />
+            <span className="il-preview-navitem" />
+            <span className="il-preview-navitem" />
+          </aside>
+          <div className="il-preview-main">
+            <div className="il-preview-kpis">
+              <div className="il-preview-kpi">
+                <span className="il-preview-kpi-label">Баланс</span>
+                <span className="il-preview-kpi-val">128,3500 г</span>
+              </div>
+              <div className="il-preview-kpi">
+                <span className="il-preview-kpi-label">В рублях</span>
+                <span className="il-preview-kpi-val">{quote?.goldRubPerGram ? formatMoney(128.35 * quote.goldRubPerGram) : '—'}</span>
+              </div>
+              <div className="il-preview-kpi il-preview-kpi--pos">
+                <span className="il-preview-kpi-label">Доходность</span>
+                <span className="il-preview-kpi-val">+18,4%</span>
+              </div>
+            </div>
+            <div className="il-preview-chart">
+              {inView && chartData.length > 1 && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 6, right: 4, left: 4, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="ilPrevFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <Area type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2} fill="url(#ilPrevFill)" dot={false} animationDuration={1600} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <div className="il-preview-rows" aria-hidden>
+              <div className="il-preview-row"><span className="is-buy">Покупка · 5 г</span><span>курс зафиксирован</span></div>
+              <div className="il-preview-row"><span className="is-sell">Продажа · 2 г</span><span>выплата на счёт</span></div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      <motion.span
+        className="il-preview-chip il-preview-chip--1"
+        animate={{ y: [0, -14, 0] }}
+        transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        +5,0000 г
+      </motion.span>
+      <motion.span
+        className="il-preview-chip il-preview-chip--2"
+        animate={{ y: [0, 12, 0] }}
+        transition={{ duration: 6.5, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+      >
+        Комиссия — до сделки
+      </motion.span>
+      <motion.span
+        className="il-preview-chip il-preview-chip--3"
+        animate={{ y: [0, -10, 0] }}
+        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+      >
+        PDF-выписка
+      </motion.span>
+    </div>
+  );
+}
+
+/* ═══════════════ FAQ ═══════════════ */
 
 function FaqItem({ item, open, onToggle }) {
   return (
     <div className={`il-faq-item${open ? ' il-faq-item--open' : ''}`}>
       <button type="button" className="il-faq-q" onClick={onToggle}>
         <span>{item.q}</span>
-        <motion.span className="il-faq-plus" animate={{ rotate: open ? 45 : 0 }} transition={{ duration: 0.3, ease: EASE }} aria-hidden>+</motion.span>
+        <motion.span className="il-faq-plus" animate={{ rotate: open ? 45 : 0 }} transition={{ duration: 0.35, ease: EASE }} aria-hidden>+</motion.span>
       </button>
       <AnimatePresence initial={false}>
         {open && (
           <motion.div
             key="answer"
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.4, ease: EASE }}
+            animate={{ height: 'auto', opacity: 1, transition: { height: { duration: 0.45, ease: EASE }, opacity: { duration: 0.35, delay: 0.08 } } }}
+            exit={{ height: 0, opacity: 0, transition: { height: { duration: 0.38, ease: EASE }, opacity: { duration: 0.2 } } }}
             style={{ overflow: 'hidden' }}
           >
             <p className="il-faq-a">{item.a}</p>
@@ -231,29 +526,32 @@ function FaqItem({ item, open, onToggle }) {
   );
 }
 
+/* ═══════════════ Страница ═══════════════ */
+
 export function InvestLanding() {
   const [quote, setQuote] = useState(null);
   const [history, setHistory] = useState(null);
-  const [openFaq, setOpenFaq] = useState(0);
+  const [openFaq, setOpenFaq] = useState(-1);
   const [scrolled, setScrolled] = useState(false);
   const lenisRef = useRef(null);
   const heroRef = useRef(null);
   const chartBoxRef = useRef(null);
-  const chartInView = useInView(chartBoxRef, { once: true, margin: '-15% 0px' });
+  const chartInView = useInView(chartBoxRef, { once: true, margin: '-12% 0px' });
 
-  const { scrollY } = useScroll();
+  const { scrollY, scrollYProgress } = useScroll();
   useMotionValueEvent(scrollY, 'change', (v) => setScrolled(v > 16));
+  const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
 
   const { scrollYProgress: heroProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
-  const orbY1 = useTransform(heroProgress, [0, 1], [0, 140]);
-  const orbY2 = useTransform(heroProgress, [0, 1], [0, -100]);
+  const orbY1 = useTransform(heroProgress, [0, 1], [0, 150]);
+  const orbY2 = useTransform(heroProgress, [0, 1], [0, -110]);
   const heroFade = useTransform(heroProgress, [0, 0.85], [1, 0]);
-  const cardY = useTransform(heroProgress, [0, 1], [0, 90]);
+  const deckY = useTransform(heroProgress, [0, 1], [0, 100]);
 
   /* Плавный скролл Lenis */
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
-    const lenis = new Lenis({ duration: 1.15, easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), smoothWheel: true });
+    if (prefersReducedMotion()) return undefined;
+    const lenis = new Lenis({ duration: 1.2, easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), smoothWheel: true });
     lenisRef.current = lenis;
     let raf = requestAnimationFrame(function loop(time) {
       lenis.raf(time);
@@ -264,7 +562,7 @@ export function InvestLanding() {
 
   const goTo = (e, selector) => {
     e.preventDefault();
-    if (lenisRef.current) lenisRef.current.scrollTo(selector, { offset: -84, duration: 1.4 });
+    if (lenisRef.current) lenisRef.current.scrollTo(selector, { offset: -84, duration: 1.5 });
     else document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth' });
   };
 
@@ -299,6 +597,14 @@ export function InvestLanding() {
     return { first, last, multiple: last.price / first.price, years: last.year - first.year };
   }, [history]);
 
+  const growth5y = useMemo(() => {
+    if (!history?.length) return null;
+    const last = history[history.length - 1];
+    const base = [...history].reverse().find((p) => p.year <= last.year - 5);
+    if (!base?.price || !last?.price) return null;
+    return ((last.price / base.price) - 1) * 100;
+  }, [history]);
+
   const chartData = useMemo(() => {
     if (!history?.length) return [];
     return history.map((p) => ({ year: String(p.year), price: p.price }));
@@ -306,6 +612,9 @@ export function InvestLanding() {
 
   return (
     <div className="il-root">
+      <motion.div className="il-progress" style={{ scaleX: progressX }} aria-hidden />
+      <CursorGlow />
+
       <header className={`il-header${scrolled ? ' il-header--scrolled' : ''}`}>
         <div className="il-header-inner">
           <a href="/" className="il-logo">REAKTIVO<span>.PRO</span> <em>Invest</em></a>
@@ -332,63 +641,37 @@ export function InvestLanding() {
           </div>
           <motion.div className="il-hero-inner" style={{ opacity: heroFade }}>
             <div className="il-hero-copy">
-              <motion.span
-                className="il-badge"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, ease: EASE }}
-              >
+              <motion.span className="il-badge" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}>
                 <i className="il-badge-dot" /> Reaktivo Invest · золото онлайн
               </motion.span>
 
               <HeroTitle />
 
-              <motion.p
-                className="il-hero-sub"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.55, ease: EASE }}
-              >
+              <motion.p className="il-hero-sub" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.5, ease: EASE }}>
                 Биржевой курс в реальном времени, комиссия видна до сделки, учёт до 0,0001 грамма.
                 Покупка, продажа и вывод — в пару кликов, без визитов в офис.
               </motion.p>
 
-              <motion.div
-                className="il-hero-cta"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.7, ease: EASE }}
-              >
-                <motion.a href="/kabinet" className="il-btn il-btn--primary il-btn--lg" whileHover={{ y: -2, scale: 1.02 }} whileTap={{ scale: 0.97 }}>
-                  Открыть кабинет
-                  <span className="il-btn-arrow" aria-hidden>→</span>
-                </motion.a>
-                <motion.a href="#calc" className="il-btn il-btn--outline il-btn--lg" onClick={(e) => goTo(e, '#calc')} whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}>
+              <motion.div className="il-hero-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.64, ease: EASE }}>
+                <Magnetic>
+                  <motion.a href="/kabinet" className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.96 }}>
+                    Открыть кабинет
+                    <span className="il-btn-arrow" aria-hidden>→</span>
+                  </motion.a>
+                </Magnetic>
+                <motion.a href="#calc" className="il-btn il-btn--outline il-btn--lg" onClick={(e) => goTo(e, '#calc')} whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }}>
                   Рассчитать выгоду
                 </motion.a>
               </motion.div>
 
-              <motion.div
-                className="il-hero-stats"
-                initial={{ opacity: 0, y: 24 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.85, ease: EASE }}
-              >
+              <motion.div className="il-hero-stats" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.78, ease: EASE }}>
                 <div className="il-hero-stat">
-                  <AnimatedNumber
-                    to={growth ? growth.multiple : null}
-                    format={(v) => `${v.toFixed(1).replace('.', ',')}×`}
-                    className="il-hero-stat-val"
-                  />
+                  <AnimatedNumber to={growth ? growth.multiple : null} format={(v) => `${v.toFixed(1).replace('.', ',')}×`} className="il-hero-stat-val" />
                   <span className="il-hero-stat-label">рост золота с {growth ? growth.first.year : '2000'} года</span>
                 </div>
                 <div className="il-hero-stat-sep" aria-hidden />
                 <div className="il-hero-stat">
-                  <AnimatedNumber
-                    to={quote?.goldRubPerGram ?? null}
-                    format={(v) => `${Math.round(v).toLocaleString('ru-RU')} ₽`}
-                    className="il-hero-stat-val"
-                  />
+                  <AnimatedNumber to={quote?.goldRubPerGram ?? null} format={(v) => `${Math.round(v).toLocaleString('ru-RU')} ₽`} className="il-hero-stat-val" />
                   <span className="il-hero-stat-label"><i className="il-live-dot" /> за грамм сейчас</span>
                 </div>
                 <div className="il-hero-stat-sep" aria-hidden />
@@ -399,8 +682,8 @@ export function InvestLanding() {
               </motion.div>
             </div>
 
-            <motion.div style={{ y: cardY }}>
-              <HeroCard quote={quote} growth={growth} />
+            <motion.div style={{ y: deckY }}>
+              <HeroDeck quote={quote} growth={growth} />
             </motion.div>
           </motion.div>
         </section>
@@ -414,6 +697,21 @@ export function InvestLanding() {
           </div>
         </div>
 
+        {/* ── Превью кабинета ── */}
+        <section className="il-section il-section--preview">
+          <div className="il-section-inner">
+            <div className="il-section-head">
+              <Reveal><span className="il-pill">Личный кабинет</span></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Весь портфель — <span className="il-accent-text">на одном экране</span></h2></Reveal>
+              <Reveal delay={0.16}><p className="il-p">Баланс в граммах и рублях, живой график, история сделок и AI-ассистент — без лишних кликов.</p></Reveal>
+            </div>
+            <DashboardPreview chartData={chartData} quote={quote} />
+          </div>
+        </section>
+
+        {/* ── Заявление ── */}
+        <Statement />
+
         {/* ── Динамика рынка ── */}
         <section className="il-section" id="market">
           <div className="il-section-inner">
@@ -421,10 +719,7 @@ export function InvestLanding() {
               <div className="il-market-copy">
                 <Reveal><span className="il-pill">Динамика рынка</span></Reveal>
                 <Reveal delay={0.08}>
-                  <h2 className="il-h2">
-                    Золото дорожает.<br />
-                    <span className="il-accent-text">Даже когда всё падает.</span>
-                  </h2>
+                  <h2 className="il-h2">Золото дорожает.<br /><span className="il-accent-text">Даже когда всё падает.</span></h2>
                 </Reveal>
                 <Reveal delay={0.16}>
                   <p className="il-p">
@@ -442,15 +737,19 @@ export function InvestLanding() {
                       <span className="il-market-arrow" aria-hidden>→</span>
                       <div className="il-market-stat">
                         <span className="il-stat-label">{growth.last.year} год</span>
-                        <AnimatedNumber
-                          to={growth.last.price}
-                          format={(v) => `${Math.round(v).toLocaleString('ru-RU')} ₽/г`}
-                          className="il-stat-val il-accent-text"
-                        />
+                        <AnimatedNumber to={growth.last.price} format={(v) => `${Math.round(v).toLocaleString('ru-RU')} ₽/г`} className="il-stat-val il-accent-text" />
                       </div>
                       <div className="il-market-mult">
                         <AnimatedNumber to={growth.multiple} format={(v) => `в ${v.toFixed(1).replace('.', ',')} раза`} />
                       </div>
+                    </div>
+                  </Reveal>
+                )}
+                {growth5y != null && (
+                  <Reveal delay={0.3}>
+                    <div className="il-market-chips">
+                      <span className="il-market-chip">+{Math.round(growth5y).toLocaleString('ru-RU')}% за 5 лет</span>
+                      <span className="il-market-chip">источник — ЦБ РФ</span>
                     </div>
                   </Reveal>
                 )}
@@ -464,7 +763,7 @@ export function InvestLanding() {
                 transition={{ duration: 1, ease: EASE }}
               >
                 {chartInView && chartData.length > 1 ? (
-                  <ResponsiveContainer width="100%" height={280}>
+                  <ResponsiveContainer width="100%" height={290}>
                     <AreaChart data={chartData} margin={{ top: 12, right: 6, left: 6, bottom: 0 }}>
                       <defs>
                         <linearGradient id="ilMarketFill" x1="0" y1="0" x2="0" y2="1">
@@ -509,16 +808,13 @@ export function InvestLanding() {
               <Reveal><span className="il-pill">Как это работает</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Четыре шага — и золото в портфеле</h2></Reveal>
             </div>
-            <motion.div
-              className="il-steps"
-              variants={staggerParent}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, margin: '-12% 0px' }}
-            >
-              {STEPS.map((s) => (
+            <motion.div className="il-steps" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-10% 0px' }}>
+              {STEPS.map((s, i) => (
                 <motion.div className="il-step" key={s.n} variants={staggerChild} whileHover={{ y: -8 }} transition={{ duration: 0.35, ease: EASE }}>
-                  <span className="il-step-n">{s.n}</span>
+                  <div className="il-step-head">
+                    <span className="il-step-n">{s.n}</span>
+                    {i < STEPS.length - 1 && <span className="il-step-line" aria-hidden />}
+                  </div>
                   <h3 className="il-step-title">{s.title}</h3>
                   <p className="il-step-text">{s.text}</p>
                 </motion.div>
@@ -534,13 +830,7 @@ export function InvestLanding() {
               <Reveal><span className="il-pill">Почему Reaktivo</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Сделано так, как должен<br />работать финтех</h2></Reveal>
             </div>
-            <motion.div
-              className="il-cards"
-              variants={staggerParent}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, margin: '-10% 0px' }}
-            >
+            <motion.div className="il-cards" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
               {ADVANTAGES.map((a) => (
                 <motion.div className="il-card" key={a.title} variants={staggerChild} whileHover={{ y: -8 }} transition={{ duration: 0.35, ease: EASE }}>
                   <span className="il-card-icon">{a.icon}</span>
@@ -552,6 +842,30 @@ export function InvestLanding() {
           </div>
         </section>
 
+        {/* ── Цифры ── */}
+        <section className="il-section il-section--kpi">
+          <div className="il-section-inner">
+            <motion.div className="il-kpis" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-10% 0px' }}>
+              <motion.div className="il-kpi" variants={staggerChild}>
+                <AnimatedNumber to={growth ? growth.multiple : null} format={(v) => `${v.toFixed(1).replace('.', ',')}×`} className="il-kpi-val" />
+                <span className="il-kpi-label">рост золота с {growth ? growth.first.year : '2000'} года</span>
+              </motion.div>
+              <motion.div className="il-kpi" variants={staggerChild}>
+                <span className="il-kpi-val">0,0001 г</span>
+                <span className="il-kpi-label">точность учёта портфеля</span>
+              </motion.div>
+              <motion.div className="il-kpi" variants={staggerChild}>
+                <span className="il-kpi-val">2 мин</span>
+                <span className="il-kpi-label">от входа до первой покупки</span>
+              </motion.div>
+              <motion.div className="il-kpi" variants={staggerChild}>
+                <span className="il-kpi-val">24/7</span>
+                <span className="il-kpi-label">кабинет и котировки онлайн</span>
+              </motion.div>
+            </motion.div>
+          </div>
+        </section>
+
         {/* ── FAQ ── */}
         <section className="il-section" id="faq">
           <div className="il-section-inner il-section-inner--narrow">
@@ -559,13 +873,7 @@ export function InvestLanding() {
               <Reveal><span className="il-pill">Частые вопросы</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Отвечаем честно</h2></Reveal>
             </div>
-            <motion.div
-              className="il-faq"
-              variants={staggerParent}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, margin: '-8% 0px' }}
-            >
+            <motion.div className="il-faq" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-6% 0px' }}>
               {FAQ.map((item, i) => (
                 <motion.div key={item.q} variants={staggerChild}>
                   <FaqItem item={item} open={openFaq === i} onToggle={() => setOpenFaq((cur) => (cur === i ? -1 : i))} />
@@ -584,10 +892,12 @@ export function InvestLanding() {
                 <span className="il-cta-orb il-cta-orb--2" aria-hidden />
                 <h2 className="il-cta-title">Начните сегодня —<br />это займёт две минуты</h2>
                 <p className="il-cta-sub">Вход по номеру телефона. Без анкет и визитов в офис.</p>
-                <motion.a href="/kabinet" className="il-btn il-btn--inverse il-btn--lg" whileHover={{ y: -2, scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                  Открыть кабинет
-                  <span className="il-btn-arrow" aria-hidden>→</span>
-                </motion.a>
+                <Magnetic>
+                  <motion.a href="/kabinet" className="il-btn il-btn--inverse il-btn--lg" whileTap={{ scale: 0.96 }}>
+                    Открыть кабинет
+                    <span className="il-btn-arrow" aria-hidden>→</span>
+                  </motion.a>
+                </Magnetic>
               </div>
             </Reveal>
             <p className="il-disclaimer">
@@ -598,11 +908,28 @@ export function InvestLanding() {
       </main>
 
       <footer className="il-footer">
-        <div className="il-section-inner il-footer-inner">
-          <span>© {new Date().getFullYear()} REAKTIVO.PRO</span>
-          <div className="il-footer-links">
-            <a href="/kabinet" className="il-nav-link">Личный кабинет</a>
-            <a href="/pro" className="il-nav-link il-nav-link--dim">Сотрудникам</a>
+        <div className="il-section-inner">
+          <div className="il-footer-grid">
+            <div className="il-footer-brand">
+              <span className="il-logo">REAKTIVO<span>.PRO</span> <em>Invest</em></span>
+              <p>Золото онлайн — от 1 грамма.<br />Официальные котировки, прозрачные комиссии.</p>
+            </div>
+            <div className="il-footer-col">
+              <span className="il-footer-col-title">Продукт</span>
+              <a href="#market" className="il-nav-link" onClick={(e) => goTo(e, '#market')}>Динамика рынка</a>
+              <a href="#calc" className="il-nav-link" onClick={(e) => goTo(e, '#calc')}>Калькулятор выгоды</a>
+              <a href="#how" className="il-nav-link" onClick={(e) => goTo(e, '#how')}>Как это работает</a>
+              <a href="#faq" className="il-nav-link" onClick={(e) => goTo(e, '#faq')}>FAQ</a>
+            </div>
+            <div className="il-footer-col">
+              <span className="il-footer-col-title">Кабинет</span>
+              <a href="/kabinet" className="il-nav-link">Войти / регистрация</a>
+              <a href="/pro" className="il-nav-link il-nav-link--dim">Сотрудникам</a>
+            </div>
+          </div>
+          <div className="il-footer-bottom">
+            <span>© {new Date().getFullYear()} REAKTIVO.PRO</span>
+            <span>Не является индивидуальной инвестиционной рекомендацией</span>
           </div>
         </div>
       </footer>
@@ -625,6 +952,22 @@ const CSS = `
 .il-section-inner { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
 .il-section-inner--narrow { max-width: 800px; }
 .il-accent-text { color: var(--accent); }
+.il-magnetic { display: inline-block; }
+
+/* ── Прогресс скролла ── */
+.il-progress {
+  position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 70;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #fff));
+  transform-origin: 0 50%;
+}
+
+/* ── Свечение за курсором ── */
+.il-cursor-glow {
+  position: fixed; top: 0; left: 0; z-index: 1; pointer-events: none;
+  width: 620px; height: 620px; margin: -310px 0 0 -310px; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 9%, transparent), transparent 65%);
+}
+@media (pointer: coarse) { .il-cursor-glow { display: none; } }
 
 /* ── Header ── */
 .il-header {
@@ -658,10 +1001,11 @@ const CSS = `
 
 /* ── Кнопки ── */
 .il-btn {
+  position: relative; overflow: hidden;
   display: inline-flex; align-items: center; justify-content: center; gap: 10px;
   border-radius: 14px; font-weight: 700; font-size: 0.88rem; text-decoration: none;
   padding: 11px 20px; border: 1px solid transparent; cursor: pointer;
-  transition: box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  transition: box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease, color 0.3s ease, transform 0.3s cubic-bezier(0.22,1,0.36,1);
   white-space: nowrap; will-change: transform;
 }
 .il-btn-arrow { display: inline-block; transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
@@ -670,16 +1014,23 @@ const CSS = `
   background: var(--accent); color: #fff;
   box-shadow: 0 10px 32px -10px color-mix(in srgb, var(--accent) 70%, transparent);
 }
-.il-btn--primary:hover { box-shadow: 0 16px 44px -12px color-mix(in srgb, var(--accent) 85%, transparent); }
+.il-btn--primary::after {
+  content: ''; position: absolute; top: 0; left: -70%; width: 42%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: skewX(-18deg); transition: left 0.7s cubic-bezier(0.22,1,0.36,1);
+}
+.il-btn--primary:hover { box-shadow: 0 18px 48px -12px color-mix(in srgb, var(--accent) 85%, transparent); }
+.il-btn--primary:hover::after { left: 130%; }
 .il-btn--ghost { background: transparent; border-color: var(--stroke); color: var(--text); }
 .il-btn--ghost:hover { border-color: var(--accent); color: var(--accent); }
 .il-btn--outline { background: color-mix(in srgb, var(--bg-panel-solid) 60%, transparent); border-color: var(--stroke); color: var(--text-strong); backdrop-filter: blur(6px); }
-.il-btn--outline:hover { border-color: var(--accent); color: var(--accent); }
+.il-btn--outline:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
 .il-btn--inverse { background: #fff; color: var(--accent); box-shadow: 0 14px 40px -12px rgba(0,0,0,0.45); }
+.il-btn--inverse:hover { transform: translateY(-2px); }
 .il-btn--lg { padding: 16px 30px; font-size: 0.98rem; border-radius: 16px; }
 
 /* ── Hero ── */
-.il-hero { position: relative; padding: 148px 28px 96px; overflow: clip; }
+.il-hero { position: relative; padding: 150px 28px 100px; overflow: clip; }
 .il-hero-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .il-hero-orb {
   position: absolute; border-radius: 50%; filter: blur(90px);
@@ -698,9 +1049,9 @@ const CSS = `
   opacity: 0.6;
 }
 .il-hero-inner {
-  position: relative; z-index: 1; max-width: 1180px; margin: 0 auto;
-  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-  gap: 56px; align-items: center;
+  position: relative; z-index: 2; max-width: 1180px; margin: 0 auto;
+  display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+  gap: 64px; align-items: center;
 }
 .il-badge {
   display: inline-flex; align-items: center; gap: 8px;
@@ -714,16 +1065,14 @@ const CSS = `
 
 .il-hero-title {
   font-size: clamp(2.3rem, 5.2vw, 3.9rem);
-  font-weight: 800; line-height: 1.06; letter-spacing: -0.035em;
+  font-weight: 800; line-height: 1.07; letter-spacing: -0.035em;
   margin: 0 0 22px; color: var(--text-strong);
   text-wrap: balance;
 }
-.il-hero-word { display: inline-block; margin-right: 0.26em; will-change: transform, filter; }
-.il-hero-sub {
-  font-size: 1.08rem; line-height: 1.65; color: var(--text-muted);
-  max-width: 540px; margin: 0 0 34px;
-}
-.il-hero-cta { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 44px; }
+.il-hero-word-clip { display: inline-block; overflow: hidden; vertical-align: bottom; margin-right: 0.26em; padding-bottom: 0.08em; margin-bottom: -0.08em; }
+.il-hero-word { display: inline-block; will-change: transform; }
+.il-hero-sub { font-size: 1.08rem; line-height: 1.65; color: var(--text-muted); max-width: 540px; margin: 0 0 34px; }
+.il-hero-cta { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 46px; align-items: center; }
 
 .il-hero-stats { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
 .il-hero-stat { display: flex; flex-direction: column; gap: 3px; }
@@ -732,36 +1081,47 @@ const CSS = `
 .il-hero-stat-sep { width: 1px; height: 38px; background: var(--stroke); }
 .il-live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); display: inline-block; animation: ilPulse 1.6s ease-in-out infinite; }
 
-/* Hero card */
-.il-hero-visual { position: relative; }
-.il-hero-card-back {
-  position: absolute; inset: 16px -14px -14px 30px; border-radius: 26px;
-  background: color-mix(in srgb, var(--bg-panel-solid) 55%, transparent);
-  border: 1px solid var(--stroke-soft);
-  transform: rotate(4deg);
-}
-.il-hero-card {
-  position: relative; border-radius: 26px;
-  background: color-mix(in srgb, var(--bg-panel-solid) 88%, transparent);
+/* ── Колода карт ── */
+.il-deck-wrap { position: relative; }
+.il-deck { position: relative; height: 400px; cursor: pointer; outline: none; }
+.il-deck-card {
+  position: absolute; top: 0; left: 0;
+  width: calc(100% - 72px); height: calc(100% - 60px);
+  display: flex; flex-direction: column;
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--bg-panel-solid) 90%, transparent);
   border: 1px solid var(--stroke);
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 40px 90px -40px rgba(0,0,0,0.5);
   padding: 26px 28px 20px;
+  will-change: transform;
 }
-.il-hero-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
-.il-hero-card-brand { font-weight: 800; font-size: 0.82rem; letter-spacing: 0.02em; color: var(--text-strong); }
-.il-hero-card-brand i { color: var(--accent); font-style: normal; margin: 0 2px; }
-.il-hero-card-live { display: inline-flex; align-items: center; gap: 6px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--emerald); }
-.il-hero-card-live i { width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); animation: ilPulse 1.6s ease-in-out infinite; }
-.il-hero-card-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); font-weight: 700; }
-.il-hero-card-grams { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong); font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
-.il-hero-card-value { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 1.02rem; font-weight: 700; color: var(--text-muted); font-variant-numeric: tabular-nums; margin-bottom: 18px; }
-.il-hero-card-badge {
-  font-size: 0.7rem; font-weight: 800; color: var(--emerald);
-  background: var(--emerald-soft); padding: 4px 10px; border-radius: 100px;
+.il-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.il-card-brand { font-weight: 800; font-size: 0.82rem; letter-spacing: 0.02em; color: var(--text-strong); }
+.il-card-brand i { color: var(--accent); font-style: normal; margin: 0 2px; }
+.il-card-live { display: inline-flex; align-items: center; gap: 6px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--emerald); }
+.il-card-live i { width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); animation: ilPulse 1.6s ease-in-out infinite; }
+.il-card-live--ok i { animation: none; }
+.il-card-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); font-weight: 700; }
+.il-card-big { font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong); font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
+.il-card-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.il-card-val { font-size: 1rem; font-weight: 700; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.il-card-badge { font-size: 0.7rem; font-weight: 800; color: var(--emerald); background: var(--emerald-soft); padding: 4px 10px; border-radius: 100px; }
+.il-card-spark { width: 100%; flex: 1; min-height: 48px; display: block; margin-bottom: 14px; }
+.il-card-bars { flex: 1; display: flex; align-items: flex-end; gap: 6px; margin-bottom: 14px; min-height: 56px; }
+.il-card-bars span { flex: 1; border-radius: 4px 4px 2px 2px; background: color-mix(in srgb, var(--accent) 22%, var(--stroke)); }
+.il-card-bars span.is-hot { background: var(--accent); animation: ilPulse 1.8s ease-in-out infinite; }
+.il-card-checks { list-style: none; margin: 2px 0 14px; padding: 0; display: flex; flex-direction: column; gap: 9px; flex: 1; }
+.il-card-checks li { display: flex; align-items: center; gap: 10px; font-size: 0.84rem; font-weight: 600; color: var(--text-muted); }
+.il-card-check { display: inline-flex; width: 20px; height: 20px; border-radius: 50%; background: var(--emerald-soft); color: var(--emerald); align-items: center; justify-content: center; flex-shrink: 0; }
+.il-card-check svg { width: 12px; height: 12px; }
+.il-card-foot { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-dim); font-weight: 600; border-top: 1px solid var(--stroke-soft); padding-top: 14px; }
+.il-deck-dots { display: flex; gap: 8px; justify-content: center; margin-top: 6px; }
+.il-deck-dot {
+  width: 22px; height: 5px; border-radius: 100px; border: none; cursor: pointer; padding: 0;
+  background: var(--stroke); transition: background 0.3s ease, width 0.3s cubic-bezier(0.22,1,0.36,1);
 }
-.il-hero-card-spark { width: 100%; height: 64px; display: block; margin-bottom: 14px; }
-.il-hero-card-foot { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-dim); font-weight: 600; border-top: 1px solid var(--stroke-soft); padding-top: 14px; }
+.il-deck-dot.is-active { background: var(--accent); width: 34px; }
 
 /* ── Marquee ── */
 .il-marquee {
@@ -782,9 +1142,8 @@ const CSS = `
 .il-marquee-item i { font-style: normal; color: var(--accent); font-size: 0.6rem; }
 
 /* ── Секции ── */
-.il-section { padding: 104px 0; }
+.il-section { padding: 100px 0; position: relative; z-index: 2; }
 .il-section--alt { background: color-mix(in srgb, var(--bg-panel-solid) 42%, transparent); }
-.il-section--calc { position: relative; }
 .il-section-head { text-align: center; max-width: 680px; margin: 0 auto 56px; }
 .il-pill {
   display: inline-block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
@@ -798,35 +1157,101 @@ const CSS = `
 }
 .il-p { font-size: 1rem; line-height: 1.7; color: var(--text-muted); margin: 0; }
 
+/* ── Превью кабинета ── */
+.il-section--preview { padding-bottom: 40px; }
+.il-preview-perspective { position: relative; perspective: 1400px; max-width: 980px; margin: 0 auto; }
+.il-preview-window {
+  border-radius: 22px; overflow: hidden;
+  background: var(--bg-panel-solid); border: 1px solid var(--stroke);
+  box-shadow: 0 60px 120px -50px rgba(0,0,0,0.55);
+  transform-origin: 50% 0%;
+  will-change: transform;
+}
+.il-preview-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 18px; border-bottom: 1px solid var(--stroke-soft);
+}
+.il-preview-dots { display: inline-flex; gap: 6px; }
+.il-preview-dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--stroke); display: inline-block; }
+.il-preview-url {
+  font-size: 0.72rem; font-weight: 600; color: var(--text-dim);
+  background: color-mix(in srgb, var(--stroke-soft) 60%, transparent);
+  border: 1px solid var(--stroke-soft); border-radius: 100px; padding: 5px 16px;
+}
+.il-preview-body { display: grid; grid-template-columns: 64px 1fr; min-height: 380px; }
+.il-preview-side { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 18px 0; border-right: 1px solid var(--stroke-soft); }
+.il-preview-logo { width: 26px; height: 26px; border-radius: 8px; background: var(--accent); margin-bottom: 10px; }
+.il-preview-navitem { width: 22px; height: 22px; border-radius: 7px; background: var(--stroke-soft); }
+.il-preview-navitem.is-active { background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.il-preview-main { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.il-preview-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.il-preview-kpi { border: 1px solid var(--stroke-soft); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; }
+.il-preview-kpi--pos .il-preview-kpi-val { color: var(--emerald); }
+.il-preview-kpi-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 700; }
+.il-preview-kpi-val { font-size: 0.98rem; font-weight: 800; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.il-preview-chart { flex: 1; min-height: 150px; }
+.il-preview-rows { display: flex; flex-direction: column; gap: 8px; }
+.il-preview-row {
+  display: flex; justify-content: space-between; align-items: center;
+  border: 1px solid var(--stroke-soft); border-radius: 12px; padding: 10px 14px;
+  font-size: 0.78rem; font-weight: 600; color: var(--text-dim);
+}
+.il-preview-row .is-buy { color: var(--emerald); font-weight: 700; }
+.il-preview-row .is-sell { color: var(--accent); font-weight: 700; }
+.il-preview-chip {
+  position: absolute; z-index: 3;
+  font-size: 0.76rem; font-weight: 800; color: var(--text-strong);
+  background: color-mix(in srgb, var(--bg-panel-solid) 92%, transparent);
+  border: 1px solid var(--stroke); border-radius: 100px; padding: 9px 16px;
+  box-shadow: 0 18px 40px -18px rgba(0,0,0,0.4);
+  backdrop-filter: blur(10px);
+}
+.il-preview-chip--1 { top: 8%; left: -26px; color: var(--emerald); }
+.il-preview-chip--2 { bottom: 16%; right: -30px; }
+.il-preview-chip--3 { bottom: -14px; left: 10%; }
+
+/* ── Заявление ── */
+.il-statement { padding: 130px 0 110px; }
+.il-statement-text {
+  max-width: 900px; margin: 0 auto; text-align: center;
+  font-size: clamp(1.6rem, 3.8vw, 2.7rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.3;
+  color: var(--text-strong); text-wrap: balance;
+}
+.il-statement-word { display: inline-block; }
+
 /* ── Market ── */
 .il-market-grid { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); gap: 56px; align-items: center; }
 .il-market-stats { display: flex; align-items: center; gap: 22px; margin-top: 30px; flex-wrap: wrap; }
 .il-market-arrow { color: var(--text-dim); font-size: 1.3rem; }
 .il-stat-label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); font-weight: 700; margin-bottom: 5px; }
 .il-stat-val { display: block; font-size: 1.45rem; font-weight: 800; color: var(--text-strong); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
-.il-market-mult {
-  font-size: 0.82rem; font-weight: 800; color: var(--accent);
-  background: var(--accent-soft); padding: 8px 14px; border-radius: 100px;
+.il-market-mult { font-size: 0.82rem; font-weight: 800; color: var(--accent); background: var(--accent-soft); padding: 8px 14px; border-radius: 100px; }
+.il-market-chips { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+.il-market-chip {
+  font-size: 0.76rem; font-weight: 700; color: var(--text-muted);
+  border: 1px solid var(--stroke); border-radius: 100px; padding: 7px 14px;
 }
 .il-market-chart {
   background: var(--bg-panel-solid); border: 1px solid var(--stroke); border-radius: 22px; padding: 22px 18px;
   box-shadow: 0 30px 70px -40px rgba(0,0,0,0.4);
 }
-.il-market-loading { display: flex; align-items: center; justify-content: center; height: 280px; color: var(--text-muted); font-size: 0.88rem; }
+.il-market-loading { display: flex; align-items: center; justify-content: center; height: 290px; color: var(--text-muted); font-size: 0.88rem; }
 
 /* ── Шаги ── */
 .il-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
 .il-step {
   position: relative;
-  background: var(--bg-panel-solid); border: 1px solid var(--stroke); border-radius: 20px; padding: 28px 24px;
+  background: var(--bg-panel-solid); border: 1px solid var(--stroke); border-radius: 20px; padding: 26px 24px;
   transition: border-color 0.35s ease, box-shadow 0.35s ease;
 }
 .il-step:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke)); box-shadow: 0 24px 48px -28px color-mix(in srgb, var(--accent) 35%, transparent); }
+.il-step-head { position: relative; display: flex; align-items: center; margin-bottom: 18px; }
 .il-step-n {
   display: inline-block; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.06em;
   color: var(--accent); background: var(--accent-soft);
-  padding: 6px 12px; border-radius: 100px; margin-bottom: 18px;
+  padding: 6px 12px; border-radius: 100px;
 }
+.il-step-line { position: absolute; left: calc(100% - 46px); right: -44px; top: 50%; height: 2px; background: linear-gradient(90deg, var(--stroke), transparent); }
 .il-step-title { font-size: 1.05rem; font-weight: 800; margin: 0 0 10px; color: var(--text-strong); letter-spacing: -0.01em; }
 .il-step-text { font-size: 0.87rem; line-height: 1.6; color: var(--text-muted); margin: 0; }
 
@@ -845,6 +1270,13 @@ const CSS = `
 .il-card-icon svg { width: 24px; height: 24px; }
 .il-card-title { font-size: 1.02rem; font-weight: 800; margin: 0 0 9px; color: var(--text-strong); letter-spacing: -0.01em; }
 .il-card-text { font-size: 0.87rem; line-height: 1.6; color: var(--text-muted); margin: 0; }
+
+/* ── Цифры ── */
+.il-section--kpi { padding: 84px 0; }
+.il-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; text-align: center; }
+.il-kpi { display: flex; flex-direction: column; gap: 8px; padding: 26px 14px; border-radius: 20px; border: 1px solid var(--stroke-soft); }
+.il-kpi-val { font-size: clamp(1.9rem, 3.4vw, 2.7rem); font-weight: 800; letter-spacing: -0.03em; color: var(--accent); font-variant-numeric: tabular-nums; }
+.il-kpi-label { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
 
 /* ── FAQ ── */
 .il-faq { display: flex; flex-direction: column; gap: 12px; }
@@ -866,7 +1298,7 @@ const CSS = `
 .il-cta-panel {
   position: relative; overflow: hidden; text-align: center;
   background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000));
-  border-radius: 30px; padding: 76px 32px;
+  border-radius: 30px; padding: 78px 32px;
   box-shadow: 0 40px 90px -40px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 .il-cta-orb { position: absolute; border-radius: 50%; filter: blur(70px); background: rgba(255,255,255,0.28); pointer-events: none; }
@@ -874,37 +1306,56 @@ const CSS = `
 .il-cta-orb--2 { width: 260px; height: 260px; bottom: -140px; right: -60px; opacity: 0.6; }
 .il-cta-title { position: relative; font-size: clamp(1.7rem, 3.4vw, 2.5rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; color: #fff; margin: 0 0 14px; }
 .il-cta-sub { position: relative; font-size: 1rem; color: rgba(255,255,255,0.82); margin: 0 0 30px; }
-.il-cta-panel .il-btn { position: relative; }
+.il-cta-panel .il-magnetic { position: relative; }
 .il-disclaimer { font-size: 0.72rem; color: var(--text-dim); line-height: 1.55; max-width: 640px; margin: 26px auto 0; text-align: center; }
 
 /* ── Footer ── */
-.il-footer { border-top: 1px solid var(--stroke-soft); padding: 28px 0; }
-.il-footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 0.82rem; color: var(--text-muted); }
-.il-footer-links { display: flex; align-items: center; gap: 20px; }
+.il-footer { border-top: 1px solid var(--stroke-soft); padding: 48px 0 28px; }
+.il-footer-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 36px; margin-bottom: 36px; }
+.il-footer-brand p { margin: 12px 0 0; font-size: 0.85rem; line-height: 1.6; color: var(--text-muted); }
+.il-footer-col { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.il-footer-col-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; color: var(--text-dim); margin-bottom: 4px; }
+.il-footer-bottom {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  border-top: 1px solid var(--stroke-soft); padding-top: 22px;
+  font-size: 0.76rem; color: var(--text-dim);
+}
 .il-nav-link--dim { color: var(--text-dim); font-weight: 500; }
 
 /* ── Адаптив ── */
 @media (max-width: 1020px) {
-  .il-hero-inner { grid-template-columns: 1fr; gap: 48px; }
-  .il-hero-visual { max-width: 460px; margin: 0 auto; width: 100%; }
+  .il-hero-inner { grid-template-columns: 1fr; gap: 52px; }
+  .il-deck-wrap { max-width: 480px; margin: 0 auto; width: 100%; }
   .il-market-grid { grid-template-columns: 1fr; gap: 40px; }
   .il-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .il-step-line { display: none; }
   .il-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .il-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .il-preview-chip--1 { left: 8px; }
+  .il-preview-chip--2 { right: 8px; }
 }
 @media (max-width: 720px) {
   .il-nav { display: none; }
-  .il-hero { padding: 120px 20px 64px; }
+  .il-hero { padding: 118px 20px 64px; }
   .il-hero-title { font-size: clamp(2rem, 9vw, 2.6rem); }
   .il-hero-stats { gap: 18px; }
   .il-hero-stat-sep { display: none; }
-  .il-section { padding: 72px 0; }
-  .il-section-head { margin-bottom: 40px; }
+  .il-section { padding: 68px 0; }
+  .il-section-head { margin-bottom: 38px; }
+  .il-deck { height: 380px; }
+  .il-deck-card { width: calc(100% - 48px); }
+  .il-statement { padding: 84px 0 70px; }
   .il-steps { grid-template-columns: 1fr; }
   .il-cards { grid-template-columns: 1fr; }
+  .il-preview-body { grid-template-columns: 1fr; }
+  .il-preview-side { display: none; }
+  .il-preview-kpis { grid-template-columns: 1fr 1fr; }
   .il-cta-panel { padding: 56px 22px; }
-  .il-footer-inner { flex-direction: column; gap: 10px; text-align: center; }
+  .il-footer-grid { grid-template-columns: 1fr; gap: 26px; }
+  .il-footer-bottom { flex-direction: column; align-items: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) {
   .il-marquee-track { animation: none; }
+  .il-cursor-glow { display: none; }
 }
 `;
