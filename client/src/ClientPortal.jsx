@@ -60,7 +60,7 @@ const PRESET_PROBES = ['585', '750', '999'];
 export function ClientPortal() {
   // 'checking' | 'login' | 'authed'
   const [phase, setPhase] = useState('checking');
-  const [tab, setTab] = useState('calc');
+  const [tab, setTab] = useState('home');
 
   // login state
   const [step, setStep] = useState('phone'); // 'phone' | 'pin' | 'code' | 'setpin'
@@ -546,8 +546,22 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
         const dealsP = clientApi.deals().catch(() => null);
         let fintechP = Promise.resolve(null);
         try {
-          if (!getFintechToken() && getClientToken()) {
-            await fintechApi.sessionFromClient(getClientToken());
+          const clientTok = getClientToken();
+          // Есть стейл fintech-токен — сначала пробуем профиль; при 401 обмениваем client-сессию.
+          if (getFintechToken()) {
+            try {
+              await fintechApi.profile();
+            } catch (e) {
+              if (e?.status === 401 && clientTok) {
+                await fintechApi.sessionFromClient(clientTok);
+              } else if (e?.status === 401) {
+                /* нет client-токена — ниже fintech останется null */
+              } else {
+                throw e;
+              }
+            }
+          } else if (clientTok) {
+            await fintechApi.sessionFromClient(clientTok);
           }
           if (getFintechToken()) {
             fintechP = Promise.all([
@@ -598,8 +612,8 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
           </div>
         </div>
         <div className="cpx-home-hero-actions">
+          <button type="button" className="cpx-btn cpx-btn--sm" onClick={() => onNavigate?.('invest')}>Инвестиции</button>
           <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('calc')}>Калькулятор</button>
-          <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>Инвестиции</button>
         </div>
       </div>
 
@@ -664,17 +678,17 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
             <h3 className="cpx-home-section-title">Разделы кабинета</h3>
           </div>
           <div className="cpx-home-nav">
-            <button type="button" className="cpx-home-nav-item" onClick={() => onNavigate?.('calc')}>
-              <span className="cpx-home-nav-title">Калькулятор</span>
-              <span className="cpx-home-nav-desc">Оценка лома по биржевому курсу</span>
+            <button type="button" className="cpx-home-nav-item" onClick={() => onNavigate?.('invest')}>
+              <span className="cpx-home-nav-title">Инвестиции</span>
+              <span className="cpx-home-nav-desc">{investLabel}</span>
             </button>
             <button type="button" className="cpx-home-nav-item" onClick={() => onNavigate?.('history')}>
               <span className="cpx-home-nav-title">Мои сделки</span>
               <span className="cpx-home-nav-desc">{dealsSummary?.dealsCount ? `${dealsSummary.dealsCount} записей` : 'История скупки'}</span>
             </button>
-            <button type="button" className="cpx-home-nav-item" onClick={() => onNavigate?.('invest')}>
-              <span className="cpx-home-nav-title">Инвестиции</span>
-              <span className="cpx-home-nav-desc">{investLabel}</span>
+            <button type="button" className="cpx-home-nav-item" onClick={() => onNavigate?.('calc')}>
+              <span className="cpx-home-nav-title">Калькулятор</span>
+              <span className="cpx-home-nav-desc">Оценка лома по биржевому курсу</span>
             </button>
             <button type="button" className="cpx-home-nav-item" onClick={() => onNavigate?.('support')}>
               <span className="cpx-home-nav-title">Поддержка</span>
@@ -1633,27 +1647,188 @@ const CSS = `
 .cpx-fin-pdf-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .cpx-fin-pdf-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-.cpx-fin-clocks { margin-bottom: 14px; }
+.cpx-fin-hero {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 70%, var(--cpx-panel)), var(--cpx-panel));
+}
+.cpx-fin-hero-main { min-width: 0; flex: 1; }
+.cpx-fin-hero-title {
+  font-family: var(--font-display, serif);
+  font-size: clamp(1.25rem, 2.4vw, 1.65rem);
+  font-weight: 700; margin: 4px 0 8px; color: var(--text-strong); letter-spacing: -0.02em;
+}
+.cpx-fin-hero-value { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.cpx-fin-hero-value-num {
+  font-size: clamp(1.6rem, 3.2vw, 2.15rem);
+  font-weight: 800; color: var(--text-strong);
+  letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
+}
+.cpx-fin-hero-pnl { font-size: 0.95rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cpx-fin-hero-meta { margin: 8px 0 0; font-size: 0.8rem; color: var(--text-dim); }
+.cpx-fin-hero-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.cpx-fin-hero-actions .cpx-btn { width: auto; margin: 0; padding: 10px 18px; }
+
+.cpx-fin-tabs {
+  display: flex; gap: 4px; margin-bottom: 10px; overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 3px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--stroke-soft);
+}
+.cpx-fin-tab {
+  flex: 1 0 auto; min-width: 72px;
+  padding: 10px 14px; border: none; border-radius: 9px;
+  background: transparent; color: var(--text-muted);
+  font-size: 0.82rem; font-weight: 700; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.cpx-fin-tab--on { background: var(--accent); color: #fff; }
+.cpx-fin-tab:hover:not(.cpx-fin-tab--on) { color: var(--text-strong); background: var(--cpx-panel); }
+
+.cpx-fin-quick { margin-bottom: 0; }
+.cpx-fin-quick-grid { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.cpx-fin-quick-btn {
+  text-align: left; padding: 12px 14px; border-radius: 10px;
+  border: 1px solid var(--stroke-soft); background: var(--surface);
+  cursor: pointer; display: flex; flex-direction: column; gap: 2px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.cpx-fin-quick-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+.cpx-fin-quick-btn strong { font-size: 0.88rem; color: var(--text-strong); }
+.cpx-fin-quick-btn span { font-size: 0.74rem; color: var(--text-dim); }
+
+.cpx-fin-clocks { margin-bottom: 10px; }
 
 .cpx-fin-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 14px;
+  gap: 10px;
   align-items: start;
-  margin-bottom: 14px;
+  margin-bottom: 0;
 }
 .cpx-fin-layout--lower { margin-bottom: 0; }
-.cpx-fin-main { min-width: 0; display: flex; flex-direction: column; gap: 0; }
-.cpx-fin-side { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.cpx-fin-main { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.cpx-fin-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cpx-fin-main > .cpx-card,
+.cpx-fin-side > .cpx-card,
+.cpx-fin-buy-panel > .cpx-card,
+.cpx-fin-sell-grid > .cpx-card {
+  margin-bottom: 0;
+}
 .cpx-fin-side-title { font-size: 1rem; font-weight: 700; margin: 0 0 4px; color: var(--text-strong); letter-spacing: -0.01em; }
 .cpx-fin-side-sub { margin: 0 0 12px; font-size: 0.78rem; color: var(--text-dim); line-height: 1.4; }
 .cpx-fin-buy-form { gap: 10px; }
 .cpx-fin-buy-form .cpx-btn { margin-top: 2px; padding: 12px 16px; font-size: 0.88rem; border-radius: 10px; }
+.cpx-fin-buy-panel { display: flex; flex-direction: column; gap: 14px; }
 @media (max-width: 1180px) {
   .cpx-fin-layout { grid-template-columns: 1fr; }
 }
 
-.cpx-fin-chart-card { padding: 16px 18px; }
+.cpx-fin-stepper {
+  display: grid; grid-template-columns: 52px 1fr 52px; gap: 10px; align-items: center;
+}
+.cpx-fin-stepper-btn {
+  height: 52px; border-radius: 12px; border: 1px solid var(--stroke);
+  background: var(--surface); color: var(--text-strong);
+  font-size: 1.4rem; font-weight: 600; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.cpx-fin-stepper-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+.cpx-fin-stepper-value {
+  display: flex; align-items: center; gap: 6px;
+  height: 52px; padding: 0 14px; border-radius: 12px;
+  border: 1px solid var(--stroke); background: var(--input-bg);
+}
+.cpx-fin-stepper-value input {
+  flex: 1; min-width: 0; border: none; background: transparent; outline: none;
+  font-size: 1.25rem; font-weight: 700; color: var(--cpx-ink); text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.cpx-fin-stepper-value span { font-size: 0.9rem; font-weight: 600; color: var(--text-muted); }
+.cpx-fin-step-hint { margin: -2px 0 0; font-size: 0.72rem; color: var(--text-dim); text-align: center; }
+
+.cpx-fin-order {
+  border: 1px dashed var(--stroke);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.cpx-fin-order-title {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
+}
+.cpx-fin-order-row {
+  display: flex; justify-content: space-between; gap: 10px;
+  font-size: 0.84rem; color: var(--text-muted);
+}
+.cpx-fin-order-row strong { color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.cpx-fin-order-row--accent strong { color: var(--cpx-emerald); }
+.cpx-fin-order-total {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--stroke-soft);
+  font-size: 0.82rem; font-weight: 700; color: var(--text-muted);
+}
+.cpx-fin-order-total strong {
+  font-size: 1.15rem; color: var(--text-strong); font-variant-numeric: tabular-nums;
+}
+.cpx-fin-order-bal { font-size: 0.74rem; color: var(--text-dim); }
+
+.cpx-fin-sell-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 0;
+}
+@media (max-width: 900px) { .cpx-fin-sell-grid { grid-template-columns: 1fr; } }
+.cpx-fin-status-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.cpx-fin-pill {
+  display: inline-flex; align-items: center;
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 0.68rem; font-weight: 700;
+}
+.cpx-fin-sliders { display: flex; flex-direction: column; gap: 16px; margin: 8px 0 16px; }
+.cpx-fin-slider { display: flex; flex-direction: column; gap: 6px; }
+.cpx-fin-slider-head {
+  display: flex; justify-content: space-between; gap: 10px; align-items: baseline;
+  font-size: 0.82rem; color: var(--text-muted);
+}
+.cpx-fin-slider-head strong { color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.cpx-fin-slider input[type="range"] {
+  width: 100%; accent-color: var(--accent); height: 28px; cursor: pointer;
+}
+.cpx-fin-slider-ends {
+  display: flex; justify-content: space-between;
+  font-size: 0.7rem; color: var(--text-dim);
+}
+.cpx-fin-benefit-card { padding: 16px 18px; }
+.cpx-fin-benefit-result { display: flex; flex-direction: column; gap: 10px; }
+.cpx-fin-benefit-result-box {
+  border: 1px dashed var(--stroke); border-radius: 12px; padding: 14px 16px; background: var(--surface);
+}
+.cpx-fin-benefit-nums { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 6px; }
+.cpx-fin-benefit-profit { font-size: 1.45rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.cpx-fin-benefit-pct { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cpx-fin-benefit-today {
+  border-radius: 12px; padding: 14px 16px;
+  background: #161616; color: #fff;
+  display: flex; flex-direction: column; gap: 4px;
+}
+:root[data-theme="light"] .cpx-fin-benefit-today,
+html:not([data-theme="dark"]) .cpx-fin-benefit-today {
+  background: #1c1c1c;
+}
+.cpx-fin-benefit-today .cpx-fin-kpi-label { color: rgba(255,255,255,0.65); }
+.cpx-fin-benefit-today-val { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.cpx-fin-benefit-compact-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.cpx-fin-benefit-compact-res { display: flex; align-items: baseline; gap: 10px; margin: 10px 0 4px; font-size: 1.15rem; font-weight: 800; }
+
+.cpx-fin-chart-card { padding: 14px 16px; margin-bottom: 0; }
+.cpx-fin-ai-card { padding: 14px 16px; border-color: var(--stroke); overflow: hidden; margin-bottom: 0; }
+.cpx-fin-history-card { padding: 12px 14px; margin-bottom: 0; }
+.cpx-fin-quick { margin-bottom: 0; padding: 12px 14px; }
 .cpx-fin-chart-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
 .cpx-fin-chart-titles { display: flex; flex-direction: column; gap: 4px; }
 .cpx-fin-chart-rate { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -1672,11 +1847,21 @@ const CSS = `
 .cpx-fin-range-btn--on { background: var(--accent); color: #fff; }
 
 .cpx-fin-buy-card { border-color: var(--stroke); }
-.cpx-fin-history-card { padding: 14px 16px; }
 .cpx-fin-ledger-list { display: flex; flex-direction: column; max-height: 420px; overflow: auto; margin: 8px -4px 0; padding: 0 4px; }
 
+@media (max-width: 640px) {
+  .cpx-fin-hero { padding: 14px 14px; }
+  .cpx-fin-hero-actions { width: 100%; }
+  .cpx-fin-hero-actions .cpx-btn,
+  .cpx-fin-hero-actions .cpx-fin-pdf-btn { flex: 1; justify-content: center; }
+  .cpx-fin-tabs { gap: 2px; }
+  .cpx-fin-tab { padding: 10px 12px; font-size: 0.78rem; }
+  .cpx-fin-stepper { grid-template-columns: 48px 1fr 48px; }
+  .cpx-fin-stepper-btn { height: 48px; }
+  .cpx-fin-stepper-value { height: 48px; }
+}
+
 /* ── AI-ассистент (desktop, компактно) ── */
-.cpx-fin-ai-card { padding: 16px 18px; border-color: var(--stroke); overflow: hidden; }
 .cpx-fin-ai-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .cpx-fin-ai-title-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .cpx-fin-ai-heading { margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-strong); letter-spacing: -0.01em; }
@@ -2244,10 +2429,10 @@ const CSS = `
 .cpx-fin-doc-status-list { width: 100%; display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
 .cpx-fin-doc-status-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 9px 12px; border-radius: 10px; background: var(--surface); }
 
-.cpx-fin-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.cpx-fin-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
 @media (max-width: 1100px) { .cpx-fin-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .cpx-fin-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.cpx-fin-kpi { background: var(--cpx-panel); border: 1px solid var(--cpx-stroke); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.cpx-fin-kpi { background: var(--cpx-panel); border: 1px solid var(--cpx-stroke); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
 .cpx-fin-kpi--hero { background: linear-gradient(135deg, var(--cpx-accent-soft), transparent); border-color: var(--cpx-accent-soft); }
 .cpx-fin-kpi--pos .cpx-fin-kpi-value { color: var(--cpx-emerald); }
 .cpx-fin-kpi--neg .cpx-fin-kpi-value { color: var(--crimson); }
@@ -2290,6 +2475,7 @@ const CSS = `
 .cpx-home-title { margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--text-strong); letter-spacing: -0.02em; }
 .cpx-home-sub { margin: 3px 0 0; font-size: 0.82rem; color: var(--text-dim); }
 .cpx-home-hero-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.cpx-home-hero-actions .cpx-btn { width: auto; margin: 0; padding: 8px 14px; }
 
 .cpx-home-kpis {
   display: grid;

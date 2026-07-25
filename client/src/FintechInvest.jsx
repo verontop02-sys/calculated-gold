@@ -62,55 +62,76 @@ export function FintechInvest({ clientToken = '' }) {
   const [loadErr, setLoadErr] = useState('');
 
   const loadProfile = useCallback(async () => {
-    try {
-      const p = await fintechApi.profile();
-      setProfile(p);
-      setPhase('app');
-      setLoadErr('');
-    } catch (e) {
-      if (e?.status === 401) {
-        setFintechToken('');
-        setPhase('login');
-      } else {
-        setLoadErr(e?.message || 'Не удалось загрузить кабинет');
-        setPhase('app');
-      }
-    }
+    const p = await fintechApi.profile();
+    setProfile(p);
+    setPhase('app');
+    setLoadErr('');
+    return p;
   }, []);
 
-  useEffect(() => {
+  /** Тихий вход: есть клиентская сессия кабинета → выпускаем fintech-токен без SMS. */
+  const ensureSession = useCallback(async () => {
     if (getFintechToken()) {
-      loadProfile();
-      return;
+      try {
+        await loadProfile();
+        return true;
+      } catch (e) {
+        // Стейл-токен: ниже попробуем обмен из client-сессии.
+        if (e?.status !== 401) {
+          setLoadErr(e?.message || 'Не удалось загрузить кабинет');
+          setPhase('app');
+          return false;
+        }
+        setFintechToken('');
+      }
     }
-    // Телефон уже подтверждён SMS-кодом в общем кабинете (клиент вошёл на /kabinet) —
-    // не спрашиваем код повторно, тихо выпускаем fintech-сессию тем же номером.
+    if (clientToken) {
+      try {
+        await fintechApi.sessionFromClient(clientToken);
+        await loadProfile();
+        return true;
+      } catch {
+        /* покажем форму входа */
+      }
+    }
+    setPhase('login');
+    return false;
+  }, [clientToken, loadProfile]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await ensureSession();
+      if (cancelled) return;
+    })();
+    return () => { cancelled = true; };
+  }, [ensureSession]);
+
+  // 401 от фонового запроса: сначала пробуем восстановить сессию из кабинета, не выкидывая на SMS.
+  useEffect(() => onFintechSessionExpired(() => {
     if (clientToken) {
       fintechApi
         .sessionFromClient(clientToken)
         .then(() => loadProfile())
-        .catch(() => setPhase('login'));
+        .catch(() => {
+          setProfile(null);
+          setPhase('login');
+        });
       return;
     }
-    setPhase('login');
-  }, [loadProfile, clientToken]);
-
-  // Сессия могла истечь не только при первой загрузке, но и в середине работы
-  // (покупка, загрузка документа, обновление ledger) — в этом случае тихо возвращаем на вход.
-  useEffect(() => onFintechSessionExpired(() => {
     setProfile(null);
     setPhase('login');
-  }), []);
+  }), [clientToken, loadProfile]);
 
   // Пока документы на проверке — тихо обновляем статус, чтобы не заставлять жать «Обновить».
   useEffect(() => {
     if (profile?.status !== 'pending_review') return undefined;
-    const id = setInterval(() => { void loadProfile(); }, 20_000);
+    const id = setInterval(() => { void loadProfile().catch(() => {}); }, 20_000);
     return () => clearInterval(id);
   }, [profile?.status, loadProfile]);
 
   if (phase === 'login') {
-    return <FintechLogin onDone={loadProfile} />;
+    return <FintechLogin onDone={() => { void ensureSession(); }} />;
   }
 
   if (phase === 'checking') {
@@ -121,7 +142,7 @@ export function FintechInvest({ clientToken = '' }) {
     return (
       <div className="cpx-card">
         <p className="cpx-err">{loadErr}</p>
-        <button type="button" className="cpx-btn cpx-btn--sm" onClick={loadProfile}>Повторить</button>
+        <button type="button" className="cpx-btn cpx-btn--sm" onClick={() => { void ensureSession(); }}>Повторить</button>
       </div>
     );
   }
@@ -129,10 +150,10 @@ export function FintechInvest({ clientToken = '' }) {
   if (!profile) return null;
 
   if (profile.status === 'new' || profile.status === 'rejected') {
-    return <FintechOnboarding profile={profile} onUpdated={loadProfile} />;
+    return <FintechOnboarding profile={profile} onUpdated={() => { void loadProfile().catch(() => {}); }} />;
   }
   if (profile.status === 'pending_review') {
-    return <FintechPendingReview profile={profile} onRefresh={loadProfile} />;
+    return <FintechPendingReview profile={profile} onRefresh={() => loadProfile()} />;
   }
   if (profile.status === 'blocked') {
     return (
@@ -483,7 +504,6 @@ function FintechPendingReview({ profile, onRefresh }) {
     </div>
   );
 }
-
 // ── График курса золота ─────────────────────────────────────────────────────
 const CHART_RANGES = [
   { key: '1m', label: '1М', days: 31 },
@@ -505,7 +525,7 @@ function formatChartDate(iso, rangeKey) {
 }
 
 function GoldChartCard({ currentRate, rateUpdatedAt }) {
-  const [points, setPoints] = useState(null); // null = loading, [] = error/empty
+  const [points, setPoints] = useState(null);
   const [range, setRange] = useState('3m');
 
   useEffect(() => {
@@ -574,7 +594,7 @@ function GoldChartCard({ currentRate, rateUpdatedAt }) {
         {points === null && <div className="cpx-muted" style={{ padding: '40px 0', justifyContent: 'center' }}><span className="cpx-spinner" /> Загружаем график…</div>}
         {points !== null && visible.length === 0 && <div className="cpx-muted" style={{ padding: '40px 0', justifyContent: 'center' }}>История курса временно недоступна</div>}
         {visible.length > 1 && (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={visible} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
               <defs>
                 <linearGradient id="finGoldFill" x1="0" y1="0" x2="0" y2="1">
@@ -628,9 +648,9 @@ function GoldChartCard({ currentRate, rateUpdatedAt }) {
   );
 }
 
-// ── AI-ассистент (Stage 10: Grok) ────────────────────────────────────────────
+// ── AI-ассистент ────────────────────────────────────────────────────────────
 function AssistantCard() {
-  const [data, setData] = useState(null); // { source, answer, forecast }
+  const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [question, setQuestion] = useState('');
   const [err, setErr] = useState('');
@@ -729,17 +749,516 @@ function AssistantCard() {
   );
 }
 
+// ── Калькулятор упущенной выгоды (официальный курс ЦБ) ──────────────────────
+function MissedBenefitCard({ compact = false, onOpenFull }) {
+  const [points, setPoints] = useState(null);
+  const [investRub, setInvestRub] = useState(3_000_000);
+  const [buyYear, setBuyYear] = useState(2010);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    fintechApi
+      .cbrGoldHistory()
+      .then((out) => {
+        if (!alive) return;
+        const pts = out.points || [];
+        setPoints(pts);
+        if (pts.length) {
+          const years = pts.map((p) => p.year);
+          const mid = years[Math.floor(years.length / 2)] || 2010;
+          setBuyYear((y) => (years.includes(y) ? y : mid));
+        }
+      })
+      .catch((e) => {
+        if (alive) {
+          setPoints([]);
+          setErr(e?.message || 'История ЦБ временно недоступна');
+        }
+      });
+    return () => { alive = false; };
+  }, []);
+
+  const yearBounds = useMemo(() => {
+    if (!points?.length) return { min: 2000, max: new Date().getFullYear() };
+    return { min: points[0].year, max: points[points.length - 1].year };
+  }, [points]);
+
+  const result = useMemo(() => {
+    if (!points?.length || !investRub) return null;
+    const past = [...points].reverse().find((p) => p.year <= buyYear) || points[0];
+    const now = points[points.length - 1];
+    if (!past?.price || !now?.price) return null;
+    const grams = investRub / past.price;
+    const todayValue = grams * now.price;
+    const profit = todayValue - investRub;
+    const pct = investRub > 0 ? (profit / investRub) * 100 : 0;
+    return {
+      pastPrice: past.price,
+      nowPrice: now.price,
+      pastYear: past.year,
+      grams,
+      todayValue,
+      profit,
+      pct,
+    };
+  }, [points, investRub, buyYear]);
+
+  const chartData = useMemo(() => {
+    if (!points?.length) return [];
+    return points.map((p) => ({ year: String(p.year), price: p.price }));
+  }, [points]);
+
+  if (compact) {
+    return (
+      <div className="cpx-card cpx-fin-benefit-compact">
+        <div className="cpx-fin-benefit-compact-head">
+          <div>
+            <span className="cpx-fin-kpi-label">Упущенная выгода</span>
+            <h3 className="cpx-fin-side-title" style={{ margin: '2px 0 0' }}>Сколько вы могли заработать?</h3>
+          </div>
+          <button type="button" className="cpx-link" onClick={onOpenFull}>Открыть →</button>
+        </div>
+        {result ? (
+          <div className="cpx-fin-benefit-compact-res">
+            <span className="cpx-fin-pos">+{formatMoney(result.profit)}</span>
+            <span className="cpx-fin-kpi-pct cpx-fin-pos">+{Math.round(result.pct).toLocaleString('ru-RU')}%</span>
+          </div>
+        ) : (
+          <p className="cpx-muted" style={{ margin: 0 }}>{points === null ? 'Считаем…' : 'Нет данных'}</p>
+        )}
+        <p className="cpx-fin-ai-disclaimer">Анализ по курсу ЦБ РФ, не инвестиционное предложение.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="cpx-card cpx-fin-benefit-card">
+      <div className="cpx-fin-chart-head">
+        <div>
+          <span className="cpx-fin-pill">Рост золота по данным ЦБ РФ</span>
+          <h2 className="cpx-fin-side-title" style={{ marginTop: 8 }}>Калькулятор упущенной выгоды</h2>
+          <p className="cpx-fin-side-sub">Сколько вы могли заработать, купив золото раньше?</p>
+        </div>
+      </div>
+
+      {err && <p className="cpx-err">{err}</p>}
+      {points === null && <p className="cpx-muted"><span className="cpx-spinner" /> Загружаем историю ЦБ…</p>}
+
+      {chartData.length > 1 && (
+        <div className="cpx-fin-chart-body" style={{ marginBottom: 16 }}>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={chartData} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
+              <defs>
+                <linearGradient id="finCbrFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.28} />
+                  <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--stroke-soft)" vertical={false} />
+              <XAxis dataKey="year" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false} minTickGap={28} />
+              <YAxis
+                tickFormatter={(v) => `${Math.round(v).toLocaleString('ru-RU')}`}
+                tick={{ fill: 'var(--text-dim)', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                width={52}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: 'var(--bg-panel-solid)',
+                  border: '1px solid var(--stroke)',
+                  borderRadius: 10,
+                  fontSize: 12,
+                  color: 'var(--text)',
+                }}
+                formatter={(v) => [`${Number(v).toLocaleString('ru-RU')} ₽/г`, 'ЦБ']}
+              />
+              <Area type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2} fill="url(#finCbrFill)" dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+          <p className="cpx-fin-ai-disclaimer">*по официальным данным ЦБ РФ</p>
+        </div>
+      )}
+
+      <div className="cpx-fin-sliders">
+        <label className="cpx-fin-slider">
+          <div className="cpx-fin-slider-head">
+            <span>Сумма вложений в золото</span>
+            <strong>{formatMoney(investRub)}</strong>
+          </div>
+          <input
+            type="range"
+            min={100_000}
+            max={10_000_000}
+            step={50_000}
+            value={investRub}
+            onChange={(e) => setInvestRub(Number(e.target.value))}
+          />
+          <div className="cpx-fin-slider-ends"><span>100 000 ₽</span><span>10 000 000 ₽</span></div>
+        </label>
+        <label className="cpx-fin-slider">
+          <div className="cpx-fin-slider-head">
+            <span>Год приобретения золота</span>
+            <strong>{buyYear}</strong>
+          </div>
+          <input
+            type="range"
+            min={yearBounds.min}
+            max={yearBounds.max}
+            step={1}
+            value={Math.min(yearBounds.max, Math.max(yearBounds.min, buyYear))}
+            onChange={(e) => setBuyYear(Number(e.target.value))}
+            disabled={!points?.length}
+          />
+          <div className="cpx-fin-slider-ends"><span>{yearBounds.min}</span><span>{yearBounds.max}</span></div>
+        </label>
+      </div>
+
+      {result && (
+        <div className="cpx-fin-benefit-result">
+          <div className="cpx-fin-benefit-result-box">
+            <span className="cpx-fin-kpi-label">Вы могли бы заработать</span>
+            <div className="cpx-fin-benefit-nums">
+              <span className="cpx-fin-benefit-profit cpx-fin-pos">+ {formatMoney(result.profit)}</span>
+              <span className="cpx-fin-benefit-pct cpx-fin-pos">+{Math.round(result.pct).toLocaleString('ru-RU')}%</span>
+            </div>
+            <p className="cpx-fin-ai-disclaimer">*без учёта уплаты НДФЛ и комиссий</p>
+          </div>
+          <div className="cpx-fin-benefit-today">
+            <span className="cpx-fin-kpi-label">Сегодня у вас было бы</span>
+            <span className="cpx-fin-benefit-today-val">{formatMoney(result.todayValue)}</span>
+          </div>
+        </div>
+      )}
+      <p className="cpx-fin-ai-disclaimer" style={{ marginTop: 12 }}>
+        Материалы носят иллюстративный характер и не являются индивидуальной инвестиционной рекомендацией или обещанием доходности. Прошлый рост не гарантирует будущий результат.
+      </p>
+    </div>
+  );
+}
+
+function LedgerList({ ledger, limit = 12 }) {
+  if (!ledger.length) return <p className="cpx-muted" style={{ margin: 0 }}>Операций пока нет.</p>;
+  return (
+    <div className="cpx-fin-ledger-list">
+      {ledger.slice(0, limit).map((e) => (
+        <div key={e.id} className="cpx-fin-ledger-row">
+          <div className="cpx-fin-ledger-main">
+            <span className="cpx-fin-ledger-type">{ENTRY_LABELS[e.entryType] || e.entryType}</span>
+            <span className="cpx-fin-ledger-date">{formatDateTime(e.createdAt)}</span>
+          </div>
+          <div className="cpx-fin-ledger-right">
+            {!!e.rubDelta && <span className={e.rubDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.rubDelta > 0 ? '+' : ''}{formatMoney(e.rubDelta)}</span>}
+            {!!e.goldGramsDelta && <span className={e.goldGramsDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.goldGramsDelta > 0 ? '+' : ''}{formatGrams(e.goldGramsDelta)}</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Покупка: состав заказа ──────────────────────────────────────────────────
+function BuyPanel({ portfolio, onDone }) {
+  const [mode, setMode] = useState('grams');
+  const [amount, setAmount] = useState('50');
+  const [buying, setBuying] = useState(false);
+  const [buyErr, setBuyErr] = useState('');
+  const [buyOk, setBuyOk] = useState('');
+
+  const rate = Number(portfolio?.currentRatePerGram) || 0;
+  const feePct = Number(portfolio?.buyFeePercent) || 0;
+  const feeMult = 1 + feePct / 100;
+  const minG = Number(portfolio?.minPurchaseGrams) || 1;
+  const rubBal = Number(portfolio?.rubBalance) || 0;
+
+  const quote = useMemo(() => {
+    const v = parseFloat(String(amount).replace(',', '.'));
+    if (!Number.isFinite(v) || v <= 0 || !rate) return null;
+    let grams;
+    let rubGross;
+    if (mode === 'rub') {
+      rubGross = Math.round(v * 100) / 100;
+      grams = rubGross / (rate * feeMult);
+    } else {
+      grams = v;
+      rubGross = Math.round(grams * rate * feeMult * 100) / 100;
+    }
+    grams = Math.round(grams * 1e6) / 1e6;
+    const rubNet = Math.round(grams * rate * 100) / 100;
+    const feeRub = Math.round((rubGross - rubNet) * 100) / 100;
+    return { grams, rubGross, rubNet, feeRub };
+  }, [amount, mode, rate, feeMult]);
+
+  async function submitBuy(e) {
+    e.preventDefault();
+    setBuyErr('');
+    setBuyOk('');
+    const v = parseFloat(String(amount).replace(',', '.'));
+    if (!Number.isFinite(v) || v <= 0) {
+      setBuyErr('Укажите сумму или вес больше нуля');
+      return;
+    }
+    if (quote && quote.grams < minG) {
+      setBuyErr(`Минимальная покупка — ${minG} г`);
+      return;
+    }
+    if (quote && quote.rubGross > rubBal) {
+      setBuyErr('Недостаточно средств на рублёвом балансе. Пополните счёт.');
+      return;
+    }
+    setBuying(true);
+    try {
+      const payload = mode === 'rub'
+        ? { rubAmount: v, idempotencyKey: crypto.randomUUID() }
+        : { grams: v, idempotencyKey: crypto.randomUUID() };
+      const out = await fintechApi.buy(payload);
+      setBuyOk(`Куплено ${formatGrams(out.gramsBought)} за ${formatMoney(out.rubSpent)}`);
+      setAmount(mode === 'grams' ? '50' : '10000');
+      await onDone?.();
+    } catch (e2) {
+      setBuyErr(e2?.message || 'Не удалось выполнить покупку');
+    } finally {
+      setBuying(false);
+    }
+  }
+
+  function stepGrams(dir) {
+    const step = 50;
+    const cur = parseFloat(String(amount).replace(',', '.')) || 0;
+    const next = Math.max(minG, Math.round((cur + dir * step) * 1000) / 1000);
+    setMode('grams');
+    setAmount(String(next));
+  }
+
+  return (
+    <div className="cpx-fin-buy-panel">
+      <div className="cpx-card cpx-fin-buy-card">
+        <h2 className="cpx-fin-side-title">Купить золото</h2>
+        <p className="cpx-fin-side-sub">
+          От {minG} г · курс {rate ? formatMoney(rate) : '—'} / г
+          {feePct ? ` · комиссия ${feePct}%` : ''}
+        </p>
+
+        <form onSubmit={submitBuy} className="cpx-form cpx-fin-buy-form">
+          {mode === 'grams' ? (
+            <div className="cpx-fin-stepper">
+              <button type="button" className="cpx-fin-stepper-btn" onClick={() => stepGrams(-1)} aria-label="Меньше">−</button>
+              <div className="cpx-fin-stepper-value">
+                <input
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  aria-label="Вес в граммах"
+                />
+                <span>г</span>
+              </div>
+              <button type="button" className="cpx-fin-stepper-btn" onClick={() => stepGrams(1)} aria-label="Больше">+</button>
+            </div>
+          ) : (
+            <label className="cpx-field">
+              <span className="cpx-field-label">Сумма, ₽</span>
+              <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="10000" />
+            </label>
+          )}
+
+          <div className="cpx-fin-mode-switch">
+            <button
+              type="button"
+              className={`cpx-fin-mode-btn${mode === 'grams' ? ' cpx-fin-mode-btn--on' : ''}`}
+              onClick={() => { setMode('grams'); setAmount('50'); }}
+            >
+              По весу
+            </button>
+            <button
+              type="button"
+              className={`cpx-fin-mode-btn${mode === 'rub' ? ' cpx-fin-mode-btn--on' : ''}`}
+              onClick={() => { setMode('rub'); setAmount('10000'); }}
+            >
+              По сумме
+            </button>
+          </div>
+          <p className="cpx-fin-step-hint">{mode === 'grams' ? 'шаг ±50 г · можно ввести вручную' : 'золото рассчитается по курсу автоматически'}</p>
+
+          {quote && (
+            <div className="cpx-fin-order">
+              <div className="cpx-fin-order-title">Состав заказа</div>
+              <div className="cpx-fin-order-row"><span>Номинал</span><strong>{formatGrams(quote.grams)}</strong></div>
+              <div className="cpx-fin-order-row"><span>Цена без комиссии</span><strong>{formatMoney(quote.rubNet)}</strong></div>
+              <div className="cpx-fin-order-row cpx-fin-order-row--accent">
+                <span>Комиссия {feePct}%</span>
+                <strong>{formatMoney(quote.feeRub)}</strong>
+              </div>
+              <div className="cpx-fin-order-total">
+                <span>К оплате</span>
+                <strong>{formatMoney(quote.rubGross)}</strong>
+              </div>
+              <div className="cpx-fin-order-bal">
+                Доступно на балансе: {formatMoney(rubBal)}
+                {quote.rubGross > rubBal && <span className="cpx-fin-neg"> · недостаточно</span>}
+              </div>
+            </div>
+          )}
+
+          {buyErr && <p className="cpx-err">{buyErr}</p>}
+          {buyOk && <p className="cpx-fin-ok">{buyOk}</p>}
+          <button type="submit" className="cpx-btn" disabled={buying || !quote}>
+            {buying ? <><span className="cpx-spinner" /> Покупаем…</> : 'Подтвердить покупку'}
+          </button>
+        </form>
+      </div>
+
+      <div className="cpx-card cpx-fin-topup-hint">
+        <span className="cpx-fin-topup-icon" aria-hidden>ℹ</span>
+        <p>Пополнение рублёвого баланса — переводом по реквизитам. Модератор зачислит сумму в течение рабочего дня. Онлайн-оплата картой и СБП подключится после эквайринга Т-Банка.</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Продажа + заявка на вывод ───────────────────────────────────────────────
+function SellPanel({ portfolio, onDone }) {
+  const [grams, setGrams] = useState('');
+  const [selling, setSelling] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState('');
+  const [withdrawRub, setWithdrawRub] = useState('');
+  const [withdrawNote, setWithdrawNote] = useState('');
+
+  const rate = Number(portfolio?.currentRatePerGram) || 0;
+  const feePct = Number(portfolio?.sellFeePercent) || 0;
+  const feeMult = 1 - feePct / 100;
+  const goldBal = Number(portfolio?.goldGrams) || 0;
+  const rubBal = Number(portfolio?.rubBalance) || 0;
+  const minG = Number(portfolio?.minSellGrams) || 1;
+
+  const quote = useMemo(() => {
+    const g = parseFloat(String(grams).replace(',', '.'));
+    if (!Number.isFinite(g) || g <= 0 || !rate) return null;
+    const gross = Math.round(g * rate * 100) / 100;
+    const net = Math.round(g * rate * feeMult * 100) / 100;
+    const fee = Math.round((gross - net) * 100) / 100;
+    return { grams: g, gross, net, fee };
+  }, [grams, rate, feeMult]);
+
+  async function submitSell(e) {
+    e.preventDefault();
+    setErr('');
+    setOk('');
+    const g = parseFloat(String(grams).replace(',', '.'));
+    if (!Number.isFinite(g) || g <= 0) {
+      setErr('Укажите вес больше нуля');
+      return;
+    }
+    if (g < minG) {
+      setErr(`Минимальная продажа — ${minG} г`);
+      return;
+    }
+    if (g > goldBal + 1e-9) {
+      setErr('Недостаточно золота на счёте');
+      return;
+    }
+    setSelling(true);
+    try {
+      const out = await fintechApi.sell({ grams: g, idempotencyKey: crypto.randomUUID() });
+      setOk(`Продано ${formatGrams(out.gramsSold)} · на баланс ${formatMoney(out.rubReceived)}`);
+      setGrams('');
+      await onDone?.();
+    } catch (e2) {
+      setErr(e2?.message || 'Не удалось продать');
+    } finally {
+      setSelling(false);
+    }
+  }
+
+  function requestWithdraw(e) {
+    e.preventDefault();
+    const v = parseFloat(String(withdrawRub).replace(',', '.'));
+    if (!Number.isFinite(v) || v <= 0) {
+      setWithdrawNote('Укажите сумму вывода');
+      return;
+    }
+    if (v > rubBal) {
+      setWithdrawNote('Сумма больше рублёвого баланса');
+      return;
+    }
+    setWithdrawNote('Заявка сохранена. Вывод на карту/СБП откроется после подключения эквайринга и правил комиссий. A7/ПСБ пока не подключаем.');
+    try {
+      const key = 'cpx_fin_withdraw_drafts';
+      const prev = JSON.parse(localStorage.getItem(key) || '[]');
+      prev.unshift({ rub: v, at: new Date().toISOString(), status: 'awaiting_integration' });
+      localStorage.setItem(key, JSON.stringify(prev.slice(0, 20)));
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="cpx-fin-sell-grid">
+      <div className="cpx-card">
+        <h2 className="cpx-fin-side-title">Продать золото</h2>
+        <p className="cpx-fin-side-sub">
+          На счёте {formatGrams(goldBal)} · курс {rate ? formatMoney(rate) : '—'} / г
+          {feePct ? ` · комиссия продажи ${feePct}%` : ''}
+        </p>
+        <form onSubmit={submitSell} className="cpx-form cpx-fin-buy-form">
+          <label className="cpx-field">
+            <span className="cpx-field-label">Вес, г</span>
+            <input inputMode="decimal" value={grams} onChange={(e) => setGrams(e.target.value)} placeholder={String(minG)} />
+          </label>
+          <button type="button" className="cpx-link" style={{ alignSelf: 'flex-start' }} onClick={() => setGrams(String(Math.floor(goldBal * 1e4) / 1e4))}>
+            Продать всё
+          </button>
+          {quote && (
+            <div className="cpx-fin-order">
+              <div className="cpx-fin-order-title">Результат продажи</div>
+              <div className="cpx-fin-order-row"><span>По курсу рынка</span><strong>{formatMoney(quote.gross)}</strong></div>
+              <div className="cpx-fin-order-row"><span>Комиссия {feePct}%</span><strong>−{formatMoney(quote.fee)}</strong></div>
+              <div className="cpx-fin-order-total"><span>На рублёвый баланс</span><strong>{formatMoney(quote.net)}</strong></div>
+            </div>
+          )}
+          {err && <p className="cpx-err">{err}</p>}
+          {ok && <p className="cpx-fin-ok">{ok}</p>}
+          <button type="submit" className="cpx-btn" disabled={selling || !quote}>
+            {selling ? <><span className="cpx-spinner" /> Продаём…</> : 'Продать на баланс'}
+          </button>
+        </form>
+      </div>
+
+      <div className="cpx-card">
+        <h2 className="cpx-fin-side-title">Вывод средств</h2>
+        <p className="cpx-fin-side-sub">
+          Доступно {formatMoney(rubBal)}. Банковский вывод (карта / СБП) — после Т-Банка и таблицы комиссий. A7/ПСБ пока не подключаем.
+        </p>
+        <form onSubmit={requestWithdraw} className="cpx-form cpx-fin-buy-form">
+          <label className="cpx-field">
+            <span className="cpx-field-label">Сумма вывода, ₽</span>
+            <input inputMode="decimal" value={withdrawRub} onChange={(e) => setWithdrawRub(e.target.value)} placeholder="5000" />
+          </label>
+          <div className="cpx-fin-status-row">
+            <span className="cpx-fin-badge cpx-fin-badge--pending">Ожидает интеграции</span>
+            <span className="cpx-muted" style={{ fontSize: '0.75rem' }}>Модерация → выплата</span>
+          </div>
+          {withdrawNote && <p className="cpx-fin-ok" style={{ color: 'var(--text-muted)' }}>{withdrawNote}</p>}
+          <button type="submit" className="cpx-btn cpx-btn--sm">Оставить заявку</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+const DASH_TABS = [
+  { key: 'overview', label: 'Обзор' },
+  { key: 'buy', label: 'Купить' },
+  { key: 'sell', label: 'Продать' },
+  { key: 'benefit', label: 'Выгода' },
+];
+
 // ── Дашборд после одобрения ─────────────────────────────────────────────────
 function FintechDashboard({ profile }) {
   const [portfolio, setPortfolio] = useState(null);
   const [ledger, setLedger] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
-  const [mode, setMode] = useState('rub'); // 'rub' | 'grams'
-  const [amount, setAmount] = useState('');
-  const [buying, setBuying] = useState(false);
-  const [buyErr, setBuyErr] = useState('');
-  const [buyOk, setBuyOk] = useState('');
+  const [view, setView] = useState('overview');
   const [pdfBusy, setPdfBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -758,42 +1277,6 @@ function FintechDashboard({ profile }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const estimate = useMemo(() => {
-    const v = parseFloat(String(amount).replace(',', '.'));
-    if (!Number.isFinite(v) || v <= 0 || !portfolio?.currentRatePerGram) return null;
-    // Реальная комиссия приходит с сервера вместе с портфелем — расчёт совпадает с покупкой.
-    const feeMult = 1 + (Number(portfolio?.buyFeePercent) || 0) / 100;
-    if (mode === 'rub') {
-      return { grams: v / (portfolio.currentRatePerGram * feeMult) };
-    }
-    return { rub: v * portfolio.currentRatePerGram * feeMult };
-  }, [amount, mode, portfolio?.currentRatePerGram, portfolio?.buyFeePercent]);
-
-  async function submitBuy(e) {
-    e.preventDefault();
-    setBuyErr('');
-    setBuyOk('');
-    const v = parseFloat(String(amount).replace(',', '.'));
-    if (!Number.isFinite(v) || v <= 0) {
-      setBuyErr('Укажите сумму или вес больше нуля');
-      return;
-    }
-    setBuying(true);
-    try {
-      const payload = mode === 'rub'
-        ? { rubAmount: v, idempotencyKey: crypto.randomUUID() }
-        : { grams: v, idempotencyKey: crypto.randomUUID() };
-      const out = await fintechApi.buy(payload);
-      setBuyOk(`Куплено ${formatGrams(out.gramsBought)} за ${formatMoney(out.rubSpent)}`);
-      setAmount('');
-      await load();
-    } catch (e2) {
-      setBuyErr(e2?.message || 'Не удалось выполнить покупку');
-    } finally {
-      setBuying(false);
-    }
-  }
-
   async function downloadStatement() {
     setPdfBusy(true);
     try {
@@ -811,18 +1294,34 @@ function FintechDashboard({ profile }) {
   if (loading) return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Загружаем портфель…</div>;
   if (err) return <div className="cpx-card"><p className="cpx-err">{err}</p><button type="button" className="cpx-btn cpx-btn--sm" onClick={load}>Повторить</button></div>;
 
-  const firstName = String(profile?.fullName || '').trim().split(/\s+/)[1] || String(profile?.fullName || '').trim().split(/\s+/)[0] || '';
+  const firstName = String(profile?.fullName || '').trim().split(/\s+/)[1]
+    || String(profile?.fullName || '').trim().split(/\s+/)[0]
+    || '';
 
   return (
     <div className="cpx-finx">
-      <div className="cpx-fin-greeting">
-        <div>
-          <h2 className="cpx-fin-greeting-title">{firstName ? `${firstName}, ваш портфель` : 'Ваш портфель'}</h2>
-          <p className="cpx-fin-greeting-sub">Reaktivo Invest · золотой счёт от 1 грамма</p>
+      <div className="cpx-fin-hero">
+        <div className="cpx-fin-hero-main">
+          <p className="cpx-fin-greeting-sub">Reaktivo Invest · золотой счёт</p>
+          <h2 className="cpx-fin-hero-title">{firstName ? `${firstName}, ваш портфель` : 'Ваш портфель'}</h2>
+          <div className="cpx-fin-hero-value">
+            <span className="cpx-fin-hero-value-num">{formatMoney(portfolio?.marketValueRub)}</span>
+            <span className={`cpx-fin-hero-pnl ${(portfolio?.pnlRub ?? 0) >= 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}`}>
+              {portfolio?.pnlRub != null ? `${portfolio.pnlRub >= 0 ? '+' : ''}${formatMoney(portfolio.pnlRub)}` : '—'}
+              {portfolio?.pnlPercent != null && ` (${portfolio.pnlPercent > 0 ? '+' : ''}${portfolio.pnlPercent}%)`}
+            </span>
+          </div>
+          <p className="cpx-fin-hero-meta">
+            {formatGrams(portfolio?.goldGrams)} · вложено {formatMoney(portfolio?.investedRub)} · кэш {formatMoney(portfolio?.rubBalance)}
+          </p>
         </div>
-        <button type="button" className="cpx-fin-pdf-btn" disabled={pdfBusy} onClick={downloadStatement}>
-          {pdfBusy ? <><span className="cpx-spinner" /> Готовим…</> : 'Выписка PDF'}
-        </button>
+        <div className="cpx-fin-hero-actions">
+          <button type="button" className="cpx-btn cpx-btn--sm" onClick={() => setView('buy')}>Купить</button>
+          <button type="button" className="cpx-fin-pdf-btn" onClick={() => setView('sell')}>Продать</button>
+          <button type="button" className="cpx-fin-pdf-btn" disabled={pdfBusy} onClick={downloadStatement}>
+            {pdfBusy ? <><span className="cpx-spinner" /> …</> : 'Выписка PDF'}
+          </button>
+        </div>
       </div>
 
       <div className="cpx-fin-kpis">
@@ -831,7 +1330,7 @@ function FintechDashboard({ profile }) {
           <span className="cpx-fin-kpi-value">{formatGrams(portfolio?.goldGrams)}</span>
         </div>
         <div className="cpx-fin-kpi">
-          <span className="cpx-fin-kpi-label">Стоимость портфеля</span>
+          <span className="cpx-fin-kpi-label">Стоимость</span>
           <span className="cpx-fin-kpi-value">{formatMoney(portfolio?.marketValueRub)}</span>
         </div>
         <div className="cpx-fin-kpi">
@@ -851,79 +1350,69 @@ function FintechDashboard({ profile }) {
         </div>
       </div>
 
-      <WorldClocksCard delay="0ms" className="cpx-fin-clocks" />
+      <nav className="cpx-fin-tabs" aria-label="Разделы инвестиций">
+        {DASH_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            className={`cpx-fin-tab${view === t.key ? ' cpx-fin-tab--on' : ''}`}
+            onClick={() => setView(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
-      <div className="cpx-fin-layout">
-        <div className="cpx-fin-main">
-          <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
-        </div>
-
-        <aside className="cpx-fin-side">
-          <div className="cpx-card cpx-fin-buy-card">
-            <h2 className="cpx-fin-side-title">Купить золото</h2>
-            <p className="cpx-fin-side-sub">
-              От 1 г или на любую сумму
-              {portfolio?.buyFeePercent != null ? ` · комиссия ${portfolio.buyFeePercent}%` : ''}
-            </p>
-            <form onSubmit={submitBuy} className="cpx-form cpx-fin-buy-form">
-              <div className="cpx-fin-mode-switch">
-                <button type="button" className={`cpx-fin-mode-btn${mode === 'rub' ? ' cpx-fin-mode-btn--on' : ''}`} onClick={() => { setMode('rub'); setAmount(''); }}>В ₽</button>
-                <button type="button" className={`cpx-fin-mode-btn${mode === 'grams' ? ' cpx-fin-mode-btn--on' : ''}`} onClick={() => { setMode('grams'); setAmount(''); }}>В г</button>
-              </div>
-              <label className="cpx-field">
-                <span className="cpx-field-label">{mode === 'rub' ? 'Сумма, ₽' : 'Вес, г'}</span>
-                <input
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder={mode === 'rub' ? '10000' : '1.5'}
-                />
-              </label>
-              {estimate && (
-                <p className="cpx-fin-estimate">
-                  {mode === 'rub' ? `≈ ${formatGrams(estimate.grams)}` : `≈ ${formatMoney(estimate.rub)}`}
-                </p>
-              )}
-              {buyErr && <p className="cpx-err">{buyErr}</p>}
-              {buyOk && <p className="cpx-fin-ok">{buyOk}</p>}
-              <button type="submit" className="cpx-btn" disabled={buying}>
-                {buying ? <><span className="cpx-spinner" /> Покупаем…</> : 'Купить'}
-              </button>
-            </form>
-          </div>
-
-          <div className="cpx-card cpx-fin-topup-hint">
-            <span className="cpx-fin-topup-icon" aria-hidden>ℹ</span>
-            <p>Пополнение — переводом по реквизитам. Баланс обновит модератор в течение рабочего дня.</p>
-          </div>
-        </aside>
-      </div>
-
-      <div className="cpx-fin-layout cpx-fin-layout--lower">
-        <div className="cpx-fin-main">
-          <AssistantCard />
-        </div>
-        <aside className="cpx-fin-side">
-          <div className="cpx-card cpx-fin-history-card">
-            <h2 className="cpx-fin-side-title">История операций</h2>
-            {ledger.length === 0 && <p className="cpx-muted" style={{ margin: 0 }}>Операций пока нет.</p>}
-            <div className="cpx-fin-ledger-list">
-              {ledger.slice(0, 12).map((e) => (
-                <div key={e.id} className="cpx-fin-ledger-row">
-                  <div className="cpx-fin-ledger-main">
-                    <span className="cpx-fin-ledger-type">{ENTRY_LABELS[e.entryType] || e.entryType}</span>
-                    <span className="cpx-fin-ledger-date">{formatDateTime(e.createdAt)}</span>
-                  </div>
-                  <div className="cpx-fin-ledger-right">
-                    {!!e.rubDelta && <span className={e.rubDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.rubDelta > 0 ? '+' : ''}{formatMoney(e.rubDelta)}</span>}
-                    {!!e.goldGramsDelta && <span className={e.goldGramsDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.goldGramsDelta > 0 ? '+' : ''}{formatGrams(e.goldGramsDelta)}</span>}
-                  </div>
-                </div>
-              ))}
+      {view === 'overview' && (
+        <>
+          <WorldClocksCard delay="0ms" className="cpx-fin-clocks" />
+          <div className="cpx-fin-layout">
+            <div className="cpx-fin-main">
+              <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
+              <AssistantCard />
             </div>
+            <aside className="cpx-fin-side">
+              <div className="cpx-card cpx-fin-quick">
+                <h2 className="cpx-fin-side-title">Быстрые действия</h2>
+                <div className="cpx-fin-quick-grid">
+                  <button type="button" className="cpx-fin-quick-btn" onClick={() => setView('buy')}>
+                    <strong>Купить золото</strong>
+                    <span>от 1 г или на сумму</span>
+                  </button>
+                  <button type="button" className="cpx-fin-quick-btn" onClick={() => setView('sell')}>
+                    <strong>Продать / вывод</strong>
+                    <span>на баланс или заявкой</span>
+                  </button>
+                  <button type="button" className="cpx-fin-quick-btn" onClick={() => setView('benefit')}>
+                    <strong>Упущенная выгода</strong>
+                    <span>анализ по курсу ЦБ</span>
+                  </button>
+                </div>
+              </div>
+              <MissedBenefitCard compact onOpenFull={() => setView('benefit')} />
+              <div className="cpx-card cpx-fin-history-card">
+                <h2 className="cpx-fin-side-title">Последние операции</h2>
+                <LedgerList ledger={ledger} limit={8} />
+              </div>
+            </aside>
           </div>
-        </aside>
-      </div>
+        </>
+      )}
+
+      {view === 'buy' && (
+        <div className="cpx-fin-layout">
+          <div className="cpx-fin-main">
+            <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
+          </div>
+          <aside className="cpx-fin-side">
+            <BuyPanel portfolio={portfolio} onDone={load} />
+          </aside>
+        </div>
+      )}
+
+      {view === 'sell' && <SellPanel portfolio={portfolio} onDone={load} />}
+
+      {view === 'benefit' && <MissedBenefitCard />}
     </div>
   );
 }

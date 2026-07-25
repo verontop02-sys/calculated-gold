@@ -13,7 +13,9 @@ import crypto from 'crypto';
 
 const DEFAULT_SETTINGS = {
   buyFeePercent: 1.5,
+  sellFeePercent: 1.5,
   minPurchaseGrams: 1,
+  minSellGrams: 1,
 };
 
 async function getKv(supabase, key) {
@@ -149,6 +151,87 @@ export async function buyGold(supabase, { clientId, rubAmount, grams, idempotenc
 }
 
 /**
+ * Продажа виртуального золота обратно на рублёвый баланс клиента.
+ * Курс фиксируется на момент сделки; комиссия вычитается из выручки.
+ * Вывод на карту/СБП — отдельный шаг (пока stub в UI, без A7/ПСБ).
+ */
+export async function sellGold(supabase, { clientId, grams, rubAmount, idempotencyKey }) {
+  await requireApprovedClient(supabase, clientId);
+  const settings = await getFintechSettings(supabase);
+  const { rate } = await getLiveGoldRatePerGram(supabase);
+  const feeMult = 1 - Number(settings.sellFeePercent || 0) / 100;
+  const effectiveRatePerGram = rate * feeMult;
+
+  let gramsSold;
+  let rubToCredit;
+  if (grams != null) {
+    gramsSold = Number(grams);
+    if (!Number.isFinite(gramsSold) || gramsSold <= 0) {
+      const err = new Error('Укажите вес продажи в граммах');
+      err.status = 400;
+      throw err;
+    }
+    rubToCredit = Math.round(gramsSold * effectiveRatePerGram * 100) / 100;
+  } else if (rubAmount != null) {
+    rubToCredit = Math.round(Number(rubAmount) * 100) / 100;
+    if (!Number.isFinite(rubToCredit) || rubToCredit <= 0) {
+      const err = new Error('Укажите сумму продажи в рублях');
+      err.status = 400;
+      throw err;
+    }
+    gramsSold = rubToCredit / effectiveRatePerGram;
+  } else {
+    const err = new Error('Укажите сумму в рублях или вес в граммах');
+    err.status = 400;
+    throw err;
+  }
+
+  if (gramsSold < Number(settings.minSellGrams || 1)) {
+    const err = new Error(`Минимальная продажа — ${settings.minSellGrams || 1} г`);
+    err.status = 400;
+    throw err;
+  }
+
+  gramsSold = Math.round(gramsSold * 1e6) / 1e6;
+  const grossRub = Math.round(gramsSold * rate * 100) / 100;
+  const feeRub = Math.round((grossRub - rubToCredit) * 100) / 100;
+  const key = idempotencyKey ? `sell:${clientId}:${idempotencyKey}` : `sell:${clientId}:${crypto.randomUUID()}`;
+
+  const { data, error } = await supabase.rpc('fintech_record_ledger_entry', {
+    p_client_id: clientId,
+    p_entry_type: 'sell_gold',
+    p_rub_delta: rubToCredit,
+    p_gold_grams_delta: -gramsSold,
+    p_rate_rub_per_gram: rate,
+    p_fee_rub: feeRub,
+    p_idempotency_key: key,
+    p_created_by_type: 'client',
+    p_created_by_id: clientId,
+    p_detail: { effectiveRatePerGram, feePercent: settings.sellFeePercent, grossRub },
+    p_reversal_of: null,
+  });
+  if (error) {
+    if (/insufficient_balance/i.test(error.message || '')) {
+      const err = new Error('Недостаточно золота на счёте для продажи');
+      err.status = 400;
+      throw err;
+    }
+    throw error;
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    ok: true,
+    gramsSold,
+    rubReceived: rubToCredit,
+    feeRub,
+    ratePerGram: rate,
+    rubBalance: Number(row.rub_balance),
+    goldGrams: Number(row.gold_grams),
+    duplicate: Boolean(row.is_duplicate),
+  };
+}
+
+/**
  * Ручное пополнение рублёвого баланса модератором — единственный способ завести деньги
  * на счёт клиента, пока нет реального эквайринга. Клиент переводит по реквизитам,
  * модератор подтверждает поступление с обязательным комментарием (номер платежа/выписка).
@@ -237,8 +320,11 @@ export async function getClientPortfolio(supabase, clientId) {
     currentRatePerGram: currentRate,
     rateUpdatedAt: cachedAt,
     balanceUpdatedAt: balance.updatedAt,
-    // Комиссия при покупке — клиент видит её до подтверждения (прозрачность по Stage 10).
+    // Комиссия при покупке/продаже — клиент видит её до подтверждения.
     buyFeePercent: settings ? Number(settings.buyFeePercent || 0) : null,
+    sellFeePercent: settings ? Number(settings.sellFeePercent || 0) : null,
+    minPurchaseGrams: settings ? Number(settings.minPurchaseGrams || 1) : 1,
+    minSellGrams: settings ? Number(settings.minSellGrams || 1) : 1,
   };
 }
 

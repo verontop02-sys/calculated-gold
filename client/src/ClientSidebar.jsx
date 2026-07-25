@@ -7,9 +7,9 @@ import { SIDEBAR_CSS } from './Sidebar.jsx';
  */
 export function ClientSidebar({ tab, onChange, phoneMasked, onOpenCabinet, onSignOut, pinned, onPinnedChange, supportUnread = 0 }) {
   const items = [
-    { key: 'calc', label: 'Калькулятор', icon: <IconCalc /> },
-    { key: 'history', label: 'Мои сделки', icon: <IconClients /> },
     { key: 'invest', label: 'Инвестиции', icon: <IconInvest /> },
+    { key: 'history', label: 'Мои сделки', icon: <IconClients /> },
+    { key: 'calc', label: 'Калькулятор', icon: <IconCalc /> },
     { key: 'support', label: 'Поддержка', icon: <IconChat />, badge: supportUnread },
     { key: 'settings', label: 'Настройки', icon: <IconSettings /> },
   ];

@@ -558,17 +558,20 @@ export function setFintechToken(token) {
 }
 
 async function fintechFetch(path, opts = {}) {
+  const tokenUsed = getFintechToken();
   const r = await fetch(withBase(path), {
     ...opts,
     headers: {
       ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
-      Authorization: `Bearer ${getFintechToken()}`,
+      Authorization: `Bearer ${tokenUsed}`,
       ...(opts.headers || {}),
     },
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) {
-    if (r.status === 401) {
+    // Сбрасываем сессию только если 401 относится к ТЕКУЩЕМУ токену.
+    // Иначе гонка: старый запрос вернулся после sessionFromClient и убивает новый токен.
+    if (r.status === 401 && tokenUsed && getFintechToken() === tokenUsed) {
       setFintechToken('');
       window.dispatchEvent(new CustomEvent(FINTECH_SESSION_EXPIRED_EVENT));
     }
@@ -626,8 +629,20 @@ export const fintechApi = {
   portfolio: () => fintechFetch('/public/fintech/portfolio'),
   ledger: (limit = 100, offset = 0) => fintechFetch(`/public/fintech/ledger?limit=${limit}&offset=${offset}`),
   buy: (payload) => fintechFetch('/public/fintech/buy', { method: 'POST', body: JSON.stringify(payload) }),
+  sell: (payload) => fintechFetch('/public/fintech/sell', { method: 'POST', body: JSON.stringify(payload) }),
   /** Дневная история курса золота (GLDRUBF) для графика в кабинете. */
   goldHistory: (days = 365) => fintechFetch(`/public/fintech/gold-history?days=${days}`),
+  /**
+   * Годовые якоря ЦБ — публичные рыночные данные.
+   * Без fintech-сессии: иначе 401 на обзоре выкидывает из кабинета при гонке/стейл-токене.
+   */
+  cbrGoldHistory: async () => {
+    // Без Authorization: иначе на проде без роута запрос падает в authMiddleware → 401 «Сессия недействительна».
+    const r = await fetch(withBase('/public/fintech/cbr-gold-history'));
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    return j;
+  },
   /** AI-ассистент: анализ портфеля и прогноз (Grok или локальный расчёт). */
   assistant: (question) => fintechFetch('/public/fintech/assistant', { method: 'POST', body: JSON.stringify({ question: question || '' }) }),
 };

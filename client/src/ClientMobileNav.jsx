@@ -11,9 +11,9 @@ export function ClientMobileNav({ tab, onChange, phoneMasked, onOpenCabinet, onS
 
   const primary = [
     { key: 'home', label: 'Кабинет', icon: <IconDashboard /> },
-    { key: 'calc', label: 'Калькулятор', icon: <IconCalc /> },
-    { key: 'history', label: 'Сделки', icon: <IconClients /> },
     { key: 'invest', label: 'Инвестиции', icon: <IconInvest /> },
+    { key: 'history', label: 'Сделки', icon: <IconClients /> },
+    { key: 'calc', label: 'Калькулятор', icon: <IconCalc /> },
   ];
 
   const more = [

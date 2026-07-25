@@ -77,6 +77,7 @@ import {
 } from './fintechClients.js';
 import {
   buyGold,
+  sellGold,
   getClientPortfolio as getFintechPortfolio,
   getClientLedger as getFintechLedger,
 } from './fintechLedger.js';
@@ -1442,6 +1443,25 @@ app.post(
   })
 );
 
+app.post(
+  '/api/public/fintech/sell',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await sellGold(supabase, {
+        clientId: session.clientId,
+        rubAmount: req.body?.rubAmount,
+        grams: req.body?.grams,
+        idempotencyKey: req.body?.idempotencyKey,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка', code: e.code });
+    }
+  })
+);
+
 // ── История курса золота для графика в кабинете (дневные свечи GLDRUBF) ─────
 const MOEX_GOLD_CANDLES_URL =
   'https://iss.moex.com/iss/engines/futures/markets/forts/securities/GLDRUBF/candles.json';
@@ -1493,6 +1513,80 @@ app.get(
       res.json(out);
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message || 'Не удалось загрузить историю курса' });
+    }
+  })
+);
+
+/**
+ * Годовые якоря официального курса золота ЦБ РФ (с 2000) — для калькулятора
+ * упущенной выгоды. Берём последний доступный курс каждого года, кэш 24ч.
+ */
+async function fetchCbrGoldYearlyAnchors() {
+  const cacheKey = 'fintech_cbr_gold_yearly';
+  const hit = cacheGet(cacheKey);
+  if (hit) return hit;
+
+  const startYear = 2000;
+  const endYear = new Date().getFullYear();
+  const byYear = new Map();
+
+  async function fetchRange(y1, y2) {
+    const date1 = `01/01/${y1}`;
+    const date2 = y2 >= endYear
+      ? formatCbrDate(new Date())
+      : `31/12/${y2}`;
+    const { data: xml } = await axios.get('https://www.cbr.ru/scripts/xml_metall.asp', {
+      params: { date_req1: date1, date_req2: date2 },
+      timeout: 45000,
+      responseType: 'text',
+      headers: { 'User-Agent': 'CalculatedGold/1.0' },
+      validateStatus: (s) => s === 200,
+    });
+    const doc = parser.parse(xml);
+    const records = doc?.Metall?.Record;
+    const list = Array.isArray(records) ? records : records ? [records] : [];
+    for (const rec of list) {
+      if (String(rec['@_Code']) !== '1') continue;
+      const buy = parseRussianNum(rec.Buy);
+      if (!buy || buy <= 0) continue;
+      const raw = String(rec['@_Date'] || '');
+      // ЦБ: ДД.ММ.ГГГГ
+      const m = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+      if (!m) continue;
+      const year = Number(m[3]);
+      const date = `${m[3]}-${m[2]}-${m[1]}`;
+      const prev = byYear.get(year);
+      if (!prev || date > prev.date) {
+        byYear.set(year, { year, date, price: buy });
+      }
+    }
+  }
+
+  // Диапазоны по 3 года — меньше запросов, чем по одному дню на год.
+  for (let y = startYear; y <= endYear; y += 3) {
+    try {
+      await fetchRange(y, Math.min(endYear, y + 2));
+    } catch (e) {
+      console.warn('[cbr yearly]', y, e?.message || e);
+    }
+  }
+
+  const points = [...byYear.values()].sort((a, b) => a.year - b.year);
+  const out = { points, source: 'cbr', unit: 'rub_per_gram' };
+  if (points.length >= 5) cacheSet(cacheKey, out, 24 * 60 * 60 * 1000);
+  return out;
+}
+
+app.get(
+  '/api/public/fintech/cbr-gold-history',
+  asyncHandler(async (req, res) => {
+    // Публичные данные ЦБ — сессия не обязательна (калькулятор упущенной выгоды).
+    try {
+      const out = await fetchCbrGoldYearlyAnchors();
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось загрузить историю ЦБ' });
     }
   })
 );
