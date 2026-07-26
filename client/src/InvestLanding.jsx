@@ -39,9 +39,9 @@ const Ico = {
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
     </svg>
   ),
-  moon: (
+  bolt: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+      <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
     </svg>
   ),
   doc: (
@@ -70,28 +70,29 @@ const STEPS = [
   { n: '01', title: 'Вход по телефону', text: 'Номер + код из SMS. Без анкет, сканов и визитов в офис — кабинет открывается за две минуты.' },
   { n: '02', title: 'Покупка от 1 грамма', text: 'Фиксируете биржевой курс в моменте. Комиссия видна до подтверждения — никаких сюрпризов после.' },
   { n: '03', title: 'Портфель растёт онлайн', text: 'Курс обновляется в реальном времени. Баланс в граммах и рублях — всегда перед глазами.' },
-  { n: '04', title: 'Продажа и вывод', text: 'Продаёте часть или всё по текущему курсу — деньги доступны к выводу сразу после сделки.' },
+  { n: '04', title: 'Продажа и вывод', text: 'Продаёте часть или всё по текущему курсу — деньги выводятся на карту любого банка.' },
 ];
 
 const ADVANTAGES = [
   { icon: Ico.scale, title: 'Учёт до 0,0001 грамма', text: 'Никаких «удобных» округлений: каждая доля миллиграмма учитывается при покупке и продаже.' },
   { icon: Ico.eye, title: 'Комиссия видна заранее', text: 'Точная сумма комиссии показывается до подтверждения сделки. Скрытых удержаний нет.' },
   { icon: Ico.shield, title: 'Официальные котировки', text: 'Биржевой курс и данные ЦБ РФ — цены берутся из официальных источников, а не «с потолка».' },
+  { icon: Ico.bolt, title: 'Моментальные пополнение и вывод', text: 'Кошелёк пополняется через СБП за секунды. Вывод — на карту любого банка сразу после продажи.' },
   { icon: Ico.doc, title: 'PDF-выписка в один клик', text: 'Полная история операций выгружается мгновенно — для отчётности и личного контроля.' },
   { icon: Ico.bot, title: 'AI-ассистент портфеля', text: 'Отвечает на вопросы о балансе и строит прогнозы на исторических данных ЦБ.' },
-  { icon: Ico.moon, title: 'Тёмная и светлая тема', text: 'Кабинет одинаково удобен днём и ночью — интерфейс подстраивается под вас.' },
 ];
 
 const FAQ = [
   { q: 'Сколько стоит купить золото в Reaktivo?', a: 'Минимальный порог — от 1 грамма. Комиссия показывается заранее, до подтверждения сделки, и зависит от текущих настроек площадки.' },
-  { q: 'Что значит «золото на счету»?', a: 'В кабинете ведётся точный учёт вашего виртуального остатка в граммах по текущему курсу. Это учётная запись в системе Reaktivo, а не физическое хранение слитка.' },
-  { q: 'Как продать золото и получить деньги?', a: 'В разделе «Продать» указываете количество граммов или сумму — сделка фиксируется по актуальному курсу, а средства становятся доступны к выводу.' },
+  { q: 'Что значит «золото на счету»?', a: 'В кабинете ведётся точный учёт вашего остатка в граммах по текущему курсу. Reaktivo выступает вашим агентом: покупает золото для вас и ведёт его учёт.' },
+  { q: 'Как пополнить кошелёк?', a: 'Через СБП — по номеру телефона, без ввода реквизитов. Деньги зачисляются моментально и сразу доступны для покупки золота.' },
+  { q: 'Как продать золото и получить деньги?', a: 'В разделе «Продать» указываете количество граммов или сумму — сделка фиксируется по актуальному курсу, а средства выводятся на карту любого банка.' },
   { q: 'По какому курсу считается доходность?', a: 'Исторические расчёты в калькуляторе используют официальные данные Банка России; текущие сделки — биржевой курс, отображаемый в кабинете в реальном времени.' },
   { q: 'Нужно ли приходить в офис?', a: 'Нет. Вся работа — от входа до продажи и вывода средств — происходит онлайн в личном кабинете.' },
   { q: 'Это инвестиционная рекомендация?', a: 'Нет. Материалы на сайте и в калькуляторе носят иллюстративный характер и не являются индивидуальной инвестиционной рекомендацией. Прошлый рост цены не гарантирует будущий результат.' },
 ];
 
-const MARQUEE = ['Курс ЦБ РФ', 'Биржевые котировки', 'От 1 грамма', 'Комиссия до сделки', 'PDF-выписки', 'AI-ассистент', 'Учёт до 0,0001 г', 'Продажа онлайн'];
+const MARQUEE = ['Курс ЦБ РФ', 'Биржевые котировки', 'От 1 грамма', 'Пополнение через СБП', 'Вывод на карту', 'Комиссия до сделки', 'PDF-выписки', 'AI-ассистент', 'Учёт до 0,0001 г'];
 
 const STATEMENT_WORDS = 'Золото пережило войны, кризисы и дефолты. Сбережения в золоте — спокойствие, проверенное веками.'.split(' ');
 
@@ -130,7 +131,7 @@ function AnimatedNumber({ to, format, duration = 1.9, className = '' }) {
   return <span ref={ref} className={className}>{to == null ? '—' : format(val)}</span>;
 }
 
-/* Магнитная кнопка: тянется к курсору (только desktop) */
+/* Магнитная кнопка (desktop) */
 function Magnetic({ children, strength = 0.28 }) {
   const ref = useRef(null);
   const x = useMotionValue(0);
@@ -153,7 +154,7 @@ function Magnetic({ children, strength = 0.28 }) {
   );
 }
 
-/* Мягкое свечение, следующее за курсором (desktop) */
+/* Свечение за курсором (desktop) */
 function CursorGlow() {
   const [enabled, setEnabled] = useState(false);
   const x = useMotionValue(-600);
@@ -173,13 +174,16 @@ function CursorGlow() {
   return <motion.div className="il-cursor-glow" style={{ x: sx, y: sy }} aria-hidden />;
 }
 
+const SbpBadge = ({ className = '' }) => <span className={`il-sbp ${className}`.trim()}>СБП</span>;
+
 /* ═══════════════ Hero: колода карт ═══════════════ */
 
-const DECK_SLOTS = [
-  { x: 0, y: 0, scale: 1, rotate: 0, opacity: 1 },
-  { x: 34, y: 28, scale: 0.95, rotate: 3.5, opacity: 0.88 },
-  { x: 68, y: 56, scale: 0.9, rotate: 7, opacity: 0.65 },
-];
+function deckSlot(pos) {
+  if (pos === 0) return { x: 0, y: 0, scale: 1, rotate: 0, opacity: 1 };
+  if (pos === 1) return { x: 34, y: 28, scale: 0.95, rotate: 3.5, opacity: 0.88 };
+  if (pos === 2) return { x: 68, y: 56, scale: 0.9, rotate: 7, opacity: 0.62 };
+  return { x: 96, y: 78, scale: 0.86, rotate: 9, opacity: 0 };
+}
 
 function DeckPortfolioCard({ quote, growth }) {
   const grams = 128.35;
@@ -187,7 +191,7 @@ function DeckPortfolioCard({ quote, growth }) {
   return (
     <>
       <div className="il-card-top">
-        <span className="il-card-brand">REAKTIVO<i>·</i>Invest</span>
+        <span className="il-card-brand">REAKTIVO<i>·</i>PRO</span>
         <span className="il-card-live"><i />live</span>
       </div>
       <span className="il-card-label">Портфель</span>
@@ -241,6 +245,31 @@ function DeckPriceCard({ quote }) {
   );
 }
 
+function DeckTopupCard() {
+  return (
+    <>
+      <div className="il-card-top">
+        <span className="il-card-brand">Кошелёк</span>
+        <span className="il-card-live il-card-live--ok"><i />зачислено</span>
+      </div>
+      <span className="il-card-label">Пополнение через СБП</span>
+      <div className="il-card-big">+ 100 000 ₽</div>
+      <div className="il-card-row">
+        <SbpBadge />
+        <span className="il-card-badge">за секунды</span>
+      </div>
+      <ul className="il-card-checks">
+        <li><span className="il-card-check">{Ico.check}</span> По номеру телефона, без реквизитов</li>
+        <li><span className="il-card-check">{Ico.check}</span> Сразу доступно для покупки золота</li>
+      </ul>
+      <div className="il-card-foot">
+        <span>СБП</span>
+        <span>моментальное зачисление</span>
+      </div>
+    </>
+  );
+}
+
 function DeckDealCard({ quote }) {
   const total = quote?.goldRubPerGram ? quote.goldRubPerGram * 10 : null;
   return (
@@ -264,26 +293,55 @@ function DeckDealCard({ quote }) {
   );
 }
 
+function DeckWithdrawCard() {
+  return (
+    <>
+      <div className="il-card-top">
+        <span className="il-card-brand">Вывод средств</span>
+        <span className="il-card-live il-card-live--ok"><i />исполнен</span>
+      </div>
+      <span className="il-card-label">На карту любого банка</span>
+      <div className="il-card-big">150 000 ₽</div>
+      <ul className="il-card-checks">
+        <li><span className="il-card-check">{Ico.check}</span> Заявка в один клик</li>
+        <li><span className="il-card-check">{Ico.check}</span> После продажи золота по курсу</li>
+        <li><span className="il-card-check">{Ico.check}</span> Без скрытых удержаний</li>
+      </ul>
+      <div className="il-card-foot">
+        <span>Вывод</span>
+        <span>на вашу карту</span>
+      </div>
+    </>
+  );
+}
+
 function HeroDeck({ quote, growth }) {
-  const [order, setOrder] = useState([0, 1, 2]);
+  const cards = [
+    <DeckPortfolioCard quote={quote} growth={growth} key="p" />,
+    <DeckPriceCard quote={quote} key="q" />,
+    <DeckTopupCard key="t" />,
+    <DeckDealCard quote={quote} key="d" />,
+    <DeckWithdrawCard key="w" />,
+  ];
+  const n = cards.length;
+  const [order, setOrder] = useState(() => Array.from({ length: n }, (_, i) => i));
   const pausedRef = useRef(false);
 
   useEffect(() => {
     if (prefersReducedMotion()) return undefined;
     const id = setInterval(() => {
       if (!pausedRef.current) setOrder(([f, ...rest]) => [...rest, f]);
-    }, 4000);
+    }, 3800);
     return () => clearInterval(id);
   }, []);
 
   const advance = () => setOrder(([f, ...rest]) => [...rest, f]);
   const bringToFront = (i) => setOrder((cur) => {
     let next = cur;
-    for (let k = 0; k < 3 && next[0] !== i; k += 1) next = [...next.slice(1), next[0]];
+    for (let k = 0; k < n && next[0] !== i; k += 1) next = [...next.slice(1), next[0]];
     return next;
   });
 
-  /* лёгкий 3D-наклон за курсором */
   const rx = useMotionValue(0);
   const ry = useMotionValue(0);
   const srx = useSpring(rx, { stiffness: 120, damping: 18 });
@@ -295,12 +353,6 @@ function HeroDeck({ quote, growth }) {
     rx.set(-((e.clientY - r.top) / r.height - 0.5) * 8);
   };
   const resetTilt = () => { rx.set(0); ry.set(0); };
-
-  const cards = [
-    <DeckPortfolioCard quote={quote} growth={growth} key="p" />,
-    <DeckPriceCard quote={quote} key="q" />,
-    <DeckDealCard quote={quote} key="d" />,
-  ];
 
   return (
     <motion.div
@@ -324,20 +376,14 @@ function HeroDeck({ quote, growth }) {
         {cards.map((card, i) => {
           const pos = order.indexOf(i);
           return (
-            <motion.div
-              key={i}
-              className="il-deck-card"
-              style={{ zIndex: 3 - pos }}
-              animate={DECK_SLOTS[pos]}
-              transition={SPRING}
-            >
+            <motion.div key={i} className="il-deck-card" style={{ zIndex: n - pos }} animate={deckSlot(pos)} transition={SPRING}>
               {card}
             </motion.div>
           );
         })}
       </motion.div>
       <div className="il-deck-dots" role="tablist" aria-label="Карточки">
-        {[0, 1, 2].map((i) => (
+        {cards.map((_, i) => (
           <button
             key={i}
             type="button"
@@ -410,7 +456,32 @@ function Statement() {
   );
 }
 
-/* ═══════════════ Превью кабинета с 3D-наклоном ═══════════════ */
+/* ═══════════════ Превью кабинета ═══════════════ */
+
+const CLOCK_CITIES = [
+  ['Москва', 'Europe/Moscow'],
+  ['Лондон', 'Europe/London'],
+  ['Нью-Йорк', 'America/New_York'],
+  ['Дубай', 'Asia/Dubai'],
+];
+
+function PreviewClocks() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="il-preview-clocks" aria-hidden>
+      {CLOCK_CITIES.map(([city, tz]) => (
+        <span className="il-preview-clock" key={city}>
+          <i>{city}</i>
+          <b>{new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: tz }).format(now)}</b>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 function DashboardPreview({ chartData, quote }) {
   const ref = useRef(null);
@@ -440,18 +511,19 @@ function DashboardPreview({ chartData, quote }) {
           <div className="il-preview-main">
             <div className="il-preview-kpis">
               <div className="il-preview-kpi">
-                <span className="il-preview-kpi-label">Баланс</span>
+                <span className="il-preview-kpi-label">Портфель</span>
                 <span className="il-preview-kpi-val">128,3500 г</span>
               </div>
               <div className="il-preview-kpi">
-                <span className="il-preview-kpi-label">В рублях</span>
+                <span className="il-preview-kpi-label">Объём средств</span>
                 <span className="il-preview-kpi-val">{quote?.goldRubPerGram ? formatMoney(128.35 * quote.goldRubPerGram) : '—'}</span>
               </div>
               <div className="il-preview-kpi il-preview-kpi--pos">
-                <span className="il-preview-kpi-label">Доходность</span>
+                <span className="il-preview-kpi-label">Доход</span>
                 <span className="il-preview-kpi-val">+18,4%</span>
               </div>
             </div>
+            <PreviewClocks />
             <div className="il-preview-chart">
               {inView && chartData.length > 1 && (
                 <ResponsiveContainer width="100%" height="100%">
@@ -468,8 +540,9 @@ function DashboardPreview({ chartData, quote }) {
               )}
             </div>
             <div className="il-preview-rows" aria-hidden>
+              <div className="il-preview-row"><span className="is-buy">Пополнение · СБП</span><span>зачислено моментально</span></div>
               <div className="il-preview-row"><span className="is-buy">Покупка · 5 г</span><span>курс зафиксирован</span></div>
-              <div className="il-preview-row"><span className="is-sell">Продажа · 2 г</span><span>выплата на счёт</span></div>
+              <div className="il-preview-row"><span className="is-sell">Вывод · на карту</span><span>после продажи золота</span></div>
             </div>
           </div>
         </div>
@@ -487,14 +560,14 @@ function DashboardPreview({ chartData, quote }) {
         animate={{ y: [0, 12, 0] }}
         transition={{ duration: 6.5, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
       >
-        Комиссия — до сделки
+        СБП · за секунды
       </motion.span>
       <motion.span
         className="il-preview-chip il-preview-chip--3"
         animate={{ y: [0, -10, 0] }}
         transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
       >
-        PDF-выписка
+        Вывод на карту
       </motion.span>
     </div>
   );
@@ -548,7 +621,6 @@ export function InvestLanding() {
   const heroFade = useTransform(heroProgress, [0, 0.85], [1, 0]);
   const deckY = useTransform(heroProgress, [0, 1], [0, 100]);
 
-  /* Плавный скролл Lenis */
   useEffect(() => {
     if (prefersReducedMotion()) return undefined;
     const lenis = new Lenis({ duration: 1.2, easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), smoothWheel: true });
@@ -566,9 +638,8 @@ export function InvestLanding() {
     else document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  /* SEO */
   useEffect(() => {
-    document.title = 'Reaktivo Invest — инвестиции в золото онлайн';
+    document.title = 'REAKTIVO.PRO — покупка золота онлайн от 1 грамма';
     let meta = document.querySelector('meta[name="description"]');
     if (!meta) {
       meta = document.createElement('meta');
@@ -577,11 +648,10 @@ export function InvestLanding() {
     }
     meta.setAttribute(
       'content',
-      'Инвестируйте в золото онлайн от 1 грамма: реальный курс, прозрачная комиссия, калькулятор упущенной выгоды и личный кабинет Reaktivo.PRO.'
+      'Reaktivo — покупка золота онлайн от 1 грамма по биржевому курсу: пополнение через СБП, вывод на карту, комиссия видна до сделки, калькулятор выгоды по курсу ЦБ РФ.'
     );
   }, []);
 
-  /* Данные */
   useEffect(() => {
     let alive = true;
     clientApi.buybackQuote('moex').then((q) => { if (alive) setQuote(q); }).catch(() => {});
@@ -617,11 +687,12 @@ export function InvestLanding() {
 
       <header className={`il-header${scrolled ? ' il-header--scrolled' : ''}`}>
         <div className="il-header-inner">
-          <a href="/" className="il-logo">REAKTIVO<span>.PRO</span> <em>Invest</em></a>
+          <a href="/" className="il-logo">REAKTIVO<span>.PRO</span></a>
           <nav className="il-nav">
-            <a href="#market" className="il-nav-link" onClick={(e) => goTo(e, '#market')}>Динамика</a>
-            <a href="#calc" className="il-nav-link" onClick={(e) => goTo(e, '#calc')}>Калькулятор</a>
             <a href="#how" className="il-nav-link" onClick={(e) => goTo(e, '#how')}>Как это работает</a>
+            <a href="#about" className="il-nav-link" onClick={(e) => goTo(e, '#about')}>О компании</a>
+            <a href="#calc" className="il-nav-link" onClick={(e) => goTo(e, '#calc')}>Калькулятор</a>
+            <a href="#market" className="il-nav-link" onClick={(e) => goTo(e, '#market')}>Динамика</a>
             <a href="#faq" className="il-nav-link" onClick={(e) => goTo(e, '#faq')}>FAQ</a>
           </nav>
           <div className="il-header-actions">
@@ -642,14 +713,14 @@ export function InvestLanding() {
           <motion.div className="il-hero-inner" style={{ opacity: heroFade }}>
             <div className="il-hero-copy">
               <motion.span className="il-badge" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}>
-                <i className="il-badge-dot" /> Reaktivo Invest · золото онлайн
+                <i className="il-badge-dot" /> Reaktivo · покупка золота онлайн
               </motion.span>
 
               <HeroTitle />
 
               <motion.p className="il-hero-sub" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.5, ease: EASE }}>
-                Биржевой курс в реальном времени, комиссия видна до сделки, учёт до 0,0001 грамма.
-                Покупка, продажа и вывод — в пару кликов, без визитов в офис.
+                Reaktivo — ваш агент по покупке золота: биржевой курс в реальном времени, комиссия видна до сделки,
+                пополнение через СБП и вывод на карту. Всё онлайн, без визитов в офис.
               </motion.p>
 
               <motion.div className="il-hero-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.64, ease: EASE }}>
@@ -666,7 +737,7 @@ export function InvestLanding() {
 
               <motion.div className="il-hero-stats" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.78, ease: EASE }}>
                 <div className="il-hero-stat">
-                  <AnimatedNumber to={growth ? growth.multiple : null} format={(v) => `${v.toFixed(1).replace('.', ',')}×`} className="il-hero-stat-val" />
+                  <AnimatedNumber to={growth ? growth.multiple : null} format={(v) => `×${v.toFixed(1).replace('.', ',')}`} className="il-hero-stat-val" />
                   <span className="il-hero-stat-label">рост золота с {growth ? growth.first.year : '2000'} года</span>
                 </div>
                 <div className="il-hero-stat-sep" aria-hidden />
@@ -703,7 +774,7 @@ export function InvestLanding() {
             <div className="il-section-head">
               <Reveal><span className="il-pill">Личный кабинет</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Весь портфель — <span className="il-accent-text">на одном экране</span></h2></Reveal>
-              <Reveal delay={0.16}><p className="il-p">Баланс в граммах и рублях, живой график, история сделок и AI-ассистент — без лишних кликов.</p></Reveal>
+              <Reveal delay={0.16}><p className="il-p">Портфель, объём средств и доход, мировые часы, живой график и история операций — без лишних кликов.</p></Reveal>
             </div>
             <DashboardPreview chartData={chartData} quote={quote} />
           </div>
@@ -719,16 +790,22 @@ export function InvestLanding() {
               <div className="il-market-copy">
                 <Reveal><span className="il-pill">Динамика рынка</span></Reveal>
                 <Reveal delay={0.08}>
-                  <h2 className="il-h2">Золото дорожает.<br /><span className="il-accent-text">Даже когда всё падает.</span></h2>
+                  <h2 className="il-h2 il-h2--market">
+                    <AnimatedNumber to={growth ? growth.multiple : null} format={(v) => `×${v.toFixed(1).replace('.', ',')}`} className="il-market-mult-big" />
+                    <span className="il-market-mult-cap">рост золота с {growth ? growth.first.year : 2000} года</span>
+                  </h2>
                 </Reveal>
-                <Reveal delay={0.16}>
+                <Reveal delay={0.14}>
+                  <p className="il-market-slogan">Золото дорожает — <span className="il-accent-text">даже когда всё падает.</span></p>
+                </Reveal>
+                <Reveal delay={0.2}>
                   <p className="il-p">
                     По официальным данным Банка России золото показывает устойчивый рост на длинном горизонте —
                     опережая инфляцию и большинство привычных способов сбережений.
                   </p>
                 </Reveal>
                 {growth && (
-                  <Reveal delay={0.24}>
+                  <Reveal delay={0.26}>
                     <div className="il-market-stats">
                       <div className="il-market-stat">
                         <span className="il-stat-label">{growth.first.year} год</span>
@@ -739,14 +816,11 @@ export function InvestLanding() {
                         <span className="il-stat-label">{growth.last.year} год</span>
                         <AnimatedNumber to={growth.last.price} format={(v) => `${Math.round(v).toLocaleString('ru-RU')} ₽/г`} className="il-stat-val il-accent-text" />
                       </div>
-                      <div className="il-market-mult">
-                        <AnimatedNumber to={growth.multiple} format={(v) => `в ${v.toFixed(1).replace('.', ',')} раза`} />
-                      </div>
                     </div>
                   </Reveal>
                 )}
                 {growth5y != null && (
-                  <Reveal delay={0.3}>
+                  <Reveal delay={0.32}>
                     <div className="il-market-chips">
                       <span className="il-market-chip">+{Math.round(growth5y).toLocaleString('ru-RU')}% за 5 лет</span>
                       <span className="il-market-chip">источник — ЦБ РФ</span>
@@ -771,7 +845,7 @@ export function InvestLanding() {
                           <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
                         </linearGradient>
                       </defs>
-                      <XAxis dataKey="year" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false} minTickGap={32} />
+                      <XAxis dataKey="year" tick={{ fill: 'var(--text-dim)', fontSize: 12 }} axisLine={false} tickLine={false} minTickGap={32} />
                       <Tooltip
                         contentStyle={{ background: 'var(--bg-panel-solid)', border: '1px solid var(--stroke)', borderRadius: 12, fontSize: 12, color: 'var(--text)' }}
                         formatter={(v) => [`${Number(v).toLocaleString('ru-RU')} ₽/г`, 'ЦБ РФ']}
@@ -793,7 +867,7 @@ export function InvestLanding() {
             <div className="il-section-head">
               <Reveal><span className="il-pill">Бесплатный инструмент</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Сколько бы вы <span className="il-accent-text">заработали?</span></h2></Reveal>
-              <Reveal delay={0.16}><p className="il-p">Сумма и год покупки — калькулятор посчитает результат по официальному курсу ЦБ РФ. Без регистрации.</p></Reveal>
+              <Reveal delay={0.16}><p className="il-p">Покупка золота онлайн от 1 грамма. Задайте сумму и год — калькулятор посчитает результат по официальному курсу ЦБ РФ. Без регистрации.</p></Reveal>
             </div>
             <Reveal delay={0.1} y={48}>
               <MissedBenefitCalc />
@@ -823,6 +897,58 @@ export function InvestLanding() {
           </div>
         </section>
 
+        {/* ── СБП: пополнение и вывод ── */}
+        <section className="il-section il-section--sbp">
+          <div className="il-section-inner">
+            <div className="il-sbp-grid">
+              <div className="il-sbp-copy">
+                <Reveal><span className="il-pill">Деньги — реактивно быстро</span></Reveal>
+                <Reveal delay={0.08}><h2 className="il-h2">Пополнение через <span className="il-accent-text">СБП</span>.<br />Вывод — на карту.</h2></Reveal>
+                <Reveal delay={0.16}>
+                  <ul className="il-sbp-list">
+                    <li><span className="il-card-check">{Ico.check}</span> Пополнение по номеру телефона — без реквизитов</li>
+                    <li><span className="il-card-check">{Ico.check}</span> Деньги зачисляются моментально и сразу доступны</li>
+                    <li><span className="il-card-check">{Ico.check}</span> Вывод — на карту любого банка</li>
+                    <li><span className="il-card-check">{Ico.check}</span> Комиссии видны заранее, до подтверждения</li>
+                  </ul>
+                </Reveal>
+                <Reveal delay={0.24}>
+                  <motion.a href="/kabinet" className="il-btn il-btn--primary" whileTap={{ scale: 0.96 }}>
+                    Пополнить кошелёк
+                    <span className="il-btn-arrow" aria-hidden>→</span>
+                  </motion.a>
+                </Reveal>
+              </div>
+              <Reveal delay={0.12} y={48} className="il-sbp-visual-wrap">
+                <div className="il-sbp-sheet">
+                  <div className="il-sbp-sheet-head">
+                    <span>Пополнение кошелька</span>
+                    <SbpBadge />
+                  </div>
+                  <div className="il-sbp-sheet-amount">100 000 ₽</div>
+                  <div className="il-sbp-sheet-row">
+                    <span>Способ</span>
+                    <b>СБП · по номеру телефона</b>
+                  </div>
+                  <div className="il-sbp-sheet-row">
+                    <span>Зачисление</span>
+                    <b className="il-sbp-ok">моментально</b>
+                  </div>
+                  <div className="il-sbp-sheet-btn" aria-hidden>Подтвердить</div>
+                </div>
+                <motion.div
+                  className="il-sbp-mini"
+                  animate={{ y: [0, -12, 0] }}
+                  transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  <span>Вывод на карту</span>
+                  <b>150 000 ₽ ✓</b>
+                </motion.div>
+              </Reveal>
+            </div>
+          </div>
+        </section>
+
         {/* ── Преимущества ── */}
         <section className="il-section il-section--alt">
           <div className="il-section-inner">
@@ -842,12 +968,59 @@ export function InvestLanding() {
           </div>
         </section>
 
+        {/* ── О компании ── */}
+        <section className="il-section" id="about">
+          <div className="il-section-inner">
+            <div className="il-section-head">
+              <Reveal><span className="il-pill">О компании</span></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Reaktivo — деньги.<br /><span className="il-accent-text">Реактивно быстро!</span></h2></Reveal>
+            </div>
+            <div className="il-about-grid">
+              <Reveal delay={0.1} className="il-about-text">
+                <p>
+                  Reaktivo развивает формат неклассической скупки золота. Мы создаём условия, при которых клиенты
+                  свободно управляют своими активами в золоте: не только продают их, чтобы быстро получить ликвидность,
+                  но и покупают — чтобы формировать доход, используя потенциал золота.
+                </p>
+                <p>
+                  Клиенты Reaktivo могут быстро получить деньги за ненужное золото — и при этом накапливать золото онлайн:
+                  видеть портфель в реальном времени, докупать и продавать по необходимости.
+                </p>
+                <p>
+                  Мы строим не просто сеть пунктов покупки, а экосистему, в которой золото — быстрый, прозрачный
+                  и удобный финансовый инструмент.
+                </p>
+              </Reveal>
+              <motion.div className="il-products" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
+                <motion.a className="il-product" href="https://reaktivo.ru" target="_blank" rel="noopener noreferrer" variants={staggerChild} whileHover={{ y: -6 }}>
+                  <span className="il-product-tag">Reaktivo.ru</span>
+                  <h3 className="il-product-title">Продать золото</h3>
+                  <p className="il-product-text">Скупка золота в офисах и с доставкой — деньги сразу.</p>
+                  <span className="il-product-link">Перейти на Reaktivo.ru →</span>
+                </motion.a>
+                <motion.a className="il-product il-product--main" href="/kabinet" variants={staggerChild} whileHover={{ y: -6 }}>
+                  <span className="il-product-tag">Reaktivo.pro — вы здесь</span>
+                  <h3 className="il-product-title">Купить золото</h3>
+                  <p className="il-product-text">От 1 грамма онлайн. Reaktivo — ваш агент и покупает золото по выгодному курсу.</p>
+                  <span className="il-product-link">Открыть кабинет →</span>
+                </motion.a>
+                <motion.div className="il-product" variants={staggerChild} whileHover={{ y: -6 }}>
+                  <span className="il-product-tag">Telegram</span>
+                  <h3 className="il-product-title">Reaktivo Resale</h3>
+                  <p className="il-product-text">Продажа ювелирных украшений в Telegram-канале.</p>
+                  <span className="il-product-link il-product-link--dim">Канал в Telegram</span>
+                </motion.div>
+              </motion.div>
+            </div>
+          </div>
+        </section>
+
         {/* ── Цифры ── */}
         <section className="il-section il-section--kpi">
           <div className="il-section-inner">
             <motion.div className="il-kpis" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-10% 0px' }}>
               <motion.div className="il-kpi" variants={staggerChild}>
-                <AnimatedNumber to={growth ? growth.multiple : null} format={(v) => `${v.toFixed(1).replace('.', ',')}×`} className="il-kpi-val" />
+                <AnimatedNumber to={growth ? growth.multiple : null} format={(v) => `×${v.toFixed(1).replace('.', ',')}`} className="il-kpi-val" />
                 <span className="il-kpi-label">рост золота с {growth ? growth.first.year : '2000'} года</span>
               </motion.div>
               <motion.div className="il-kpi" variants={staggerChild}>
@@ -888,8 +1061,6 @@ export function InvestLanding() {
           <div className="il-section-inner">
             <Reveal y={56}>
               <div className="il-cta-panel">
-                <span className="il-cta-orb il-cta-orb--1" aria-hidden />
-                <span className="il-cta-orb il-cta-orb--2" aria-hidden />
                 <h2 className="il-cta-title">Начните сегодня —<br />это займёт две минуты</h2>
                 <p className="il-cta-sub">Вход по номеру телефона. Без анкет и визитов в офис.</p>
                 <Magnetic>
@@ -911,20 +1082,28 @@ export function InvestLanding() {
         <div className="il-section-inner">
           <div className="il-footer-grid">
             <div className="il-footer-brand">
-              <span className="il-logo">REAKTIVO<span>.PRO</span> <em>Invest</em></span>
-              <p>Золото онлайн — от 1 грамма.<br />Официальные котировки, прозрачные комиссии.</p>
+              <span className="il-logo">REAKTIVO<span>.PRO</span></span>
+              <p>Покупка золота онлайн от 1 грамма.<br />Официальные котировки, прозрачные комиссии.</p>
             </div>
             <div className="il-footer-col">
-              <span className="il-footer-col-title">Продукт</span>
-              <a href="#market" className="il-nav-link" onClick={(e) => goTo(e, '#market')}>Динамика рынка</a>
-              <a href="#calc" className="il-nav-link" onClick={(e) => goTo(e, '#calc')}>Калькулятор выгоды</a>
+              <span className="il-footer-col-title">Разделы</span>
               <a href="#how" className="il-nav-link" onClick={(e) => goTo(e, '#how')}>Как это работает</a>
+              <a href="#about" className="il-nav-link" onClick={(e) => goTo(e, '#about')}>О компании</a>
+              <a href="#calc" className="il-nav-link" onClick={(e) => goTo(e, '#calc')}>Калькулятор выгоды</a>
+              <a href="#market" className="il-nav-link" onClick={(e) => goTo(e, '#market')}>Динамика рынка</a>
               <a href="#faq" className="il-nav-link" onClick={(e) => goTo(e, '#faq')}>FAQ</a>
             </div>
             <div className="il-footer-col">
-              <span className="il-footer-col-title">Кабинет</span>
-              <a href="/kabinet" className="il-nav-link">Войти / регистрация</a>
+              <span className="il-footer-col-title">Продукты</span>
+              <a href="https://reaktivo.ru" className="il-nav-link" target="_blank" rel="noopener noreferrer">Продать золото — Reaktivo.ru</a>
+              <a href="/kabinet" className="il-nav-link">Купить золото — кабинет</a>
+              <span className="il-nav-link il-nav-link--dim">Reaktivo Resale — Telegram</span>
+            </div>
+            <div className="il-footer-col">
+              <span className="il-footer-col-title">Контакты</span>
+              <a href="mailto:team@reaktivo.ru" className="il-nav-link">team@reaktivo.ru</a>
               <a href="/pro" className="il-nav-link il-nav-link--dim">Сотрудникам</a>
+              <span className="il-nav-link il-nav-link--dim">Документы и лицензии — раздел готовится</span>
             </div>
           </div>
           <div className="il-footer-bottom">
@@ -987,8 +1166,7 @@ const CSS = `
 }
 .il-logo { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; color: var(--text-strong); text-decoration: none; white-space: nowrap; }
 .il-logo span { color: var(--accent); }
-.il-logo em { font-style: normal; color: var(--text-muted); font-weight: 600; margin-left: 4px; }
-.il-nav { display: flex; gap: 26px; }
+.il-nav { display: flex; gap: 24px; }
 .il-nav-link { position: relative; color: var(--text-muted); text-decoration: none; font-size: 0.86rem; font-weight: 600; transition: color 0.25s; padding: 4px 0; }
 .il-nav-link::after {
   content: ''; position: absolute; left: 0; bottom: 0; width: 100%; height: 2px;
@@ -1003,8 +1181,8 @@ const CSS = `
 .il-btn {
   position: relative; overflow: hidden;
   display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-  border-radius: 14px; font-weight: 700; font-size: 0.88rem; text-decoration: none;
-  padding: 11px 20px; border: 1px solid transparent; cursor: pointer;
+  border-radius: 14px; font-weight: 700; font-size: 0.9rem; text-decoration: none;
+  padding: 12px 22px; border: 1px solid transparent; cursor: pointer;
   transition: box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease, color 0.3s ease, transform 0.3s cubic-bezier(0.22,1,0.36,1);
   white-space: nowrap; will-change: transform;
 }
@@ -1027,17 +1205,26 @@ const CSS = `
 .il-btn--outline:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
 .il-btn--inverse { background: #fff; color: var(--accent); box-shadow: 0 14px 40px -12px rgba(0,0,0,0.45); }
 .il-btn--inverse:hover { transform: translateY(-2px); }
-.il-btn--lg { padding: 16px 30px; font-size: 0.98rem; border-radius: 16px; }
+.il-btn--lg { padding: 16px 30px; font-size: 1rem; border-radius: 16px; }
+
+/* ── СБП бейдж ── */
+.il-sbp {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em;
+  color: var(--accent); background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 8px; padding: 4px 9px;
+}
 
 /* ── Hero ── */
 .il-hero { position: relative; padding: 150px 28px 100px; overflow: clip; }
 .il-hero-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .il-hero-orb {
-  position: absolute; border-radius: 50%; filter: blur(90px);
-  background: radial-gradient(circle, var(--accent), transparent 70%);
+  position: absolute; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 52%, transparent), transparent 66%);
 }
-.il-hero-orb--1 { width: 520px; height: 520px; top: -200px; right: -140px; opacity: 0.30; }
-.il-hero-orb--2 { width: 380px; height: 380px; bottom: -180px; left: -120px; opacity: 0.18; }
+.il-hero-orb--1 { width: 560px; height: 560px; top: -220px; right: -150px; opacity: 0.5; }
+.il-hero-orb--2 { width: 420px; height: 420px; bottom: -200px; left: -130px; opacity: 0.32; }
 .il-hero-grid {
   position: absolute; inset: 0;
   background-image:
@@ -1064,64 +1251,64 @@ const CSS = `
 @keyframes ilPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.72); } }
 
 .il-hero-title {
-  font-size: clamp(2.3rem, 5.2vw, 3.9rem);
+  font-size: clamp(2.4rem, 5.4vw, 4rem);
   font-weight: 800; line-height: 1.07; letter-spacing: -0.035em;
   margin: 0 0 22px; color: var(--text-strong);
   text-wrap: balance;
 }
 .il-hero-word-clip { display: inline-block; overflow: hidden; vertical-align: bottom; margin-right: 0.26em; padding-bottom: 0.08em; margin-bottom: -0.08em; }
 .il-hero-word { display: inline-block; will-change: transform; }
-.il-hero-sub { font-size: 1.08rem; line-height: 1.65; color: var(--text-muted); max-width: 540px; margin: 0 0 34px; }
+.il-hero-sub { font-size: 1.1rem; line-height: 1.65; color: var(--text-muted); max-width: 560px; margin: 0 0 34px; }
 .il-hero-cta { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 46px; align-items: center; }
 
 .il-hero-stats { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
 .il-hero-stat { display: flex; flex-direction: column; gap: 3px; }
-.il-hero-stat-val { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-strong); font-variant-numeric: tabular-nums; }
-.il-hero-stat-label { font-size: 0.76rem; color: var(--text-dim); font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
-.il-hero-stat-sep { width: 1px; height: 38px; background: var(--stroke); }
+.il-hero-stat-val { font-size: 1.85rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.il-hero-stat-label { font-size: 0.8rem; color: var(--text-dim); font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+.il-hero-stat-sep { width: 1px; height: 42px; background: var(--stroke); }
 .il-live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); display: inline-block; animation: ilPulse 1.6s ease-in-out infinite; }
 
 /* ── Колода карт ── */
 .il-deck-wrap { position: relative; }
-.il-deck { position: relative; height: 400px; cursor: pointer; outline: none; }
+.il-deck { position: relative; height: 420px; cursor: pointer; outline: none; }
 .il-deck-card {
   position: absolute; top: 0; left: 0;
-  width: calc(100% - 72px); height: calc(100% - 60px);
+  width: calc(100% - 96px); height: calc(100% - 78px);
   display: flex; flex-direction: column;
   border-radius: 26px;
-  background: color-mix(in srgb, var(--bg-panel-solid) 90%, transparent);
+  background: color-mix(in srgb, var(--bg-panel-solid) 92%, transparent);
   border: 1px solid var(--stroke);
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 40px 90px -40px rgba(0,0,0,0.5);
   padding: 26px 28px 20px;
   will-change: transform;
 }
-.il-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.il-card-brand { font-weight: 800; font-size: 0.82rem; letter-spacing: 0.02em; color: var(--text-strong); }
+.il-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+.il-card-brand { font-weight: 800; font-size: 0.84rem; letter-spacing: 0.02em; color: var(--text-strong); }
 .il-card-brand i { color: var(--accent); font-style: normal; margin: 0 2px; }
 .il-card-live { display: inline-flex; align-items: center; gap: 6px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--emerald); }
 .il-card-live i { width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); animation: ilPulse 1.6s ease-in-out infinite; }
 .il-card-live--ok i { animation: none; }
-.il-card-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); font-weight: 700; }
-.il-card-big { font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong); font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
-.il-card-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-.il-card-val { font-size: 1rem; font-weight: 700; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.il-card-badge { font-size: 0.7rem; font-weight: 800; color: var(--emerald); background: var(--emerald-soft); padding: 4px 10px; border-radius: 100px; }
-.il-card-spark { width: 100%; flex: 1; min-height: 48px; display: block; margin-bottom: 14px; }
-.il-card-bars { flex: 1; display: flex; align-items: flex-end; gap: 6px; margin-bottom: 14px; min-height: 56px; }
+.il-card-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); font-weight: 700; }
+.il-card-big { font-size: 2.3rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong); font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
+.il-card-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.il-card-val { font-size: 1.1rem; font-weight: 700; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.il-card-badge { font-size: 0.72rem; font-weight: 800; color: var(--emerald); background: var(--emerald-soft); padding: 4px 10px; border-radius: 100px; }
+.il-card-spark { width: 100%; flex: 1; min-height: 44px; display: block; margin-bottom: 14px; }
+.il-card-bars { flex: 1; display: flex; align-items: flex-end; gap: 6px; margin-bottom: 14px; min-height: 52px; }
 .il-card-bars span { flex: 1; border-radius: 4px 4px 2px 2px; background: color-mix(in srgb, var(--accent) 22%, var(--stroke)); }
 .il-card-bars span.is-hot { background: var(--accent); animation: ilPulse 1.8s ease-in-out infinite; }
 .il-card-checks { list-style: none; margin: 2px 0 14px; padding: 0; display: flex; flex-direction: column; gap: 9px; flex: 1; }
-.il-card-checks li { display: flex; align-items: center; gap: 10px; font-size: 0.84rem; font-weight: 600; color: var(--text-muted); }
+.il-card-checks li { display: flex; align-items: center; gap: 10px; font-size: 0.86rem; font-weight: 600; color: var(--text-muted); }
 .il-card-check { display: inline-flex; width: 20px; height: 20px; border-radius: 50%; background: var(--emerald-soft); color: var(--emerald); align-items: center; justify-content: center; flex-shrink: 0; }
 .il-card-check svg { width: 12px; height: 12px; }
-.il-card-foot { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-dim); font-weight: 600; border-top: 1px solid var(--stroke-soft); padding-top: 14px; }
+.il-card-foot { display: flex; justify-content: space-between; font-size: 0.74rem; color: var(--text-dim); font-weight: 600; border-top: 1px solid var(--stroke-soft); padding-top: 14px; }
 .il-deck-dots { display: flex; gap: 8px; justify-content: center; margin-top: 6px; }
 .il-deck-dot {
-  width: 22px; height: 5px; border-radius: 100px; border: none; cursor: pointer; padding: 0;
+  width: 20px; height: 5px; border-radius: 100px; border: none; cursor: pointer; padding: 0;
   background: var(--stroke); transition: background 0.3s ease, width 0.3s cubic-bezier(0.22,1,0.36,1);
 }
-.il-deck-dot.is-active { background: var(--accent); width: 34px; }
+.il-deck-dot.is-active { background: var(--accent); width: 32px; }
 
 /* ── Marquee ── */
 .il-marquee {
@@ -1131,12 +1318,12 @@ const CSS = `
   mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
   -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
 }
-.il-marquee-track { display: flex; width: max-content; animation: ilMarquee 36s linear infinite; }
+.il-marquee-track { display: flex; width: max-content; animation: ilMarquee 40s linear infinite; }
 .il-marquee:hover .il-marquee-track { animation-play-state: paused; }
 @keyframes ilMarquee { to { transform: translateX(-50%); } }
 .il-marquee-item {
   display: inline-flex; align-items: center; gap: 28px; padding-right: 28px;
-  font-size: 0.82rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  font-size: 0.84rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
   color: var(--text-dim); white-space: nowrap;
 }
 .il-marquee-item i { font-style: normal; color: var(--accent); font-size: 0.6rem; }
@@ -1144,18 +1331,21 @@ const CSS = `
 /* ── Секции ── */
 .il-section { padding: 100px 0; position: relative; z-index: 2; }
 .il-section--alt { background: color-mix(in srgb, var(--bg-panel-solid) 42%, transparent); }
-.il-section-head { text-align: center; max-width: 680px; margin: 0 auto 56px; }
+.il-section-head { text-align: center; max-width: 720px; margin: 0 auto 56px; }
 .il-pill {
-  display: inline-block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
-  color: var(--accent); background: var(--accent-soft);
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
-  padding: 6px 14px; border-radius: 100px; margin-bottom: 18px;
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-panel-solid) 75%, transparent);
+  border: 1px solid var(--stroke);
+  padding: 7px 15px; border-radius: 100px; margin-bottom: 18px;
 }
+.il-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
 .il-h2 {
-  font-size: clamp(1.75rem, 3.4vw, 2.6rem); font-weight: 800; letter-spacing: -0.03em;
+  font-size: clamp(1.85rem, 3.6vw, 2.75rem); font-weight: 800; letter-spacing: -0.03em;
   margin: 0 0 16px; color: var(--text-strong); line-height: 1.14; text-wrap: balance;
 }
-.il-p { font-size: 1rem; line-height: 1.7; color: var(--text-muted); margin: 0; }
+.il-p { font-size: 1.02rem; line-height: 1.7; color: var(--text-muted); margin: 0; }
 
 /* ── Превью кабинета ── */
 .il-section--preview { padding-bottom: 40px; }
@@ -1174,33 +1364,40 @@ const CSS = `
 .il-preview-dots { display: inline-flex; gap: 6px; }
 .il-preview-dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--stroke); display: inline-block; }
 .il-preview-url {
-  font-size: 0.72rem; font-weight: 600; color: var(--text-dim);
+  font-size: 0.74rem; font-weight: 600; color: var(--text-dim);
   background: color-mix(in srgb, var(--stroke-soft) 60%, transparent);
   border: 1px solid var(--stroke-soft); border-radius: 100px; padding: 5px 16px;
 }
-.il-preview-body { display: grid; grid-template-columns: 64px 1fr; min-height: 380px; }
+.il-preview-body { display: grid; grid-template-columns: 64px 1fr; min-height: 400px; }
 .il-preview-side { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 18px 0; border-right: 1px solid var(--stroke-soft); }
 .il-preview-logo { width: 26px; height: 26px; border-radius: 8px; background: var(--accent); margin-bottom: 10px; }
 .il-preview-navitem { width: 22px; height: 22px; border-radius: 7px; background: var(--stroke-soft); }
 .il-preview-navitem.is-active { background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
 .il-preview-main { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
 .il-preview-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.il-preview-kpi { border: 1px solid var(--stroke-soft); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; }
+.il-preview-kpi { border: 1px solid var(--stroke-soft); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
 .il-preview-kpi--pos .il-preview-kpi-val { color: var(--emerald); }
-.il-preview-kpi-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 700; }
-.il-preview-kpi-val { font-size: 0.98rem; font-weight: 800; color: var(--text-strong); font-variant-numeric: tabular-nums; }
-.il-preview-chart { flex: 1; min-height: 150px; }
+.il-preview-kpi-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 700; }
+.il-preview-kpi-val { font-size: 1.2rem; font-weight: 800; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.il-preview-clocks { display: flex; gap: 10px; flex-wrap: wrap; }
+.il-preview-clock {
+  display: inline-flex; align-items: baseline; gap: 8px;
+  border: 1px solid var(--stroke-soft); border-radius: 100px; padding: 7px 14px;
+}
+.il-preview-clock i { font-style: normal; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); }
+.il-preview-clock b { font-size: 0.85rem; font-weight: 800; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.il-preview-chart { flex: 1; min-height: 120px; }
 .il-preview-rows { display: flex; flex-direction: column; gap: 8px; }
 .il-preview-row {
   display: flex; justify-content: space-between; align-items: center;
   border: 1px solid var(--stroke-soft); border-radius: 12px; padding: 10px 14px;
-  font-size: 0.78rem; font-weight: 600; color: var(--text-dim);
+  font-size: 0.8rem; font-weight: 600; color: var(--text-dim);
 }
 .il-preview-row .is-buy { color: var(--emerald); font-weight: 700; }
 .il-preview-row .is-sell { color: var(--accent); font-weight: 700; }
 .il-preview-chip {
   position: absolute; z-index: 3;
-  font-size: 0.76rem; font-weight: 800; color: var(--text-strong);
+  font-size: 0.78rem; font-weight: 800; color: var(--text-strong);
   background: color-mix(in srgb, var(--bg-panel-solid) 92%, transparent);
   border: 1px solid var(--stroke); border-radius: 100px; padding: 9px 16px;
   box-shadow: 0 18px 40px -18px rgba(0,0,0,0.4);
@@ -1214,28 +1411,34 @@ const CSS = `
 .il-statement { padding: 130px 0 110px; }
 .il-statement-text {
   max-width: 900px; margin: 0 auto; text-align: center;
-  font-size: clamp(1.6rem, 3.8vw, 2.7rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.3;
+  font-size: clamp(1.7rem, 3.9vw, 2.8rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.3;
   color: var(--text-strong); text-wrap: balance;
 }
 .il-statement-word { display: inline-block; }
 
 /* ── Market ── */
 .il-market-grid { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); gap: 56px; align-items: center; }
-.il-market-stats { display: flex; align-items: center; gap: 22px; margin-top: 30px; flex-wrap: wrap; }
+.il-h2--market { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.il-market-mult-big {
+  font-size: clamp(3.2rem, 7vw, 5rem); font-weight: 800; letter-spacing: -0.04em;
+  color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1;
+}
+.il-market-mult-cap { font-size: clamp(1.15rem, 2vw, 1.5rem); color: var(--text-strong); font-weight: 800; letter-spacing: -0.02em; }
+.il-market-slogan { font-size: 1.15rem; font-weight: 700; color: var(--text-strong); margin: 0 0 14px; }
+.il-market-stats { display: flex; align-items: center; gap: 22px; margin-top: 28px; flex-wrap: wrap; }
 .il-market-arrow { color: var(--text-dim); font-size: 1.3rem; }
-.il-stat-label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); font-weight: 700; margin-bottom: 5px; }
-.il-stat-val { display: block; font-size: 1.45rem; font-weight: 800; color: var(--text-strong); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
-.il-market-mult { font-size: 0.82rem; font-weight: 800; color: var(--accent); background: var(--accent-soft); padding: 8px 14px; border-radius: 100px; }
+.il-stat-label { display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); font-weight: 700; margin-bottom: 5px; }
+.il-stat-val { display: block; font-size: 1.7rem; font-weight: 800; color: var(--text-strong); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .il-market-chips { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
 .il-market-chip {
-  font-size: 0.76rem; font-weight: 700; color: var(--text-muted);
-  border: 1px solid var(--stroke); border-radius: 100px; padding: 7px 14px;
+  font-size: 0.8rem; font-weight: 700; color: var(--text-muted);
+  border: 1px solid var(--stroke); border-radius: 100px; padding: 8px 15px;
 }
 .il-market-chart {
   background: var(--bg-panel-solid); border: 1px solid var(--stroke); border-radius: 22px; padding: 22px 18px;
   box-shadow: 0 30px 70px -40px rgba(0,0,0,0.4);
 }
-.il-market-loading { display: flex; align-items: center; justify-content: center; height: 290px; color: var(--text-muted); font-size: 0.88rem; }
+.il-market-loading { display: flex; align-items: center; justify-content: center; height: 290px; color: var(--text-muted); font-size: 0.9rem; }
 
 /* ── Шаги ── */
 .il-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
@@ -1247,13 +1450,46 @@ const CSS = `
 .il-step:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke)); box-shadow: 0 24px 48px -28px color-mix(in srgb, var(--accent) 35%, transparent); }
 .il-step-head { position: relative; display: flex; align-items: center; margin-bottom: 18px; }
 .il-step-n {
-  display: inline-block; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.06em;
+  display: inline-block; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.06em;
   color: var(--accent); background: var(--accent-soft);
   padding: 6px 12px; border-radius: 100px;
 }
 .il-step-line { position: absolute; left: calc(100% - 46px); right: -44px; top: 50%; height: 2px; background: linear-gradient(90deg, var(--stroke), transparent); }
-.il-step-title { font-size: 1.05rem; font-weight: 800; margin: 0 0 10px; color: var(--text-strong); letter-spacing: -0.01em; }
-.il-step-text { font-size: 0.87rem; line-height: 1.6; color: var(--text-muted); margin: 0; }
+.il-step-title { font-size: 1.08rem; font-weight: 800; margin: 0 0 10px; color: var(--text-strong); letter-spacing: -0.01em; }
+.il-step-text { font-size: 0.89rem; line-height: 1.6; color: var(--text-muted); margin: 0; }
+
+/* ── СБП секция ── */
+.il-sbp-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr); gap: 56px; align-items: center; }
+.il-sbp-list { list-style: none; margin: 6px 0 28px; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.il-sbp-list li { display: flex; align-items: center; gap: 12px; font-size: 0.98rem; font-weight: 600; color: var(--text-muted); }
+.il-sbp-visual-wrap { position: relative; }
+.il-sbp-sheet {
+  background: var(--bg-panel-solid); border: 1px solid var(--stroke); border-radius: 24px;
+  padding: 26px 28px; max-width: 420px; margin: 0 auto;
+  box-shadow: 0 40px 90px -40px rgba(0,0,0,0.5);
+}
+.il-sbp-sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-size: 0.8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+.il-sbp-sheet-amount { font-size: 2.4rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong); font-variant-numeric: tabular-nums; margin-bottom: 18px; }
+.il-sbp-sheet-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  border-top: 1px solid var(--stroke-soft); padding: 13px 0; font-size: 0.88rem;
+}
+.il-sbp-sheet-row span { color: var(--text-dim); font-weight: 600; }
+.il-sbp-sheet-row b { color: var(--text-strong); font-weight: 700; }
+.il-sbp-ok { color: var(--emerald) !important; }
+.il-sbp-sheet-btn {
+  margin-top: 16px; text-align: center; background: var(--accent); color: #fff;
+  font-weight: 800; font-size: 0.95rem; border-radius: 14px; padding: 14px;
+}
+.il-sbp-mini {
+  position: absolute; right: 2%; bottom: -26px;
+  display: flex; flex-direction: column; gap: 2px;
+  background: color-mix(in srgb, var(--bg-panel-solid) 94%, transparent);
+  border: 1px solid var(--stroke); border-radius: 16px; padding: 12px 18px;
+  box-shadow: 0 18px 40px -18px rgba(0,0,0,0.4);
+}
+.il-sbp-mini span { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
+.il-sbp-mini b { font-size: 1.05rem; font-weight: 800; color: var(--emerald); font-variant-numeric: tabular-nums; }
 
 /* ── Преимущества ── */
 .il-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
@@ -1268,15 +1504,33 @@ const CSS = `
   background: var(--accent-soft); color: var(--accent); margin-bottom: 18px;
 }
 .il-card-icon svg { width: 24px; height: 24px; }
-.il-card-title { font-size: 1.02rem; font-weight: 800; margin: 0 0 9px; color: var(--text-strong); letter-spacing: -0.01em; }
-.il-card-text { font-size: 0.87rem; line-height: 1.6; color: var(--text-muted); margin: 0; }
+.il-card-title { font-size: 1.04rem; font-weight: 800; margin: 0 0 9px; color: var(--text-strong); letter-spacing: -0.01em; }
+.il-card-text { font-size: 0.89rem; line-height: 1.6; color: var(--text-muted); margin: 0; }
+
+/* ── О компании ── */
+.il-about-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 48px; align-items: start; }
+.il-about-text p { margin: 0 0 16px; font-size: 1rem; line-height: 1.75; color: var(--text-muted); }
+.il-about-text p:last-child { margin-bottom: 0; }
+.il-products { display: flex; flex-direction: column; gap: 14px; }
+.il-product {
+  display: block; text-decoration: none;
+  background: var(--bg-panel-solid); border: 1px solid var(--stroke); border-radius: 18px; padding: 20px 22px;
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
+}
+.il-product:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke)); box-shadow: 0 24px 48px -28px color-mix(in srgb, var(--accent) 30%, transparent); }
+.il-product--main { border-color: color-mix(in srgb, var(--accent) 40%, var(--stroke)); background: linear-gradient(140deg, var(--accent-soft), var(--bg-panel-solid) 55%); }
+.il-product-tag { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+.il-product-title { font-size: 1.12rem; font-weight: 800; color: var(--text-strong); margin: 6px 0 6px; letter-spacing: -0.01em; }
+.il-product-text { font-size: 0.88rem; line-height: 1.55; color: var(--text-muted); margin: 0 0 10px; }
+.il-product-link { font-size: 0.84rem; font-weight: 700; color: var(--accent); }
+.il-product-link--dim { color: var(--text-dim); }
 
 /* ── Цифры ── */
 .il-section--kpi { padding: 84px 0; }
 .il-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; text-align: center; }
-.il-kpi { display: flex; flex-direction: column; gap: 8px; padding: 26px 14px; border-radius: 20px; border: 1px solid var(--stroke-soft); }
-.il-kpi-val { font-size: clamp(1.9rem, 3.4vw, 2.7rem); font-weight: 800; letter-spacing: -0.03em; color: var(--accent); font-variant-numeric: tabular-nums; }
-.il-kpi-label { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
+.il-kpi { display: flex; flex-direction: column; gap: 8px; padding: 28px 14px; border-radius: 20px; border: 1px solid var(--stroke-soft); }
+.il-kpi-val { font-size: clamp(2.3rem, 4.2vw, 3.3rem); font-weight: 800; letter-spacing: -0.03em; color: var(--accent); font-variant-numeric: tabular-nums; }
+.il-kpi-label { font-size: 0.84rem; color: var(--text-muted); font-weight: 600; }
 
 /* ── FAQ ── */
 .il-faq { display: flex; flex-direction: column; gap: 12px; }
@@ -1288,65 +1542,71 @@ const CSS = `
 .il-faq-q {
   width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px;
   background: none; border: none; padding: 20px 24px; text-align: left; cursor: pointer;
-  font-size: 0.98rem; font-weight: 700; color: var(--text-strong); font-family: inherit;
+  font-size: 1rem; font-weight: 700; color: var(--text-strong); font-family: inherit;
 }
 .il-faq-plus { display: inline-flex; font-size: 1.35rem; color: var(--accent); font-weight: 600; flex-shrink: 0; line-height: 1; }
-.il-faq-a { margin: 0; padding: 0 24px 22px; font-size: 0.9rem; line-height: 1.65; color: var(--text-muted); }
+.il-faq-a { margin: 0; padding: 0 24px 22px; font-size: 0.92rem; line-height: 1.65; color: var(--text-muted); }
 
 /* ── CTA ── */
 .il-section--cta { padding-bottom: 72px; }
 .il-cta-panel {
-  position: relative; overflow: hidden; text-align: center;
-  background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000));
+  position: relative; overflow: hidden; text-align: center; isolation: isolate;
+  background:
+    radial-gradient(circle at 10% -10%, rgba(255,255,255,0.24), transparent 42%),
+    radial-gradient(circle at 92% 110%, rgba(255,255,255,0.16), transparent 46%),
+    linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000));
   border-radius: 30px; padding: 78px 32px;
   box-shadow: 0 40px 90px -40px color-mix(in srgb, var(--accent) 60%, transparent);
 }
-.il-cta-orb { position: absolute; border-radius: 50%; filter: blur(70px); background: rgba(255,255,255,0.28); pointer-events: none; }
-.il-cta-orb--1 { width: 320px; height: 320px; top: -160px; left: -80px; }
-.il-cta-orb--2 { width: 260px; height: 260px; bottom: -140px; right: -60px; opacity: 0.6; }
-.il-cta-title { position: relative; font-size: clamp(1.7rem, 3.4vw, 2.5rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; color: #fff; margin: 0 0 14px; }
-.il-cta-sub { position: relative; font-size: 1rem; color: rgba(255,255,255,0.82); margin: 0 0 30px; }
+.il-cta-title { position: relative; font-size: clamp(1.8rem, 3.6vw, 2.6rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; color: #fff; margin: 0 0 14px; }
+.il-cta-sub { position: relative; font-size: 1.02rem; color: rgba(255,255,255,0.82); margin: 0 0 30px; }
 .il-cta-panel .il-magnetic { position: relative; }
-.il-disclaimer { font-size: 0.72rem; color: var(--text-dim); line-height: 1.55; max-width: 640px; margin: 26px auto 0; text-align: center; }
+.il-disclaimer { font-size: 0.74rem; color: var(--text-dim); line-height: 1.55; max-width: 640px; margin: 26px auto 0; text-align: center; }
 
 /* ── Footer ── */
 .il-footer { border-top: 1px solid var(--stroke-soft); padding: 48px 0 28px; }
-.il-footer-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 36px; margin-bottom: 36px; }
-.il-footer-brand p { margin: 12px 0 0; font-size: 0.85rem; line-height: 1.6; color: var(--text-muted); }
+.il-footer-grid { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 32px; margin-bottom: 36px; }
+.il-footer-brand p { margin: 12px 0 0; font-size: 0.87rem; line-height: 1.6; color: var(--text-muted); }
 .il-footer-col { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
-.il-footer-col-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; color: var(--text-dim); margin-bottom: 4px; }
+.il-footer-col-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; color: var(--text-dim); margin-bottom: 4px; }
 .il-footer-bottom {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
   border-top: 1px solid var(--stroke-soft); padding-top: 22px;
-  font-size: 0.76rem; color: var(--text-dim);
+  font-size: 0.78rem; color: var(--text-dim);
 }
 .il-nav-link--dim { color: var(--text-dim); font-weight: 500; }
 
 /* ── Адаптив ── */
 @media (max-width: 1020px) {
   .il-hero-inner { grid-template-columns: 1fr; gap: 52px; }
-  .il-deck-wrap { max-width: 480px; margin: 0 auto; width: 100%; }
+  .il-deck-wrap { max-width: 500px; margin: 0 auto; width: 100%; }
   .il-market-grid { grid-template-columns: 1fr; gap: 40px; }
+  .il-sbp-grid { grid-template-columns: 1fr; gap: 44px; }
+  .il-about-grid { grid-template-columns: 1fr; gap: 36px; }
   .il-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .il-step-line { display: none; }
   .il-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .il-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .il-footer-grid { grid-template-columns: 1fr 1fr; }
   .il-preview-chip--1 { left: 8px; }
   .il-preview-chip--2 { right: 8px; }
 }
 @media (max-width: 720px) {
   .il-nav { display: none; }
   .il-hero { padding: 118px 20px 64px; }
-  .il-hero-title { font-size: clamp(2rem, 9vw, 2.6rem); }
+  .il-hero-title { font-size: clamp(2.1rem, 9.4vw, 2.7rem); }
   .il-hero-stats { gap: 18px; }
   .il-hero-stat-sep { display: none; }
+  .il-hero-stat-val { font-size: 1.6rem; }
   .il-section { padding: 68px 0; }
   .il-section-head { margin-bottom: 38px; }
-  .il-deck { height: 380px; }
-  .il-deck-card { width: calc(100% - 48px); }
+  .il-deck { height: 400px; }
+  .il-deck-card { width: calc(100% - 52px); height: calc(100% - 66px); padding: 22px 22px 16px; }
+  .il-card-big { font-size: 2rem; }
   .il-statement { padding: 84px 0 70px; }
   .il-steps { grid-template-columns: 1fr; }
   .il-cards { grid-template-columns: 1fr; }
+  .il-sbp-mini { right: 0; bottom: -20px; }
   .il-preview-body { grid-template-columns: 1fr; }
   .il-preview-side { display: none; }
   .il-preview-kpis { grid-template-columns: 1fr 1fr; }

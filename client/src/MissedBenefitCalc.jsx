@@ -230,7 +230,7 @@ const MBC_CSS = `
   padding: 4px 10px; border-radius: 100px;
 }
 .mbc-title { font-size: 1rem; font-weight: 700; margin: 0 0 4px; color: var(--text-strong); letter-spacing: -0.01em; }
-.mbc-title--lg { font-size: 1.3rem; }
+.mbc-title--lg { font-size: 1.5rem; }
 .mbc-sub { margin: 0 0 12px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; }
 .mbc-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 700; }
 .mbc-muted { color: var(--text-muted); font-size: 0.88rem; display: flex; align-items: center; gap: 8px; }
@@ -247,8 +247,8 @@ const MBC_CSS = `
 .mbc-chart { margin: 2px -4px 0; }
 .mbc-sliders { display: flex; flex-direction: column; gap: 16px; margin: 8px 0 16px; }
 .mbc-slider { display: flex; flex-direction: column; gap: 6px; }
-.mbc-slider-head { display: flex; justify-content: space-between; font-size: 0.82rem; color: var(--text-muted); }
-.mbc-slider-head strong { color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.mbc-slider-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.85rem; color: var(--text-muted); }
+.mbc-slider-head strong { color: var(--text-strong); font-variant-numeric: tabular-nums; font-size: 1.1rem; }
 .mbc-slider input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
 .mbc-slider-ends { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-dim, var(--text-muted)); }
 .mbc-result { display: flex; flex-direction: column; gap: 10px; }
@@ -257,15 +257,15 @@ const MBC_CSS = `
   padding: 14px 16px;
 }
 .mbc-result-nums { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 6px; }
-.mbc-profit { font-size: 1.45rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.mbc-pct-lg { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.mbc-profit { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.mbc-pct-lg { font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .mbc-result-today {
   border-radius: 14px; padding: 14px 16px;
   background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #000));
   color: #fff; display: flex; flex-direction: column; gap: 4px;
 }
 .mbc-result-today .mbc-label { color: rgba(255,255,255,0.75); }
-.mbc-result-today-val { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.mbc-result-today-val { font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .mbc-disclaimer { margin: 8px 0 0; font-size: 0.68rem; color: var(--text-dim, var(--text-muted)); line-height: 1.4; }
 .mbc-compact { padding: 16px 18px; }
 .mbc-compact-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
