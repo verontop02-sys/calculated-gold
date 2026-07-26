@@ -7,6 +7,12 @@ function formatMoney(n) {
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(Number(n));
 }
 
+/** Сумма без знака — для префикса «±», чтобы не было «+ −620 ₽» как у убытка. */
+function formatMoneyAbs(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '—';
+  return formatMoney(Math.abs(Number(n)));
+}
+
 /**
  * Калькулятор упущенной выгоды по официальному курсу ЦБ РФ.
  * Не требует авторизации (эндпоинт /api/public/fintech/cbr-gold-history публичный) —
@@ -83,8 +89,8 @@ export function MissedBenefitCalc({ compact = false, onOpenFull }) {
         </div>
         {result ? (
           <div className="mbc-compact-res">
-            <span className="mbc-pos">+{formatMoney(result.profit)}</span>
-            <span className="mbc-pct mbc-pos">+{Math.round(result.pct).toLocaleString('ru-RU')}%</span>
+            <span className="mbc-pos">±{formatMoneyAbs(result.profit)}</span>
+            <span className="mbc-pct mbc-pos">±{Math.abs(Math.round(result.pct)).toLocaleString('ru-RU')}%</span>
           </div>
         ) : (
           <p className="mbc-muted" style={{ margin: 0 }}>{points === null ? 'Считаем…' : 'Нет данных'}</p>
@@ -183,8 +189,8 @@ export function MissedBenefitCalc({ compact = false, onOpenFull }) {
           <div className="mbc-result-box">
             <span className="mbc-label">Вы могли бы заработать</span>
             <div className="mbc-result-nums">
-              <span className="mbc-profit mbc-pos">+ {formatMoney(result.profit)}</span>
-              <span className="mbc-pct-lg mbc-pos">+{Math.round(result.pct).toLocaleString('ru-RU')}%</span>
+              <span className="mbc-profit mbc-pos">±{formatMoneyAbs(result.profit)}</span>
+              <span className="mbc-pct-lg mbc-pos">±{Math.abs(Math.round(result.pct)).toLocaleString('ru-RU')}%</span>
             </div>
             <p className="mbc-disclaimer">*без учёта уплаты НДФЛ и комиссий</p>
           </div>
