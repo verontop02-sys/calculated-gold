@@ -1004,12 +1004,12 @@ export function InvestLanding() {
                   <p className="il-product-text">От 1 грамма онлайн. Reaktivo — ваш агент и покупает золото по выгодному курсу.</p>
                   <span className="il-product-link">Открыть кабинет →</span>
                 </motion.a>
-                <motion.div className="il-product" variants={staggerChild} whileHover={{ y: -6 }}>
+                <motion.a className="il-product" href="https://t.me/Reaktivoai" target="_blank" rel="noopener noreferrer" variants={staggerChild} whileHover={{ y: -6 }}>
                   <span className="il-product-tag">Telegram</span>
                   <h3 className="il-product-title">Reaktivo Resale</h3>
                   <p className="il-product-text">Продажа ювелирных украшений в Telegram-канале.</p>
-                  <span className="il-product-link il-product-link--dim">Канал в Telegram</span>
-                </motion.div>
+                  <span className="il-product-link">Канал в Telegram →</span>
+                </motion.a>
               </motion.div>
             </div>
           </div>
