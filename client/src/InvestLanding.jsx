@@ -12,12 +12,22 @@ import {
 } from 'motion/react';
 import Lenis from 'lenis';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
-import { clientApi, fintechApi } from './api.js';
+import { clientApi, fintechApi, getClientToken, getFintechToken } from './api.js';
 import { ThemeToggle } from './ThemeToggle.jsx';
 import { MissedBenefitCalc } from './MissedBenefitCalc.jsx';
 
 const EASE = [0.22, 1, 0.36, 1];
 const SPRING = { type: 'spring', stiffness: 230, damping: 28, mass: 0.9 };
+
+/** «Топычканов Никита Сергеевич» → «Топычканов Н.С.» */
+function formatSurnameInitials(fullName) {
+  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '';
+  if (parts.length === 1) return parts[0];
+  const surname = parts[0];
+  const initials = parts.slice(1).map((w) => `${w[0].toUpperCase()}.`).join('');
+  return `${surname} ${initials}`;
+}
 
 function formatMoney(n) {
   if (n == null || !Number.isFinite(Number(n))) return '—';
@@ -606,6 +616,8 @@ export function InvestLanding() {
   const [history, setHistory] = useState(null);
   const [openFaq, setOpenFaq] = useState(-1);
   const [scrolled, setScrolled] = useState(false);
+  // Если пользователь уже в кабинете — в шапке фамилия с инициалами вместо «Войти»
+  const [headerUser, setHeaderUser] = useState(null);
   const lenisRef = useRef(null);
   const heroRef = useRef(null);
   const chartBoxRef = useRef(null);
@@ -620,6 +632,41 @@ export function InvestLanding() {
   const orbY2 = useTransform(heroProgress, [0, 1], [0, -110]);
   const heroFade = useTransform(heroProgress, [0, 0.85], [1, 0]);
   const deckY = useTransform(heroProgress, [0, 1], [0, 100]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      async function fromFintechProfile() {
+        const p = await fintechApi.profile();
+        const short = formatSurnameInitials(p?.fullName);
+        if (short) return short;
+        return p?.phoneMasked || 'Кабинет';
+      }
+      try {
+        if (getFintechToken()) {
+          const label = await fromFintechProfile();
+          if (!cancelled) setHeaderUser(label);
+          return;
+        }
+        const clientToken = getClientToken();
+        if (!clientToken) return;
+        // Тихий обмен клиентской сессии на fintech — чтобы взять ФИО, если оно уже есть
+        try {
+          await fintechApi.sessionFromClient(clientToken);
+          const label = await fromFintechProfile();
+          if (!cancelled) setHeaderUser(label);
+          return;
+        } catch {
+          /* нет fintech-профиля — покажем маску телефона из кабинета скупки */
+        }
+        const me = await clientApi.me();
+        if (!cancelled) setHeaderUser(me?.phoneMasked || 'Кабинет');
+      } catch {
+        if (!cancelled) setHeaderUser(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (prefersReducedMotion()) return undefined;
@@ -697,7 +744,15 @@ export function InvestLanding() {
           </nav>
           <div className="il-header-actions">
             <ThemeToggle />
-            <motion.a href="/kabinet" className="il-btn il-btn--ghost" whileHover={{ y: -1 }} whileTap={{ scale: 0.97 }}>Войти</motion.a>
+            <motion.a
+              href="/kabinet"
+              className={`il-btn il-btn--ghost${headerUser ? ' il-btn--user' : ''}`}
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.97 }}
+              title={headerUser ? 'Открыть кабинет' : 'Войти в кабинет'}
+            >
+              {headerUser || 'Войти'}
+            </motion.a>
           </div>
         </div>
       </header>
@@ -1202,6 +1257,19 @@ const CSS = `
 .il-btn--primary:hover::after { left: 130%; }
 .il-btn--ghost { background: transparent; border-color: var(--stroke); color: var(--text); }
 .il-btn--ghost:hover { border-color: var(--accent); color: var(--accent); }
+.il-btn--user {
+  max-width: min(220px, 42vw);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--stroke));
+  background: var(--accent-soft);
+  color: var(--text-strong);
+}
+:root[data-theme='dark'] .il-btn--user {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-strong);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.il-btn--user:hover { color: var(--accent); }
 .il-btn--outline { background: color-mix(in srgb, var(--bg-panel-solid) 60%, transparent); border-color: var(--stroke); color: var(--text-strong); backdrop-filter: blur(6px); }
 .il-btn--outline:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
 .il-btn--inverse { background: #fff; color: var(--accent); box-shadow: 0 14px 40px -12px rgba(0,0,0,0.45); }
