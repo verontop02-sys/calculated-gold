@@ -11,11 +11,12 @@
  */
 import crypto from 'crypto';
 
+// Минимальная покупка 0.01 г — правка Руслана: порог входа максимально низкий.
 const DEFAULT_SETTINGS = {
   buyFeePercent: 1.5,
   sellFeePercent: 1.5,
-  minPurchaseGrams: 1,
-  minSellGrams: 1,
+  minPurchaseGrams: 0.01,
+  minSellGrams: 0.01,
 };
 
 async function getKv(supabase, key) {
@@ -106,8 +107,9 @@ export async function buyGold(supabase, { clientId, rubAmount, grams, idempotenc
     throw err;
   }
 
-  if (gramsBought < Number(settings.minPurchaseGrams || 1)) {
-    const err = new Error(`Минимальная покупка — ${settings.minPurchaseGrams || 1} г`);
+  // 1e-9 — защита от плавающей точки: покупка «на сумму» может дать 0.00999999 вместо 0.01.
+  if (gramsBought < Number(settings.minPurchaseGrams || 0.01) - 1e-9) {
+    const err = new Error(`Минимальная покупка — ${settings.minPurchaseGrams || 0.01} г`);
     err.status = 400;
     throw err;
   }
@@ -186,8 +188,8 @@ export async function sellGold(supabase, { clientId, grams, rubAmount, idempoten
     throw err;
   }
 
-  if (gramsSold < Number(settings.minSellGrams || 1)) {
-    const err = new Error(`Минимальная продажа — ${settings.minSellGrams || 1} г`);
+  if (gramsSold < Number(settings.minSellGrams || 0.01) - 1e-9) {
+    const err = new Error(`Минимальная продажа — ${settings.minSellGrams || 0.01} г`);
     err.status = 400;
     throw err;
   }
@@ -323,8 +325,8 @@ export async function getClientPortfolio(supabase, clientId) {
     // Комиссия при покупке/продаже — клиент видит её до подтверждения.
     buyFeePercent: settings ? Number(settings.buyFeePercent || 0) : null,
     sellFeePercent: settings ? Number(settings.sellFeePercent || 0) : null,
-    minPurchaseGrams: settings ? Number(settings.minPurchaseGrams || 1) : 1,
-    minSellGrams: settings ? Number(settings.minSellGrams || 1) : 1,
+    minPurchaseGrams: settings ? Number(settings.minPurchaseGrams || 0.01) : 0.01,
+    minSellGrams: settings ? Number(settings.minSellGrams || 0.01) : 0.01,
   };
 }
 

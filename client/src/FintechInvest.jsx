@@ -57,7 +57,7 @@ function formatPhoneInput(raw) {
  * Дизайн переиспользует общие cpx-* стили кабинета (см. ClientPortal.jsx) —
  * никакой отдельной темы/CSS-блока здесь нет, чтобы вкладка не выглядела чужой.
  */
-export function FintechInvest({ clientToken = '' }) {
+export function FintechInvest({ clientToken = '', expectedPhone = '' }) {
   const [phase, setPhase] = useState('checking'); // checking | login | app
   const [profile, setProfile] = useState(null);
   const [loadErr, setLoadErr] = useState('');
@@ -74,8 +74,14 @@ export function FintechInvest({ clientToken = '' }) {
   const ensureSession = useCallback(async () => {
     if (getFintechToken()) {
       try {
-        await loadProfile();
-        return true;
+        const p = await loadProfile();
+        // Сохранённый fintech-токен может принадлежать предыдущему пользователю
+        // этого устройства — сверяем с телефоном текущей клиентской сессии.
+        const last10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
+        const mismatch = expectedPhone && p?.phoneNormalized && last10(p.phoneNormalized) !== last10(expectedPhone);
+        if (!mismatch) return true;
+        setProfile(null);
+        setFintechToken('');
       } catch (e) {
         // Стейл-токен: ниже попробуем обмен из client-сессии.
         if (e?.status !== 401) {
@@ -97,7 +103,7 @@ export function FintechInvest({ clientToken = '' }) {
     }
     setPhase('login');
     return false;
-  }, [clientToken, loadProfile]);
+  }, [clientToken, expectedPhone, loadProfile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -159,7 +165,7 @@ export function FintechInvest({ clientToken = '' }) {
   if (profile.status === 'blocked') {
     return (
       <div className="cpx-card">
-        <p className="cpx-err">Доступ к инвестициям заблокирован. Обратитесь к менеджеру Reaktivo.</p>
+        <p className="cpx-err">Доступ к покупке золота заблокирован. Обратитесь к менеджеру Reaktivo.</p>
       </div>
     );
   }
@@ -225,7 +231,7 @@ function FintechLogin({ onDone }) {
 
   return (
     <div className="cpx-card cpx-login">
-      <h1 className="cpx-title">Инвестиции в золото</h1>
+      <h1 className="cpx-title">Покупка золота</h1>
       <p className="cpx-sub">
         Отдельный вход — свой код защищает доступ к деньгам, даже если сессия кабинета скупки уже открыта на этом телефоне.
       </p>
@@ -511,12 +517,25 @@ const CHART_RANGES = [
   { key: '3m', label: '3М', days: 92 },
   { key: '6m', label: '6М', days: 183 },
   { key: '1y', label: '1Г', days: 366 },
+  { key: '3y', label: '3Г', days: 1096 },
+  { key: '5y', label: '5Л', days: 1830 },
 ];
+
+// Источники графика: Мосбиржа (₽/г) и мировая биржа COMEX ($/oz) — правка Руслана.
+const CHART_SOURCES = [
+  { key: 'moex', label: 'Мосбиржа ₽', title: 'Мосбиржа GLDRUBF', per: '/ г' },
+  { key: 'global', label: 'Мировая $', title: 'Мировая биржа · COMEX GC', per: '/ oz' },
+];
+
+function formatUsd(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '—';
+  return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(n));
+}
 
 function formatChartDate(iso, rangeKey) {
   try {
     const d = new Date(`${iso}T00:00:00`);
-    if (rangeKey === '1y' || rangeKey === '6m') {
+    if (rangeKey === '1y' || rangeKey === '6m' || rangeKey === '3y' || rangeKey === '5y') {
       return d.toLocaleDateString('ru-RU', { month: 'short', year: '2-digit' });
     }
     return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
@@ -526,17 +545,25 @@ function formatChartDate(iso, rangeKey) {
 }
 
 function GoldChartCard({ currentRate, rateUpdatedAt }) {
-  const [points, setPoints] = useState(null);
+  // История по источникам кэшируется отдельно: переключение MOEX ↔ мир не перезагружает данные.
+  const [series, setSeries] = useState({ moex: null, global: null });
   const [range, setRange] = useState('3m');
+  const [source, setSource] = useState('moex');
 
   useEffect(() => {
+    if (series[source] !== null) return undefined;
     let alive = true;
     fintechApi
-      .goldHistory(366)
-      .then((out) => { if (alive) setPoints(out.points || []); })
-      .catch(() => { if (alive) setPoints([]); });
+      .goldHistory(1830, source)
+      .then((out) => { if (alive) setSeries((s) => ({ ...s, [source]: out.points || [] })); })
+      .catch(() => { if (alive) setSeries((s) => ({ ...s, [source]: [] })); });
     return () => { alive = false; };
-  }, []);
+  }, [source, series]);
+
+  const points = series[source];
+  const isGlobal = source === 'global';
+  const sourceConf = CHART_SOURCES.find((s) => s.key === source) || CHART_SOURCES[0];
+  const fmtPrice = isGlobal ? formatUsd : formatMoney;
 
   const visible = useMemo(() => {
     if (!points?.length) return [];
@@ -562,32 +589,52 @@ function GoldChartCard({ currentRate, rateUpdatedAt }) {
     return [Math.floor(min - pad), Math.ceil(max + pad)];
   }, [visible]);
 
+  // Для мировой биржи «текущий курс» — последняя дневная свеча COMEX.
+  const headlinePrice = isGlobal
+    ? (visible.length ? visible[visible.length - 1].price : null)
+    : currentRate;
+
   return (
     <div className="cpx-card cpx-fin-chart-card">
       <div className="cpx-fin-chart-head">
         <div className="cpx-fin-chart-titles">
-          <span className="cpx-fin-kpi-label">Курс золота · Мосбиржа GLDRUBF</span>
+          <span className="cpx-fin-kpi-label">Курс золота · {sourceConf.title}</span>
           <div className="cpx-fin-chart-rate">
-            <span className="cpx-fin-chart-price">{currentRate != null ? formatMoney(currentRate) : '—'}<span className="cpx-fin-chart-per"> / г</span></span>
+            <span className="cpx-fin-chart-price">{headlinePrice != null ? fmtPrice(headlinePrice) : '—'}<span className="cpx-fin-chart-per"> {sourceConf.per}</span></span>
             {delta != null && (
               <span className={`cpx-fin-chart-delta ${delta >= 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}`}>
                 {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toLocaleString('ru-RU')}% за {CHART_RANGES.find((r) => r.key === range)?.label?.toLowerCase()}
               </span>
             )}
           </div>
-          {rateUpdatedAt && <span className="cpx-fin-chart-upd">обновлено {formatDateTime(rateUpdatedAt)}</span>}
+          {!isGlobal && rateUpdatedAt && <span className="cpx-fin-chart-upd">обновлено {formatDateTime(rateUpdatedAt)}</span>}
+          {isGlobal && visible.length > 0 && <span className="cpx-fin-chart-upd">дневные свечи · {new Date(`${visible[visible.length - 1].date}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</span>}
         </div>
-        <div className="cpx-fin-range">
-          {CHART_RANGES.map((r) => (
-            <button
-              key={r.key}
-              type="button"
-              className={`cpx-fin-range-btn${range === r.key ? ' cpx-fin-range-btn--on' : ''}`}
-              onClick={() => setRange(r.key)}
-            >
-              {r.label}
-            </button>
-          ))}
+        <div className="cpx-fin-chart-controls">
+          <div className="cpx-fin-range cpx-fin-source">
+            {CHART_SOURCES.map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                className={`cpx-fin-range-btn${source === s.key ? ' cpx-fin-range-btn--on' : ''}`}
+                onClick={() => setSource(s.key)}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <div className="cpx-fin-range">
+            {CHART_RANGES.map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                className={`cpx-fin-range-btn${range === r.key ? ' cpx-fin-range-btn--on' : ''}`}
+                onClick={() => setRange(r.key)}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -629,7 +676,7 @@ function GoldChartCard({ currentRate, rateUpdatedAt }) {
                   color: 'var(--text)',
                 }}
                 labelStyle={{ color: 'var(--text-muted)', marginBottom: 4 }}
-                formatter={(v) => [`${Number(v).toLocaleString('ru-RU')} ₽/г`, 'Курс']}
+                formatter={(v) => [isGlobal ? `${Number(v).toLocaleString('ru-RU')} $/oz` : `${Number(v).toLocaleString('ru-RU')} ₽/г`, 'Курс']}
                 labelFormatter={(v) => new Date(`${v}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
               />
               <Area
@@ -751,21 +798,103 @@ function AssistantCard() {
 }
 
 function LedgerList({ ledger, limit = 12 }) {
+  // Клик по операции — попап с деталями: когда, сколько денег и по какому курсу был вход.
+  const [selected, setSelected] = useState(null);
+
   if (!ledger.length) return <p className="cpx-muted" style={{ margin: 0 }}>Операций пока нет.</p>;
   return (
-    <div className="cpx-fin-ledger-list">
-      {ledger.slice(0, limit).map((e) => (
-        <div key={e.id} className="cpx-fin-ledger-row">
-          <div className="cpx-fin-ledger-main">
-            <span className="cpx-fin-ledger-type">{ENTRY_LABELS[e.entryType] || e.entryType}</span>
-            <span className="cpx-fin-ledger-date">{formatDateTime(e.createdAt)}</span>
-          </div>
-          <div className="cpx-fin-ledger-right">
-            {!!e.rubDelta && <span className={e.rubDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.rubDelta > 0 ? '+' : ''}{formatMoney(e.rubDelta)}</span>}
-            {!!e.goldGramsDelta && <span className={e.goldGramsDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.goldGramsDelta > 0 ? '+' : ''}{formatGrams(e.goldGramsDelta)}</span>}
-          </div>
+    <>
+      <div className="cpx-fin-ledger-list">
+        {ledger.slice(0, limit).map((e) => (
+          <button type="button" key={e.id} className="cpx-fin-ledger-row cpx-fin-ledger-row--btn" onClick={() => setSelected(e)}>
+            <div className="cpx-fin-ledger-main">
+              <span className="cpx-fin-ledger-type">{ENTRY_LABELS[e.entryType] || e.entryType}</span>
+              <span className="cpx-fin-ledger-date">{formatDateTime(e.createdAt)}</span>
+            </div>
+            <div className="cpx-fin-ledger-right">
+              {!!e.rubDelta && <span className={e.rubDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.rubDelta > 0 ? '+' : ''}{formatMoney(e.rubDelta)}</span>}
+              {!!e.goldGramsDelta && <span className={e.goldGramsDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>{e.goldGramsDelta > 0 ? '+' : ''}{formatGrams(e.goldGramsDelta)}</span>}
+            </div>
+            <span className="cpx-fin-ledger-chevron" aria-hidden>›</span>
+          </button>
+        ))}
+      </div>
+      {selected && <LedgerEntryModal entry={selected} onClose={() => setSelected(null)} />}
+    </>
+  );
+}
+
+/** Детали операции в попапе — правка Руслана: дата, деньги и курс входа по клику. */
+function LedgerEntryModal({ entry, onClose }) {
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const label = ENTRY_LABELS[entry.entryType] || entry.entryType;
+  const isBuy = entry.entryType === 'buy_gold';
+  const isSell = entry.entryType === 'sell_gold';
+  const comment = entry.detail?.comment || '';
+  const fullDate = (() => {
+    try {
+      return new Date(entry.createdAt).toLocaleString('ru-RU', {
+        day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+    } catch {
+      return formatDateTime(entry.createdAt);
+    }
+  })();
+
+  return (
+    <div className="cpx-fin-op-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Операция: ${label}`}>
+      <div className="cpx-fin-op-modal" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="cpx-fin-op-close" onClick={onClose} aria-label="Закрыть">✕</button>
+        <span className={`cpx-fin-op-icon${isBuy ? ' cpx-fin-op-icon--buy' : isSell ? ' cpx-fin-op-icon--sell' : ''}`} aria-hidden>
+          {isBuy ? '↓' : isSell ? '↑' : entry.entryType === 'deposit_rub' ? '+' : entry.entryType === 'withdraw_rub' ? '−' : '•'}
+        </span>
+        <h3 className="cpx-fin-op-title">{label}</h3>
+        <p className="cpx-fin-op-date">{fullDate}</p>
+
+        <div className="cpx-fin-op-rows">
+          {!!entry.rubDelta && (
+            <div className="cpx-fin-op-row">
+              <span>{entry.rubDelta > 0 ? 'Зачислено на баланс' : 'Списано с баланса'}</span>
+              <strong className={entry.rubDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>
+                {entry.rubDelta > 0 ? '+' : ''}{formatMoney(entry.rubDelta)}
+              </strong>
+            </div>
+          )}
+          {!!entry.goldGramsDelta && (
+            <div className="cpx-fin-op-row">
+              <span>{entry.goldGramsDelta > 0 ? 'Золото зачислено' : 'Золото списано'}</span>
+              <strong className={entry.goldGramsDelta > 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}>
+                {entry.goldGramsDelta > 0 ? '+' : ''}{formatGrams(entry.goldGramsDelta)}
+              </strong>
+            </div>
+          )}
+          {entry.ratePerGram != null && (
+            <div className="cpx-fin-op-row cpx-fin-op-row--rate">
+              <span>Курс сделки</span>
+              <strong>{formatMoney(entry.ratePerGram)} / г</strong>
+            </div>
+          )}
+          {!!entry.feeRub && (
+            <div className="cpx-fin-op-row">
+              <span>Комиссия</span>
+              <strong>{formatMoney(entry.feeRub)}</strong>
+            </div>
+          )}
+          {comment && (
+            <div className="cpx-fin-op-row">
+              <span>Комментарий</span>
+              <strong className="cpx-fin-op-comment">{comment}</strong>
+            </div>
+          )}
         </div>
-      ))}
+
+        <button type="button" className="cpx-btn cpx-btn--sm cpx-fin-op-ok" onClick={onClose}>Понятно</button>
+      </div>
     </div>
   );
 }
@@ -773,7 +902,7 @@ function LedgerList({ ledger, limit = 12 }) {
 // ── Покупка: состав заказа ──────────────────────────────────────────────────
 function BuyPanel({ portfolio, onDone }) {
   const [mode, setMode] = useState('grams');
-  const [amount, setAmount] = useState('50');
+  const [amount, setAmount] = useState('1');
   const [buying, setBuying] = useState(false);
   const [buyErr, setBuyErr] = useState('');
   const [buyOk, setBuyOk] = useState('');
@@ -781,7 +910,7 @@ function BuyPanel({ portfolio, onDone }) {
   const rate = Number(portfolio?.currentRatePerGram) || 0;
   const feePct = Number(portfolio?.buyFeePercent) || 0;
   const feeMult = 1 + feePct / 100;
-  const minG = Number(portfolio?.minPurchaseGrams) || 1;
+  const minG = Number(portfolio?.minPurchaseGrams) || 0.01;
   const rubBal = Number(portfolio?.rubBalance) || 0;
 
   const quote = useMemo(() => {
@@ -811,8 +940,8 @@ function BuyPanel({ portfolio, onDone }) {
       setBuyErr('Укажите сумму или вес больше нуля');
       return;
     }
-    if (quote && quote.grams < minG) {
-      setBuyErr(`Минимальная покупка — ${minG} г`);
+    if (quote && quote.grams < minG - 1e-9) {
+      setBuyErr(`Минимальная покупка — ${minG.toLocaleString('ru-RU')} г`);
       return;
     }
     if (quote && quote.rubGross > rubBal) {
@@ -826,7 +955,7 @@ function BuyPanel({ portfolio, onDone }) {
         : { grams: v, idempotencyKey: crypto.randomUUID() };
       const out = await fintechApi.buy(payload);
       setBuyOk(`Куплено ${formatGrams(out.gramsBought)} за ${formatMoney(out.rubSpent)}`);
-      setAmount(mode === 'grams' ? '50' : '10000');
+      setAmount(mode === 'grams' ? '1' : '10000');
       await onDone?.();
     } catch (e2) {
       setBuyErr(e2?.message || 'Не удалось выполнить покупку');
@@ -836,9 +965,9 @@ function BuyPanel({ portfolio, onDone }) {
   }
 
   function stepGrams(dir) {
-    const step = 50;
+    const step = 1;
     const cur = parseFloat(String(amount).replace(',', '.')) || 0;
-    const next = Math.max(minG, Math.round((cur + dir * step) * 1000) / 1000);
+    const next = Math.max(minG, Math.round((cur + dir * step) * 100) / 100);
     setMode('grams');
     setAmount(String(next));
   }
@@ -848,11 +977,35 @@ function BuyPanel({ portfolio, onDone }) {
       <div className="cpx-card cpx-fin-buy-card">
         <h2 className="cpx-fin-side-title">Купить золото</h2>
         <p className="cpx-fin-side-sub">
-          От {minG} г · курс {rate ? formatMoney(rate) : '—'} / г
+          От {minG.toLocaleString('ru-RU')} г · курс {rate ? formatMoney(rate) : '—'} / г
           {feePct ? ` · комиссия ${feePct}%` : ''}
         </p>
 
         <form onSubmit={submitBuy} className="cpx-form cpx-fin-buy-form">
+          {/* Единицы покупки: только знаки «г» и «₽» — правка маркетолога (убрали «В рублях / В граммах») */}
+          <div className="cpx-fin-unit-switch" role="tablist" aria-label="Единицы покупки">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'grams'}
+              className={`cpx-fin-unit-btn${mode === 'grams' ? ' cpx-fin-unit-btn--on' : ''}`}
+              onClick={() => { setMode('grams'); setAmount('1'); }}
+            >
+              <span className="cpx-fin-unit-sign">г</span>
+              <span className="cpx-fin-unit-cap">граммы</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'rub'}
+              className={`cpx-fin-unit-btn${mode === 'rub' ? ' cpx-fin-unit-btn--on' : ''}`}
+              onClick={() => { setMode('rub'); setAmount('10000'); }}
+            >
+              <span className="cpx-fin-unit-sign">₽</span>
+              <span className="cpx-fin-unit-cap">рубли</span>
+            </button>
+          </div>
+
           {mode === 'grams' ? (
             <div className="cpx-fin-stepper">
               <button type="button" className="cpx-fin-stepper-btn" onClick={() => stepGrams(-1)} aria-label="Меньше">−</button>
@@ -873,24 +1026,7 @@ function BuyPanel({ portfolio, onDone }) {
               <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="10000" />
             </label>
           )}
-
-          <div className="cpx-fin-mode-switch">
-            <button
-              type="button"
-              className={`cpx-fin-mode-btn${mode === 'grams' ? ' cpx-fin-mode-btn--on' : ''}`}
-              onClick={() => { setMode('grams'); setAmount('50'); }}
-            >
-              По весу
-            </button>
-            <button
-              type="button"
-              className={`cpx-fin-mode-btn${mode === 'rub' ? ' cpx-fin-mode-btn--on' : ''}`}
-              onClick={() => { setMode('rub'); setAmount('10000'); }}
-            >
-              По сумме
-            </button>
-          </div>
-          <p className="cpx-fin-step-hint">{mode === 'grams' ? 'шаг ±50 г · можно ввести вручную' : 'золото рассчитается по курсу автоматически'}</p>
+          <p className="cpx-fin-step-hint">{mode === 'grams' ? `шаг ±1 г · минимум ${minG.toLocaleString('ru-RU')} г · можно ввести вручную` : 'золото рассчитается по курсу автоматически'}</p>
 
           {quote && (
             <div className="cpx-fin-order">
@@ -1114,7 +1250,7 @@ function FintechDashboard({ profile }) {
     <div className="cpx-finx">
       <div className="cpx-fin-hero">
         <div className="cpx-fin-hero-main">
-          <p className="cpx-fin-greeting-sub">Reaktivo Invest · золотой счёт</p>
+          <p className="cpx-fin-greeting-sub">Reaktivo · золотой счёт</p>
           <h2 className="cpx-fin-hero-title">{firstName ? `${firstName}, ваш портфель` : 'Ваш портфель'}</h2>
           <div className="cpx-fin-hero-value">
             <span className="cpx-fin-hero-value-num">{formatMoney(portfolio?.marketValueRub)}</span>
@@ -1162,7 +1298,7 @@ function FintechDashboard({ profile }) {
         </div>
       </div>
 
-      <nav className="cpx-fin-tabs" aria-label="Разделы инвестиций">
+      <nav className="cpx-fin-tabs" aria-label="Разделы золотого счёта">
         {DASH_TABS.map((t) => (
           <button
             key={t.key}
@@ -1189,7 +1325,7 @@ function FintechDashboard({ profile }) {
                 <div className="cpx-fin-quick-grid">
                   <button type="button" className="cpx-fin-quick-btn" onClick={() => setView('buy')}>
                     <strong>Купить золото</strong>
-                    <span>от 1 г или на сумму</span>
+                    <span>от 0,01 г или на сумму</span>
                   </button>
                   <button type="button" className="cpx-fin-quick-btn" onClick={() => setView('sell')}>
                     <strong>Продать / вывод</strong>

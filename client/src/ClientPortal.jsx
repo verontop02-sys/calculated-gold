@@ -1,14 +1,14 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { clientApi, getClientToken, setClientToken, fintechApi, getFintechToken } from './api.js';
+import { clientApi, getClientToken, setClientToken, setFintechToken, fintechApi, getFintechToken } from './api.js';
 import { FintechInvest } from './FintechInvest.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
 import { ClientSidebar } from './ClientSidebar.jsx';
 import { ClientMobileNav } from './ClientMobileNav.jsx';
 import { applyTheme, getStoredTheme } from './theme.js';
 
-const TAB_TITLES = { home: 'Личный кабинет', calc: 'Калькулятор', history: 'Мои сделки', invest: 'Инвестиции', support: 'Поддержка', settings: 'Настройки' };
+const TAB_TITLES = { home: 'Личный кабинет', calc: 'Калькулятор', history: 'Мои сделки', invest: 'Покупка золота', support: 'Поддержка', settings: 'Настройки' };
 const TAB_SUBTITLES = {
-  home: 'Обзор сделок, инвестиций и безопасность входа',
+  home: 'Обзор сделок, золотого счёта и безопасность входа',
   calc: 'Оценка золота по текущему биржевому курсу',
   history: 'История ваших сделок с Reaktivo',
   invest: 'Золотой счёт: покупка, портфель, аналитика',
@@ -259,6 +259,9 @@ export function ClientPortal() {
 
   const logout = useCallback(() => {
     setClientToken('');
+    // Fintech-токен тоже сбрасываем: иначе следующий человек на этом устройстве
+    // увидит чужой золотой счёт (вход нового пользователя показывал старый кабинет).
+    setFintechToken('');
     setPhase('login');
     setStep('phone');
     setPhone('');
@@ -309,7 +312,7 @@ export function ClientPortal() {
             )}
             {tab === 'calc' && <ClientCalculator />}
             {tab === 'history' && <ClientDeals onAuthExpired={logout} />}
-            {tab === 'invest' && <FintechInvest clientToken={getClientToken()} />}
+            {tab === 'invest' && <FintechInvest clientToken={getClientToken()} expectedPhone={phoneNormalized} />}
             {tab === 'support' && <ClientSupportChat onUnreadCleared={() => setSupportUnread(0)} />}
             {tab === 'settings' && (
               <ClientSettings
@@ -592,12 +595,12 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
 
   const recentDeals = (dealsSummary?.deals || []).slice(0, 5);
   const investLabel = fintechStatus === 'approved'
-    ? 'Инвестиции активны'
+    ? 'Золотой счёт активен'
     : fintechStatus === 'pending_review'
       ? 'Заявка на проверке'
       : fintechStatus === 'rejected'
         ? 'Нужна повторная отправка'
-        : 'Ещё не подключены';
+        : 'Ещё не подключён';
 
   return (
     <div className="cpx-home">
@@ -612,7 +615,7 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
           </div>
         </div>
         <div className="cpx-home-hero-actions">
-          <button type="button" className="cpx-btn cpx-btn--sm" onClick={() => onNavigate?.('invest')}>Инвестиции</button>
+          <button type="button" className="cpx-btn cpx-btn--sm" onClick={() => onNavigate?.('invest')}>Купить золото</button>
           <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('calc')}>Калькулятор</button>
         </div>
       </div>
@@ -642,7 +645,7 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
             <span className="cpx-home-kpi-meta">
               {portfolio?.pnlPercent != null
                 ? `Доход ${portfolio.pnlPercent > 0 ? '+' : ''}${portfolio.pnlPercent}%`
-                : 'Открыть инвестиции →'}
+                : 'Открыть золотой счёт →'}
             </span>
           </button>
           <button type="button" className="cpx-home-kpi" onClick={() => onNavigate?.('invest')}>
@@ -660,7 +663,7 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
             <button type="button" className="cpx-link" onClick={() => onNavigate?.('history')}>Все сделки</button>
           </div>
           {!recentDeals.length && (
-            <p className="cpx-muted" style={{ margin: 0 }}>Сделок по номеру пока нет — можно пользоваться калькулятором и инвестициями.</p>
+            <p className="cpx-muted" style={{ margin: 0 }}>Сделок по номеру пока нет — можно пользоваться калькулятором и золотым счётом.</p>
           )}
           {recentDeals.map((d) => (
             <div key={d.id} className="cpx-home-deal-row">
@@ -679,7 +682,7 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
           </div>
           <div className="cpx-home-nav">
             <button type="button" className="cpx-home-nav-item" onClick={() => onNavigate?.('invest')}>
-              <span className="cpx-home-nav-title">Инвестиции</span>
+              <span className="cpx-home-nav-title">Покупка золота</span>
               <span className="cpx-home-nav-desc">{investLabel}</span>
             </button>
             <button type="button" className="cpx-home-nav-item" onClick={() => onNavigate?.('history')}>
@@ -788,7 +791,7 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
     setProfileErr('');
     setProfileOk('');
     if (!getFintechToken()) {
-      setProfileErr('Сначала откройте раздел «Инвестиции» и пройдите регистрацию — тогда ФИО и почта сохранятся в профиле.');
+      setProfileErr('Сначала откройте раздел «Покупка золота» и пройдите регистрацию — тогда ФИО и почта сохранятся в профиле.');
       return;
     }
     setProfileBusy(true);
@@ -803,12 +806,12 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
   }
 
   const statusLabel = {
-    approved: 'Инвестиции одобрены',
+    approved: 'Покупка золота одобрена',
     pending_review: 'Заявка на проверке',
     rejected: 'Заявка отклонена — нужна доработка',
     blocked: 'Аккаунт заблокирован',
     new: 'Регистрация не завершена',
-    none: 'Инвестиции ещё не подключены',
+    none: 'Золотой счёт ещё не подключён',
   }[fintechStatus] || '—';
 
   return (
@@ -816,7 +819,7 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
       <div className="cpx-settings-grid">
         <section className="cpx-card cpx-settings-card">
           <h2 className="cpx-settings-title">Профиль</h2>
-          <p className="cpx-settings-lead">Телефон привязан к кабинету. ФИО и почта используются для инвестиций и писем о статусе KYC.</p>
+          <p className="cpx-settings-lead">Телефон привязан к кабинету. ФИО и почта используются для золотого счёта и писем о статусе KYC.</p>
           {profileLoading ? (
             <p className="cpx-muted"><span className="cpx-spinner" /> Загружаем…</p>
           ) : (
@@ -844,7 +847,7 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
                   maxLength={200}
                 />
               </label>
-              <p className="cpx-settings-meta">Статус инвестиций: <b>{statusLabel}</b></p>
+              <p className="cpx-settings-meta">Статус золотого счёта: <b>{statusLabel}</b></p>
               {profileErr && <p className="cpx-err">{profileErr}</p>}
               {profileOk && <p className="cpx-fin-ok">{profileOk}</p>}
               <div className="cpx-settings-actions">
@@ -852,7 +855,7 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
                   {profileBusy ? <><span className="cpx-spinner" /> Сохраняем…</> : 'Сохранить профиль'}
                 </button>
                 {fintechStatus !== 'approved' && (
-                  <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>К инвестициям</button>
+                  <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>К покупке золота</button>
                 )}
               </div>
             </form>
@@ -947,7 +950,7 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
               <strong>Быстрые разделы</strong>
               <div className="cpx-settings-actions">
                 <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('home')}>Обзор кабинета</button>
-                <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>Инвестиции</button>
+                <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>Покупка золота</button>
                 <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('support')}>Написать в поддержку</button>
                 <a className="cpx-fin-pdf-btn" href="/" style={{ textDecoration: 'none' }}>На главную</a>
               </div>
@@ -1843,8 +1846,13 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
   padding: 5px 10px; border: none; border-radius: 6px; background: transparent;
   color: var(--text-muted); font-size: 0.72rem; font-weight: 700; cursor: pointer;
   transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
 }
 .cpx-fin-range-btn--on { background: var(--accent); color: #fff; }
+.cpx-fin-chart-controls { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .cpx-fin-chart-controls { width: 100%; justify-content: flex-start; }
+}
 
 .cpx-fin-buy-card { border-color: var(--stroke); }
 .cpx-fin-ledger-list { display: flex; flex-direction: column; max-height: 420px; overflow: auto; margin: 8px -4px 0; padding: 0 4px; }
@@ -2429,30 +2437,137 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
 .cpx-fin-doc-status-list { width: 100%; display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
 .cpx-fin-doc-status-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 9px 12px; border-radius: 10px; background: var(--surface); }
 
-.cpx-fin-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+/* Линия основных показателей портфеля — правка Руслана: заметнее и ярче. */
+.cpx-fin-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
 @media (max-width: 1100px) { .cpx-fin-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 640px) { .cpx-fin-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.cpx-fin-kpi { background: var(--cpx-panel); border: 1px solid var(--cpx-stroke); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
-.cpx-fin-kpi--hero { background: linear-gradient(135deg, var(--cpx-accent-soft), transparent); border-color: var(--cpx-accent-soft); }
+@media (max-width: 640px) { .cpx-fin-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } }
+.cpx-fin-kpi {
+  position: relative; overflow: hidden;
+  background: var(--cpx-panel); border: 1px solid var(--cpx-stroke); border-radius: 14px;
+  padding: 12px 14px 13px; display: flex; flex-direction: column; gap: 4px;
+}
+.cpx-fin-kpi::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 30%, transparent));
+  opacity: 0.85;
+}
+.cpx-fin-kpi--hero {
+  background: linear-gradient(150deg, var(--cpx-accent-soft), transparent 70%);
+  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.cpx-fin-kpi--hero .cpx-fin-kpi-value { color: var(--accent); }
+.cpx-fin-kpi--pos::before { background: linear-gradient(90deg, var(--cpx-emerald), color-mix(in srgb, var(--cpx-emerald) 30%, transparent)); }
+.cpx-fin-kpi--neg::before { background: linear-gradient(90deg, var(--crimson), color-mix(in srgb, var(--crimson) 30%, transparent)); }
 .cpx-fin-kpi--pos .cpx-fin-kpi-value { color: var(--cpx-emerald); }
 .cpx-fin-kpi--neg .cpx-fin-kpi-value { color: var(--crimson); }
-.cpx-fin-kpi-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--cpx-muted); font-weight: 700; }
-.cpx-fin-kpi-value { font-size: 1.02rem; font-weight: 700; color: var(--cpx-ink); font-variant-numeric: tabular-nums; }
-.cpx-fin-kpi-pct { font-size: 0.72rem; font-weight: 600; }
+.cpx-fin-kpi-label { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--cpx-muted); font-weight: 700; }
+.cpx-fin-kpi-value {
+  font-size: clamp(1.12rem, 1.6vw, 1.34rem); font-weight: 800; color: var(--cpx-ink);
+  letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.cpx-fin-kpi-pct { font-size: 0.74rem; font-weight: 700; }
+@media (max-width: 640px) { .cpx-fin-kpi-value { font-size: 1.05rem; } }
+
+/* Единый шрифт цифр по всему золотому счёту (правка «одинаковый шрифт — цифры») */
+.cpx-fin-ledger-right, .cpx-fin-ledger-right span,
+.cpx-fin-order strong, .cpx-fin-order-total strong,
+.cpx-fin-order-bal, .cpx-fin-side-sub, .cpx-fin-hero-meta,
+.cpx-fin-benefit-compact-res, .cpx-fin-ai-scenario-value {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
 
 .cpx-fin-topup-hint { display: flex; align-items: flex-start; gap: 10px; background: var(--surface); border-color: var(--stroke-soft); }
 .cpx-fin-topup-icon { color: var(--text-muted); font-weight: 700; flex-shrink: 0; }
 .cpx-fin-topup-hint p { margin: 0; font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; }
 
-.cpx-fin-mode-switch { display: flex; gap: 8px; background: var(--surface); padding: 4px; border-radius: 11px; }
-.cpx-fin-mode-btn { flex: 1; padding: 10px 12px; border: none; border-radius: 8px; background: transparent; color: var(--cpx-muted); font-weight: 600; font-size: 0.85rem; cursor: pointer; }
-.cpx-fin-mode-btn--on { background: var(--cpx-panel); color: var(--cpx-ink); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+/* Переключатель единиц покупки: крупные знаки «г» и «₽» (без «В рублях/В граммах») */
+.cpx-fin-unit-switch {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  background: var(--surface); padding: 5px; border-radius: 14px;
+  border: 1px solid var(--stroke-soft);
+}
+.cpx-fin-unit-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 12px; border: 1px solid transparent; border-radius: 10px;
+  background: transparent; color: var(--text-muted); cursor: pointer;
+  transition: background 0.16s, color 0.16s, border-color 0.16s, box-shadow 0.16s;
+}
+.cpx-fin-unit-sign {
+  font-size: 1.25rem; font-weight: 800; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.cpx-fin-unit-cap { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; }
+.cpx-fin-unit-btn:hover { color: var(--text-strong); }
+.cpx-fin-unit-btn--on {
+  background: var(--accent-soft); color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 18%, transparent);
+}
 .cpx-fin-estimate { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--cpx-gold); }
 .cpx-fin-ok { color: var(--cpx-emerald); font-size: 0.85rem; margin: 0; font-weight: 600; }
 
 .cpx-fin-history-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; gap: 10px; flex-wrap: wrap; }
 .cpx-fin-history-head .cpx-h2 { margin: 0; }
 .cpx-fin-ledger-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--stroke-soft); font-size: 0.82rem; gap: 10px; }
+/* Кликабельная строка операции → попап деталей */
+.cpx-fin-ledger-row--btn {
+  width: 100%; background: transparent; border-left: none; border-right: none; border-top: none;
+  color: inherit; text-align: left; cursor: pointer; font: inherit;
+  border-radius: 8px; padding-left: 4px; padding-right: 4px; margin: 0 -4px;
+  transition: background 0.14s;
+}
+.cpx-fin-ledger-row--btn:hover { background: var(--surface); }
+.cpx-fin-ledger-row--btn .cpx-fin-ledger-main { flex: 1; }
+.cpx-fin-ledger-chevron { color: var(--text-dim); font-size: 1rem; flex-shrink: 0; }
+
+/* Попап деталей операции */
+.cpx-fin-op-backdrop {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(8, 9, 12, 0.62);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  animation: cpxOpFade 180ms ease;
+}
+@keyframes cpxOpFade { from { opacity: 0; } to { opacity: 1; } }
+.cpx-fin-op-modal {
+  position: relative;
+  width: 100%; max-width: 380px;
+  background: var(--bg-panel-solid); border: 1px solid var(--stroke);
+  border-radius: 18px; padding: 22px 20px 18px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.45);
+  animation: cpxOpPop 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes cpxOpPop { from { transform: translateY(14px) scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
+.cpx-fin-op-close {
+  position: absolute; top: 12px; right: 12px;
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--stroke); background: transparent; color: var(--text-muted);
+  cursor: pointer; font-size: 0.8rem;
+}
+.cpx-fin-op-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 13px;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 1.3rem; font-weight: 800; margin-bottom: 10px;
+}
+.cpx-fin-op-icon--buy { background: var(--accent-soft); color: var(--accent); }
+.cpx-fin-op-icon--sell { background: var(--emerald-soft, rgba(16,185,129,0.14)); color: var(--emerald); }
+.cpx-fin-op-title { margin: 0 0 2px; font-size: 1.05rem; font-weight: 800; color: var(--text-strong); }
+.cpx-fin-op-date { margin: 0 0 14px; font-size: 0.78rem; color: var(--text-muted); }
+.cpx-fin-op-rows { display: flex; flex-direction: column; }
+.cpx-fin-op-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--stroke-soft); font-size: 0.85rem;
+}
+.cpx-fin-op-row:last-child { border-bottom: none; }
+.cpx-fin-op-row span { color: var(--text-muted); }
+.cpx-fin-op-row strong { color: var(--text-strong); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cpx-fin-op-row--rate strong { color: var(--accent); }
+.cpx-fin-op-comment { font-weight: 600; white-space: normal; text-align: right; word-break: break-word; }
+.cpx-fin-op-ok { width: 100%; margin-top: 14px; }
 .cpx-fin-ledger-row:last-child { border-bottom: none; }
 .cpx-fin-ledger-main { display: flex; flex-direction: column; gap: 2px; }
 .cpx-fin-ledger-type { font-weight: 600; color: var(--cpx-ink); }

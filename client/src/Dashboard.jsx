@@ -15,6 +15,7 @@ import {
 import { api } from './api.js';
 import { PageHint } from './PageHint.jsx';
 import { WorldClocksCard } from './WorldClocks.jsx';
+import { isUserManagerRole } from './roles.js';
 /**
  * Дашборд — главный рабочий экран после входа (Stage 7).
  *
@@ -750,6 +751,21 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
     _initCacheRef.current = null; // только первый раз
   }, [load]); // load уже зависит от period
 
+  // ── Продано золота (биржа) за период — только для admin/super_admin ──
+  const viewerIsManager = isUserManagerRole(user?.role);
+  const [finSummary, setFinSummary] = useState(null);
+  useEffect(() => {
+    if (!viewerIsManager) { setFinSummary(null); return undefined; }
+    let alive = true;
+    const days = KPI_PERIODS.find((p) => p.key === period)?.days ?? 30;
+    const today = toIso(new Date());
+    const from = addDays(today, -(days - 1));
+    api.fintechAdminSummary(from, today)
+      .then((out) => { if (alive) setFinSummary(out); })
+      .catch(() => { if (alive) setFinSummary(null); });
+    return () => { alive = false; };
+  }, [viewerIsManager, period]);
+
   // ── AI (Grok) ──
   const [aiQ, setAiQ] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
@@ -1217,6 +1233,66 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
           <div className="dx-kpi__foot">
             <DeltaBadge pct={deltaPct(avgCheck, avgPrev)} />
             <span className="dx-kpi__prev">пред.: {avgPrev != null ? formatMoney(Math.round(avgPrev)) : '—'}</span>
+          </div>
+        </section>
+
+        {/* ── Куплено лома / продано золота (правка Руслана) ── */}
+        <section className="dx-card dx-buysell dx-in" style={{ '--d': '360ms' }}>
+          <div className="dx-card-head">
+            <div>
+              <h3 className="dx-card-title">Куплено и продано нами</h3>
+              <p className="dx-card-sub">Скупка лома по каналам и продажа золота на бирже за {periodConf.label.toLowerCase()}</p>
+            </div>
+          </div>
+          <div className={`dx-buysell-grid${viewerIsManager ? '' : ' dx-buysell-grid--two'}`}>
+            <div className="dx-buysell-tile">
+              <span className="dx-buysell-ico" aria-hidden>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 7l4-4h10l4 4" /><path d="M3 7h18v13H3z" /><path d="M9 11h6" />
+                </svg>
+              </span>
+              <div className="dx-buysell-text">
+                <span className="dx-label">Куплено лома · отделение</span>
+                <span className="dx-buysell-v mono-nums">{loading ? '…' : formatMoney(cur?.channels?.office?.sumRub ?? 0)}</span>
+                <span className="dx-buysell-meta mono-nums">
+                  {(cur?.channels?.office?.weightGross ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 1 })} г · {cur?.channels?.office?.deals ?? 0} сделок
+                </span>
+              </div>
+            </div>
+            <div className="dx-buysell-tile">
+              <span className="dx-buysell-ico" aria-hidden>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1" y="6" width="13" height="11" rx="1.5" /><path d="M14 9h4l4 4v4h-8z" /><circle cx="6" cy="19" r="1.8" /><circle cx="18" cy="19" r="1.8" />
+                </svg>
+              </span>
+              <div className="dx-buysell-text">
+                <span className="dx-label">Куплено лома · курьеры</span>
+                <span className="dx-buysell-v mono-nums">{loading ? '…' : formatMoney(cur?.channels?.delivery?.sumRub ?? 0)}</span>
+                <span className="dx-buysell-meta mono-nums">
+                  {(cur?.channels?.delivery?.weightGross ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 1 })} г · {cur?.channels?.delivery?.deals ?? 0} сделок
+                </span>
+              </div>
+            </div>
+            {viewerIsManager && (
+              <div className="dx-buysell-tile dx-buysell-tile--gold">
+                <span className="dx-buysell-ico" aria-hidden>
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 9h8l3 7H5z" /><path d="M12 3v3" /><path d="M7.5 4.5L9 6.5" /><path d="M16.5 4.5L15 6.5" />
+                  </svg>
+                </span>
+                <div className="dx-buysell-text">
+                  <span className="dx-label">Продано золота · биржа</span>
+                  <span className="dx-buysell-v mono-nums">
+                    {finSummary?.period ? formatMoney(finSummary.period.soldRub ?? 0) : '—'}
+                  </span>
+                  <span className="dx-buysell-meta mono-nums">
+                    {finSummary?.period
+                      ? `${(finSummary.period.soldGrams ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} г клиентам · всего ${(finSummary.allTime?.soldGrams ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} г`
+                      : 'сводка биржи недоступна'}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -1710,6 +1786,30 @@ const CSS = `
 .dx-card--today .dx-label { color: color-mix(in srgb, var(--accent) 55%, var(--text-muted)); }
 .dx-kpi { grid-column: span 3; display: flex; flex-direction: column; }
 .dx-card--ai { grid-column: span 12; }
+
+/* ── Куплено лома / продано золота ── */
+.dx-buysell { grid-column: span 12; }
+.dx-buysell-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.dx-buysell-grid--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 900px) { .dx-buysell-grid, .dx-buysell-grid--two { grid-template-columns: 1fr; } }
+.dx-buysell-tile {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px 16px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--stroke-soft);
+}
+.dx-buysell-tile--gold {
+  background: linear-gradient(150deg, var(--accent-soft), var(--surface) 70%);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.dx-buysell-ico {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  background: var(--accent-soft); color: var(--accent);
+}
+.dx-buysell-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dx-buysell-v { font-size: 1.22rem; font-weight: 800; color: var(--text-strong); letter-spacing: -0.02em; white-space: nowrap; }
+.dx-buysell-tile--gold .dx-buysell-v { color: var(--accent); }
+.dx-buysell-meta { font-size: 0.74rem; color: var(--text-muted); }
 .dx-card--flow { grid-column: span 8; }
 .dx-card--staff { grid-column: span 4; }
 .dx-card--period {

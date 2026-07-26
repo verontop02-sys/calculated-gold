@@ -780,7 +780,7 @@ export default function App() {
               <SettingsPage user={user} formatMoney={formatMoney} price={price} />
             )}
             {tab === 'fintech-clients' && isUserManagerRole(user.role) && (
-              <FintechAdminPage toast={toast} />
+              <FintechAdminPage toast={toast} isSuperAdmin={isSuperAdminRole(user.role)} />
             )}
             {tab === 'support-chat' && isUserManagerRole(user.role) && (
               <SupportAdminPage toast={toast} />

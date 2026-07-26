@@ -630,8 +630,9 @@ export const fintechApi = {
   ledger: (limit = 100, offset = 0) => fintechFetch(`/public/fintech/ledger?limit=${limit}&offset=${offset}`),
   buy: (payload) => fintechFetch('/public/fintech/buy', { method: 'POST', body: JSON.stringify(payload) }),
   sell: (payload) => fintechFetch('/public/fintech/sell', { method: 'POST', body: JSON.stringify(payload) }),
-  /** Дневная история курса золота (GLDRUBF) для графика в кабинете. */
-  goldHistory: (days = 365) => fintechFetch(`/public/fintech/gold-history?days=${days}`),
+  /** Дневная история курса золота для графика: Мосбиржа GLDRUBF (₽/г) или мировая COMEX ($/oz). */
+  goldHistory: (days = 365, source = 'moex') =>
+    fintechFetch(`/public/fintech/gold-history?days=${days}${source && source !== 'moex' ? `&source=${encodeURIComponent(source)}` : ''}`),
   /**
    * Годовые якоря ЦБ — публичные рыночные данные.
    * Без fintech-сессии: иначе 401 на обзоре выкидывает из кабинета при гонке/стейл-токене.
@@ -876,6 +877,15 @@ export const api = {
   goldIndexDeleteCompetitor: (id) =>
     request(`/gold-index/competitors/${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
   /** Модерация клиентов fintech-биржи (admin/super_admin). */
+  fintechAdminSummary: (from, to) => {
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    const qs = q.toString();
+    return request(`/fintech/admin/summary${qs ? `?${qs}` : ''}`);
+  },
+  fintechAdminDeleteClient: (id) =>
+    request(`/fintech/admin/clients/${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
   fintechAdminClients: (opts = {}) => {
     const q = new URLSearchParams();
     if (opts.status) q.set('status', opts.status);

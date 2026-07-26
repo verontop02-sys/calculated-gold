@@ -6,7 +6,7 @@
  * Аудит решений по KYC — прямо в fintech_kyc_documents (reviewed_by/reviewed_at/reject_reason)
  * и fintech_clients (reject_reason), отдельная таблица журнала не нужна на этом этапе.
  */
-import { manualTopup as manualTopupOp, getClientPortfolio, getClientLedger } from './fintechLedger.js';
+import { manualTopup as manualTopupOp, getClientPortfolio, getClientLedger, getLiveGoldRatePerGram } from './fintechLedger.js';
 import { sendFintechDecisionEmailIfConfigured } from './emailDealReceipt.js';
 
 export async function listFintechClients(supabase, { status, q, limit = 50, offset = 0 } = {}) {
@@ -17,6 +17,8 @@ export async function listFintechClients(supabase, { status, q, limit = 50, offs
     .range(offset, offset + limit - 1);
 
   if (status) query = query.eq('status', status);
+  // Блокированные — в отдельной «папке» (вкладка «Блокированы»), из общего списка скрыты.
+  else query = query.neq('status', 'blocked');
   if (q) {
     const term = String(q).trim();
     if (term) query = query.or(`full_name.ilike.%${term}%,phone_normalized.ilike.%${term}%,email.ilike.%${term}%`);
@@ -174,4 +176,159 @@ export async function decideClientStatus(supabase, { clientId, decision, staffId
 
 export async function manualTopup(supabase, { clientId, rubAmount, staffId, comment, idempotencyKey }) {
   return manualTopupOp(supabase, { clientId, rubAmount, staffId, comment, idempotencyKey });
+}
+
+/**
+ * Сводка биржи для админ-дашборда (правка Руслана: при входе в раздел — дашборд,
+ * а не список на проверке; все данные по бирже, общий объём золота в весе и деньгах).
+ *
+ * Опциональный период from/to (Y-M-D) добавляет разрез оборотов за период —
+ * его же использует главный дашборд для «продано золота».
+ */
+export async function getFintechAdminSummary(supabase, { from, to } = {}) {
+  // Статусы клиентов.
+  const { data: clientRows, error: cErr } = await supabase
+    .from('fintech_clients')
+    .select('status')
+    .limit(10000);
+  if (cErr) throw cErr;
+  const clientsByStatus = { new: 0, pending_review: 0, approved: 0, rejected: 0, blocked: 0 };
+  for (const r of clientRows || []) {
+    if (clientsByStatus[r.status] != null) clientsByStatus[r.status] += 1;
+  }
+  const clientsTotal = (clientRows || []).length;
+
+  // Балансы: сколько золота и рублей у клиентов суммарно.
+  const { data: balances, error: bErr } = await supabase
+    .from('fintech_balances')
+    .select('rub_balance, gold_grams')
+    .limit(10000);
+  if (bErr) throw bErr;
+  let totalRubBalance = 0;
+  let totalGoldGrams = 0;
+  for (const b of balances || []) {
+    totalRubBalance += Number(b.rub_balance) || 0;
+    totalGoldGrams += Number(b.gold_grams) || 0;
+  }
+  totalGoldGrams = Math.round(totalGoldGrams * 1e6) / 1e6;
+  totalRubBalance = Math.round(totalRubBalance * 100) / 100;
+
+  let rate = null;
+  let rateSource = null;
+  try {
+    const live = await getLiveGoldRatePerGram(supabase);
+    rate = live.rate;
+    rateSource = live.source;
+  } catch { /* курс не критичен для сводки */ }
+  const goldValueRub = rate != null ? Math.round(totalGoldGrams * rate * 100) / 100 : null;
+
+  // Обороты по журналу. На текущем объёме (сотни записей) агрегируем в JS.
+  const { data: ledger, error: lErr } = await supabase
+    .from('fintech_ledger_entries')
+    .select('entry_type, rub_delta, gold_grams_delta, fee_rub, created_at')
+    .order('created_at', { ascending: false })
+    .limit(10000);
+  if (lErr) throw lErr;
+
+  const makeBucket = () => ({
+    soldGrams: 0,       // золото, проданное нами клиентам (их buy_gold)
+    soldRub: 0,
+    boughtBackGrams: 0, // золото, выкупленное обратно (их sell_gold)
+    boughtBackRub: 0,
+    depositsRub: 0,
+    withdrawalsRub: 0,
+    feesRub: 0,
+    opsCount: 0,
+  });
+  const acc = (bucket, r) => {
+    bucket.opsCount += 1;
+    bucket.feesRub += Number(r.fee_rub) || 0;
+    const rub = Number(r.rub_delta) || 0;
+    const grams = Number(r.gold_grams_delta) || 0;
+    if (r.entry_type === 'buy_gold') {
+      bucket.soldGrams += grams;
+      bucket.soldRub += Math.abs(rub);
+    } else if (r.entry_type === 'sell_gold') {
+      bucket.boughtBackGrams += Math.abs(grams);
+      bucket.boughtBackRub += rub;
+    } else if (r.entry_type === 'deposit_rub') {
+      bucket.depositsRub += rub;
+    } else if (r.entry_type === 'withdraw_rub') {
+      bucket.withdrawalsRub += Math.abs(rub);
+    }
+  };
+  const round = (bucket) => {
+    for (const k of Object.keys(bucket)) {
+      bucket[k] = k.endsWith('Grams')
+        ? Math.round(bucket[k] * 1e6) / 1e6
+        : Math.round(bucket[k] * 100) / 100;
+    }
+    return bucket;
+  };
+
+  const allTime = makeBucket();
+  const hasPeriod = Boolean(from || to);
+  const period = makeBucket();
+  const fromIso = from ? new Date(`${from}T00:00:00.000Z`).toISOString() : null;
+  const toIso = to ? new Date(`${to}T23:59:59.999Z`).toISOString() : null;
+  for (const r of ledger || []) {
+    acc(allTime, r);
+    if (hasPeriod) {
+      const t = String(r.created_at || '');
+      if (fromIso && t < fromIso) continue;
+      if (toIso && t > toIso) continue;
+      acc(period, r);
+    }
+  }
+
+  return {
+    clients: { total: clientsTotal, byStatus: clientsByStatus },
+    balances: {
+      totalRubBalance,
+      totalGoldGrams,
+      goldValueRub,
+      ratePerGram: rate,
+      rateSource,
+    },
+    allTime: round(allTime),
+    period: hasPeriod ? { from: from || null, to: to || null, ...round(period) } : null,
+  };
+}
+
+/**
+ * Полное удаление клиента биржи (только супер-админ): журнал, балансы,
+ * KYC-документы вместе с файлами в Storage, затем сам клиент.
+ */
+export async function deleteFintechClient(supabase, clientId) {
+  const { data: client, error } = await supabase
+    .from('fintech_clients')
+    .select('id, full_name, phone_normalized')
+    .eq('id', clientId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!client) {
+    const err = new Error('Клиент не найден');
+    err.status = 404;
+    throw err;
+  }
+
+  // Файлы KYC из приватного бакета — иначе останутся сиротами.
+  const { data: docs } = await supabase
+    .from('fintech_kyc_documents')
+    .select('storage_path')
+    .eq('client_id', clientId);
+  const paths = (docs || []).map((d) => d.storage_path).filter(Boolean);
+  if (paths.length) {
+    const { error: rmErr } = await supabase.storage.from('kyc-documents').remove(paths);
+    if (rmErr) console.warn('[fintech delete] storage remove', rmErr.message || rmErr);
+  }
+
+  for (const table of ['fintech_ledger_entries', 'fintech_kyc_documents', 'fintech_balances']) {
+    const { error: dErr } = await supabase.from(table).delete().eq('client_id', clientId);
+    if (dErr) throw dErr;
+  }
+  const { error: cliErr } = await supabase.from('fintech_clients').delete().eq('id', clientId);
+  if (cliErr) throw cliErr;
+
+  return { ok: true, deletedId: clientId, fullName: client.full_name || null };
 }

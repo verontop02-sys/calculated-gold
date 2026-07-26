@@ -360,6 +360,7 @@ export const SIDEBAR_CSS = `
   transition: opacity 0.18s 0.06s;
   min-width: 0;
   flex: 1;
+  overflow: hidden; /* длинный бренд («Reaktivo КАБИНЕТ») не наезжает на кнопку свернуть */
 }
 .cg-sidebar--pinned .cg-sidebar__brand-text,
 .cg-sidebar:hover .cg-sidebar__brand-text { opacity: 1; }
@@ -369,6 +370,9 @@ export const SIDEBAR_CSS = `
   letter-spacing: 0.05em;
   color: var(--text-strong);
   line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .cg-sidebar__brand-title b {
   color: var(--accent);
@@ -385,6 +389,8 @@ export const SIDEBAR_CSS = `
   font-size: 0.68rem;
   color: var(--text-dim);
   margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Кнопка toggle в шапке ── */

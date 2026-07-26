@@ -88,6 +88,8 @@ import {
   reviewKycDocument,
   decideClientStatus,
   manualTopup as fintechManualTopup,
+  getFintechAdminSummary,
+  deleteFintechClient,
 } from './fintechAdmin.js';
 import {
   clientGetSupportChat,
@@ -1496,7 +1498,44 @@ async function fetchGoldHistoryDaily(days) {
     start += rows.length;
   }
 
-  const out = { points, source: 'moex', security: 'GLDRUBF' };
+  const out = { points, source: 'moex', security: 'GLDRUBF', unit: 'rub_per_gram' };
+  if (points.length) cacheSet(cacheKey, out, 30 * 60 * 1000);
+  return out;
+}
+
+/**
+ * Мировая биржа: дневная история золота COMEX (GC=F, $/унция) через Yahoo Finance chart API.
+ * Правка Руслана: в кабинете клиента нужна глобальная биржа и период 3–5 лет.
+ */
+const GLOBAL_GOLD_SYMBOL = process.env.GLOBAL_GOLD_SYMBOL || 'GC=F';
+async function fetchGlobalGoldHistoryDaily(days) {
+  // Yahoo принимает фиксированные range — берём ближайший сверху, клиент отфильтрует по датам.
+  const range = days <= 31 ? '1mo' : days <= 92 ? '3mo' : days <= 183 ? '6mo' : days <= 366 ? '1y' : days <= 731 ? '2y' : '5y';
+  const cacheKey = `fintech_gold_history_global:${range}`;
+  const hit = cacheGet(cacheKey);
+  if (hit) return hit;
+
+  const { data } = await axios.get(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(GLOBAL_GOLD_SYMBOL)}`,
+    {
+      params: { range, interval: '1d', 'includePrePost': 'false' },
+      timeout: 20000,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) CalculatedGold/1.0' },
+      validateStatus: (s) => s === 200,
+    },
+  );
+  const result = data?.chart?.result?.[0];
+  const stamps = result?.timestamp || [];
+  const closes = result?.indicators?.quote?.[0]?.close || [];
+  const points = [];
+  for (let i = 0; i < stamps.length; i++) {
+    const close = Number(closes[i]);
+    if (!Number.isFinite(close) || close <= 0) continue;
+    const date = new Date(stamps[i] * 1000).toISOString().slice(0, 10);
+    points.push({ date, price: Math.round(close * 100) / 100 });
+  }
+
+  const out = { points, source: 'comex', security: GLOBAL_GOLD_SYMBOL, unit: 'usd_per_oz' };
   if (points.length) cacheSet(cacheKey, out, 30 * 60 * 1000);
   return out;
 }
@@ -1508,7 +1547,10 @@ app.get(
     if (!session) return;
     try {
       const days = Math.min(1830, Math.max(30, Number(req.query.days) || 365));
-      const out = await fetchGoldHistoryDaily(days);
+      const source = String(req.query.source || 'moex');
+      const out = source === 'global'
+        ? await fetchGlobalGoldHistoryDaily(days)
+        : await fetchGoldHistoryDaily(days);
       res.setHeader('Cache-Control', 'no-store');
       res.json(out);
     } catch (e) {
@@ -3044,6 +3086,23 @@ app.delete(
 
 // ── Fintech: модерация клиентов биржи (admin/super_admin) ───────────────────
 app.get(
+  '/api/fintech/admin/summary',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await getFintechAdminSummary(supabase, {
+        from: req.query.from ? String(req.query.from) : undefined,
+        to: req.query.to ? String(req.query.to) : undefined,
+      });
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось построить сводку биржи' });
+    }
+  })
+);
+
+app.get(
   '/api/fintech/admin/clients',
   asyncHandler(requireUserManager),
   asyncHandler(async (req, res) => {
@@ -3052,6 +3111,20 @@ app.get(
     const out = await listFintechClients(supabase, { status: req.query.status, q: req.query.q, limit, offset });
     res.setHeader('Cache-Control', 'no-store');
     res.json(out);
+  })
+);
+
+// Полное удаление клиента — только супер-админ (правка Руслана).
+app.delete(
+  '/api/fintech/admin/clients/:id',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await deleteFintechClient(supabase, req.params.id);
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось удалить клиента' });
+    }
   })
 );
 

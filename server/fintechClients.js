@@ -248,6 +248,9 @@ export async function getClientProfile(supabase, clientId) {
   return {
     id: client.id,
     phoneMasked: maskPhone(client.phone_normalized),
+    // Полный номер собственной сессии — чтобы кабинет мог сверить владельца
+    // fintech-токена с владельцем клиентской сессии (fix «чужой кабинет»).
+    phoneNormalized: client.phone_normalized,
     email: client.email,
     fullName: client.full_name,
     status: client.status,
