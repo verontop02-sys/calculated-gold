@@ -296,27 +296,65 @@ export async function getClientPortfolio(supabase, clientId) {
   const { rate: currentRate, cachedAt } = await getLiveGoldRatePerGram(supabase).catch(() => ({ rate: null, cachedAt: null }));
   const settings = await getFintechSettings(supabase).catch(() => null);
 
-  const { data: buys, error } = await supabase
+  // Берутся и покупки, и продажи: иначе «вложено» = сумма всех покупок, а стоимость —
+  // только оставшиеся граммы, и после продажи доходность уходит в минус неверно.
+  const { data: trades, error } = await supabase
     .from('fintech_ledger_entries')
     .select('rub_delta, gold_grams_delta, entry_type')
     .eq('client_id', clientId)
-    .eq('entry_type', 'buy_gold');
+    .in('entry_type', ['buy_gold', 'sell_gold']);
   if (error) throw error;
 
-  const investedRub = (buys || []).reduce((s, r) => s + Math.abs(Number(r.rub_delta) || 0), 0);
-  const gramsBoughtTotal = (buys || []).reduce((s, r) => s + (Number(r.gold_grams_delta) || 0), 0);
-  const marketValueRub = currentRate ? Math.round(balance.goldGrams * currentRate * 100) / 100 : null;
-  const pnlRub = marketValueRub != null ? Math.round((marketValueRub - investedRub) * 100) / 100 : null;
-  const pnlPercent = marketValueRub != null && investedRub > 0
-    ? Math.round((pnlRub / investedRub) * 10000) / 100
+  let buyRub = 0;
+  let buyGrams = 0;
+  let sellRub = 0;
+  let sellGrams = 0;
+  for (const r of trades || []) {
+    const rub = Math.abs(Number(r.rub_delta) || 0);
+    const grams = Math.abs(Number(r.gold_grams_delta) || 0);
+    if (r.entry_type === 'buy_gold') {
+      buyRub += rub;
+      buyGrams += grams;
+    } else if (r.entry_type === 'sell_gold') {
+      sellRub += rub;
+      sellGrams += grams;
+    }
+  }
+
+  const avgCostPerGram = buyGrams > 0 ? buyRub / buyGrams : 0;
+  // Себестоимость открытой позиции (средняя цена покупки × граммы на счёте).
+  const investedRub = balance.goldGrams > 0 && avgCostPerGram > 0
+    ? Math.round(balance.goldGrams * avgCostPerGram * 100) / 100
+    : 0;
+  const marketValueRub = currentRate != null
+    ? Math.round(balance.goldGrams * currentRate * 100) / 100
+    : null;
+  // Нереализованный доход по текущему золоту.
+  const unrealizedPnlRub = marketValueRub != null
+    ? Math.round((marketValueRub - investedRub) * 100) / 100
+    : null;
+  // Реализованный: выручка продаж − себестоимость проданных граммов (по средней цене покупки).
+  const soldCostRub = Math.round(sellGrams * avgCostPerGram * 100) / 100;
+  const realizedPnlRub = Math.round((sellRub - soldCostRub) * 100) / 100;
+  // Итоговая доходность = нереализованный + реализованный.
+  const pnlRub = unrealizedPnlRub != null
+    ? Math.round((unrealizedPnlRub + realizedPnlRub) * 100) / 100
+    : Math.round(realizedPnlRub * 100) / 100;
+  // База для % — всё, что когда-либо вложено в покупки (понятнее клиенту, чем только open position).
+  const pnlPercent = buyRub > 0 && pnlRub != null
+    ? Math.round((pnlRub / buyRub) * 10000) / 100
     : null;
 
   return {
     rubBalance: balance.rubBalance,
     goldGrams: balance.goldGrams,
     marketValueRub,
-    investedRub: Math.round(investedRub * 100) / 100,
-    gramsBoughtTotal: Math.round(gramsBoughtTotal * 1e6) / 1e6,
+    investedRub,
+    investedTotalRub: Math.round(buyRub * 100) / 100,
+    gramsBoughtTotal: Math.round(buyGrams * 1e6) / 1e6,
+    gramsSoldTotal: Math.round(sellGrams * 1e6) / 1e6,
+    unrealizedPnlRub,
+    realizedPnlRub,
     pnlRub,
     pnlPercent,
     currentRatePerGram: currentRate,
