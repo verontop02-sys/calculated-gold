@@ -1097,10 +1097,11 @@ export function InvestLanding() {
               <span className="il-footer-col-title">Продукты</span>
               <a href="https://reaktivo.ru" className="il-nav-link" target="_blank" rel="noopener noreferrer">Продать золото — Reaktivo.ru</a>
               <a href="/kabinet" className="il-nav-link">Купить золото — кабинет</a>
-              <span className="il-nav-link il-nav-link--dim">Reaktivo Resale — Telegram</span>
+              <a href="https://t.me/Reaktivoai" className="il-nav-link" target="_blank" rel="noopener noreferrer">Reaktivo Resale — Telegram</a>
             </div>
             <div className="il-footer-col">
               <span className="il-footer-col-title">Контакты</span>
+              <a href="tel:+78005551848" className="il-nav-link">8 (800) 555-18-48</a>
               <a href="mailto:team@reaktivo.ru" className="il-nav-link">team@reaktivo.ru</a>
               <a href="/pro" className="il-nav-link il-nav-link--dim">Сотрудникам</a>
               <span className="il-nav-link il-nav-link--dim">Документы и лицензии — раздел готовится</span>
@@ -1215,6 +1216,11 @@ const CSS = `
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   border-radius: 8px; padding: 4px 9px;
 }
+:root[data-theme='dark'] .il-sbp {
+  color: var(--text-strong);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
 
 /* ── Hero ── */
 .il-hero { position: relative; padding: 150px 28px 100px; overflow: clip; }
@@ -1247,7 +1253,13 @@ const CSS = `
   border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
   padding: 7px 15px; border-radius: 100px; margin-bottom: 26px;
 }
-.il-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: ilPulse 1.8s ease-in-out infinite; }
+/* Тёмная тема: белый текст вместо красного на красном — иначе бейдж не читается */
+:root[data-theme='dark'] .il-badge {
+  color: var(--text-strong);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+}
+.il-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: ilPulse 1.8s ease-in-out infinite; flex-shrink: 0; }
 @keyframes ilPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.72); } }
 
 .il-hero-title {
