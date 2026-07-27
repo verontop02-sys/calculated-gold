@@ -646,6 +646,7 @@ export function InvestLanding() {
   const [scrolled, setScrolled] = useState(false);
   // Если пользователь уже в кабинете — в шапке фамилия с инициалами вместо «Войти»
   const [headerUser, setHeaderUser] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const lenisRef = useRef(null);
   const heroRef = useRef(null);
   const chartBoxRef = useRef(null);
@@ -709,9 +710,17 @@ export function InvestLanding() {
 
   const goTo = (e, selector) => {
     e.preventDefault();
+    setMenuOpen(false);
     if (lenisRef.current) lenisRef.current.scrollTo(selector, { offset: -84, duration: 1.5 });
     else document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [menuOpen]);
 
   useEffect(() => {
     document.title = 'REAKTIVO.PRO — покупка золота онлайн от 1 грамма';
@@ -766,19 +775,24 @@ export function InvestLanding() {
             <img className="il-logo-mark" src="/logo-reaktivo-mark.svg" alt="" width="40" height="40" />
             <span className="il-logo-text">REAKTIVO<span>.PRO</span></span>
           </a>
-          <nav className="il-nav">
+          <nav className="il-nav" aria-label="Основная навигация">
             <a href="#how" className="il-nav-link" onClick={(e) => goTo(e, '#how')}>Как это работает</a>
             <a href="#about" className="il-nav-link" onClick={(e) => goTo(e, '#about')}>О компании</a>
             <a href="#partners" className="il-nav-link" onClick={(e) => goTo(e, '#partners')}>Партнёрам</a>
             <a href="#calc" className="il-nav-link" onClick={(e) => goTo(e, '#calc')}>Калькулятор</a>
             <a href="#market" className="il-nav-link" onClick={(e) => goTo(e, '#market')}>Динамика</a>
             <a href="#faq" className="il-nav-link" onClick={(e) => goTo(e, '#faq')}>FAQ</a>
+            <a href="#contacts" className="il-nav-link" onClick={(e) => goTo(e, '#contacts')}>Контакты</a>
           </nav>
           <div className="il-header-actions">
+            <a href="tel:+78005551848" className="il-header-phone" title="Позвонить">
+              <span className="il-header-phone-label">Бесплатно</span>
+              <span className="il-header-phone-num">8 800 555-18-48</span>
+            </a>
             <ThemeToggle />
             <motion.a
               href="/kabinet"
-              className={`il-btn il-btn--ghost${headerUser ? ' il-btn--user' : ''}`}
+              className={`il-btn il-btn--ghost il-btn--header-login${headerUser ? ' il-btn--user' : ''}`}
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.97 }}
               title={headerUser ? 'Открыть кабинет' : 'Войти в кабинет'}
@@ -793,9 +807,71 @@ export function InvestLanding() {
             >
               Купить золото
             </motion.a>
+            <button
+              type="button"
+              className={`il-menu-btn${menuOpen ? ' is-open' : ''}`}
+              aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'}
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <span /><span /><span />
+            </button>
           </div>
         </div>
       </header>
+
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            className="il-menu"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22 }}
+          >
+            <button type="button" className="il-menu-backdrop" aria-label="Закрыть" onClick={() => setMenuOpen(false)} />
+            <motion.div
+              className="il-menu-sheet"
+              initial={{ y: 24, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 16, opacity: 0 }}
+              transition={{ duration: 0.28, ease: EASE }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Меню"
+            >
+              <div className="il-menu-head">
+                <a href="/" className="il-logo" aria-label="REAKTIVO.PRO" onClick={() => setMenuOpen(false)}>
+                  <img className="il-logo-mark" src="/logo-reaktivo-mark.svg" alt="" width="36" height="36" />
+                  <span className="il-logo-text">REAKTIVO<span>.PRO</span></span>
+                </a>
+                <button type="button" className="il-menu-close" aria-label="Закрыть" onClick={() => setMenuOpen(false)}>×</button>
+              </div>
+              <nav className="il-menu-nav">
+                <a href="#how" onClick={(e) => goTo(e, '#how')}>Как это работает</a>
+                <a href="#about" onClick={(e) => goTo(e, '#about')}>О компании</a>
+                <a href="#partners" onClick={(e) => goTo(e, '#partners')}>Партнёрам</a>
+                <a href="#calc" onClick={(e) => goTo(e, '#calc')}>Калькулятор</a>
+                <a href="#market" onClick={(e) => goTo(e, '#market')}>Динамика</a>
+                <a href="#faq" onClick={(e) => goTo(e, '#faq')}>FAQ</a>
+                <a href="#contacts" onClick={(e) => goTo(e, '#contacts')}>Контакты</a>
+              </nav>
+              <div className="il-menu-actions">
+                <a href="/kabinet" className="il-btn il-btn--ghost" onClick={() => setMenuOpen(false)}>
+                  {headerUser || 'Войти'}
+                </a>
+                <a href="/kabinet" className="il-btn il-btn--primary" onClick={() => setMenuOpen(false)}>
+                  Купить золото
+                </a>
+              </div>
+              <div className="il-menu-contacts">
+                <a href="tel:+78005551848" className="il-menu-phone">8 800 555-18-48</a>
+                <a href="mailto:team@reaktivo.ru" className="il-menu-mail">Team@reaktivo.ru</a>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <main>
         {/* ── Hero ── */}
@@ -1262,6 +1338,7 @@ export function InvestLanding() {
               <a href="#calc" className="il-nav-link" onClick={(e) => goTo(e, '#calc')}>Калькулятор выгоды</a>
               <a href="#market" className="il-nav-link" onClick={(e) => goTo(e, '#market')}>Динамика рынка</a>
               <a href="#faq" className="il-nav-link" onClick={(e) => goTo(e, '#faq')}>FAQ</a>
+              <a href="#contacts" className="il-nav-link" onClick={(e) => goTo(e, '#contacts')}>Контакты</a>
             </div>
             <div className="il-footer-col">
               <span className="il-footer-col-title">Продукты</span>
@@ -1269,7 +1346,7 @@ export function InvestLanding() {
               <a href="/kabinet" className="il-nav-link">Купить золото — кабинет</a>
               <a href="https://t.me/Reaktivoai" className="il-nav-link" target="_blank" rel="noopener noreferrer">Reaktivo Resale — Telegram</a>
             </div>
-            <div className="il-footer-col">
+            <div className="il-footer-col" id="contacts">
               <span className="il-footer-col-title">Контакты</span>
               <a href="tel:+78005551848" className="il-nav-link">8 (800) 555-18-48</a>
               <a href="mailto:team@reaktivo.ru" className="il-nav-link">Team@reaktivo.ru</a>
@@ -1368,6 +1445,70 @@ const CSS = `
 .il-nav-link:hover::after { transform: scaleX(1); transform-origin: left; }
 .il-header-actions { display: flex; align-items: center; gap: 12px; }
 .il-btn--header-buy { padding: 11px 18px; font-size: 0.86rem; }
+.il-header-phone {
+  display: none; flex-direction: column; align-items: flex-end; gap: 1px;
+  text-decoration: none; line-height: 1.15; padding: 4px 2px;
+  transition: opacity 0.2s;
+}
+.il-header-phone-label {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.il-header-phone-num {
+  font-size: 0.92rem; font-weight: 800; letter-spacing: -0.02em;
+  color: var(--text-strong); font-variant-numeric: tabular-nums;
+}
+.il-header-phone:hover .il-header-phone-num { color: var(--accent); }
+.il-menu-btn {
+  display: none; width: 42px; height: 42px; border-radius: 12px;
+  border: 1px solid var(--stroke); background: transparent; cursor: pointer;
+  align-items: center; justify-content: center; flex-direction: column; gap: 5px; padding: 0;
+}
+.il-menu-btn span {
+  display: block; width: 16px; height: 2px; border-radius: 2px; background: var(--text-strong);
+  transition: transform 0.25s ease, opacity 0.2s;
+}
+.il-menu-btn.is-open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.il-menu-btn.is-open span:nth-child(2) { opacity: 0; }
+.il-menu-btn.is-open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+.il-menu {
+  position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-start; justify-content: center;
+  padding: 72px 16px 24px;
+}
+.il-menu-backdrop {
+  position: absolute; inset: 0; border: none; cursor: pointer;
+  background: color-mix(in srgb, var(--bg-deep) 55%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.il-menu-sheet {
+  position: relative; z-index: 1; width: min(420px, 100%);
+  background: var(--bg-panel-solid); border: 1px solid var(--stroke); border-radius: 22px;
+  padding: 18px 18px 22px; box-shadow: 0 30px 70px -30px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column; gap: 18px; max-height: calc(100dvh - 96px); overflow: auto;
+}
+.il-menu-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.il-menu-close {
+  width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--stroke);
+  background: transparent; color: var(--text-strong); font-size: 1.5rem; line-height: 1; cursor: pointer;
+}
+.il-menu-nav { display: flex; flex-direction: column; gap: 4px; }
+.il-menu-nav a {
+  display: block; text-decoration: none; color: var(--text-strong); font-weight: 700; font-size: 1.05rem;
+  padding: 12px 10px; border-radius: 12px; transition: background 0.2s;
+}
+.il-menu-nav a:hover { background: var(--accent-soft); color: var(--accent); }
+.il-menu-actions { display: flex; flex-direction: column; gap: 10px; }
+.il-menu-actions .il-btn { width: 100%; }
+.il-menu-contacts {
+  border-top: 1px solid var(--stroke-soft); padding-top: 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+}
+.il-menu-phone {
+  font-size: 1.2rem; font-weight: 800; color: var(--accent); text-decoration: none;
+  letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+}
+.il-menu-mail { font-size: 0.88rem; font-weight: 600; color: var(--text-muted); text-decoration: none; }
+.il-menu-mail:hover { color: var(--accent); }
 
 /* ── Кнопки ── */
 .il-btn {
@@ -1927,9 +2068,15 @@ const CSS = `
   .il-preview-chip--1 { left: 8px; }
   .il-preview-chip--2 { right: 8px; }
 }
+@media (min-width: 1180px) {
+  .il-header-phone { display: flex; }
+}
 @media (max-width: 720px) {
   .il-nav { display: none; }
   .il-btn--header-buy { display: none; }
+  .il-btn--header-login { display: none; }
+  .il-header-phone { display: none !important; }
+  .il-menu-btn { display: inline-flex; }
   .il-hero { padding: 118px 20px 64px; }
   .il-hero-title { font-size: clamp(2.1rem, 9.4vw, 2.7rem); }
   .il-hero-stats { gap: 18px; }
