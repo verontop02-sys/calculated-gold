@@ -1846,9 +1846,19 @@ const CSS = `
 /* ── Цифры ── */
 .il-section--kpi { padding: 84px 0; }
 .il-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; text-align: center; }
-.il-kpi { display: flex; flex-direction: column; gap: 8px; padding: 28px 14px; border-radius: 20px; border: 1px solid var(--stroke-soft); }
+.il-kpi {
+  display: flex; flex-direction: column; gap: 8px; padding: 28px 16px; border-radius: 20px;
+  background: #fff;
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 18px 40px -28px rgba(0,0,0,0.55);
+}
 .il-kpi-val { font-size: clamp(2.3rem, 4.2vw, 3.3rem); font-weight: 800; letter-spacing: -0.03em; color: var(--accent); font-variant-numeric: tabular-nums; }
-.il-kpi-label { font-size: 0.84rem; color: var(--text-strong); font-weight: 600; opacity: 0.9; }
+.il-kpi-label { font-size: 0.84rem; color: #1a1c1e; font-weight: 600; opacity: 0.78; }
+:root[data-theme='light'] .il-kpi {
+  background: #fff;
+  border-color: var(--stroke);
+  box-shadow: 0 14px 36px -24px rgba(0,0,0,0.18);
+}
 
 /* ── FAQ ── */
 .il-faq { display: flex; flex-direction: column; gap: 12px; }
