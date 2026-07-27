@@ -1497,9 +1497,10 @@ const CSS = `
   display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
 }
 .il-menu-phone {
-  font-size: 1.2rem; font-weight: 800; color: var(--accent); text-decoration: none;
+  font-size: 1.2rem; font-weight: 800; color: var(--text-strong); text-decoration: none;
   letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
 }
+.il-menu-phone:hover { color: var(--accent); }
 .il-menu-mail { font-size: 0.88rem; font-weight: 600; color: var(--text-muted); text-decoration: none; }
 .il-menu-mail:hover { color: var(--accent); }
 
