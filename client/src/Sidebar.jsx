@@ -342,13 +342,13 @@ export const SIDEBAR_CSS = `
   flex-shrink: 0;
 }
 .cg-sidebar__brand-mark {
-  width: 34px; height: 34px;
-  border-radius: 9px;
+  width: 40px; height: 40px;
+  border-radius: 11px;
   background: transparent;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
-  box-shadow: 0 2px 8px var(--accent-glow);
+  box-shadow: 0 4px 14px var(--accent-glow);
 }
 .cg-sidebar__brand-mark img {
   width: 100%; height: 100%; object-fit: cover;

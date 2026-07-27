@@ -34,6 +34,24 @@ function formatMoney(n) {
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(Number(n));
 }
 
+/** ×43,5 → «×43,5» */
+function formatGrowthMultiple(m) {
+  if (m == null || !Number.isFinite(Number(m))) return '—';
+  return `×${Number(m).toFixed(1).replace('.', ',')}`;
+}
+
+/** ×43,5 → «+4 250%» (рост в процентах: (multiple − 1) × 100) */
+function formatGrowthPct(m) {
+  if (m == null || !Number.isFinite(Number(m))) return '—';
+  return `+${Math.round((Number(m) - 1) * 100).toLocaleString('ru-RU')}%`;
+}
+
+/** ×43,5 → «в 43,5 раза» */
+function formatGrowthTimesRu(m) {
+  if (m == null || !Number.isFinite(Number(m))) return '';
+  return `в ${Number(m).toFixed(1).replace('.', ',')} раза`;
+}
+
 const isFinePointer = () => typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
 const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -78,13 +96,13 @@ const Ico = {
 
 const STEPS = [
   { n: '01', title: 'Вход по телефону', text: 'Номер + код из SMS. Без анкет, сканов и визитов в офис — кабинет открывается за две минуты.' },
-  { n: '02', title: 'Покупка от 1 грамма', text: 'Фиксируете биржевой курс в моменте. Комиссия видна до подтверждения — никаких сюрпризов после.' },
+  { n: '02', title: 'Купить золото от 1 г', text: 'Фиксируете биржевой курс в моменте. Комиссия видна до подтверждения — никаких сюрпризов после.' },
   { n: '03', title: 'Портфель растёт онлайн', text: 'Курс обновляется в реальном времени. Баланс в граммах и рублях — всегда перед глазами.' },
   { n: '04', title: 'Продажа и вывод', text: 'Продаёте часть или всё по текущему курсу — деньги выводятся на карту любого банка.' },
 ];
 
 const ADVANTAGES = [
-  { icon: Ico.scale, title: 'Учёт до 0,0001 грамма', text: 'Никаких «удобных» округлений: каждая доля миллиграмма учитывается при покупке и продаже.' },
+  { icon: Ico.scale, title: 'Учёт до 0,0001 грамма', text: 'Никаких «удобных» округлений: каждая доля миллиграмма учитывается, когда вы покупаете золото или продаёте.' },
   { icon: Ico.eye, title: 'Комиссия видна заранее', text: 'Точная сумма комиссии показывается до подтверждения сделки. Скрытых удержаний нет.' },
   { icon: Ico.shield, title: 'Официальные котировки', text: 'Биржевой курс и данные ЦБ РФ — цены берутся из официальных источников, а не «с потолка».' },
   { icon: Ico.bolt, title: 'Моментальные пополнение и вывод', text: 'Кошелёк пополняется через СБП за секунды. Вывод — на карту любого банка сразу после продажи.' },
@@ -93,16 +111,26 @@ const ADVANTAGES = [
 ];
 
 const FAQ = [
-  { q: 'Сколько стоит купить золото в Reaktivo?', a: 'Минимальный порог — от 1 грамма. Комиссия показывается заранее, до подтверждения сделки, и зависит от текущих настроек площадки.' },
-  { q: 'Что значит «золото на счету»?', a: 'В кабинете ведётся точный учёт вашего остатка в граммах по текущему курсу. Reaktivo выступает вашим агентом: покупает золото для вас и ведёт его учёт.' },
-  { q: 'Как пополнить кошелёк?', a: 'Через СБП — по номеру телефона, без ввода реквизитов. Деньги зачисляются моментально и сразу доступны для покупки золота.' },
-  { q: 'Как продать золото и получить деньги?', a: 'В разделе «Продать» указываете количество граммов или сумму — сделка фиксируется по актуальному курсу, а средства выводятся на карту любого банка.' },
-  { q: 'По какому курсу считается доходность?', a: 'Исторические расчёты в калькуляторе используют официальные данные Банка России; текущие сделки — биржевой курс, отображаемый в кабинете в реальном времени.' },
-  { q: 'Нужно ли приходить в офис?', a: 'Нет. Вся работа — от входа до продажи и вывода средств — происходит онлайн в личном кабинете.' },
-  { q: 'Это инвестиционная рекомендация?', a: 'Нет. Материалы на сайте и в калькуляторе носят иллюстративный характер и не являются индивидуальной инвестиционной рекомендацией. Прошлый рост цены не гарантирует будущий результат.' },
+  { q: 'Сколько стоит купить золото в Reaktivo?', a: 'Расчёт стоимости золота максимально прозрачен: перед покупкой вы видите итоговую стоимость. Все комиссии уже включены и не превышают 7% от стоимости золота.' },
+  { q: 'Что значит золото на счету?', a: 'Reaktivo выступает вашим агентом: покупает золото для вас и ведёт его учёт. В личном кабинете вы можете следить за портфелем и в любой момент вывести любую сумму на карту или забрать золото — в соответствии с выбранным пакетом управления.' },
+  { q: 'Как пополнить баланс?', a: 'Вы можете пополнить баланс банковской картой через СБП — по номеру телефона, без ввода реквизитов. Деньги зачисляются мгновенно и сразу становятся доступны для покупки золота.' },
+  { q: 'Как продать золото и получить деньги?', a: 'В разделе «Продать» вы указываете количество граммов или сумму — сделка фиксируется по актуальному курсу, а средства выводятся на карту любого банка.' },
+  { q: 'По какому курсу считается доходность?', a: 'Исторические расчёты в калькуляторе основаны на официальных данных Банка России; текущие сделки — на биржевом курсе Московской и мировой бирж золота, который отображается в личном кабинете в реальном времени.' },
+  { q: 'Нужно ли приходить в офис?', a: 'Нет, это необязательно. Вся работа — от входа до продажи и вывода средств — происходит онлайн в личном кабинете. Обращаем ваше внимание: для регистрации в системе необходим паспорт РФ. Сделки по приобретению золота невозможны без прохождения проверки документов.' },
+  { q: 'Это инвестиционная рекомендация?', a: 'Нет. Материалы на сайте и в калькуляторе носят иллюстративный характер и не являются индивидуальной инвестиционной рекомендацией. Прошлый рост цены не гарантирует будущих результатов. Reaktivo выступает вашим агентом по покупке золота.' },
 ];
 
-const MARQUEE = ['Курс ЦБ РФ', 'Биржевые котировки', 'От 1 грамма', 'Пополнение через СБП', 'Вывод на карту', 'Комиссия до сделки', 'PDF-выписки', 'AI-ассистент', 'Учёт до 0,0001 г'];
+const MARQUEE = [
+  'Купить золото онлайн',
+  'Купить золото от 1 г',
+  'Курс ЦБ РФ',
+  'Биржевые котировки',
+  'Пополнение через СБП',
+  'Вывод на карту',
+  'Комиссия до сделки',
+  'PDF-выписки',
+  'AI-ассистент',
+];
 
 const STATEMENT_WORDS = 'Золото пережило войны, кризисы и дефолты. Сбережения в золоте — спокойствие, проверенное веками.'.split(' ');
 
@@ -734,10 +762,14 @@ export function InvestLanding() {
 
       <header className={`il-header${scrolled ? ' il-header--scrolled' : ''}`}>
         <div className="il-header-inner">
-          <a href="/" className="il-logo">REAKTIVO<span>.PRO</span></a>
+          <a href="/" className="il-logo" aria-label="REAKTIVO.PRO">
+            <img className="il-logo-mark" src="/logo-reaktivo-mark.svg" alt="" width="40" height="40" />
+            <span className="il-logo-text">REAKTIVO<span>.PRO</span></span>
+          </a>
           <nav className="il-nav">
             <a href="#how" className="il-nav-link" onClick={(e) => goTo(e, '#how')}>Как это работает</a>
             <a href="#about" className="il-nav-link" onClick={(e) => goTo(e, '#about')}>О компании</a>
+            <a href="#partners" className="il-nav-link" onClick={(e) => goTo(e, '#partners')}>Партнёрам</a>
             <a href="#calc" className="il-nav-link" onClick={(e) => goTo(e, '#calc')}>Калькулятор</a>
             <a href="#market" className="il-nav-link" onClick={(e) => goTo(e, '#market')}>Динамика</a>
             <a href="#faq" className="il-nav-link" onClick={(e) => goTo(e, '#faq')}>FAQ</a>
@@ -752,6 +784,14 @@ export function InvestLanding() {
               title={headerUser ? 'Открыть кабинет' : 'Войти в кабинет'}
             >
               {headerUser || 'Войти'}
+            </motion.a>
+            <motion.a
+              href="/kabinet"
+              className="il-btn il-btn--primary il-btn--header-buy"
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              Купить золото
             </motion.a>
           </div>
         </div>
@@ -768,20 +808,20 @@ export function InvestLanding() {
           <motion.div className="il-hero-inner" style={{ opacity: heroFade }}>
             <div className="il-hero-copy">
               <motion.span className="il-badge" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}>
-                <i className="il-badge-dot" /> Reaktivo · покупка золота онлайн
+                <i className="il-badge-dot" /> Купить золото онлайн · Reaktivo
               </motion.span>
 
               <HeroTitle />
 
               <motion.p className="il-hero-sub" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.5, ease: EASE }}>
-                Reaktivo — ваш агент по покупке золота: биржевой курс в реальном времени, комиссия видна до сделки,
-                пополнение через СБП и вывод на карту. Всё онлайн, без визитов в офис.
+                Купить золото онлайн с Reaktivo — ваш агент по покупке: биржевой курс в реальном времени,
+                комиссия видна до сделки, пополнение через СБП и вывод на карту. Без визитов в офис.
               </motion.p>
 
               <motion.div className="il-hero-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.64, ease: EASE }}>
                 <Magnetic>
                   <motion.a href="/kabinet" className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.96 }}>
-                    Открыть кабинет
+                    Купить золото
                     <span className="il-btn-arrow" aria-hidden>→</span>
                   </motion.a>
                 </Magnetic>
@@ -792,8 +832,14 @@ export function InvestLanding() {
 
               <motion.div className="il-hero-stats" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.78, ease: EASE }}>
                 <div className="il-hero-stat">
-                  <AnimatedNumber to={growth ? growth.multiple : null} format={(v) => `×${v.toFixed(1).replace('.', ',')}`} className="il-hero-stat-val" />
-                  <span className="il-hero-stat-label">рост золота с {growth ? growth.first.year : '2000'} года</span>
+                  <AnimatedNumber to={growth ? growth.multiple : null} format={formatGrowthMultiple} className="il-hero-stat-val" />
+                  <span className="il-hero-stat-label">
+                    {growth ? formatGrowthTimesRu(growth.multiple) : 'в ··· раза'}
+                    {' · '}
+                    {growth ? formatGrowthPct(growth.multiple) : '+···%'}
+                    {' с '}
+                    {growth ? growth.first.year : '2000'}
+                  </span>
                 </div>
                 <div className="il-hero-stat-sep" aria-hidden />
                 <div className="il-hero-stat">
@@ -846,8 +892,13 @@ export function InvestLanding() {
                 <Reveal><span className="il-pill">Динамика рынка</span></Reveal>
                 <Reveal delay={0.08}>
                   <h2 className="il-h2 il-h2--market">
-                    <AnimatedNumber to={growth ? growth.multiple : null} format={(v) => `×${v.toFixed(1).replace('.', ',')}`} className="il-market-mult-big" />
-                    <span className="il-market-mult-cap">рост золота с {growth ? growth.first.year : 2000} года</span>
+                    <AnimatedNumber to={growth ? growth.multiple : null} format={formatGrowthMultiple} className="il-market-mult-big" />
+                    <span className="il-market-mult-cap">
+                      {growth ? formatGrowthTimesRu(growth.multiple) : 'в ··· раза'} с {growth ? growth.first.year : 2000} года
+                    </span>
+                    <span className="il-market-mult-pct">
+                      это {growth ? formatGrowthPct(growth.multiple) : '+···%'} роста цены
+                    </span>
                   </h2>
                 </Reveal>
                 <Reveal delay={0.14}>
@@ -856,7 +907,7 @@ export function InvestLanding() {
                 <Reveal delay={0.2}>
                   <p className="il-p">
                     По официальным данным Банка России золото показывает устойчивый рост на длинном горизонте —
-                    опережая инфляцию и большинство привычных способов сбережений.
+                    опережая инфляцию и большинство привычных способов сбережений. Поэтому всё больше людей решают купить золото как защиту капитала.
                   </p>
                 </Reveal>
                 {growth && (
@@ -874,14 +925,15 @@ export function InvestLanding() {
                     </div>
                   </Reveal>
                 )}
-                {growth5y != null && (
-                  <Reveal delay={0.32}>
-                    <div className="il-market-chips">
+                <Reveal delay={0.32}>
+                  <div className="il-market-chips">
+                    {growth5y != null && (
                       <span className="il-market-chip">+{Math.round(growth5y).toLocaleString('ru-RU')}% за 5 лет</span>
-                      <span className="il-market-chip">источник — ЦБ РФ</span>
-                    </div>
-                  </Reveal>
-                )}
+                    )}
+                    <span className="il-market-chip">источник — ЦБ РФ</span>
+                    <a href="/kabinet" className="il-market-chip il-market-chip--cta">Купить золото →</a>
+                  </div>
+                </Reveal>
               </div>
               <motion.div
                 className="il-market-chart"
@@ -922,7 +974,7 @@ export function InvestLanding() {
             <div className="il-section-head">
               <Reveal><span className="il-pill">Бесплатный инструмент</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Сколько бы вы <span className="il-accent-text">заработали?</span></h2></Reveal>
-              <Reveal delay={0.16}><p className="il-p">Покупка золота онлайн от 1 грамма. Задайте сумму и год — калькулятор посчитает результат по официальному курсу ЦБ РФ. Без регистрации.</p></Reveal>
+              <Reveal delay={0.16}><p className="il-p">Купить золото онлайн от 1 грамма. Задайте сумму и год — калькулятор посчитает результат по официальному курсу ЦБ РФ. Без регистрации.</p></Reveal>
             </div>
             <Reveal delay={0.1} y={48}>
               <MissedBenefitCalc />
@@ -935,7 +987,7 @@ export function InvestLanding() {
           <div className="il-section-inner">
             <div className="il-section-head">
               <Reveal><span className="il-pill">Как это работает</span></Reveal>
-              <Reveal delay={0.08}><h2 className="il-h2">Четыре шага — и золото в портфеле</h2></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Четыре шага — купить золото онлайн</h2></Reveal>
             </div>
             <motion.div className="il-steps" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-10% 0px' }}>
               {STEPS.map((s, i) => (
@@ -1031,21 +1083,42 @@ export function InvestLanding() {
               <Reveal delay={0.08}><h2 className="il-h2">Reaktivo — деньги.<br /><span className="il-accent-text">Реактивно быстро!</span></h2></Reveal>
             </div>
             <div className="il-about-grid">
-              <Reveal delay={0.1} className="il-about-text">
-                <p>
-                  Reaktivo развивает формат неклассической скупки золота. Мы создаём условия, при которых клиенты
-                  свободно управляют своими активами в золоте: не только продают их, чтобы быстро получить ликвидность,
-                  но и покупают — чтобы формировать доход, используя потенциал золота.
-                </p>
-                <p>
-                  Клиенты Reaktivo могут быстро получить деньги за ненужное золото — и при этом накапливать золото онлайн:
-                  видеть портфель в реальном времени, докупать и продавать по необходимости.
-                </p>
-                <p>
-                  Мы строим не просто сеть пунктов покупки, а экосистему, в которой золото — быстрый, прозрачный
-                  и удобный финансовый инструмент.
-                </p>
-              </Reveal>
+              <div className="il-about-left">
+                <Reveal delay={0.1} className="il-about-text">
+                  <p>
+                    Reaktivo развивает формат неклассической скупки золота. Мы создаём условия, при которых клиенты
+                    свободно управляют своими активами в золоте: не только продают их, чтобы быстро получить ликвидность,
+                    но и покупают — чтобы формировать доход, используя потенциал золота.
+                  </p>
+                  <p>
+                    Клиенты Reaktivo могут быстро получить деньги за ненужное золото — и при этом накапливать золото онлайн:
+                    видеть портфель в реальном времени, докупать и продавать по необходимости.
+                  </p>
+                  <p>
+                    Мы строим не просто сеть пунктов покупки, а экосистему, в которой золото — быстрый, прозрачный
+                    и удобный финансовый инструмент.
+                  </p>
+                </Reveal>
+                <Reveal delay={0.16} className="il-about-photo">
+                  {/* Подставьте фото в client/public/office-interior.jpg — плейсхолдер скроется сам */}
+                  <div className="il-about-photo-frame" role="img" aria-label="Интерьер офиса Reaktivo">
+                    <div className="il-about-photo-ph is-visible" data-office-ph>
+                      <span>Фото офиса</span>
+                      <small>Скоро добавим интерьер отделения</small>
+                    </div>
+                    <img
+                      className="il-about-photo-img"
+                      src="/office-interior.jpg"
+                      alt="Интерьер отделения Reaktivo"
+                      onLoad={(e) => {
+                        e.currentTarget.classList.add('is-ready');
+                        e.currentTarget.parentElement?.querySelector('[data-office-ph]')?.classList.remove('is-visible');
+                      }}
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  </div>
+                </Reveal>
+              </div>
               <motion.div className="il-products" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
                 <motion.a className="il-product" href="https://reaktivo.ru" target="_blank" rel="noopener noreferrer" variants={staggerChild} whileHover={{ y: -6 }}>
                   <span className="il-product-tag">Reaktivo.ru</span>
@@ -1057,7 +1130,7 @@ export function InvestLanding() {
                   <span className="il-product-tag">Reaktivo.pro — вы здесь</span>
                   <h3 className="il-product-title">Купить золото</h3>
                   <p className="il-product-text">От 1 грамма онлайн. Reaktivo — ваш агент и покупает золото по выгодному курсу.</p>
-                  <span className="il-product-link">Открыть кабинет →</span>
+                  <span className="il-product-link">Купить золото →</span>
                 </motion.a>
                 <motion.a className="il-product" href="https://t.me/Reaktivoai" target="_blank" rel="noopener noreferrer" variants={staggerChild} whileHover={{ y: -6 }}>
                   <span className="il-product-tag">Telegram</span>
@@ -1070,13 +1143,53 @@ export function InvestLanding() {
           </div>
         </section>
 
+        {/* ── Партнёрам ── */}
+        <section className="il-section il-section--partners" id="partners">
+          <div className="il-section-inner">
+            <Reveal y={40}>
+              <div className="il-partner-banner">
+                <div className="il-partner-copy">
+                  <span className="il-pill">Стать партнёром</span>
+                  <h2 className="il-partner-title">Открыть точку Reaktivo<br /><span className="il-accent-text">или стать партнёром</span></h2>
+                  <p className="il-partner-text">
+                    Напишите нам, если хотите стать партнёром Reaktivo или открыть свою точку скупки золота под брендом Reaktivo.
+                  </p>
+                  <div className="il-partner-actions">
+                    <Magnetic>
+                      <motion.a href="mailto:team@reaktivo.ru?subject=Партнёрство%20Reaktivo" className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.96 }}>
+                        Написать Team@reaktivo.ru
+                        <span className="il-btn-arrow" aria-hidden>→</span>
+                      </motion.a>
+                    </Magnetic>
+                    <a href="https://reaktivo.ru" className="il-btn il-btn--outline il-btn--lg" target="_blank" rel="noopener noreferrer">
+                      Узнать о точках
+                    </a>
+                  </div>
+                </div>
+                <div className="il-partner-aside" aria-hidden>
+                  <span className="il-partner-mark">
+                    <img src="/logo-reaktivo-mark.svg" alt="" width="72" height="72" />
+                  </span>
+                  <span className="il-partner-aside-label">Reaktivo Partner</span>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
         {/* ── Цифры ── */}
         <section className="il-section il-section--kpi">
           <div className="il-section-inner">
             <motion.div className="il-kpis" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-10% 0px' }}>
               <motion.div className="il-kpi" variants={staggerChild}>
-                <AnimatedNumber to={growth ? growth.multiple : null} format={(v) => `×${v.toFixed(1).replace('.', ',')}`} className="il-kpi-val" />
-                <span className="il-kpi-label">рост золота с {growth ? growth.first.year : '2000'} года</span>
+                <AnimatedNumber to={growth ? growth.multiple : null} format={formatGrowthMultiple} className="il-kpi-val" />
+                <span className="il-kpi-label">
+                  {growth ? formatGrowthTimesRu(growth.multiple) : 'в ··· раза'}
+                  {' · '}
+                  {growth ? formatGrowthPct(growth.multiple) : '+···%'}
+                  {' с '}
+                  {growth ? growth.first.year : '2000'}
+                </span>
               </motion.div>
               <motion.div className="il-kpi" variants={staggerChild}>
                 <span className="il-kpi-val">0,0001 г</span>
@@ -1116,11 +1229,11 @@ export function InvestLanding() {
           <div className="il-section-inner">
             <Reveal y={56}>
               <div className="il-cta-panel">
-                <h2 className="il-cta-title">Начните сегодня —<br />это займёт две минуты</h2>
+                <h2 className="il-cta-title">Купить золото сегодня —<br />это займёт две минуты</h2>
                 <p className="il-cta-sub">Вход по номеру телефона. Без анкет и визитов в офис.</p>
                 <Magnetic>
                   <motion.a href="/kabinet" className="il-btn il-btn--inverse il-btn--lg" whileTap={{ scale: 0.96 }}>
-                    Открыть кабинет
+                    Купить золото
                     <span className="il-btn-arrow" aria-hidden>→</span>
                   </motion.a>
                 </Magnetic>
@@ -1137,13 +1250,17 @@ export function InvestLanding() {
         <div className="il-section-inner">
           <div className="il-footer-grid">
             <div className="il-footer-brand">
-              <span className="il-logo">REAKTIVO<span>.PRO</span></span>
+              <span className="il-logo il-logo--footer" aria-label="REAKTIVO.PRO">
+                <img className="il-logo-mark" src="/logo-reaktivo-mark.svg" alt="" width="44" height="44" />
+                <span className="il-logo-text">REAKTIVO<span>.PRO</span></span>
+              </span>
               <p>Покупка золота онлайн от 1 грамма.<br />Официальные котировки, прозрачные комиссии.</p>
             </div>
             <div className="il-footer-col">
               <span className="il-footer-col-title">Разделы</span>
               <a href="#how" className="il-nav-link" onClick={(e) => goTo(e, '#how')}>Как это работает</a>
               <a href="#about" className="il-nav-link" onClick={(e) => goTo(e, '#about')}>О компании</a>
+              <a href="#partners" className="il-nav-link" onClick={(e) => goTo(e, '#partners')}>Партнёрам</a>
               <a href="#calc" className="il-nav-link" onClick={(e) => goTo(e, '#calc')}>Калькулятор выгоды</a>
               <a href="#market" className="il-nav-link" onClick={(e) => goTo(e, '#market')}>Динамика рынка</a>
               <a href="#faq" className="il-nav-link" onClick={(e) => goTo(e, '#faq')}>FAQ</a>
@@ -1157,7 +1274,8 @@ export function InvestLanding() {
             <div className="il-footer-col">
               <span className="il-footer-col-title">Контакты</span>
               <a href="tel:+78005551848" className="il-nav-link">8 (800) 555-18-48</a>
-              <a href="mailto:team@reaktivo.ru" className="il-nav-link">team@reaktivo.ru</a>
+              <a href="mailto:team@reaktivo.ru" className="il-nav-link">Team@reaktivo.ru</a>
+              <a href="mailto:team@reaktivo.ru?subject=Партнёрство%20Reaktivo" className="il-nav-link">Стать партнёром</a>
               <a href="/pro" className="il-nav-link il-nav-link--dim">Сотрудникам</a>
               <span className="il-nav-link il-nav-link--dim">Документы и лицензии — раздел готовится</span>
             </div>
@@ -1184,8 +1302,8 @@ const CSS = `
   overflow-x: clip;
   -webkit-font-smoothing: antialiased;
 }
-.il-section-inner { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
-.il-section-inner--narrow { max-width: 800px; }
+.il-section-inner { max-width: 1360px; margin: 0 auto; padding: 0 28px; }
+.il-section-inner--narrow { max-width: 960px; }
 .il-accent-text { color: var(--accent); }
 .il-magnetic { display: inline-block; }
 
@@ -1217,12 +1335,23 @@ const CSS = `
   box-shadow: 0 8px 32px -20px rgba(0,0,0,0.35);
 }
 .il-header-inner {
-  max-width: 1180px; margin: 0 auto; padding: 16px 28px;
+  max-width: 1360px; margin: 0 auto; padding: 16px 28px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
 }
-.il-logo { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; color: var(--text-strong); text-decoration: none; white-space: nowrap; }
-.il-logo span { color: var(--accent); }
-.il-nav { display: flex; gap: 24px; }
+.il-logo {
+  display: inline-flex; align-items: center; gap: 12px;
+  font-weight: 800; font-size: 1.2rem; letter-spacing: -0.01em;
+  color: var(--text-strong); text-decoration: none; white-space: nowrap;
+}
+.il-logo-mark {
+  width: 40px; height: 40px; border-radius: 11px; object-fit: cover;
+  box-shadow: 0 8px 24px -10px color-mix(in srgb, var(--accent) 70%, transparent);
+  flex-shrink: 0;
+}
+.il-logo--footer .il-logo-mark { width: 44px; height: 44px; border-radius: 12px; }
+.il-logo-text { display: inline-flex; align-items: baseline; }
+.il-logo span, .il-logo-text span { color: var(--accent); }
+.il-nav { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
 .il-nav-link { position: relative; color: var(--text-muted); text-decoration: none; font-size: 0.86rem; font-weight: 600; transition: color 0.25s; padding: 4px 0; }
 .il-nav-link::after {
   content: ''; position: absolute; left: 0; bottom: 0; width: 100%; height: 2px;
@@ -1232,6 +1361,7 @@ const CSS = `
 .il-nav-link:hover { color: var(--text-strong); }
 .il-nav-link:hover::after { transform: scaleX(1); transform-origin: left; }
 .il-header-actions { display: flex; align-items: center; gap: 12px; }
+.il-btn--header-buy { padding: 11px 18px; font-size: 0.86rem; }
 
 /* ── Кнопки ── */
 .il-btn {
@@ -1310,7 +1440,7 @@ const CSS = `
   opacity: 0.6;
 }
 .il-hero-inner {
-  position: relative; z-index: 2; max-width: 1180px; margin: 0 auto;
+  position: relative; z-index: 2; max-width: 1360px; margin: 0 auto;
   display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
   gap: 64px; align-items: center;
 }
@@ -1411,7 +1541,7 @@ const CSS = `
 /* ── Секции ── */
 .il-section { padding: 100px 0; position: relative; z-index: 2; }
 .il-section--alt { background: color-mix(in srgb, var(--bg-panel-solid) 42%, transparent); }
-.il-section-head { text-align: center; max-width: 720px; margin: 0 auto 56px; }
+.il-section-head { text-align: center; max-width: 820px; margin: 0 auto 56px; }
 .il-pill {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
@@ -1429,7 +1559,7 @@ const CSS = `
 
 /* ── Превью кабинета ── */
 .il-section--preview { padding-bottom: 40px; }
-.il-preview-perspective { position: relative; perspective: 1400px; max-width: 980px; margin: 0 auto; }
+.il-preview-perspective { position: relative; perspective: 1400px; max-width: 1120px; margin: 0 auto; }
 .il-preview-window {
   border-radius: 22px; overflow: hidden;
   background: var(--bg-panel-solid); border: 1px solid var(--stroke);
@@ -1490,7 +1620,7 @@ const CSS = `
 /* ── Заявление ── */
 .il-statement { padding: 130px 0 110px; }
 .il-statement-text {
-  max-width: 900px; margin: 0 auto; text-align: center;
+  max-width: 1040px; margin: 0 auto; text-align: center;
   font-size: clamp(1.7rem, 3.9vw, 2.8rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.3;
   color: var(--text-strong); text-wrap: balance;
 }
@@ -1504,6 +1634,10 @@ const CSS = `
   color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1;
 }
 .il-market-mult-cap { font-size: clamp(1.15rem, 2vw, 1.5rem); color: var(--text-strong); font-weight: 800; letter-spacing: -0.02em; }
+.il-market-mult-pct {
+  font-size: clamp(1rem, 1.6vw, 1.2rem); color: var(--text-muted); font-weight: 700;
+  letter-spacing: -0.01em; margin-top: 6px;
+}
 .il-market-slogan { font-size: 1.15rem; font-weight: 700; color: var(--text-strong); margin: 0 0 14px; }
 .il-market-stats { display: flex; align-items: center; gap: 22px; margin-top: 28px; flex-wrap: wrap; }
 .il-market-arrow { color: var(--text-dim); font-size: 1.3rem; }
@@ -1513,6 +1647,16 @@ const CSS = `
 .il-market-chip {
   font-size: 0.8rem; font-weight: 700; color: var(--text-muted);
   border: 1px solid var(--stroke); border-radius: 100px; padding: 8px 15px;
+}
+.il-market-chip--cta {
+  text-decoration: none; color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--stroke));
+  transition: background 0.25s, border-color 0.25s, color 0.25s;
+}
+.il-market-chip--cta:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .il-market-chart {
   background: var(--bg-panel-solid); border: 1px solid var(--stroke); border-radius: 22px; padding: 22px 18px;
@@ -1589,8 +1733,28 @@ const CSS = `
 
 /* ── О компании ── */
 .il-about-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 48px; align-items: start; }
+.il-about-left { display: flex; flex-direction: column; gap: 22px; }
 .il-about-text p { margin: 0 0 16px; font-size: 1rem; line-height: 1.75; color: var(--text-muted); }
 .il-about-text p:last-child { margin-bottom: 0; }
+.il-about-photo-frame {
+  position: relative; border-radius: 20px; overflow: hidden;
+  border: 1px solid var(--stroke); background: var(--bg-panel-solid);
+  aspect-ratio: 16 / 10; min-height: 200px;
+}
+.il-about-photo-img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  display: none; z-index: 1;
+}
+.il-about-photo-img.is-ready { display: block; }
+.il-about-photo-ph {
+  display: none; position: absolute; inset: 0; z-index: 0;
+  flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  background: linear-gradient(145deg, var(--accent-soft), var(--bg-panel-solid));
+  color: var(--text-muted); text-align: center; padding: 24px;
+}
+.il-about-photo-ph.is-visible { display: flex; }
+.il-about-photo-ph span { font-size: 1.05rem; font-weight: 800; color: var(--text-strong); }
+.il-about-photo-ph small { font-size: 0.85rem; color: var(--text-dim); }
 .il-products { display: flex; flex-direction: column; gap: 14px; }
 .il-product {
   display: block; text-decoration: none;
@@ -1604,6 +1768,31 @@ const CSS = `
 .il-product-text { font-size: 0.88rem; line-height: 1.55; color: var(--text-muted); margin: 0 0 10px; }
 .il-product-link { font-size: 0.84rem; font-weight: 700; color: var(--accent); }
 .il-product-link--dim { color: var(--text-dim); }
+
+/* ── Партнёры ── */
+.il-partner-banner {
+  display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.7fr);
+  gap: 36px; align-items: center;
+  padding: clamp(32px, 5vw, 52px);
+  border-radius: 28px; border: 1px solid var(--stroke);
+  background: linear-gradient(135deg, var(--accent-soft), var(--bg-panel-solid) 48%, var(--bg-panel-solid));
+  box-shadow: 0 30px 70px -48px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.il-partner-title {
+  font-size: clamp(1.7rem, 3.2vw, 2.4rem); font-weight: 800; letter-spacing: -0.03em;
+  line-height: 1.15; color: var(--text-strong); margin: 14px 0 12px;
+}
+.il-partner-text { margin: 0 0 26px; font-size: 1.02rem; line-height: 1.65; color: var(--text-muted); max-width: 520px; }
+.il-partner-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.il-partner-aside { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.il-partner-mark {
+  width: 96px; height: 96px; border-radius: 24px; overflow: hidden;
+  box-shadow: 0 18px 40px -16px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+.il-partner-mark img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.il-partner-aside-label {
+  font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim);
+}
 
 /* ── Цифры ── */
 .il-section--kpi { padding: 84px 0; }
@@ -1663,6 +1852,8 @@ const CSS = `
   .il-market-grid { grid-template-columns: 1fr; gap: 40px; }
   .il-sbp-grid { grid-template-columns: 1fr; gap: 44px; }
   .il-about-grid { grid-template-columns: 1fr; gap: 36px; }
+  .il-partner-banner { grid-template-columns: 1fr; gap: 28px; text-align: left; }
+  .il-partner-aside { display: none; }
   .il-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .il-step-line { display: none; }
   .il-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1673,6 +1864,7 @@ const CSS = `
 }
 @media (max-width: 720px) {
   .il-nav { display: none; }
+  .il-btn--header-buy { display: none; }
   .il-hero { padding: 118px 20px 64px; }
   .il-hero-title { font-size: clamp(2.1rem, 9.4vw, 2.7rem); }
   .il-hero-stats { gap: 18px; }

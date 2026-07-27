@@ -616,6 +616,7 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
         </div>
         <div className="cpx-home-hero-actions">
           <button type="button" className="cpx-btn cpx-btn--sm" onClick={() => onNavigate?.('invest')}>Купить золото</button>
+          <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>Пополнить</button>
           <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('calc')}>Калькулятор</button>
         </div>
       </div>
@@ -1706,6 +1707,55 @@ const CSS = `
 
 .cpx-fin-clocks { margin-bottom: 10px; }
 
+.cpx-fin-trade {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-bottom: 12px;
+  max-width: 920px;
+}
+.cpx-fin-trade--buy { max-width: 720px; margin-left: auto; margin-right: auto; width: 100%; }
+.cpx-fin-cta-bar {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+.cpx-fin-cta {
+  text-align: left; padding: 16px 18px; border-radius: 14px;
+  border: 1px solid var(--stroke); background: var(--bg-panel-solid);
+  cursor: pointer; display: flex; flex-direction: column; gap: 4px;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.cpx-fin-cta strong { font-size: 1rem; color: var(--text-strong); letter-spacing: -0.01em; }
+.cpx-fin-cta span { font-size: 0.78rem; color: var(--text-dim); }
+.cpx-fin-cta--buy:hover,
+.cpx-fin-cta--buy.cpx-fin-cta--on {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--stroke));
+  background: var(--accent-soft);
+  box-shadow: 0 10px 28px -18px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.cpx-fin-cta--topup:hover,
+.cpx-fin-cta--topup.cpx-fin-cta--on {
+  border-color: color-mix(in srgb, var(--cpx-emerald, #10b981) 45%, var(--stroke));
+  background: color-mix(in srgb, var(--cpx-emerald, #10b981) 10%, var(--bg-panel-solid));
+}
+.cpx-fin-buy-panel--central { width: 100%; }
+.cpx-fin-buy-card { border-color: color-mix(in srgb, var(--accent) 28%, var(--stroke)); }
+.cpx-fin-topup-panel { border-color: color-mix(in srgb, var(--cpx-emerald, #10b981) 30%, var(--stroke)); }
+.cpx-fin-topup-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 4px; }
+.cpx-fin-topup-steps {
+  margin: 0 0 14px; padding-left: 18px;
+  font-size: 0.84rem; color: var(--text-muted); line-height: 1.55;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.cpx-fin-topup-steps a { color: var(--accent); font-weight: 600; }
+.cpx-fin-topup-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cpx-fin-topup-actions .cpx-btn--ghost {
+  text-decoration: none; display: inline-flex; align-items: center;
+  border: 1px solid var(--stroke); background: transparent; color: var(--text-strong);
+  border-radius: 10px; padding: 10px 14px; font-weight: 700; font-size: 0.86rem;
+}
+.cpx-fin-topup-foot { margin: 10px 0 0; font-size: 0.74rem; color: var(--text-dim); line-height: 1.45; }
+@media (max-width: 560px) {
+  .cpx-fin-cta-bar { grid-template-columns: 1fr; }
+}
+
 .cpx-fin-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
@@ -2219,7 +2269,7 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
   color: var(--text-strong);
 }
 .cpx-brand-mark {
-  width: 38px; height: 38px; border-radius: 10px; background: transparent;
+  width: 44px; height: 44px; border-radius: 12px; background: transparent;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
   box-shadow: 0 4px 18px var(--accent-glow);
 }

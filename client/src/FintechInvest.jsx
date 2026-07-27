@@ -899,8 +899,87 @@ function LedgerEntryModal({ entry, onClose }) {
   );
 }
 
+// ── CTA под графиком: Купить / Пополнить ────────────────────────────────────
+function TradeCtaBar({ active, onBuy, onTopup, rubBalance }) {
+  return (
+    <div className="cpx-fin-cta-bar" role="group" aria-label="Купить золото или пополнить баланс">
+      <button
+        type="button"
+        className={`cpx-fin-cta cpx-fin-cta--buy${active === 'buy' ? ' cpx-fin-cta--on' : ''}`}
+        onClick={onBuy}
+      >
+        <strong>Купить золото</strong>
+        <span>от 0,01 г · курс биржи</span>
+      </button>
+      <button
+        type="button"
+        className={`cpx-fin-cta cpx-fin-cta--topup${active === 'topup' ? ' cpx-fin-cta--on' : ''}`}
+        onClick={onTopup}
+      >
+        <strong>Пополнить</strong>
+        <span>баланс {formatMoney(rubBalance)}</span>
+      </button>
+    </div>
+  );
+}
+
+// ── Пополнение баланса (заявка до эквайринга) ───────────────────────────────
+function TopUpPanel({ portfolio, onClose }) {
+  const [amount, setAmount] = useState('50000');
+  const [note, setNote] = useState('');
+  const rubBal = Number(portfolio?.rubBalance) || 0;
+
+  function submit(e) {
+    e.preventDefault();
+    const v = parseFloat(String(amount).replace(',', '.'));
+    if (!Number.isFinite(v) || v <= 0) {
+      setNote('Укажите сумму пополнения');
+      return;
+    }
+    try {
+      const key = 'cpx_fin_topup_drafts';
+      const prev = JSON.parse(localStorage.getItem(key) || '[]');
+      prev.unshift({ rub: v, at: new Date().toISOString(), status: 'awaiting_credit' });
+      localStorage.setItem(key, JSON.stringify(prev.slice(0, 20)));
+    } catch { /* ignore */ }
+    setNote(`Заявка на ${formatMoney(v)} сохранена. Напишите в поддержку или на team@reaktivo.ru — модератор зачислит сумму на баланс. Онлайн СБП подключится после эквайринга.`);
+  }
+
+  return (
+    <div className="cpx-card cpx-fin-topup-panel" id="fin-topup">
+      <div className="cpx-fin-topup-head">
+        <div>
+          <h2 className="cpx-fin-side-title">Пополнить баланс</h2>
+          <p className="cpx-fin-side-sub">Сейчас на счёте {formatMoney(rubBal)}. После зачисления сразу можно купить золото.</p>
+        </div>
+        {onClose && (
+          <button type="button" className="cpx-link" onClick={onClose}>Скрыть</button>
+        )}
+      </div>
+      <ol className="cpx-fin-topup-steps">
+        <li>Укажите сумму и оставьте заявку</li>
+        <li>Напишите в поддержку или на <a href="mailto:team@reaktivo.ru">team@reaktivo.ru</a></li>
+        <li>Модератор зачислит рубли — можно покупать золото</li>
+      </ol>
+      <form onSubmit={submit} className="cpx-form cpx-fin-buy-form">
+        <label className="cpx-field">
+          <span className="cpx-field-label">Сумма пополнения, ₽</span>
+          <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="50000" />
+        </label>
+        <div className="cpx-fin-topup-actions">
+          <button type="submit" className="cpx-btn">Оставить заявку</button>
+          <a className="cpx-btn cpx-btn--ghost" href="https://t.me/Reaktivoai" target="_blank" rel="noopener noreferrer">Telegram</a>
+          <a className="cpx-btn cpx-btn--ghost" href="mailto:team@reaktivo.ru">Написать на почту</a>
+        </div>
+        {note && <p className="cpx-fin-ok" style={{ color: 'var(--text-muted)' }}>{note}</p>}
+      </form>
+      <p className="cpx-fin-topup-foot">Онлайн-оплата картой и СБП — после подключения эквайринга. Пока зачисление вручную через модератора.</p>
+    </div>
+  );
+}
+
 // ── Покупка: состав заказа ──────────────────────────────────────────────────
-function BuyPanel({ portfolio, onDone }) {
+function BuyPanel({ portfolio, onDone, onTopup }) {
   const [mode, setMode] = useState('grams');
   const [amount, setAmount] = useState('1');
   const [buying, setBuying] = useState(false);
@@ -973,12 +1052,12 @@ function BuyPanel({ portfolio, onDone }) {
   }
 
   return (
-    <div className="cpx-fin-buy-panel">
+    <div className="cpx-fin-buy-panel cpx-fin-buy-panel--central">
       <div className="cpx-card cpx-fin-buy-card">
         <h2 className="cpx-fin-side-title">Купить золото</h2>
         <p className="cpx-fin-side-sub">
           От {minG.toLocaleString('ru-RU')} г · курс {rate ? formatMoney(rate) : '—'} / г
-          {feePct ? ` · комиссия ${feePct}%` : ''}
+          {feePct ? ` · комиссия ${feePct}% уже в цене` : ''}
         </p>
 
         <form onSubmit={submitBuy} className="cpx-form cpx-fin-buy-form">
@@ -1050,15 +1129,16 @@ function BuyPanel({ portfolio, onDone }) {
 
           {buyErr && <p className="cpx-err">{buyErr}</p>}
           {buyOk && <p className="cpx-fin-ok">{buyOk}</p>}
-          <button type="submit" className="cpx-btn" disabled={buying || !quote}>
-            {buying ? <><span className="cpx-spinner" /> Покупаем…</> : 'Подтвердить покупку'}
-          </button>
+          {quote && quote.rubGross > rubBal ? (
+            <button type="button" className="cpx-btn" onClick={onTopup}>
+              Пополнить баланс и купить
+            </button>
+          ) : (
+            <button type="submit" className="cpx-btn" disabled={buying || !quote}>
+              {buying ? <><span className="cpx-spinner" /> Покупаем…</> : 'Подтвердить покупку'}
+            </button>
+          )}
         </form>
-      </div>
-
-      <div className="cpx-card cpx-fin-topup-hint">
-        <span className="cpx-fin-topup-icon" aria-hidden>ℹ</span>
-        <p>Пополнение рублёвого баланса — переводом по реквизитам. Модератор зачислит сумму в течение рабочего дня. Онлайн-оплата картой и СБП подключится после эквайринга Т-Банка.</p>
       </div>
     </div>
   );
@@ -1206,8 +1286,27 @@ function FintechDashboard({ profile }) {
   const [ledger, setLedger] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
-  const [view, setView] = useState('overview');
+  const [view, setView] = useState('buy');
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [showTopup, setShowTopup] = useState(false);
+
+  const openBuy = useCallback(() => {
+    setShowTopup(false);
+    setView('buy');
+  }, []);
+
+  const openTopup = useCallback(() => {
+    setView('buy');
+    setShowTopup(true);
+  }, []);
+
+  useEffect(() => {
+    if (!showTopup || view !== 'buy') return undefined;
+    const t = window.setTimeout(() => {
+      document.getElementById('fin-topup')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, [showTopup, view]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1264,7 +1363,8 @@ function FintechDashboard({ profile }) {
           </p>
         </div>
         <div className="cpx-fin-hero-actions">
-          <button type="button" className="cpx-btn cpx-btn--sm" onClick={() => setView('buy')}>Купить</button>
+          <button type="button" className="cpx-btn cpx-btn--sm" onClick={openBuy}>Купить</button>
+          <button type="button" className="cpx-fin-pdf-btn" onClick={openTopup}>Пополнить</button>
           <button type="button" className="cpx-fin-pdf-btn" onClick={() => setView('sell')}>Продать</button>
           <button type="button" className="cpx-fin-pdf-btn" disabled={pdfBusy} onClick={downloadStatement}>
             {pdfBusy ? <><span className="cpx-spinner" /> …</> : 'Выписка PDF'}
@@ -1304,7 +1404,13 @@ function FintechDashboard({ profile }) {
             key={t.key}
             type="button"
             className={`cpx-fin-tab${view === t.key ? ' cpx-fin-tab--on' : ''}`}
-            onClick={() => setView(t.key)}
+            onClick={() => {
+              if (t.key === 'buy') openBuy();
+              else {
+                setShowTopup(false);
+                setView(t.key);
+              }
+            }}
           >
             {t.label}
           </button>
@@ -1314,29 +1420,20 @@ function FintechDashboard({ profile }) {
       {view === 'overview' && (
         <>
           <WorldClocksCard delay="0ms" className="cpx-fin-clocks" />
-          <div className="cpx-fin-layout">
+          <div className="cpx-fin-trade">
+            <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
+            <TradeCtaBar
+              active={null}
+              rubBalance={portfolio?.rubBalance}
+              onBuy={openBuy}
+              onTopup={openTopup}
+            />
+          </div>
+          <div className="cpx-fin-layout cpx-fin-layout--lower">
             <div className="cpx-fin-main">
-              <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
               <AssistantCard />
             </div>
             <aside className="cpx-fin-side">
-              <div className="cpx-card cpx-fin-quick">
-                <h2 className="cpx-fin-side-title">Быстрые действия</h2>
-                <div className="cpx-fin-quick-grid">
-                  <button type="button" className="cpx-fin-quick-btn" onClick={() => setView('buy')}>
-                    <strong>Купить золото</strong>
-                    <span>от 0,01 г или на сумму</span>
-                  </button>
-                  <button type="button" className="cpx-fin-quick-btn" onClick={() => setView('sell')}>
-                    <strong>Продать / вывод</strong>
-                    <span>на баланс или заявкой</span>
-                  </button>
-                  <button type="button" className="cpx-fin-quick-btn" onClick={() => setView('benefit')}>
-                    <strong>Упущенная выгода</strong>
-                    <span>анализ по курсу ЦБ</span>
-                  </button>
-                </div>
-              </div>
               <MissedBenefitCalc compact onOpenFull={() => setView('benefit')} />
               <div className="cpx-card cpx-fin-history-card">
                 <h2 className="cpx-fin-side-title">Последние операции</h2>
@@ -1348,13 +1445,20 @@ function FintechDashboard({ profile }) {
       )}
 
       {view === 'buy' && (
-        <div className="cpx-fin-layout">
-          <div className="cpx-fin-main">
-            <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
+        <div className="cpx-fin-trade cpx-fin-trade--buy">
+          <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
+          <TradeCtaBar
+            active={showTopup ? 'topup' : 'buy'}
+            rubBalance={portfolio?.rubBalance}
+            onBuy={openBuy}
+            onTopup={openTopup}
+          />
+          {showTopup && <TopUpPanel portfolio={portfolio} onClose={() => setShowTopup(false)} />}
+          <BuyPanel portfolio={portfolio} onDone={load} onTopup={openTopup} />
+          <div className="cpx-card cpx-fin-history-card">
+            <h2 className="cpx-fin-side-title">Последние операции</h2>
+            <LedgerList ledger={ledger} limit={6} />
           </div>
-          <aside className="cpx-fin-side">
-            <BuyPanel portfolio={portfolio} onDone={load} />
-          </aside>
         </div>
       )}
 

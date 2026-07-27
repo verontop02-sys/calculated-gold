@@ -107,7 +107,7 @@ export function MissedBenefitCalc({ compact = false, onOpenFull }) {
         <div>
           <span className="mbc-pill">Рост золота по данным ЦБ РФ</span>
           <h2 className="mbc-title mbc-title--lg" style={{ marginTop: 8 }}>Калькулятор упущенной выгоды</h2>
-          <p className="mbc-sub">Сколько вы могли бы заработать, купив золото раньше?</p>
+          <p className="mbc-sub">Сколько вы могли бы заработать, если бы решили купить золото раньше?</p>
         </div>
       </div>
 
