@@ -1123,7 +1123,7 @@ export function InvestLanding() {
                 <div className="il-about-photo-frame" role="img" aria-label="Интерьер офиса Reaktivo">
                   <div className="il-about-photo-ph is-visible" data-office-ph>
                     <span>Фото офиса</span>
-                    <small>Скоро добавим интерьер отделения</small>
+                    <small>Горизонтальное 16:9 · интерьер отделения</small>
                   </div>
                   <img
                     className="il-about-photo-img"
@@ -1748,13 +1748,13 @@ const CSS = `
   align-items: stretch;
 }
 .il-about-text { grid-column: 1; grid-row: 1; }
-.il-about-photo { grid-column: 1; grid-row: 2; min-height: 200px; height: 100%; }
+.il-about-photo { grid-column: 1; grid-row: 2; min-height: 0; height: 100%; }
 .il-about-text p { margin: 0 0 16px; font-size: 1rem; line-height: 1.75; color: var(--text-muted); }
 .il-about-text p:last-child { margin-bottom: 0; }
 .il-about-photo-frame {
   position: relative; border-radius: 20px; overflow: hidden;
   border: 1px solid var(--stroke); background: var(--bg-panel-solid);
-  height: 100%; min-height: 200px;
+  height: 100%; min-height: 200px; aspect-ratio: 16 / 9;
 }
 .il-about-photo-img {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
@@ -1779,16 +1779,42 @@ const CSS = `
   flex: 1 1 0;
   display: flex; flex-direction: column; justify-content: center;
   text-decoration: none;
-  background: var(--bg-panel-solid); border: 1px solid var(--stroke); border-radius: 18px; padding: 20px 22px;
-  transition: border-color 0.35s ease, box-shadow 0.35s ease;
+  border: none; border-radius: 22px; padding: 22px 24px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 12% -20%, rgba(255,255,255,0.28), transparent 42%),
+    radial-gradient(circle at 100% 120%, rgba(255,255,255,0.12), transparent 48%),
+    linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 52%, #000));
+  box-shadow: 0 22px 48px -26px color-mix(in srgb, var(--accent) 65%, transparent);
+  transition: transform 0.3s cubic-bezier(0.22,1,0.36,1), box-shadow 0.3s ease, filter 0.3s ease;
   min-height: 0;
 }
-.il-product:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke)); box-shadow: 0 24px 48px -28px color-mix(in srgb, var(--accent) 30%, transparent); }
-.il-product--main { border-color: color-mix(in srgb, var(--accent) 40%, var(--stroke)); background: linear-gradient(140deg, var(--accent-soft), var(--bg-panel-solid) 55%); }
-.il-product-tag { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
-.il-product-title { font-size: 1.12rem; font-weight: 800; color: var(--text-strong); margin: 6px 0 6px; letter-spacing: -0.01em; }
-.il-product-text { font-size: 0.88rem; line-height: 1.55; color: var(--text-muted); margin: 0 0 10px; }
-.il-product-link { font-size: 0.84rem; font-weight: 700; color: var(--accent); margin-top: auto; }
+.il-product:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 28px 56px -22px color-mix(in srgb, var(--accent) 75%, transparent);
+}
+.il-product--main {
+  outline: 2px solid rgba(255,255,255,0.28);
+  outline-offset: 0;
+  box-shadow: 0 28px 60px -22px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+.il-product-tag {
+  font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.78);
+}
+.il-product-title {
+  font-size: 1.18rem; font-weight: 800; color: #fff; margin: 8px 0 8px; letter-spacing: -0.01em;
+}
+.il-product-text {
+  font-size: 0.88rem; line-height: 1.55; color: rgba(255,255,255,0.84); margin: 0 0 14px;
+}
+.il-product-link {
+  display: inline-flex; align-items: center; align-self: flex-start;
+  margin-top: auto;
+  font-size: 0.84rem; font-weight: 800; color: var(--accent);
+  background: #fff; border-radius: 100px; padding: 10px 16px;
+  box-shadow: 0 8px 22px -10px rgba(0,0,0,0.35);
+}
 .il-product-link--dim { color: var(--text-dim); }
 
 /* ── Партнёры ── */
