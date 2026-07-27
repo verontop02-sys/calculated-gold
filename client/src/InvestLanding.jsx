@@ -1304,11 +1304,9 @@ const CSS = `
 .il-section-inner--narrow { max-width: 960px; }
 .il-accent-text { color: var(--accent); }
 .il-gold-text {
-  background: linear-gradient(105deg, #fff4c2 0%, #f0d060 22%, #c9a227 48%, #f5e08a 68%, #a67c1a 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+  color: #e6b422;
+  -webkit-text-fill-color: #e6b422;
+  background: none;
 }
 .il-magnetic { display: inline-block; }
 
