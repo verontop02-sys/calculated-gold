@@ -1196,22 +1196,16 @@ export function InvestLanding() {
                 </motion.a>
               </motion.div>
               <Reveal delay={0.16} className="il-about-photo">
-                {/* Подставьте фото в client/public/office-interior.jpg — плейсхолдер скроется сам */}
-                <div className="il-about-photo-frame" role="img" aria-label="Интерьер офиса Reaktivo">
-                  <div className="il-about-photo-ph is-visible" data-office-ph>
-                    <span>Фото офиса</span>
-                    <small>Горизонтальное 16:9 · интерьер отделения</small>
-                  </div>
-                  <img
-                    className="il-about-photo-img"
-                    src="/office-interior.jpg"
-                    alt="Интерьер отделения Reaktivo"
-                    onLoad={(e) => {
-                      e.currentTarget.classList.add('is-ready');
-                      e.currentTarget.parentElement?.querySelector('[data-office-ph]')?.classList.remove('is-visible');
-                    }}
-                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                  />
+                <div className="il-about-mosaic" aria-label="Офис Reaktivo">
+                  <figure className="il-about-mosaic-main">
+                    <img src="/office-interior.jpg" alt="Зал обслуживания Reaktivo" loading="lazy" />
+                  </figure>
+                  <figure className="il-about-mosaic-side">
+                    <img src="/office-window.jpg" alt="Окно приёма в отделении" loading="lazy" />
+                  </figure>
+                  <figure className="il-about-mosaic-side">
+                    <img src="/office-desk.jpg" alt="Рабочее место оценки золота" loading="lazy" />
+                  </figure>
                 </div>
               </Reveal>
             </div>
@@ -1447,19 +1441,17 @@ const CSS = `
 .il-header-actions { display: flex; align-items: center; gap: 12px; }
 .il-btn--header-buy { padding: 11px 18px; font-size: 0.86rem; }
 .il-header-phone {
-  display: none; flex-direction: column; align-items: flex-end; gap: 1px;
-  text-decoration: none; line-height: 1.15; padding: 4px 2px;
-  transition: opacity 0.2s;
+  display: none; align-items: center; justify-content: center;
+  width: 42px; height: 42px; border-radius: 12px;
+  border: 1px solid var(--stroke); color: var(--text-strong);
+  text-decoration: none; flex-shrink: 0;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
 }
-.il-header-phone-label {
-  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--text-dim);
+.il-header-phone svg { width: 18px; height: 18px; }
+.il-header-phone:hover {
+  border-color: var(--accent); color: var(--accent);
+  background: var(--accent-soft);
 }
-.il-header-phone-num {
-  font-size: 0.92rem; font-weight: 800; letter-spacing: -0.02em;
-  color: var(--text-strong); font-variant-numeric: tabular-nums;
-}
-.il-header-phone:hover .il-header-phone-num { color: var(--accent); }
 .il-menu-btn {
   display: none; width: 42px; height: 42px; border-radius: 12px;
   border: 1px solid var(--stroke); background: transparent; cursor: pointer;
@@ -1898,25 +1890,27 @@ const CSS = `
 .il-about-photo { grid-column: 1; grid-row: 2; min-height: 0; height: 100%; }
 .il-about-text p { margin: 0 0 16px; font-size: 1rem; line-height: 1.75; color: var(--text-muted); }
 .il-about-text p:last-child { margin-bottom: 0; }
-.il-about-photo-frame {
-  position: relative; border-radius: 20px; overflow: hidden;
+.il-about-mosaic {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 10px;
+  height: 100%;
+  min-height: 280px;
+  aspect-ratio: 16 / 10;
+}
+.il-about-mosaic-main {
+  grid-row: 1 / -1;
+  margin: 0; border-radius: 18px; overflow: hidden;
   border: 1px solid var(--stroke); background: var(--bg-panel-solid);
-  height: 100%; min-height: 200px; aspect-ratio: 16 / 9;
 }
-.il-about-photo-img {
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-  display: none; z-index: 1;
+.il-about-mosaic-side {
+  margin: 0; border-radius: 16px; overflow: hidden;
+  border: 1px solid var(--stroke); background: var(--bg-panel-solid);
 }
-.il-about-photo-img.is-ready { display: block; }
-.il-about-photo-ph {
-  display: none; position: absolute; inset: 0; z-index: 0;
-  flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-  background: linear-gradient(145deg, var(--accent-soft), var(--bg-panel-solid));
-  color: var(--text-muted); text-align: center; padding: 24px;
+.il-about-mosaic img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
 }
-.il-about-photo-ph.is-visible { display: flex; }
-.il-about-photo-ph span { font-size: 1.05rem; font-weight: 800; color: var(--text-strong); }
-.il-about-photo-ph small { font-size: 0.85rem; color: var(--text-dim); }
 .il-products {
   grid-column: 2; grid-row: 1 / -1;
   display: flex; flex-direction: column; gap: 12px;
@@ -2056,7 +2050,13 @@ const CSS = `
   .il-about-text,
   .il-about-photo,
   .il-products { grid-column: 1; grid-row: auto; height: auto; }
-  .il-about-photo { min-height: 180px; order: 3; }
+  .il-about-photo { min-height: 0; order: 3; }
+  .il-about-mosaic {
+    aspect-ratio: auto;
+    min-height: 0;
+    grid-template-columns: 1.4fr 1fr;
+    grid-template-rows: 160px 160px;
+  }
   .il-products { order: 2; }
   .il-product { flex: none; }
   .il-partner-banner { grid-template-columns: 1fr; gap: 28px; text-align: left; }
