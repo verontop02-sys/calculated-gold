@@ -1822,7 +1822,7 @@ const CSS = `
 .il-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; text-align: center; }
 .il-kpi { display: flex; flex-direction: column; gap: 8px; padding: 28px 14px; border-radius: 20px; border: 1px solid var(--stroke-soft); }
 .il-kpi-val { font-size: clamp(2.3rem, 4.2vw, 3.3rem); font-weight: 800; letter-spacing: -0.03em; color: var(--accent); font-variant-numeric: tabular-nums; }
-.il-kpi-label { font-size: 0.84rem; color: var(--text-muted); font-weight: 600; }
+.il-kpi-label { font-size: 0.84rem; color: var(--text-strong); font-weight: 600; opacity: 0.9; }
 
 /* ── FAQ ── */
 .il-faq { display: flex; flex-direction: column; gap: 12px; }
