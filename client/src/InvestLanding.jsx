@@ -1655,14 +1655,21 @@ const CSS = `
   border: 1px solid var(--stroke); border-radius: 100px; padding: 8px 15px;
 }
 .il-market-chip--cta {
-  text-decoration: none; color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--stroke));
-  transition: background 0.25s, border-color 0.25s, color 0.25s;
+  text-decoration: none;
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  padding: 11px 20px;
+  font-size: 0.88rem; font-weight: 800;
+  box-shadow: 0 10px 28px -12px color-mix(in srgb, var(--accent) 70%, transparent);
+  transition: background 0.25s, box-shadow 0.25s, transform 0.25s;
 }
 .il-market-chip--cta:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 88%, #000);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 14px 36px -12px color-mix(in srgb, var(--accent) 80%, transparent);
+  transform: translateY(-1px);
 }
 .il-market-chart {
   background: var(--bg-panel-solid); border: 1px solid var(--stroke); border-radius: 22px; padding: 22px 18px;
