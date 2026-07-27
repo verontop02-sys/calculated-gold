@@ -1083,62 +1083,60 @@ export function InvestLanding() {
               <Reveal delay={0.08}><h2 className="il-h2">Reaktivo — деньги.<br /><span className="il-accent-text">Реактивно быстро!</span></h2></Reveal>
             </div>
             <div className="il-about-grid">
-              <div className="il-about-left">
-                <Reveal delay={0.1} className="il-about-text">
-                  <p>
-                    Reaktivo развивает формат неклассической скупки золота. Мы создаём условия, при которых клиенты
-                    свободно управляют своими активами в золоте: не только продают их, чтобы быстро получить ликвидность,
-                    но и покупают — чтобы формировать доход, используя потенциал золота.
-                  </p>
-                  <p>
-                    Клиенты Reaktivo могут быстро получить деньги за ненужное золото — и при этом накапливать золото онлайн:
-                    видеть портфель в реальном времени, докупать и продавать по необходимости.
-                  </p>
-                  <p>
-                    Мы строим не просто сеть пунктов покупки, а экосистему, в которой золото — быстрый, прозрачный
-                    и удобный финансовый инструмент.
-                  </p>
-                </Reveal>
-                <Reveal delay={0.16} className="il-about-photo">
-                  {/* Подставьте фото в client/public/office-interior.jpg — плейсхолдер скроется сам */}
-                  <div className="il-about-photo-frame" role="img" aria-label="Интерьер офиса Reaktivo">
-                    <div className="il-about-photo-ph is-visible" data-office-ph>
-                      <span>Фото офиса</span>
-                      <small>Скоро добавим интерьер отделения</small>
-                    </div>
-                    <img
-                      className="il-about-photo-img"
-                      src="/office-interior.jpg"
-                      alt="Интерьер отделения Reaktivo"
-                      onLoad={(e) => {
-                        e.currentTarget.classList.add('is-ready');
-                        e.currentTarget.parentElement?.querySelector('[data-office-ph]')?.classList.remove('is-visible');
-                      }}
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                    />
-                  </div>
-                </Reveal>
-              </div>
+              <Reveal delay={0.1} className="il-about-text">
+                <p>
+                  Reaktivo развивает формат неклассической скупки золота. Мы создаём условия, при которых клиенты
+                  свободно управляют своими активами в золоте: не только продают их, чтобы быстро получить ликвидность,
+                  но и покупают — чтобы формировать доход, используя потенциал золота.
+                </p>
+                <p>
+                  Клиенты Reaktivo могут быстро получить деньги за ненужное золото — и при этом накапливать золото онлайн:
+                  видеть портфель в реальном времени, докупать и продавать по необходимости.
+                </p>
+                <p>
+                  Мы строим не просто сеть пунктов покупки, а экосистему, в которой золото — быстрый, прозрачный
+                  и удобный финансовый инструмент.
+                </p>
+              </Reveal>
               <motion.div className="il-products" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
-                <motion.a className="il-product" href="https://reaktivo.ru" target="_blank" rel="noopener noreferrer" variants={staggerChild} whileHover={{ y: -6 }}>
+                <motion.a className="il-product" href="https://reaktivo.ru" target="_blank" rel="noopener noreferrer" variants={staggerChild} whileHover={{ y: -3 }}>
                   <span className="il-product-tag">Reaktivo.ru</span>
                   <h3 className="il-product-title">Продать золото</h3>
                   <p className="il-product-text">Скупка золота в офисах и с доставкой — деньги сразу.</p>
                   <span className="il-product-link">Перейти на Reaktivo.ru →</span>
                 </motion.a>
-                <motion.a className="il-product il-product--main" href="/kabinet" variants={staggerChild} whileHover={{ y: -6 }}>
+                <motion.a className="il-product il-product--main" href="/kabinet" variants={staggerChild} whileHover={{ y: -3 }}>
                   <span className="il-product-tag">Reaktivo.pro — вы здесь</span>
                   <h3 className="il-product-title">Купить золото</h3>
                   <p className="il-product-text">От 1 грамма онлайн. Reaktivo — ваш агент и покупает золото по выгодному курсу.</p>
                   <span className="il-product-link">Купить золото →</span>
                 </motion.a>
-                <motion.a className="il-product" href="https://t.me/Reaktivoai" target="_blank" rel="noopener noreferrer" variants={staggerChild} whileHover={{ y: -6 }}>
+                <motion.a className="il-product" href="https://t.me/Reaktivoai" target="_blank" rel="noopener noreferrer" variants={staggerChild} whileHover={{ y: -3 }}>
                   <span className="il-product-tag">Telegram</span>
                   <h3 className="il-product-title">Reaktivo Resale</h3>
                   <p className="il-product-text">Продажа ювелирных украшений в Telegram-канале.</p>
                   <span className="il-product-link">Канал в Telegram →</span>
                 </motion.a>
               </motion.div>
+              <Reveal delay={0.16} className="il-about-photo">
+                {/* Подставьте фото в client/public/office-interior.jpg — плейсхолдер скроется сам */}
+                <div className="il-about-photo-frame" role="img" aria-label="Интерьер офиса Reaktivo">
+                  <div className="il-about-photo-ph is-visible" data-office-ph>
+                    <span>Фото офиса</span>
+                    <small>Скоро добавим интерьер отделения</small>
+                  </div>
+                  <img
+                    className="il-about-photo-img"
+                    src="/office-interior.jpg"
+                    alt="Интерьер отделения Reaktivo"
+                    onLoad={(e) => {
+                      e.currentTarget.classList.add('is-ready');
+                      e.currentTarget.parentElement?.querySelector('[data-office-ph]')?.classList.remove('is-visible');
+                    }}
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                </div>
+              </Reveal>
             </div>
           </div>
         </section>
@@ -1732,14 +1730,21 @@ const CSS = `
 .il-card-text { font-size: 0.89rem; line-height: 1.6; color: var(--text-muted); margin: 0; }
 
 /* ── О компании ── */
-.il-about-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 48px; align-items: start; }
-.il-about-left { display: flex; flex-direction: column; gap: 22px; }
+.il-about-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  grid-template-rows: auto minmax(200px, 1fr);
+  gap: 20px 40px;
+  align-items: stretch;
+}
+.il-about-text { grid-column: 1; grid-row: 1; }
+.il-about-photo { grid-column: 1; grid-row: 2; min-height: 200px; height: 100%; }
 .il-about-text p { margin: 0 0 16px; font-size: 1rem; line-height: 1.75; color: var(--text-muted); }
 .il-about-text p:last-child { margin-bottom: 0; }
 .il-about-photo-frame {
   position: relative; border-radius: 20px; overflow: hidden;
   border: 1px solid var(--stroke); background: var(--bg-panel-solid);
-  aspect-ratio: 16 / 10; min-height: 200px;
+  height: 100%; min-height: 200px;
 }
 .il-about-photo-img {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
@@ -1755,18 +1760,25 @@ const CSS = `
 .il-about-photo-ph.is-visible { display: flex; }
 .il-about-photo-ph span { font-size: 1.05rem; font-weight: 800; color: var(--text-strong); }
 .il-about-photo-ph small { font-size: 0.85rem; color: var(--text-dim); }
-.il-products { display: flex; flex-direction: column; gap: 14px; }
+.il-products {
+  grid-column: 2; grid-row: 1 / -1;
+  display: flex; flex-direction: column; gap: 12px;
+  height: 100%; min-height: 0;
+}
 .il-product {
-  display: block; text-decoration: none;
+  flex: 1 1 0;
+  display: flex; flex-direction: column; justify-content: center;
+  text-decoration: none;
   background: var(--bg-panel-solid); border: 1px solid var(--stroke); border-radius: 18px; padding: 20px 22px;
   transition: border-color 0.35s ease, box-shadow 0.35s ease;
+  min-height: 0;
 }
 .il-product:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke)); box-shadow: 0 24px 48px -28px color-mix(in srgb, var(--accent) 30%, transparent); }
 .il-product--main { border-color: color-mix(in srgb, var(--accent) 40%, var(--stroke)); background: linear-gradient(140deg, var(--accent-soft), var(--bg-panel-solid) 55%); }
 .il-product-tag { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
 .il-product-title { font-size: 1.12rem; font-weight: 800; color: var(--text-strong); margin: 6px 0 6px; letter-spacing: -0.01em; }
 .il-product-text { font-size: 0.88rem; line-height: 1.55; color: var(--text-muted); margin: 0 0 10px; }
-.il-product-link { font-size: 0.84rem; font-weight: 700; color: var(--accent); }
+.il-product-link { font-size: 0.84rem; font-weight: 700; color: var(--accent); margin-top: auto; }
 .il-product-link--dim { color: var(--text-dim); }
 
 /* ── Партнёры ── */
@@ -1851,7 +1863,17 @@ const CSS = `
   .il-deck-wrap { max-width: 500px; margin: 0 auto; width: 100%; }
   .il-market-grid { grid-template-columns: 1fr; gap: 40px; }
   .il-sbp-grid { grid-template-columns: 1fr; gap: 44px; }
-  .il-about-grid { grid-template-columns: 1fr; gap: 36px; }
+  .il-about-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    gap: 28px;
+  }
+  .il-about-text,
+  .il-about-photo,
+  .il-products { grid-column: 1; grid-row: auto; height: auto; }
+  .il-about-photo { min-height: 180px; order: 3; }
+  .il-products { order: 2; }
+  .il-product { flex: none; }
   .il-partner-banner { grid-template-columns: 1fr; gap: 28px; text-align: left; }
   .il-partner-aside { display: none; }
   .il-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
