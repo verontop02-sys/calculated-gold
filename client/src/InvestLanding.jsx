@@ -439,7 +439,7 @@ function HeroDeck({ quote, growth }) {
 /* ═══════════════ Hero-заголовок ═══════════════ */
 
 const TITLE_WORDS = [
-  { t: 'Настоящее' }, { t: 'золото', accent: true }, { t: 'в' }, { t: 'вашем' }, { t: 'портфеле' },
+  { t: 'Настоящее' }, { t: 'золото', gold: true }, { t: 'в' }, { t: 'вашем' }, { t: 'портфеле' },
   { t: '—' }, { t: 'от' }, { t: '1' }, { t: 'грамма' },
 ];
 
@@ -447,18 +447,18 @@ function HeroTitle() {
   return (
     <motion.h1
       className="il-hero-title"
-      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.05, delayChildren: 0.12 } } }}
       initial="hidden"
       animate="show"
+      variants={{ show: { transition: { staggerChildren: 0.055, delayChildren: 0.12 } } }}
       aria-label={TITLE_WORDS.map((w) => w.t).join(' ')}
     >
       {TITLE_WORDS.map((w, i) => (
         <span key={i} className="il-hero-word-clip" aria-hidden>
           <motion.span
-            className={`il-hero-word${w.accent ? ' il-accent-text' : ''}`}
+            className={`il-hero-word${w.gold ? ' il-gold-text' : ''}`}
             variants={{
-              hidden: { y: '110%' },
-              show: { y: 0, transition: { duration: 0.85, ease: EASE } },
+              hidden: { y: '110%', opacity: 0 },
+              show: { y: 0, opacity: 1, transition: { duration: 0.7, ease: EASE } },
             }}
           >
             {w.t}
@@ -1303,6 +1303,13 @@ const CSS = `
 .il-section-inner { max-width: 1360px; margin: 0 auto; padding: 0 28px; }
 .il-section-inner--narrow { max-width: 960px; }
 .il-accent-text { color: var(--accent); }
+.il-gold-text {
+  background: linear-gradient(105deg, #fff4c2 0%, #f0d060 22%, #c9a227 48%, #f5e08a 68%, #a67c1a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
 .il-magnetic { display: inline-block; }
 
 /* ── Прогресс скролла ── */
@@ -1347,8 +1354,11 @@ const CSS = `
   flex-shrink: 0;
 }
 .il-logo--footer .il-logo-mark { width: 44px; height: 44px; border-radius: 12px; }
-.il-logo-text { display: inline-flex; align-items: baseline; }
-.il-logo span, .il-logo-text span { color: var(--accent); }
+.il-logo-text {
+  display: inline-flex; align-items: baseline;
+  color: var(--text-strong);
+}
+.il-logo-text > span { color: var(--accent); }
 .il-nav { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
 .il-nav-link { position: relative; color: var(--text-muted); text-decoration: none; font-size: 0.86rem; font-weight: 600; transition: color 0.25s; padding: 4px 0; }
 .il-nav-link::after {
