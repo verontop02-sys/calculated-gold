@@ -1166,7 +1166,7 @@ export function InvestLanding() {
                 </div>
                 <div className="il-partner-aside" aria-hidden>
                   <span className="il-partner-mark">
-                    <img src="/logo-reaktivo-mark.svg" alt="" width="72" height="72" />
+                    <img src="/logo-reaktivo-mark.svg" alt="" width="168" height="168" />
                   </span>
                   <span className="il-partner-aside-label">Reaktivo Partner</span>
                 </div>
@@ -1796,14 +1796,15 @@ const CSS = `
 }
 .il-partner-text { margin: 0 0 26px; font-size: 1.02rem; line-height: 1.65; color: var(--text-muted); max-width: 520px; }
 .il-partner-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-.il-partner-aside { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.il-partner-aside { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
 .il-partner-mark {
-  width: 96px; height: 96px; border-radius: 24px; overflow: hidden;
-  box-shadow: 0 18px 40px -16px color-mix(in srgb, var(--accent) 65%, transparent);
+  width: clamp(140px, 14vw, 180px); height: clamp(140px, 14vw, 180px);
+  border-radius: 36px; overflow: hidden;
+  box-shadow: 0 24px 56px -18px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 .il-partner-mark img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .il-partner-aside-label {
-  font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim);
+  font-size: 0.9rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim);
 }
 
 /* ── Цифры ── */
