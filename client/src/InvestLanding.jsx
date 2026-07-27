@@ -785,9 +785,10 @@ export function InvestLanding() {
             <a href="#contacts" className="il-nav-link" onClick={(e) => goTo(e, '#contacts')}>Контакты</a>
           </nav>
           <div className="il-header-actions">
-            <a href="tel:+78005551848" className="il-header-phone" title="Позвонить">
-              <span className="il-header-phone-label">Бесплатно</span>
-              <span className="il-header-phone-num">8 800 555-18-48</span>
+            <a href="tel:+78005551848" className="il-header-phone" title="8 800 555-18-48" aria-label="Позвонить: 8 800 555-18-48">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.35a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.75.32 1.54.55 2.35.68A2 2 0 0 1 22 16.92z" />
+              </svg>
             </a>
             <ThemeToggle />
             <motion.a
