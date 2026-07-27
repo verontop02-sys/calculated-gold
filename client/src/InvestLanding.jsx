@@ -1801,7 +1801,8 @@ const CSS = `
   color: rgba(255,255,255,0.78);
 }
 .il-product-title {
-  font-size: 1.18rem; font-weight: 800; color: #fff; margin: 8px 0 8px; letter-spacing: -0.01em;
+  font-size: clamp(1.35rem, 2.1vw, 1.7rem); font-weight: 800; color: #fff;
+  margin: 10px 0 10px; letter-spacing: -0.025em; line-height: 1.15;
 }
 .il-product-text {
   font-size: 0.88rem; line-height: 1.55; color: rgba(255,255,255,0.84); margin: 0 0 14px;
