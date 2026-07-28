@@ -303,7 +303,7 @@ function CursorGlow() {
 
 const SbpBadge = ({ className = '' }) => (
   <span className={`il-sbp ${className}`.trim()} title="Система быстрых платежей" role="img" aria-label="СБП">
-    <img src="/sbp-logo.png" alt="" className="il-sbp-logo" width="72" height="24" decoding="async" />
+    <img src="/sbp.png" alt="" className="il-sbp-logo" width="72" height="24" decoding="async" />
   </span>
 );
 
@@ -1267,7 +1267,7 @@ export function InvestLanding() {
               <div className="il-sbp-copy">
                 <Reveal><span className="il-pill">Деньги — реактивно быстро</span></Reveal>
                 <Reveal delay={0.08}>
-                  <h2 className="il-h2">Пополнение через <SbpBadge className="il-sbp--heading" />.<br />Вывод — на карту.</h2>
+                  <h2 className="il-h2">Пополнение через <SbpBadge className="il-sbp--heading" /><br />Вывод — на карту.</h2>
                 </Reveal>
                 <Reveal delay={0.16}>
                   <ul className="il-sbp-list">
@@ -1447,22 +1447,6 @@ export function InvestLanding() {
           </div>
         </section>
 
-        {/* ── Консультация ── */}
-        <section className="il-section il-section--lead" id="consult">
-          <div className="il-section-inner il-section-inner--narrow">
-            <Reveal y={40}>
-              <div className="il-lead-panel">
-                <div className="il-lead-copy">
-                  <span className="il-pill">Поддержка</span>
-                  <h2 className="il-h2">У вас остались вопросы?</h2>
-                  <p className="il-p">Оставьте заявку — и наши специалисты вас проконсультируют.</p>
-                </div>
-                <ConsultLeadForm />
-              </div>
-            </Reveal>
-          </div>
-        </section>
-
         {/* ── FAQ ── */}
         <section className="il-section" id="faq">
           <div className="il-section-inner il-section-inner--narrow">
@@ -1477,6 +1461,22 @@ export function InvestLanding() {
                 </motion.div>
               ))}
             </motion.div>
+          </div>
+        </section>
+
+        {/* ── Консультация ── */}
+        <section className="il-section il-section--lead" id="consult">
+          <div className="il-section-inner il-section-inner--narrow">
+            <Reveal y={40}>
+              <div className="il-lead-panel">
+                <div className="il-lead-copy">
+                  <span className="il-pill">Поддержка</span>
+                  <h2 className="il-h2">У вас остались вопросы?</h2>
+                  <p className="il-p">Оставьте заявку — и наши специалисты вас проконсультируют.</p>
+                </div>
+                <ConsultLeadForm />
+              </div>
+            </Reveal>
           </div>
         </section>
 
@@ -1739,29 +1739,22 @@ const CSS = `
 /* ── СБП бейдж (официальный логотип) ── */
 .il-sbp {
   display: inline-flex; align-items: center; justify-content: center;
-  vertical-align: middle; line-height: 0;
+  vertical-align: -0.3em; line-height: 0;
   background: #fff;
-  border: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
-  border-radius: 8px; padding: 5px 9px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  border-radius: 0.42em;
+  padding: 0.16em 0.34em;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
 }
-.il-sbp-logo { height: 22px; width: auto; display: block; }
-.il-sbp--inline {
-  margin: 0 0.2em; padding: 2px 6px; border-radius: 6px;
-  vertical-align: -0.35em;
-}
-.il-sbp--inline .il-sbp-logo { height: 1.05em; }
-.il-sbp--compact { padding: 3px 7px; }
-.il-sbp--compact .il-sbp-logo { height: 16px; }
-.il-sbp--heading {
-  margin: 0 0.12em; padding: 6px 10px; vertical-align: middle;
-}
-.il-sbp--heading .il-sbp-logo { height: clamp(22px, 0.55em, 36px); }
+.il-sbp-logo { height: 1.55em; width: auto; display: block; }
+.il-sbp--inline { margin: 0 0.16em; vertical-align: -0.34em; }
+.il-sbp--inline .il-sbp-logo { height: 1.55em; }
+.il-sbp--compact .il-sbp-logo { height: 1.3em; }
+.il-sbp--heading { margin: 0 0.12em; vertical-align: -0.14em; }
+.il-sbp--heading .il-sbp-logo { height: clamp(1.05em, 0.72em + 1.1vw, 1.55em); }
 .il-sbp-method { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
-:root[data-theme='dark'] .il-sbp {
-  background: #fff;
-  border-color: rgba(255, 255, 255, 0.35);
-}
+.il-card-row .il-sbp-logo,
+.il-sbp-sheet-head .il-sbp-logo { height: 26px; }
+.il-preview-chip .il-sbp-logo { height: 20px; }
 
 /* ── Hero ── */
 .il-hero { position: relative; padding: 150px 28px 100px; overflow: clip; }

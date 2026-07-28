@@ -1834,17 +1834,17 @@ const CSS = `
 }
 .cpx-sbp {
   display: inline-flex; align-items: center; justify-content: center;
-  vertical-align: middle; line-height: 0;
+  vertical-align: -0.3em; line-height: 0;
   background: #fff;
-  border: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
-  border-radius: 7px; padding: 3px 7px;
+  border-radius: 0.42em;
+  padding: 0.16em 0.34em;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
 }
-.cpx-sbp img { height: 16px; width: auto; display: block; }
-.cpx-sbp--inline { margin: 0 0.15em; padding: 1px 5px; vertical-align: -0.3em; }
-.cpx-sbp--inline img { height: 0.95em; }
-.cpx-sbp--compact { padding: 2px 6px; }
-.cpx-sbp--compact img { height: 14px; }
-.cpx-fin-soon-card strong .cpx-sbp { vertical-align: -0.25em; }
+.cpx-sbp img { height: 1.45em; width: auto; display: block; }
+.cpx-sbp--inline { margin: 0 0.16em; vertical-align: -0.34em; }
+.cpx-sbp--inline img { height: 1.45em; }
+.cpx-sbp--compact img { height: 1.25em; }
+.cpx-fin-soon-card strong .cpx-sbp { vertical-align: -0.28em; }
 .cpx-fin-soon-card {
   margin: 0 0 14px; padding: 14px 16px; border-radius: 14px;
   border: 1px dashed color-mix(in srgb, var(--cpx-emerald) 35%, var(--stroke));

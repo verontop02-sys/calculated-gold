@@ -16,7 +16,7 @@ import {
 
 const SbpMark = ({ className = '' }) => (
   <span className={`cpx-sbp ${className}`.trim()} title="Система быстрых платежей" role="img" aria-label="СБП">
-    <img src="/sbp-logo.png" alt="" width="72" height="24" decoding="async" />
+    <img src="/sbp.png" alt="" width="72" height="24" decoding="async" />
   </span>
 );
 
