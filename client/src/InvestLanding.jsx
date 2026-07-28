@@ -1293,7 +1293,7 @@ export function InvestLanding() {
                   <div className="il-sbp-sheet-amount">100 000 ₽</div>
                   <div className="il-sbp-sheet-row">
                     <span>Способ</span>
-                    <b className="il-sbp-method">{withSbp('СБП')} · по номеру телефона</b>
+                    <b className="il-sbp-method">{withSbp('СБП')} по номеру телефона</b>
                   </div>
                   <div className="il-sbp-sheet-row">
                     <span>Зачисление</span>

@@ -1068,17 +1068,20 @@ app.post(
  */
 async function notifyConsultLeadTelegram({ name, phone }) {
   const chatId = process.env.TELEGRAM_LEADS_CHAT_ID || process.env.TELEGRAM_SUPPORT_CHAT_ID;
-  if (!chatId) return;
+  if (!chatId) {
+    console.warn('[consult-lead tg] skip: TELEGRAM_SUPPORT_CHAT_ID not set');
+    return { sent: false, reason: 'not_configured' };
+  }
   const text = [
     '📝 Новая заявка с лендинга Reaktivo',
     `Имя: ${name}`,
     `Телефон: ${phone}`,
   ].join('\n');
-  await sendTelegramMessage(chatId, text);
+  return sendTelegramMessage(chatId, text);
 }
 
 /**
- * Публичная заявка на консультацию (имя + телефон) → email команде.
+ * Публичная заявка на консультацию (имя + телефон) → email команде + Telegram.
  */
 app.post(
   '/api/public/consult-lead',
@@ -1095,9 +1098,14 @@ app.post(
     }
     const phonePretty = phone.startsWith('7') ? `+${phone}` : phone;
 
-    notifyConsultLeadTelegram({ name, phone: phonePretty }).catch((e) =>
-      console.warn('[consult-lead tg notify]', e?.message || e)
-    );
+    // Ждём TG до ответа — иначе на free Render fire-and-forget может оборваться.
+    const tg = await notifyConsultLeadTelegram({ name, phone: phonePretty }).catch((e) => {
+      console.warn('[consult-lead tg notify]', e?.message || e);
+      return { sent: false, reason: 'error' };
+    });
+    if (!tg?.sent) {
+      console.warn('[consult-lead tg] not sent', tg?.reason || 'unknown');
+    }
 
     try {
       const out = await sendConsultLeadEmailIfConfigured({ name, phone: phonePretty });
@@ -1108,6 +1116,7 @@ app.post(
       return res.json({ ok: true });
     } catch (e) {
       console.error('[consult-lead]', e?.message || e);
+      if (tg?.sent) return res.json({ ok: true });
       return res.status(502).json({ error: 'Не удалось отправить заявку. Напишите на team@reaktivo.ru' });
     }
   })
