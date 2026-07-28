@@ -10,6 +10,8 @@
  * TELEGRAM_BOT_TOKEN + TELEGRAM_SUPPORT_CHAT_ID в server/.env.
  */
 
+import { sendTelegramMessage } from './telegramNotify.js';
+
 const MAX_MESSAGE_LEN = 2000;
 const PAGE_MESSAGES = 300;
 
@@ -282,9 +284,8 @@ export async function staffSupportUnreadTotal(supabase) {
 // ── Telegram-уведомление ─────────────────────────────────────────────────────
 
 async function notifySupportTelegram({ phoneNormalized, body }) {
-  const token = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
-  const chatId = (process.env.TELEGRAM_SUPPORT_CHAT_ID || '').trim();
-  if (!token || !chatId) return; // не настроено — тихо пропускаем
+  const chatId = process.env.TELEGRAM_SUPPORT_CHAT_ID;
+  if (!chatId) return; // не настроено — тихо пропускаем
 
   const digits = String(phoneNormalized || '').replace(/\D/g, '');
   const phonePretty = digits.length === 11
@@ -300,20 +301,5 @@ async function notifySupportTelegram({ phoneNormalized, body }) {
     '→ Ответить в панели: раздел «Поддержка»',
   ].join('\n');
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-  try {
-    const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text }),
-      signal: controller.signal,
-    });
-    if (!resp.ok) {
-      const detail = await resp.text().catch(() => '');
-      console.warn('[support tg notify] telegram error', resp.status, detail.slice(0, 200));
-    }
-  } finally {
-    clearTimeout(timer);
-  }
+  await sendTelegramMessage(chatId, text);
 }

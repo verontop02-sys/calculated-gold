@@ -25,6 +25,7 @@ import {
   cancelFieldDealSession,
 } from './fieldDealSession.js';
 import { sendConsultLeadEmailIfConfigured } from './emailDealReceipt.js';
+import { sendTelegramMessage } from './telegramNotify.js';
 import {
   buildGoldIndexOverview,
   buildGoldIndexPublicSummary,
@@ -1061,6 +1062,22 @@ app.post(
 );
 
 /**
+ * Заявка на консультацию с публичного лендинга → push в Telegram (best-effort).
+ * Использует тот же бот, что и чат поддержки; чат можно задать отдельным
+ * TELEGRAM_LEADS_CHAT_ID, иначе уходит в TELEGRAM_SUPPORT_CHAT_ID.
+ */
+async function notifyConsultLeadTelegram({ name, phone }) {
+  const chatId = process.env.TELEGRAM_LEADS_CHAT_ID || process.env.TELEGRAM_SUPPORT_CHAT_ID;
+  if (!chatId) return;
+  const text = [
+    '📝 Новая заявка с лендинга Reaktivo',
+    `Имя: ${name}`,
+    `Телефон: ${phone}`,
+  ].join('\n');
+  await sendTelegramMessage(chatId, text);
+}
+
+/**
  * Публичная заявка на консультацию (имя + телефон) → email команде.
  */
 app.post(
@@ -1076,11 +1093,14 @@ app.post(
     if (!name || name.length < 2) {
       return res.status(400).json({ error: 'Укажите имя' });
     }
+    const phonePretty = phone.startsWith('7') ? `+${phone}` : phone;
+
+    notifyConsultLeadTelegram({ name, phone: phonePretty }).catch((e) =>
+      console.warn('[consult-lead tg notify]', e?.message || e)
+    );
+
     try {
-      const out = await sendConsultLeadEmailIfConfigured({
-        name,
-        phone: phone.startsWith('7') ? `+${phone}` : phone,
-      });
+      const out = await sendConsultLeadEmailIfConfigured({ name, phone: phonePretty });
       if (!out.sent && out.reason === 'not_configured') {
         console.info('[consult-lead]', name, phone);
         return res.json({ ok: true, queued: true });
