@@ -415,3 +415,31 @@ export async function sendFintechDecisionEmailIfConfigured({ toEmail, fullName, 
   const j = await resendSend({ to: [toEmail], subject, html });
   return { sent: true, id: j?.id };
 }
+
+/**
+ * Заявка на консультацию с лендинга → письмо команде.
+ */
+export async function sendConsultLeadEmailIfConfigured({ name, phone }) {
+  const key = (process.env.RESEND_API_KEY || '').trim();
+  const from = (process.env.DEAL_RECEIPT_EMAIL_FROM || '').trim();
+  const to = (process.env.CONSULT_LEAD_EMAIL_TO || process.env.PARTNER_LEAD_EMAIL_TO || 'team@reaktivo.ru').trim();
+  if (!key || !from || !to) {
+    console.info('[consult lead] skip: email not configured');
+    return { sent: false, reason: 'not_configured' };
+  }
+  const safeName = String(name || '').trim().slice(0, 120) || '—';
+  const safePhone = String(phone || '').trim().slice(0, 32);
+  const subject = `Заявка на консультацию · ${safePhone}`;
+  const html = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f5f7;padding:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e8eaed;">
+    <tr><td style="background:#fe0000;padding:18px 24px;color:#fff;font-weight:700;font-size:16px;">Reaktivo · заявка на консультацию</td></tr>
+    <tr><td style="padding:22px 24px;color:#1a1b1e;font-size:14px;line-height:1.55;">
+      <p style="margin:0 0 10px;"><strong>Имя:</strong> ${safeName.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</p>
+      <p style="margin:0 0 10px;"><strong>Телефон:</strong> ${safePhone.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</p>
+      <p style="margin:16px 0 0;font-size:12px;color:#9aa0aa;">Форма с лендинга reaktivo.pro / gold-panel</p>
+    </td></tr>
+  </table>
+  </body></html>`;
+  const j = await resendSend({ to: [to], subject, html });
+  return { sent: true, id: j?.id };
+}

@@ -373,6 +373,7 @@ export const SIDEBAR_CSS = `
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  font-family: var(--font-brand, var(--font-display));
 }
 .cg-sidebar__brand-title b {
   color: var(--accent);

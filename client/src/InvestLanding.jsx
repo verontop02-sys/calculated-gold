@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AnimatePresence,
   animate,
@@ -15,6 +15,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { clientApi, fintechApi, getClientToken, getFintechToken } from './api.js';
 import { ThemeToggle } from './ThemeToggle.jsx';
 import { MissedBenefitCalc } from './MissedBenefitCalc.jsx';
+import officeHall from './assets/office/hall.jpg';
 
 const EASE = [0.22, 1, 0.36, 1];
 const SPRING = { type: 'spring', stiffness: 230, damping: 28, mass: 0.9 };
@@ -134,6 +135,94 @@ const MARQUEE = [
 
 const STATEMENT_WORDS = 'Золото пережило войны, кризисы и дефолты. Сбережения в золоте — спокойствие, проверенное веками.'.split(' ');
 
+const OFFICE_GALLERY = [
+  { src: officeHall, alt: 'Зал обслуживания Reaktivo' },
+];
+
+const LB_EVENT = 'il:lightbox';
+
+/* ═══════════════ Галерея офиса + лайтбокс ═══════════════ */
+
+function OfficeGallery() {
+  const [open, setOpen] = useState(false);
+  const photo = OFFICE_GALLERY[0];
+
+  const close = () => setOpen(false);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') close();
+    };
+    const blockScroll = (e) => {
+      e.preventDefault();
+    };
+
+    const prevOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.classList.add('il-lb-open');
+    window.dispatchEvent(new CustomEvent(LB_EVENT, { detail: { open: true } }));
+
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('wheel', blockScroll, { passive: false });
+    window.addEventListener('touchmove', blockScroll, { passive: false });
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      document.documentElement.classList.remove('il-lb-open');
+      window.dispatchEvent(new CustomEvent(LB_EVENT, { detail: { open: false } }));
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('wheel', blockScroll);
+      window.removeEventListener('touchmove', blockScroll);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        type="button"
+        className="il-about-photo-btn"
+        onClick={() => setOpen(true)}
+        aria-label={`Открыть фото: ${photo.alt}`}
+      >
+        <img src={photo.src} alt={photo.alt} loading="eager" decoding="async" />
+        <span className="il-about-mosaic-zoom" aria-hidden>⤢</span>
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="il-lb"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Просмотр фото"
+          >
+            <button type="button" className="il-lb-backdrop" aria-label="Закрыть" onClick={close} />
+            <button type="button" className="il-lb-close" aria-label="Закрыть" onClick={close}>×</button>
+            <motion.figure
+              className="il-lb-figure"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.22, ease: EASE }}
+            >
+              <img src={photo.src} alt={photo.alt} draggable={false} />
+              <figcaption>{photo.alt}</figcaption>
+            </motion.figure>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
 /* ═══════════════ Анимационные примитивы ═══════════════ */
 
 function Reveal({ children, className = '', delay = 0, y = 34, ...rest }) {
@@ -212,7 +301,87 @@ function CursorGlow() {
   return <motion.div className="il-cursor-glow" style={{ x: sx, y: sy }} aria-hidden />;
 }
 
-const SbpBadge = ({ className = '' }) => <span className={`il-sbp ${className}`.trim()}>СБП</span>;
+const SbpBadge = ({ className = '' }) => (
+  <span className={`il-sbp ${className}`.trim()} title="Система быстрых платежей" role="img" aria-label="СБП">
+    <img src="/sbp-logo.png" alt="" className="il-sbp-logo" width="72" height="24" decoding="async" />
+  </span>
+);
+
+/** Вставляет официальный значок СБП вместо текста «СБП» в строках. */
+function withSbp(text) {
+  const parts = String(text || '').split('СБП');
+  if (parts.length === 1) return text;
+  return parts.map((part, i) => (
+    <Fragment key={i}>
+      {part}
+      {i < parts.length - 1 ? <SbpBadge className="il-sbp--inline" /> : null}
+    </Fragment>
+  ));
+}
+
+function ConsultLeadForm() {
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr('');
+    setOk(false);
+    setBusy(true);
+    try {
+      const API_BASE = import.meta.env.DEV ? '/api' : import.meta.env.VITE_API_BASE || '/api';
+      const res = await fetch(`${API_BASE}/public/consult-lead`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ name, phone }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.error || 'Не удалось отправить заявку');
+      setOk(true);
+      setName('');
+      setPhone('');
+    } catch (e2) {
+      setErr(e2?.message || 'Не удалось отправить заявку');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="il-lead-form" onSubmit={submit}>
+      <label className="il-lead-field">
+        <span>Имя</span>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Как к вам обращаться"
+          autoComplete="name"
+          required
+          minLength={2}
+        />
+      </label>
+      <label className="il-lead-field">
+        <span>Телефон</span>
+        <input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="+7 (900) 000-00-00"
+          inputMode="tel"
+          autoComplete="tel"
+          required
+        />
+      </label>
+      <button type="submit" className="il-btn il-btn--primary" disabled={busy}>
+        {busy ? 'Отправляем…' : 'Оставить заявку'}
+      </button>
+      {err && <p className="il-lead-err">{err}</p>}
+      {ok && <p className="il-lead-ok">Заявка принята. Специалист свяжется с вами.</p>}
+    </form>
+  );
+}
 
 /* ═══════════════ Hero: колода карт ═══════════════ */
 
@@ -290,7 +459,7 @@ function DeckTopupCard() {
         <span className="il-card-brand">Кошелёк</span>
         <span className="il-card-live il-card-live--ok"><i />зачислено</span>
       </div>
-      <span className="il-card-label">Пополнение через СБП</span>
+      <span className="il-card-label">{withSbp('Пополнение через СБП')}</span>
       <div className="il-card-big">+ 100 000 ₽</div>
       <div className="il-card-row">
         <SbpBadge />
@@ -301,7 +470,7 @@ function DeckTopupCard() {
         <li><span className="il-card-check">{Ico.check}</span> Сразу доступно для покупки золота</li>
       </ul>
       <div className="il-card-foot">
-        <span>СБП</span>
+        <SbpBadge className="il-sbp--compact" />
         <span>моментальное зачисление</span>
       </div>
     </>
@@ -578,7 +747,7 @@ function DashboardPreview({ chartData, quote }) {
               )}
             </div>
             <div className="il-preview-rows" aria-hidden>
-              <div className="il-preview-row"><span className="is-buy">Пополнение · СБП</span><span>зачислено моментально</span></div>
+              <div className="il-preview-row"><span className="is-buy">{withSbp('Пополнение · СБП')}</span><span>зачислено моментально</span></div>
               <div className="il-preview-row"><span className="is-buy">Покупка · 5 г</span><span>курс зафиксирован</span></div>
               <div className="il-preview-row"><span className="is-sell">Вывод · на карту</span><span>после продажи золота</span></div>
             </div>
@@ -598,7 +767,7 @@ function DashboardPreview({ chartData, quote }) {
         animate={{ y: [0, 12, 0] }}
         transition={{ duration: 6.5, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
       >
-        СБП · за секунды
+        <SbpBadge className="il-sbp--compact" /> · за секунды
       </motion.span>
       <motion.span
         className="il-preview-chip il-preview-chip--3"
@@ -629,7 +798,7 @@ function FaqItem({ item, open, onToggle }) {
             exit={{ height: 0, opacity: 0, transition: { height: { duration: 0.38, ease: EASE }, opacity: { duration: 0.2 } } }}
             style={{ overflow: 'hidden' }}
           >
-            <p className="il-faq-a">{item.a}</p>
+            <p className="il-faq-a">{withSbp(item.a)}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -705,7 +874,17 @@ export function InvestLanding() {
       lenis.raf(time);
       raf = requestAnimationFrame(loop);
     });
-    return () => { cancelAnimationFrame(raf); lenis.destroy(); lenisRef.current = null; };
+    const onLightbox = (e) => {
+      if (e.detail?.open) lenis.stop();
+      else lenis.start();
+    };
+    window.addEventListener(LB_EVENT, onLightbox);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener(LB_EVENT, onLightbox);
+      lenis.destroy();
+      lenisRef.current = null;
+    };
   }, []);
 
   const goTo = (e, selector) => {
@@ -892,7 +1071,7 @@ export function InvestLanding() {
 
               <motion.p className="il-hero-sub" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.5, ease: EASE }}>
                 Купить золото онлайн с Reaktivo — ваш агент по покупке: биржевой курс в реальном времени,
-                комиссия видна до сделки, пополнение через СБП и вывод на карту. Без визитов в офис.
+                комиссия видна до сделки, {withSbp('пополнение через СБП')} и вывод на карту. Без визитов в офис.
               </motion.p>
 
               <motion.div className="il-hero-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.64, ease: EASE }}>
@@ -941,7 +1120,7 @@ export function InvestLanding() {
         <div className="il-marquee" aria-hidden>
           <div className="il-marquee-track">
             {[...MARQUEE, ...MARQUEE].map((t, i) => (
-              <span className="il-marquee-item" key={i}>{t}<i>◆</i></span>
+              <span className="il-marquee-item" key={i}>{withSbp(t)}<i>◆</i></span>
             ))}
           </div>
         </div>
@@ -1087,7 +1266,9 @@ export function InvestLanding() {
             <div className="il-sbp-grid">
               <div className="il-sbp-copy">
                 <Reveal><span className="il-pill">Деньги — реактивно быстро</span></Reveal>
-                <Reveal delay={0.08}><h2 className="il-h2">Пополнение через <span className="il-accent-text">СБП</span>.<br />Вывод — на карту.</h2></Reveal>
+                <Reveal delay={0.08}>
+                  <h2 className="il-h2">Пополнение через <SbpBadge className="il-sbp--heading" />.<br />Вывод — на карту.</h2>
+                </Reveal>
                 <Reveal delay={0.16}>
                   <ul className="il-sbp-list">
                     <li><span className="il-card-check">{Ico.check}</span> Пополнение по номеру телефона — без реквизитов</li>
@@ -1112,7 +1293,7 @@ export function InvestLanding() {
                   <div className="il-sbp-sheet-amount">100 000 ₽</div>
                   <div className="il-sbp-sheet-row">
                     <span>Способ</span>
-                    <b>СБП · по номеру телефона</b>
+                    <b className="il-sbp-method">{withSbp('СБП')} · по номеру телефона</b>
                   </div>
                   <div className="il-sbp-sheet-row">
                     <span>Зачисление</span>
@@ -1145,7 +1326,7 @@ export function InvestLanding() {
                 <motion.div className="il-card" key={a.title} variants={staggerChild} whileHover={{ y: -8 }} transition={{ duration: 0.35, ease: EASE }}>
                   <span className="il-card-icon">{a.icon}</span>
                   <h3 className="il-card-title">{a.title}</h3>
-                  <p className="il-card-text">{a.text}</p>
+                  <p className="il-card-text">{withSbp(a.text)}</p>
                 </motion.div>
               ))}
             </motion.div>
@@ -1196,17 +1377,7 @@ export function InvestLanding() {
                 </motion.a>
               </motion.div>
               <Reveal delay={0.16} className="il-about-photo">
-                <div className="il-about-mosaic" aria-label="Офис Reaktivo">
-                  <figure className="il-about-mosaic-main">
-                    <img src="/office-interior.jpg" alt="Зал обслуживания Reaktivo" loading="lazy" />
-                  </figure>
-                  <figure className="il-about-mosaic-side">
-                    <img src="/office-window.jpg" alt="Окно приёма в отделении" loading="lazy" />
-                  </figure>
-                  <figure className="il-about-mosaic-side">
-                    <img src="/office-desk.jpg" alt="Рабочее место оценки золота" loading="lazy" />
-                  </figure>
-                </div>
+                <OfficeGallery />
               </Reveal>
             </div>
           </div>
@@ -1273,6 +1444,22 @@ export function InvestLanding() {
                 <span className="il-kpi-label">кабинет и котировки онлайн</span>
               </motion.div>
             </motion.div>
+          </div>
+        </section>
+
+        {/* ── Консультация ── */}
+        <section className="il-section il-section--lead" id="consult">
+          <div className="il-section-inner il-section-inner--narrow">
+            <Reveal y={40}>
+              <div className="il-lead-panel">
+                <div className="il-lead-copy">
+                  <span className="il-pill">Поддержка</span>
+                  <h2 className="il-h2">У вас остались вопросы?</h2>
+                  <p className="il-p">Оставьте заявку — и наши специалисты вас проконсультируют.</p>
+                </div>
+                <ConsultLeadForm />
+              </div>
+            </Reveal>
           </div>
         </section>
 
@@ -1346,7 +1533,7 @@ export function InvestLanding() {
               <a href="tel:+78005551848" className="il-nav-link">8 (800) 555-18-48</a>
               <a href="mailto:team@reaktivo.ru" className="il-nav-link">Team@reaktivo.ru</a>
               <a href="mailto:team@reaktivo.ru?subject=Партнёрство%20Reaktivo" className="il-nav-link">Стать партнёром</a>
-              <a href="/pro" className="il-nav-link il-nav-link--dim">Сотрудникам</a>
+              <a href="/pro" className="il-nav-link">Сотрудникам — вход</a>
               <span className="il-nav-link il-nav-link--dim">Документы и лицензии — раздел готовится</span>
             </div>
           </div>
@@ -1410,11 +1597,12 @@ const CSS = `
   box-shadow: 0 8px 32px -20px rgba(0,0,0,0.35);
 }
 .il-header-inner {
-  max-width: 1360px; margin: 0 auto; padding: 16px 28px;
+  max-width: 1520px; margin: 0 auto; padding: 16px 28px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
 }
 .il-logo {
   display: inline-flex; align-items: center; gap: 12px;
+  font-family: var(--font-brand);
   font-weight: 800; font-size: 1.2rem; letter-spacing: -0.01em;
   color: var(--text-strong); text-decoration: none; white-space: nowrap;
 }
@@ -1426,10 +1614,11 @@ const CSS = `
 .il-logo--footer .il-logo-mark { width: 44px; height: 44px; border-radius: 12px; }
 .il-logo-text {
   display: inline-flex; align-items: baseline;
+  font-family: var(--font-brand);
   color: var(--text-strong);
 }
 .il-logo-text > span { color: var(--accent); }
-.il-nav { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+.il-nav { display: flex; gap: 14px; flex-wrap: nowrap; justify-content: center; flex: 1 1 auto; min-width: 0; }
 .il-nav-link { position: relative; color: var(--text-muted); text-decoration: none; font-size: 0.86rem; font-weight: 600; transition: color 0.25s; padding: 4px 0; }
 .il-nav-link::after {
   content: ''; position: absolute; left: 0; bottom: 0; width: 100%; height: 2px;
@@ -1438,7 +1627,7 @@ const CSS = `
 }
 .il-nav-link:hover { color: var(--text-strong); }
 .il-nav-link:hover::after { transform: scaleX(1); transform-origin: left; }
-.il-header-actions { display: flex; align-items: center; gap: 12px; }
+.il-header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .il-btn--header-buy { padding: 11px 18px; font-size: 0.86rem; }
 .il-header-phone {
   display: none; align-items: center; justify-content: center;
@@ -1547,18 +1736,31 @@ const CSS = `
 .il-btn--inverse:hover { transform: translateY(-2px); }
 .il-btn--lg { padding: 16px 30px; font-size: 1rem; border-radius: 16px; }
 
-/* ── СБП бейдж ── */
+/* ── СБП бейдж (официальный логотип) ── */
 .il-sbp {
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em;
-  color: var(--accent); background: var(--accent-soft);
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  border-radius: 8px; padding: 4px 9px;
+  vertical-align: middle; line-height: 0;
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--stroke) 70%, transparent);
+  border-radius: 8px; padding: 5px 9px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
+.il-sbp-logo { height: 22px; width: auto; display: block; }
+.il-sbp--inline {
+  margin: 0 0.2em; padding: 2px 6px; border-radius: 6px;
+  vertical-align: -0.35em;
+}
+.il-sbp--inline .il-sbp-logo { height: 1.05em; }
+.il-sbp--compact { padding: 3px 7px; }
+.il-sbp--compact .il-sbp-logo { height: 16px; }
+.il-sbp--heading {
+  margin: 0 0.12em; padding: 6px 10px; vertical-align: middle;
+}
+.il-sbp--heading .il-sbp-logo { height: clamp(22px, 0.55em, 36px); }
+.il-sbp-method { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
 :root[data-theme='dark'] .il-sbp {
-  color: var(--text-strong);
-  background: rgba(255, 255, 255, 0.08);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 /* ── Hero ── */
@@ -1635,7 +1837,7 @@ const CSS = `
   will-change: transform;
 }
 .il-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
-.il-card-brand { font-weight: 800; font-size: 0.84rem; letter-spacing: 0.02em; color: var(--text-strong); }
+.il-card-brand { font-family: var(--font-brand); font-weight: 800; font-size: 0.84rem; letter-spacing: 0.02em; color: var(--text-strong); }
 .il-card-brand i { color: var(--accent); font-style: normal; margin: 0 2px; }
 .il-card-live { display: inline-flex; align-items: center; gap: 6px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--emerald); }
 .il-card-live i { width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); animation: ilPulse 1.6s ease-in-out infinite; }
@@ -1748,6 +1950,7 @@ const CSS = `
 .il-preview-row .is-sell { color: var(--accent); font-weight: 700; }
 .il-preview-chip {
   position: absolute; z-index: 3;
+  display: inline-flex; align-items: center; gap: 6px;
   font-size: 0.78rem; font-weight: 800; color: var(--text-strong);
   background: color-mix(in srgb, var(--bg-panel-solid) 92%, transparent);
   border: 1px solid var(--stroke); border-radius: 100px; padding: 9px 16px;
@@ -1891,27 +2094,155 @@ const CSS = `
 .il-about-photo { grid-column: 1; grid-row: 2; min-height: 0; height: 100%; }
 .il-about-text p { margin: 0 0 16px; font-size: 1rem; line-height: 1.75; color: var(--text-muted); }
 .il-about-text p:last-child { margin-bottom: 0; }
-.il-about-mosaic {
-  display: grid;
-  grid-template-columns: 1.55fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 10px;
+.il-about-photo-btn {
+  position: relative;
+  display: block;
+  width: 100%;
   height: 100%;
-  min-height: 280px;
-  aspect-ratio: 16 / 10;
+  min-height: 240px;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--bg-panel-solid);
+  cursor: zoom-in;
+  -webkit-tap-highlight-color: transparent;
 }
-.il-about-mosaic-main {
-  grid-row: 1 / -1;
-  margin: 0; border-radius: 18px; overflow: hidden;
-  border: 1px solid var(--stroke); background: var(--bg-panel-solid);
+.il-about-photo-btn img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  transition: transform 0.45s cubic-bezier(0.22,1,0.36,1);
 }
-.il-about-mosaic-side {
-  margin: 0; border-radius: 16px; overflow: hidden;
-  border: 1px solid var(--stroke); background: var(--bg-panel-solid);
+.il-about-photo-btn:hover img,
+.il-about-photo-btn:focus-visible img {
+  transform: scale(1.03);
 }
-.il-about-mosaic img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
+.il-about-mosaic-zoom {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 1;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
 }
+.il-about-photo-btn:hover .il-about-mosaic-zoom,
+.il-about-photo-btn:focus-visible .il-about-mosaic-zoom {
+  opacity: 1;
+}
+html.il-lb-open,
+html.il-lb-open body {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+.il-lb {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 28px 16px 40px;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+.il-lb-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(0,0,0,0.82);
+  cursor: pointer;
+}
+.il-lb-figure {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  max-width: min(1100px, 100%);
+  max-height: min(82vh, 900px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.il-lb-figure img {
+  display: block;
+  max-width: 100%;
+  max-height: min(74vh, 820px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 14px;
+  box-shadow: 0 28px 80px rgba(0,0,0,0.45);
+}
+.il-lb-figure figcaption {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 720px;
+  color: rgba(255,255,255,0.82);
+  font-size: 0.92rem;
+}
+.il-lb-figure figcaption span {
+  color: rgba(255,255,255,0.5);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.il-lb-close,
+.il-lb-nav {
+  position: absolute;
+  z-index: 2;
+  border: 0;
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: background 0.2s ease;
+}
+.il-lb-close:hover,
+.il-lb-nav:hover {
+  background: rgba(255,255,255,0.22);
+}
+.il-lb-close {
+  top: 18px;
+  right: 18px;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  font-size: 28px;
+  line-height: 1;
+}
+.il-lb-nav {
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 64px;
+  border-radius: 14px;
+  font-size: 36px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+.il-lb-nav--prev { left: 16px; }
+.il-lb-nav--next { right: 16px; }
 .il-products {
   grid-column: 2; grid-row: 1 / -1;
   display: flex; flex-direction: column; gap: 12px;
@@ -1993,6 +2324,39 @@ const CSS = `
 .il-kpi-val { font-size: clamp(2.3rem, 4.2vw, 3.3rem); font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong); font-variant-numeric: tabular-nums; }
 .il-kpi-label { font-size: 0.84rem; color: var(--text-strong); font-weight: 600; opacity: 0.72; }
 
+/* ── Заявка на консультацию ── */
+.il-lead-panel {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 0.9fr);
+  gap: 36px; align-items: center;
+  padding: clamp(28px, 4vw, 44px);
+  border-radius: 28px; border: 1px solid var(--stroke);
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 48%),
+    var(--bg-panel-solid);
+  box-shadow: 0 28px 70px -48px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.il-lead-copy .il-h2 { margin: 12px 0 10px; }
+.il-lead-copy .il-p { margin: 0; max-width: 420px; }
+.il-lead-form { display: grid; gap: 12px; }
+.il-lead-field {
+  display: grid; gap: 6px;
+  font-size: 0.78rem; font-weight: 700; color: var(--text-dim);
+}
+.il-lead-field input {
+  width: 100%; box-sizing: border-box;
+  border: 1px solid var(--stroke); border-radius: 14px;
+  background: var(--bg); color: var(--text-strong);
+  padding: 13px 14px; font: inherit; font-size: 0.95rem; font-weight: 600;
+  outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.il-lead-field input:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--stroke));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.il-lead-form .il-btn { width: 100%; justify-content: center; margin-top: 4px; }
+.il-lead-err { margin: 0; font-size: 0.84rem; color: var(--accent); font-weight: 600; }
+.il-lead-ok { margin: 0; font-size: 0.84rem; color: var(--emerald); font-weight: 600; }
+
 /* ── FAQ ── */
 .il-faq { display: flex; flex-direction: column; gap: 12px; }
 .il-faq-item {
@@ -2052,16 +2416,19 @@ const CSS = `
   .il-about-photo,
   .il-products { grid-column: 1; grid-row: auto; height: auto; }
   .il-about-photo { min-height: 0; order: 3; }
-  .il-about-mosaic {
-    aspect-ratio: auto;
+  .il-about-photo-btn {
+    aspect-ratio: 16 / 9;
     min-height: 0;
-    grid-template-columns: 1.4fr 1fr;
-    grid-template-rows: 160px 160px;
   }
+  .il-lb-nav { width: 40px; height: 52px; font-size: 30px; }
+  .il-lb-nav--prev { left: 8px; }
+  .il-lb-nav--next { right: 8px; }
+  .il-lb-close { top: 12px; right: 12px; }
   .il-products { order: 2; }
   .il-product { flex: none; }
   .il-partner-banner { grid-template-columns: 1fr; gap: 28px; text-align: left; }
   .il-partner-aside { display: none; }
+  .il-lead-panel { grid-template-columns: 1fr; gap: 22px; }
   .il-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .il-step-line { display: none; }
   .il-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }

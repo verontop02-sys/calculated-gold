@@ -284,8 +284,8 @@ export function reportBaseCss(t, { orientation = 'landscape' } = {}) {
   --panel: ${pageBg}; --surface: ${surfaceSolid}; --elevated: ${elevatedSolid}; --bg-deep: ${pageBg};
   --shadow-card: ${cardShadow};
   --today-tint: ${todayTint};
-  --font-display: 'DM Sans', system-ui, -apple-system, sans-serif;
-  --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Noto Sans', system-ui, -apple-system, sans-serif;
+  --font-ui: 'Noto Sans', system-ui, -apple-system, sans-serif;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 html { font-size: 13px; }
@@ -640,7 +640,7 @@ html, body { margin: 0 !important; padding: 0 !important; background: ${pageBg} 
 <title>${escapeHtml(title || 'Отчёт')}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>${css}</style>
 </head>
 <body>

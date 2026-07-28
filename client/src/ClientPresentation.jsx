@@ -182,7 +182,7 @@ ${CLIENT_RESULT_CSS}
   padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
   animation: cgCpFade 0.25s ease;
   overflow-y: auto;
-  font-family: 'DM Sans', 'Inter', system-ui, sans-serif;
+  font-family: 'Noto Sans', system-ui, sans-serif;
 }
 @keyframes cgCpFade { from { opacity: 0; } to { opacity: 1; } }
 

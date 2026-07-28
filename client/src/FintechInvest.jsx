@@ -4,6 +4,32 @@ import { fintechApi, getFintechToken, setFintechToken, onFintechSessionExpired }
 import { openFintechStatementReport } from './fintechStatementReport.js';
 import { WorldClocksCard } from './WorldClocks.jsx';
 import { MissedBenefitCalc } from './MissedBenefitCalc.jsx';
+import {
+  AnimatePresence,
+  FadeIn,
+  Reveal,
+  SPRING,
+  motion,
+  staggerChild,
+  staggerParent,
+} from './motionUi.jsx';
+
+const SbpMark = ({ className = '' }) => (
+  <span className={`cpx-sbp ${className}`.trim()} title="Система быстрых платежей" role="img" aria-label="СБП">
+    <img src="/sbp-logo.png" alt="" width="72" height="24" decoding="async" />
+  </span>
+);
+
+function withSbp(text) {
+  const parts = String(text || '').split('СБП');
+  if (parts.length === 1) return text;
+  return parts.map((part, i) => (
+    <span key={i}>
+      {part}
+      {i < parts.length - 1 ? <SbpMark className="cpx-sbp--inline" /> : null}
+    </span>
+  ));
+}
 
 const DOC_LABELS = {
   passport_main: 'Паспорт (разворот с фото)',
@@ -230,7 +256,9 @@ function FintechLogin({ onDone }) {
   }
 
   return (
-    <div className="cpx-card cpx-login">
+    <FadeIn>
+    <div className="cpx-card cpx-login cpx-login--fin">
+      <p className="cpx-login-eyebrow">REAKTIVO · PRO</p>
       <h1 className="cpx-title">Покупка золота</h1>
       <p className="cpx-sub">
         Отдельный вход — свой код защищает доступ к деньгам, даже если сессия кабинета скупки уже открыта на этом телефоне.
@@ -290,6 +318,7 @@ function FintechLogin({ onDone }) {
         </form>
       )}
     </div>
+    </FadeIn>
   );
 }
 
@@ -392,16 +421,20 @@ function FintechOnboarding({ profile, onUpdated }) {
   }
 
   return (
-    <>
+    <div className="cpx-fin-onboard">
       {profile.status === 'rejected' && profile.rejectReason && (
-        <div className="cpx-card cpx-fin-banner">
-          <span className="cpx-fin-banner-title">Заявка отклонена</span>
-          <p className="cpx-sub" style={{ margin: 0 }}>{profile.rejectReason}</p>
-          <p className="cpx-muted" style={{ marginTop: 8 }}>Загрузите документы ещё раз — заявка автоматически уйдёт на повторную проверку.</p>
-        </div>
+        <Reveal y={18}>
+          <div className="cpx-card cpx-fin-banner cpx-fin-banner--reject">
+            <span className="cpx-fin-banner-kicker">Статус заявки</span>
+            <span className="cpx-fin-banner-title">Заявка отклонена</span>
+            <p className="cpx-sub" style={{ margin: 0 }}>{profile.rejectReason}</p>
+            <p className="cpx-muted" style={{ marginTop: 8 }}>Загрузите документы ещё раз — заявка автоматически уйдёт на повторную проверку.</p>
+          </div>
+        </Reveal>
       )}
 
-      <div className="cpx-card">
+      <Reveal delay={0.06} y={20}>
+      <div className="cpx-card cpx-fin-onboard-card">
         <h2 className="cpx-h2">Данные для регистрации</h2>
         <p className="cpx-sub">Заполните ФИО и email — они понадобятся для выписок и связи по заявке.</p>
         <form onSubmit={saveInfo} className="cpx-fin-form-row">
@@ -418,8 +451,10 @@ function FintechOnboarding({ profile, onUpdated }) {
           </button>
         </form>
       </div>
+      </Reveal>
 
-      <div className="cpx-card">
+      <Reveal delay={0.12} y={20}>
+      <div className="cpx-card cpx-fin-onboard-card">
         <h2 className="cpx-h2">Документы (KYC)</h2>
         <p className="cpx-sub">Загрузите фото или скан — модератор проверит их вручную.</p>
         <div className="cpx-fin-docs">
@@ -446,7 +481,8 @@ function FintechOnboarding({ profile, onUpdated }) {
           <p className="cpx-fin-hint">Чтобы отправить заявку: {missingSteps.join(', ')}.</p>
         )}
       </div>
-    </>
+      </Reveal>
+    </div>
   );
 }
 
@@ -486,14 +522,16 @@ function FintechPendingReview({ profile, onRefresh }) {
     try { await onRefresh?.(); } finally { setRefreshing(false); }
   }
   return (
-    <div className="cpx-card cpx-center" style={{ color: 'var(--cpx-ink)', flexDirection: 'column', textAlign: 'center', padding: '36px 20px' }}>
+    <FadeIn>
+    <div className="cpx-card cpx-fin-pending cpx-center" style={{ color: 'var(--cpx-ink)', flexDirection: 'column', textAlign: 'center', padding: '40px 22px' }}>
       <span className="cpx-fin-pending-icon" aria-hidden>
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="9" />
           <path d="M12 7v5l3 3" />
         </svg>
       </span>
-      <h2 className="cpx-h2">Документы на проверке</h2>
+      <span className="cpx-fin-banner-kicker">На проверке</span>
+      <h2 className="cpx-h2">Документы у модератора</h2>
       <p className="cpx-sub">Модератор Reaktivo проверяет ваши документы. Обычно это занимает до 1 рабочего дня.</p>
       <div className="cpx-fin-doc-status-list">
         {(profile.documents || []).map((d) => (
@@ -509,6 +547,7 @@ function FintechPendingReview({ profile, onRefresh }) {
         {refreshing ? <span className="cpx-spinner" /> : 'Обновить статус'}
       </button>
     </div>
+    </FadeIn>
   );
 }
 // ── График курса золота ─────────────────────────────────────────────────────
@@ -902,24 +941,38 @@ function LedgerEntryModal({ entry, onClose }) {
 // ── CTA под графиком: Купить / Пополнить ────────────────────────────────────
 function TradeCtaBar({ active, onBuy, onTopup, rubBalance }) {
   return (
-    <div className="cpx-fin-cta-bar" role="group" aria-label="Купить золото или пополнить баланс">
-      <button
+    <motion.div
+      className="cpx-fin-cta-bar"
+      role="group"
+      aria-label="Купить золото или пополнить баланс"
+      variants={staggerParent}
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, margin: '-5% 0px' }}
+    >
+      <motion.button
         type="button"
+        variants={staggerChild}
+        whileHover={{ y: -2 }}
+        transition={SPRING}
         className={`cpx-fin-cta cpx-fin-cta--buy${active === 'buy' ? ' cpx-fin-cta--on' : ''}`}
         onClick={onBuy}
       >
         <strong>Купить золото</strong>
         <span>от 0,01 г · курс биржи</span>
-      </button>
-      <button
+      </motion.button>
+      <motion.button
         type="button"
+        variants={staggerChild}
+        whileHover={{ y: -2 }}
+        transition={SPRING}
         className={`cpx-fin-cta cpx-fin-cta--topup${active === 'topup' ? ' cpx-fin-cta--on' : ''}`}
         onClick={onTopup}
       >
         <strong>Пополнить</strong>
         <span>баланс {formatMoney(rubBalance)}</span>
-      </button>
-    </div>
+      </motion.button>
+    </motion.div>
   );
 }
 
@@ -942,19 +995,28 @@ function TopUpPanel({ portfolio, onClose }) {
       prev.unshift({ rub: v, at: new Date().toISOString(), status: 'awaiting_credit' });
       localStorage.setItem(key, JSON.stringify(prev.slice(0, 20)));
     } catch { /* ignore */ }
-    setNote(`Заявка на ${formatMoney(v)} сохранена. Напишите в поддержку или на team@reaktivo.ru — модератор зачислит сумму на баланс. Онлайн СБП подключится после эквайринга.`);
+    setNote(`Заявка на ${formatMoney(v)} сохранена. Напишите в поддержку или на team@reaktivo.ru — модератор зачислит сумму на баланс. Онлайн-оплата через СБП подключится после эквайринга.`);
   }
 
   return (
+    <Reveal y={20}>
     <div className="cpx-card cpx-fin-topup-panel" id="fin-topup">
+      <div className="cpx-fin-soon-badge" aria-hidden>
+        <span className="cpx-fin-soon-label">Скоро</span>
+        <SbpMark className="cpx-sbp--compact" /> · карта
+      </div>
       <div className="cpx-fin-topup-head">
         <div>
           <h2 className="cpx-fin-side-title">Пополнить баланс</h2>
-          <p className="cpx-fin-side-sub">Сейчас на счёте {formatMoney(rubBal)}. После зачисления сразу можно купить золото.</p>
+          <p className="cpx-fin-side-sub">Сейчас на счёте {formatMoney(rubBal)}. Онлайн-оплата подключится после эквайринга — пока зачисление через модератора.</p>
         </div>
         {onClose && (
           <button type="button" className="cpx-link" onClick={onClose}>Скрыть</button>
         )}
+      </div>
+      <div className="cpx-fin-soon-card">
+        <strong>Эквайринг и <SbpMark className="cpx-sbp--inline" /> в подключении</strong>
+        <p>Оставьте заявку на сумму — напишите в поддержку или на team@reaktivo.ru, и модератор зачислит рубли на баланс. После этого можно сразу купить золото.</p>
       </div>
       <ol className="cpx-fin-topup-steps">
         <li>Укажите сумму и оставьте заявку</li>
@@ -971,10 +1033,23 @@ function TopUpPanel({ portfolio, onClose }) {
           <a className="cpx-btn cpx-btn--ghost" href="https://t.me/Reaktivoai" target="_blank" rel="noopener noreferrer">Telegram</a>
           <a className="cpx-btn cpx-btn--ghost" href="mailto:team@reaktivo.ru">Написать на почту</a>
         </div>
-        {note && <p className="cpx-fin-ok" style={{ color: 'var(--text-muted)' }}>{note}</p>}
+        <AnimatePresence>
+          {note && (
+            <motion.p
+              className="cpx-fin-flash cpx-fin-flash--ok"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {note}
+            </motion.p>
+          )}
+        </AnimatePresence>
       </form>
-      <p className="cpx-fin-topup-foot">Онлайн-оплата картой и СБП — после подключения эквайринга. Пока зачисление вручную через модератора.</p>
+      <p className="cpx-fin-topup-foot">{withSbp('Онлайн-оплата картой и СБП — после подключения эквайринга. Пока зачисление вручную через модератора.')}</p>
     </div>
+    </Reveal>
   );
 }
 
@@ -1052,6 +1127,7 @@ function BuyPanel({ portfolio, onDone, onTopup }) {
   }
 
   return (
+    <Reveal y={18}>
     <div className="cpx-fin-buy-panel cpx-fin-buy-panel--central">
       <div className="cpx-card cpx-fin-buy-card">
         <h2 className="cpx-fin-side-title">Купить золото</h2>
@@ -1128,7 +1204,20 @@ function BuyPanel({ portfolio, onDone, onTopup }) {
           )}
 
           {buyErr && <p className="cpx-err">{buyErr}</p>}
-          {buyOk && <p className="cpx-fin-ok">{buyOk}</p>}
+          <AnimatePresence>
+            {buyOk && (
+              <motion.p
+                key={buyOk}
+                className="cpx-fin-flash cpx-fin-flash--ok"
+                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {buyOk}
+              </motion.p>
+            )}
+          </AnimatePresence>
           {quote && quote.rubGross > rubBal ? (
             <button type="button" className="cpx-btn" onClick={onTopup}>
               Пополнить баланс и купить
@@ -1141,6 +1230,7 @@ function BuyPanel({ portfolio, onDone, onTopup }) {
         </form>
       </div>
     </div>
+    </Reveal>
   );
 }
 
@@ -1221,6 +1311,7 @@ function SellPanel({ portfolio, onDone }) {
 
   return (
     <div className="cpx-fin-sell-grid">
+      <Reveal y={18}>
       <div className="cpx-card">
         <h2 className="cpx-fin-side-title">Продать золото</h2>
         <p className="cpx-fin-side-sub">
@@ -1244,17 +1335,36 @@ function SellPanel({ portfolio, onDone }) {
             </div>
           )}
           {err && <p className="cpx-err">{err}</p>}
-          {ok && <p className="cpx-fin-ok">{ok}</p>}
+          <AnimatePresence>
+            {ok && (
+              <motion.p
+                key={ok}
+                className="cpx-fin-flash cpx-fin-flash--ok"
+                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {ok}
+              </motion.p>
+            )}
+          </AnimatePresence>
           <button type="submit" className="cpx-btn" disabled={selling || !quote}>
             {selling ? <><span className="cpx-spinner" /> Продаём…</> : 'Продать на баланс'}
           </button>
         </form>
       </div>
+      </Reveal>
 
-      <div className="cpx-card">
+      <Reveal delay={0.08} y={18}>
+      <div className="cpx-card cpx-fin-withdraw-card">
+        <div className="cpx-fin-soon-badge" aria-hidden>
+          <span className="cpx-fin-soon-label">Скоро</span>
+          Вывод
+        </div>
         <h2 className="cpx-fin-side-title">Вывод средств</h2>
         <p className="cpx-fin-side-sub">
-          Доступно {formatMoney(rubBal)}. Банковский вывод (карта / СБП) — после Т-Банка и таблицы комиссий. A7/ПСБ пока не подключаем.
+          Доступно {formatMoney(rubBal)}. {withSbp('Банковский вывод (карта / СБП)')} — после Т-Банка и таблицы комиссий. A7/ПСБ пока не подключаем.
         </p>
         <form onSubmit={requestWithdraw} className="cpx-form cpx-fin-buy-form">
           <label className="cpx-field">
@@ -1269,6 +1379,7 @@ function SellPanel({ portfolio, onDone }) {
           <button type="submit" className="cpx-btn cpx-btn--sm">Оставить заявку</button>
         </form>
       </div>
+      </Reveal>
     </div>
   );
 }
@@ -1347,6 +1458,7 @@ function FintechDashboard({ profile }) {
 
   return (
     <div className="cpx-finx">
+      <Reveal y={16}>
       <div className="cpx-fin-hero">
         <div className="cpx-fin-hero-main">
           <p className="cpx-fin-greeting-sub">Reaktivo · золотой счёт</p>
@@ -1371,32 +1483,39 @@ function FintechDashboard({ profile }) {
           </button>
         </div>
       </div>
+      </Reveal>
 
-      <div className="cpx-fin-kpis">
-        <div className="cpx-fin-kpi cpx-fin-kpi--hero">
+      <motion.div
+        className="cpx-fin-kpis"
+        variants={staggerParent}
+        initial="hidden"
+        whileInView="show"
+        viewport={{ once: true, margin: '-5% 0px' }}
+      >
+        <motion.div className="cpx-fin-kpi cpx-fin-kpi--hero" variants={staggerChild}>
           <span className="cpx-fin-kpi-label">Золото на счёте</span>
           <span className="cpx-fin-kpi-value">{formatGrams(portfolio?.goldGrams)}</span>
-        </div>
-        <div className="cpx-fin-kpi">
+        </motion.div>
+        <motion.div className="cpx-fin-kpi" variants={staggerChild}>
           <span className="cpx-fin-kpi-label">Стоимость</span>
           <span className="cpx-fin-kpi-value">{formatMoney(portfolio?.marketValueRub)}</span>
-        </div>
-        <div className="cpx-fin-kpi">
+        </motion.div>
+        <motion.div className="cpx-fin-kpi" variants={staggerChild}>
           <span className="cpx-fin-kpi-label">Вложено</span>
           <span className="cpx-fin-kpi-value">{formatMoney(portfolio?.investedRub)}</span>
-        </div>
-        <div className={`cpx-fin-kpi ${(portfolio?.pnlRub ?? 0) >= 0 ? 'cpx-fin-kpi--pos' : 'cpx-fin-kpi--neg'}`}>
+        </motion.div>
+        <motion.div className={`cpx-fin-kpi ${(portfolio?.pnlRub ?? 0) >= 0 ? 'cpx-fin-kpi--pos' : 'cpx-fin-kpi--neg'}`} variants={staggerChild}>
           <span className="cpx-fin-kpi-label">Доход</span>
           <span className="cpx-fin-kpi-value">
             {formatMoney(portfolio?.pnlRub)}
             {portfolio?.pnlPercent != null && <span className="cpx-fin-kpi-pct"> ({portfolio.pnlPercent > 0 ? '+' : ''}{portfolio.pnlPercent}%)</span>}
           </span>
-        </div>
-        <div className="cpx-fin-kpi">
+        </motion.div>
+        <motion.div className="cpx-fin-kpi" variants={staggerChild}>
           <span className="cpx-fin-kpi-label">Рублёвый баланс</span>
           <span className="cpx-fin-kpi-value">{formatMoney(portfolio?.rubBalance)}</span>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       <nav className="cpx-fin-tabs" aria-label="Разделы золотого счёта">
         {DASH_TABS.map((t) => (
@@ -1418,46 +1537,58 @@ function FintechDashboard({ profile }) {
       </nav>
 
       {view === 'overview' && (
-        <>
-          <WorldClocksCard delay="0ms" className="cpx-fin-clocks" />
-          <div className="cpx-fin-trade">
-            <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
+        <div className="cpx-fin-overview">
+          <Reveal y={12} className="cpx-fin-overview-clocks">
+            <WorldClocksCard delay="0ms" className="cpx-fin-clocks" />
+          </Reveal>
+          <div className="cpx-fin-overview-main">
+            <Reveal delay={0.05} y={16}>
+              <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
+            </Reveal>
             <TradeCtaBar
               active={null}
               rubBalance={portfolio?.rubBalance}
               onBuy={openBuy}
               onTopup={openTopup}
             />
+            <Reveal delay={0.1} y={16}><AssistantCard /></Reveal>
           </div>
-          <div className="cpx-fin-layout cpx-fin-layout--lower">
-            <div className="cpx-fin-main">
-              <AssistantCard />
-            </div>
-            <aside className="cpx-fin-side">
+          <aside className="cpx-fin-overview-side">
+            <Reveal delay={0.08} y={16}>
               <MissedBenefitCalc compact onOpenFull={() => setView('benefit')} />
+            </Reveal>
+            <Reveal delay={0.12} y={16}>
               <div className="cpx-card cpx-fin-history-card">
                 <h2 className="cpx-fin-side-title">Последние операции</h2>
                 <LedgerList ledger={ledger} limit={8} />
               </div>
-            </aside>
-          </div>
-        </>
+            </Reveal>
+          </aside>
+        </div>
       )}
 
       {view === 'buy' && (
         <div className="cpx-fin-trade cpx-fin-trade--buy">
-          <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
-          <TradeCtaBar
-            active={showTopup ? 'topup' : 'buy'}
-            rubBalance={portfolio?.rubBalance}
-            onBuy={openBuy}
-            onTopup={openTopup}
-          />
-          {showTopup && <TopUpPanel portfolio={portfolio} onClose={() => setShowTopup(false)} />}
-          <BuyPanel portfolio={portfolio} onDone={load} onTopup={openTopup} />
-          <div className="cpx-card cpx-fin-history-card">
-            <h2 className="cpx-fin-side-title">Последние операции</h2>
-            <LedgerList ledger={ledger} limit={6} />
+          <div className="cpx-fin-trade-main">
+            <Reveal y={14}>
+              <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
+            </Reveal>
+            <TradeCtaBar
+              active={showTopup ? 'topup' : 'buy'}
+              rubBalance={portfolio?.rubBalance}
+              onBuy={openBuy}
+              onTopup={openTopup}
+            />
+            {showTopup && <TopUpPanel portfolio={portfolio} onClose={() => setShowTopup(false)} />}
+          </div>
+          <div className="cpx-fin-trade-side">
+            <BuyPanel portfolio={portfolio} onDone={load} onTopup={openTopup} />
+            <Reveal delay={0.1} y={14}>
+              <div className="cpx-card cpx-fin-history-card">
+                <h2 className="cpx-fin-side-title">Последние операции</h2>
+                <LedgerList ledger={ledger} limit={6} />
+              </div>
+            </Reveal>
           </div>
         </div>
       )}

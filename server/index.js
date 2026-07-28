@@ -24,6 +24,7 @@ import {
   listFieldDealSessionsForManager,
   cancelFieldDealSession,
 } from './fieldDealSession.js';
+import { sendConsultLeadEmailIfConfigured } from './emailDealReceipt.js';
 import {
   buildGoldIndexOverview,
   buildGoldIndexPublicSummary,
@@ -309,6 +310,7 @@ app.use(
     '/api/public/field-deal-session/:token/verify',
     '/api/auth/device',
     '/api/public/fintech-auth',
+    '/api/public/consult-lead',
   ],
   authBurstLimiter
 );
@@ -1055,6 +1057,39 @@ app.post(
     const data = await refreshPriceCache(true);
     broadcastPrice(data);
     res.json(data);
+  })
+);
+
+/**
+ * Публичная заявка на консультацию (имя + телефон) → email команде.
+ */
+app.post(
+  '/api/public/consult-lead',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const name = String(req.body?.name || '').trim().slice(0, 120);
+    const phoneRaw = String(req.body?.phone || '').replace(/\D/g, '');
+    const phone = phoneRaw.replace(/^8/, '7');
+    if (phone.length < 11) {
+      return res.status(400).json({ error: 'Укажите корректный номер телефона' });
+    }
+    if (!name || name.length < 2) {
+      return res.status(400).json({ error: 'Укажите имя' });
+    }
+    try {
+      const out = await sendConsultLeadEmailIfConfigured({
+        name,
+        phone: phone.startsWith('7') ? `+${phone}` : phone,
+      });
+      if (!out.sent && out.reason === 'not_configured') {
+        console.info('[consult-lead]', name, phone);
+        return res.json({ ok: true, queued: true });
+      }
+      return res.json({ ok: true });
+    } catch (e) {
+      console.error('[consult-lead]', e?.message || e);
+      return res.status(502).json({ error: 'Не удалось отправить заявку. Напишите на team@reaktivo.ru' });
+    }
   })
 );
 

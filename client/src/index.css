@@ -111,8 +111,10 @@
 :root {
   --radius: 16px;
   --radius-sm: 10px;
-  --font-display: 'DM Sans', system-ui, -apple-system, sans-serif;
-  --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Презентация: Noto Sans — текст; Geometria — лого/бренд (когда будут файлы) */
+  --font-display: 'Noto Sans', system-ui, -apple-system, sans-serif;
+  --font-ui: 'Noto Sans', system-ui, -apple-system, sans-serif;
+  --font-brand: 'Geometria', 'Noto Sans', system-ui, -apple-system, sans-serif;
 
   /* === ТИПОГРАФИЧЕСКАЯ ШКАЛА ===
      На больших экранах — масштаб «увереннее», на мобиле — компактнее.

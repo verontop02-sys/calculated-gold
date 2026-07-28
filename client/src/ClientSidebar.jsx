@@ -93,6 +93,16 @@ export function ClientSidebar({ tab, onChange, phoneMasked, onOpenCabinet, onSig
           border-color: var(--accent-soft);
         }
         .cg-sidebar__user--active .cg-sidebar__user-role { color: var(--accent); }
+        /* На ПК меню всегда видно — без «полоски» и сюрпризов при зуме. */
+        @media (min-width: 901px) {
+          .cg-sidebar {
+            transform: translateX(0) !important;
+            border-right: 1px solid var(--stroke-soft);
+          }
+          .cg-sidebar:not(.cg-sidebar--pinned)::after { display: none; }
+          .cg-sidebar__brand-text,
+          .cg-sidebar__logout-label { opacity: 1 !important; }
+        }
       `}</style>
     </aside>
   );

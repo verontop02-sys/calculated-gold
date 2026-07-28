@@ -225,7 +225,7 @@ ${CLIENT_RESULT_CSS}
     linear-gradient(180deg, #1a1b1e 0%, #141516 100%);
   color: #f4f5f7;
   color-scheme: dark;
-  font-family: 'DM Sans', 'Inter', system-ui, sans-serif;
+  font-family: 'Noto Sans', system-ui, sans-serif;
   overflow: hidden;
   display: flex;
   align-items: center;
