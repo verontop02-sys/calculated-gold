@@ -1396,8 +1396,8 @@ export function InvestLanding() {
                   </p>
                   <div className="il-partner-actions">
                     <Magnetic>
-                      <motion.a href="mailto:team@reaktivo.ru?subject=Партнёрство%20Reaktivo" className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.96 }}>
-                        Написать Team@reaktivo.ru
+                      <motion.a href="mailto:team@reaktivo.ru?subject=Партнёрство%20Reaktivo" className="il-btn il-btn--primary il-btn--lg il-partner-cta" whileTap={{ scale: 0.96 }}>
+                        Написать команде
                         <span className="il-btn-arrow" aria-hidden>→</span>
                       </motion.a>
                     </Magnetic>
@@ -1780,14 +1780,14 @@ const CSS = `
 .il-btn:hover .il-btn-arrow { transform: translateX(4px); }
 .il-btn--primary {
   background: var(--accent); color: #fff;
-  box-shadow: 0 8px 22px -12px color-mix(in srgb, var(--accent) 42%, transparent);
+  box-shadow: 0 10px 32px -10px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 .il-btn--primary::after {
   content: ''; position: absolute; top: 0; left: -70%; width: 42%; height: 100%;
   background: linear-gradient(100deg, transparent, rgba(255,255,255,0.35), transparent);
   transform: skewX(-18deg); transition: left 0.7s cubic-bezier(0.22,1,0.36,1);
 }
-.il-btn--primary:hover { box-shadow: 0 12px 28px -12px color-mix(in srgb, var(--accent) 55%, transparent); }
+.il-btn--primary:hover { box-shadow: 0 18px 48px -12px color-mix(in srgb, var(--accent) 85%, transparent); }
 .il-btn--primary:hover::after { left: 130%; }
 .il-btn--ghost { background: transparent; border-color: var(--stroke); color: var(--text); }
 .il-btn--ghost:hover { border-color: var(--accent); color: var(--accent); }
@@ -2362,18 +2362,21 @@ html.il-lb-open body {
 .il-partner-banner {
   display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.7fr);
   gap: 36px; align-items: center;
-  padding: clamp(32px, 5vw, 52px);
+  padding: clamp(28px, 5vw, 52px);
   border-radius: 28px; border: 1px solid var(--stroke);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 6%, var(--bg-panel-solid)), var(--bg-panel-solid) 52%, var(--bg-panel-solid));
-  box-shadow: 0 24px 56px -48px rgba(0, 0, 0, 0.35);
+  background: linear-gradient(135deg, var(--accent-soft), var(--bg-panel-solid) 48%, var(--bg-panel-solid));
+  box-shadow: 0 30px 70px -48px color-mix(in srgb, var(--accent) 40%, transparent);
+  overflow: hidden; min-width: 0;
 }
+.il-partner-copy { min-width: 0; }
 .il-partner-title {
-  font-size: clamp(1.7rem, 3.2vw, 2.4rem); font-weight: 800; letter-spacing: -0.03em;
-  line-height: 1.22; color: var(--text-strong); margin: 14px 0 14px;
+  font-size: clamp(1.55rem, 3.2vw, 2.4rem); font-weight: 800; letter-spacing: -0.03em;
+  line-height: 1.2; color: var(--text-strong); margin: 14px 0 14px;
 }
-.il-partner-title .il-accent-text { display: inline-block; margin-top: 0.08em; }
 .il-partner-text { margin: 0 0 26px; font-size: 1.02rem; line-height: 1.65; color: var(--text-muted); max-width: 520px; }
-.il-partner-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.il-partner-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; min-width: 0; }
+.il-partner-actions .il-magnetic { max-width: 100%; }
+.il-partner-actions .il-btn { max-width: 100%; }
 .il-partner-aside { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
 .il-partner-mark {
   width: clamp(140px, 14vw, 180px); height: clamp(140px, 14vw, 180px);
@@ -2549,8 +2552,11 @@ html.il-lb-open body {
   .il-lb-close { top: 12px; right: 12px; }
   .il-products { order: 2; }
   .il-product { flex: none; }
-  .il-partner-banner { grid-template-columns: 1fr; gap: 28px; text-align: left; }
+  .il-partner-banner { grid-template-columns: 1fr; gap: 28px; text-align: left; padding: 26px 20px; }
   .il-partner-aside { display: none; }
+  .il-partner-actions { flex-direction: column; align-items: stretch; }
+  .il-partner-actions .il-magnetic { display: block; width: 100%; }
+  .il-partner-actions .il-btn { width: 100%; box-sizing: border-box; }
   .il-lead-panel { grid-template-columns: 1fr; gap: 22px; }
   .il-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .il-step-line { display: none; }
@@ -2580,7 +2586,10 @@ html.il-lb-open body {
   .il-hero-stat-sep { display: none; }
   .il-hero-stat-val { font-size: 1.6rem; }
   .il-section { padding: 68px 0; }
+  .il-section-inner { padding: 0 18px; }
   .il-section-head { margin-bottom: 38px; }
+  .il-partner-banner { padding: 22px 16px; }
+  .il-partner-title { font-size: clamp(1.4rem, 7vw, 1.85rem); margin: 12px 0 12px; }
   .il-deck { height: 400px; }
   .il-deck-card { width: calc(100% - 52px); height: calc(100% - 66px); padding: 22px 22px 16px; }
   .il-card-big { font-size: 2rem; }
