@@ -92,6 +92,52 @@ export function verifyFintechToken(token) {
   return { clientId: String(payload.cid), phoneNormalized: String(payload.ph || '') };
 }
 
+// ── Временный «закрытый» режим кабинета (просьба Руслана 29.07): лендинг открыт всем,
+// но регистрация в личном кабинете инвестиций — только для команды, пока не готовы к потоку
+// клиентов. Включатся обратно одной переменной, без правок кода:
+//   FINTECH_REGISTRATION_OPEN=1 — снять ограничение для всех;
+//   FINTECH_ALLOWED_PHONES=9991234567,9997654321 — тестовые номера команды (10 цифр, без 7/8).
+// Уже существующих клиентов (те, кто раньше прошёл регистрацию) ограничение не касается —
+// это вход, а не регистрация.
+function isFintechRegistrationOpen() {
+  return process.env.FINTECH_REGISTRATION_OPEN === '1';
+}
+function isAllowlistedFintechPhone(phoneNormalized) {
+  const raw = (process.env.FINTECH_ALLOWED_PHONES || '').trim();
+  if (!raw) return false;
+  return raw
+    .split(',')
+    .map((s) => normalizeFintechPhone(s))
+    .filter(Boolean)
+    .includes(phoneNormalized);
+}
+// Именно «approved» (а не любая существующая строка) — иначе случайные визитёры,
+// которые просто ввели номер и не дошли до проверки KYC, тоже проскочили бы обратно
+// как «уже известные». Approved = кто-то из команды осознанно провёл его через приёмку.
+async function isKnownFintechClient(supabase, phoneNormalized) {
+  const { data, error } = await supabase
+    .from('fintech_clients')
+    .select('status')
+    .eq('phone_normalized', phoneNormalized)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.status === 'approved';
+}
+function registrationClosedError() {
+  const err = new Error(
+    'Кабинет инвестиций пока в закрытом тестировании — доступ есть только у команды Reaktivo. ' +
+      'Мы скоро откроем регистрацию для всех, следите за новостями на Reaktivo.pro.'
+  );
+  err.status = 403;
+  return err;
+}
+export async function assertFintechAccessAllowed(supabase, phoneNormalized) {
+  if (isFintechRegistrationOpen()) return;
+  if (isAllowlistedFintechPhone(phoneNormalized)) return;
+  if (await isKnownFintechClient(supabase, phoneNormalized)) return;
+  throw registrationClosedError();
+}
+
 // ── Регистрация / вход по телефону ──────────────────────────────────────────
 async function getOrCreateClient(supabase, phoneNormalized) {
   const { data: existing, error: selErr } = await supabase
@@ -101,6 +147,10 @@ async function getOrCreateClient(supabase, phoneNormalized) {
     .maybeSingle();
   if (selErr) throw selErr;
   if (existing) return existing;
+
+  // Защита от гонки: между early-check выше и этим insert телефон всё ещё не должен
+  // проскочить создание аккаунта, если регистрация закрыта и номер не в списке.
+  await assertFintechAccessAllowed(supabase, phoneNormalized);
 
   const { data: created, error: insErr } = await supabase
     .from('fintech_clients')
@@ -118,6 +168,9 @@ export async function requestFintechCode(supabase, { phone, origin }) {
     err.status = 400;
     throw err;
   }
+
+  // Отсекаем новые номера до отправки SMS — не тратим лимит и сразу даём понятный ответ.
+  await assertFintechAccessAllowed(supabase, phoneNormalized);
 
   const existing = await kvGet(supabase, otpKey(phoneNormalized));
   if (existing?.sentAt && Date.now() - new Date(existing.sentAt).getTime() < OTP_RESEND_COOLDOWN_MS) {
