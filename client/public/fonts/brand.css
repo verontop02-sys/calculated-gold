@@ -1,2 +1,116 @@
-/* Geometria @font-face появится здесь, когда Ромка/дизайн пришлют .woff2.
-   Пока лого использует Noto Sans (fallback в --font-brand). */
+/* Geometria — фирменный шрифт бренда (лого/wordmark, --font-brand в client/src/index.css).
+   Файлы куплены (лицензия), конвертированы из .ttf в .woff2 для веба.
+   font-display: swap — короткая вспышка system-fallback, потом подмена без layout shift. */
+
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-Thin.woff2') format('woff2');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-ThinItalic.woff2') format('woff2');
+  font-weight: 100;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-ExtraLight.woff2') format('woff2');
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-ExtraLightItalic.woff2') format('woff2');
+  font-weight: 200;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-LightItalic.woff2') format('woff2');
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-MediumItalic.woff2') format('woff2');
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-BoldItalic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-ExtraBoldItalic.woff2') format('woff2');
+  font-weight: 800;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-Heavy.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geometria';
+  src: url('/fonts/geometria/Geometria-HeavyItalic.woff2') format('woff2');
+  font-weight: 900;
+  font-style: italic;
+  font-display: swap;
+}

@@ -11,3 +11,7 @@ functions/.env
 secrets/
 .firebase/
 supabase/.temp/
+
+# Исходники купленных шрифтов (лицензия) — в репо не коммитим,
+# в проде используются только сконвертированные client/public/fonts/geometria/*.woff2
+шрифты/
