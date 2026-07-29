@@ -1780,14 +1780,14 @@ const CSS = `
 .il-btn:hover .il-btn-arrow { transform: translateX(4px); }
 .il-btn--primary {
   background: var(--accent); color: #fff;
-  box-shadow: 0 10px 32px -10px color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow: 0 8px 22px -12px color-mix(in srgb, var(--accent) 42%, transparent);
 }
 .il-btn--primary::after {
   content: ''; position: absolute; top: 0; left: -70%; width: 42%; height: 100%;
   background: linear-gradient(100deg, transparent, rgba(255,255,255,0.35), transparent);
   transform: skewX(-18deg); transition: left 0.7s cubic-bezier(0.22,1,0.36,1);
 }
-.il-btn--primary:hover { box-shadow: 0 18px 48px -12px color-mix(in srgb, var(--accent) 85%, transparent); }
+.il-btn--primary:hover { box-shadow: 0 12px 28px -12px color-mix(in srgb, var(--accent) 55%, transparent); }
 .il-btn--primary:hover::after { left: 130%; }
 .il-btn--ghost { background: transparent; border-color: var(--stroke); color: var(--text); }
 .il-btn--ghost:hover { border-color: var(--accent); color: var(--accent); }
@@ -2364,13 +2364,14 @@ html.il-lb-open body {
   gap: 36px; align-items: center;
   padding: clamp(32px, 5vw, 52px);
   border-radius: 28px; border: 1px solid var(--stroke);
-  background: linear-gradient(135deg, var(--accent-soft), var(--bg-panel-solid) 48%, var(--bg-panel-solid));
-  box-shadow: 0 30px 70px -48px color-mix(in srgb, var(--accent) 40%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 6%, var(--bg-panel-solid)), var(--bg-panel-solid) 52%, var(--bg-panel-solid));
+  box-shadow: 0 24px 56px -48px rgba(0, 0, 0, 0.35);
 }
 .il-partner-title {
   font-size: clamp(1.7rem, 3.2vw, 2.4rem); font-weight: 800; letter-spacing: -0.03em;
-  line-height: 1.15; color: var(--text-strong); margin: 14px 0 12px;
+  line-height: 1.22; color: var(--text-strong); margin: 14px 0 14px;
 }
+.il-partner-title .il-accent-text { display: inline-block; margin-top: 0.08em; }
 .il-partner-text { margin: 0 0 26px; font-size: 1.02rem; line-height: 1.65; color: var(--text-muted); max-width: 520px; }
 .il-partner-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .il-partner-aside { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
