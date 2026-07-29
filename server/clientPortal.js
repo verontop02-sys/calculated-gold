@@ -7,6 +7,7 @@
  */
 import crypto from 'crypto';
 import { sendDealConfirmationSms } from './smsSend.js';
+import { assertClientAccessAllowed } from './registrationGate.js';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
@@ -98,6 +99,9 @@ export async function requestClientCode(supabase, { phone, origin }) {
     throw err;
   }
 
+  // Временно: новые номера не получают SMS и не входят в кабинет (лендинг открыт).
+  await assertClientAccessAllowed(supabase, phoneNormalized);
+
   const existing = await kvGet(supabase, otpKey(phoneNormalized));
   if (existing?.sentAt && Date.now() - new Date(existing.sentAt).getTime() < OTP_RESEND_COOLDOWN_MS) {
     const err = new Error('Код уже отправлен. Подождите минуту перед повторной отправкой.');
@@ -137,6 +141,9 @@ export async function verifyClientCode(supabase, { phone, code }) {
     err.status = 400;
     throw err;
   }
+
+  await assertClientAccessAllowed(supabase, phoneNormalized);
+
   const codeDigits = String(code || '').replace(/\D/g, '');
   if (codeDigits.length !== 6) {
     const err = new Error('Введите 6 цифр из СМС');
