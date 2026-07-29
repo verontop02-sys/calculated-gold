@@ -1447,6 +1447,80 @@ export function InvestLanding() {
           </div>
         </section>
 
+        {/* ── Лицензии ── */}
+        <section className="il-section" id="license">
+          <div className="il-section-inner">
+            <div className="il-section-head">
+              <Reveal><span className="il-pill">Документы и лицензии</span></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Работаем легально —<br /><span className="il-accent-text">можно проверить за 10 секунд</span></h2></Reveal>
+            </div>
+            <div className="il-license-grid">
+              <Reveal delay={0.1} className="il-license-card">
+                <span className="il-license-badge">Действующая</span>
+                <h3 className="il-license-title">Лицензия на скупку драгоценных металлов</h3>
+                <dl className="il-license-meta">
+                  <div><dt>Номер</dt><dd>Л023-00119-77/04343605</dd></div>
+                  <div><dt>Дата выдачи</dt><dd>11.02.2026</dd></div>
+                  <div><dt>Выдана</dt><dd>Межрегиональное управление Федеральной пробирной палаты по ЦФО</dd></div>
+                </dl>
+                <p className="il-license-scope">
+                  Скупка у физических лиц ювелирных и других изделий из драгоценных металлов и (или) драгоценных
+                  камней, лома таких изделий, заготовка лома и отходов драгоценных металлов и продукции,
+                  содержащей драгоценные металлы.
+                </p>
+                <a href="/docs/license-probpalata.pdf" target="_blank" rel="noopener noreferrer" className="il-license-link">
+                  Открыть PDF лицензии <span aria-hidden>→</span>
+                </a>
+              </Reveal>
+              <Reveal delay={0.16} className="il-license-card">
+                <span className="il-license-badge il-license-badge--indigo">ГИИС ДМДК</span>
+                <h3 className="il-license-title">Спецучёт участников рынка драгметаллов</h3>
+                <dl className="il-license-meta">
+                  <div><dt>Учётный номер</dt><dd>ЮЛ7701041176</dd></div>
+                  <div><dt>Дата постановки</dt><dd>05.02.2026</dd></div>
+                  <div><dt>Реестр</dt><dd>Государственная информационная система ГИИС ДМДК</dd></div>
+                </dl>
+                <p className="il-license-scope">
+                  ООО «СЭТ» включено в реестр юридических лиц, индивидуальных предпринимателей и художников-ювелиров,
+                  осуществляющих операции с драгоценными металлами и драгоценными камнями.
+                </p>
+                <a href="/docs/giis-dmdk-registration.pdf" target="_blank" rel="noopener noreferrer" className="il-license-link">
+                  Открыть PDF уведомления <span aria-hidden>→</span>
+                </a>
+              </Reveal>
+              <Reveal delay={0.22} className="il-license-qr-card">
+                <a
+                  href="https://knd.gov.ru/registry-entry?registryType=purchasePreciousMetals&id=698c2ad78212522cdf5de5c6"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="il-license-qr-link"
+                  aria-label="Открыть карточку лицензии в реестре knd.gov.ru"
+                >
+                  <img src="/license-qr.png" alt="QR-код проверки лицензии в реестре knd.gov.ru" width="160" height="160" loading="lazy" />
+                </a>
+                <div className="il-license-qr-copy">
+                  <span className="il-license-qr-label">Проверить лицензию онлайн</span>
+                  <p className="il-license-qr-text">
+                    Наведите камеру на QR или откройте ссылку — попадёте прямо на карточку нашей лицензии
+                    в государственном реестре knd.gov.ru.
+                  </p>
+                  <a
+                    href="https://knd.gov.ru/registry-entry?registryType=purchasePreciousMetals&id=698c2ad78212522cdf5de5c6"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="il-license-link"
+                  >
+                    Открыть реестр <span aria-hidden>→</span>
+                  </a>
+                </div>
+              </Reveal>
+            </div>
+            <Reveal delay={0.28} className="il-license-company">
+              <span>ООО «СЭТ»</span><i aria-hidden>·</i><span>ИНН 9710095927</span><i aria-hidden>·</i><span>ОГРН 1227700089627</span>
+            </Reveal>
+          </div>
+        </section>
+
         {/* ── FAQ ── */}
         <section className="il-section" id="faq">
           <div className="il-section-inner il-section-inner--narrow">
@@ -1519,6 +1593,7 @@ export function InvestLanding() {
               <a href="#partners" className="il-nav-link" onClick={(e) => goTo(e, '#partners')}>Партнёрам</a>
               <a href="#calc" className="il-nav-link" onClick={(e) => goTo(e, '#calc')}>Калькулятор выгоды</a>
               <a href="#market" className="il-nav-link" onClick={(e) => goTo(e, '#market')}>Динамика рынка</a>
+              <a href="#license" className="il-nav-link" onClick={(e) => goTo(e, '#license')}>Документы и лицензии</a>
               <a href="#faq" className="il-nav-link" onClick={(e) => goTo(e, '#faq')}>FAQ</a>
               <a href="#contacts" className="il-nav-link" onClick={(e) => goTo(e, '#contacts')}>Контакты</a>
             </div>
@@ -1534,7 +1609,6 @@ export function InvestLanding() {
               <a href="mailto:team@reaktivo.ru" className="il-nav-link">Team@reaktivo.ru</a>
               <a href="mailto:team@reaktivo.ru?subject=Партнёрство%20Reaktivo" className="il-nav-link">Стать партнёром</a>
               <a href="/pro" className="il-nav-link">Сотрудникам — вход</a>
-              <span className="il-nav-link il-nav-link--dim">Документы и лицензии — раздел готовится</span>
             </div>
           </div>
           <div className="il-footer-bottom">
@@ -1761,10 +1835,10 @@ const CSS = `
 .il-hero-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .il-hero-orb {
   position: absolute; border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 52%, transparent), transparent 66%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 36%, transparent), transparent 66%);
 }
-.il-hero-orb--1 { width: 560px; height: 560px; top: -220px; right: -150px; opacity: 0.5; }
-.il-hero-orb--2 { width: 420px; height: 420px; bottom: -200px; left: -130px; opacity: 0.32; }
+.il-hero-orb--1 { width: 560px; height: 560px; top: -220px; right: -150px; opacity: 0.32; }
+.il-hero-orb--2 { width: 420px; height: 420px; bottom: -200px; left: -130px; opacity: 0.2; }
 .il-hero-grid {
   position: absolute; inset: 0;
   background-image:
@@ -2350,6 +2424,61 @@ html.il-lb-open body {
 .il-lead-err { margin: 0; font-size: 0.84rem; color: var(--accent); font-weight: 600; }
 .il-lead-ok { margin: 0; font-size: 0.84rem; color: var(--emerald); font-weight: 600; }
 
+/* ── Лицензии ── */
+.il-license-grid {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(240px, 0.82fr);
+  gap: 20px; align-items: stretch;
+}
+.il-license-card, .il-license-qr-card {
+  display: flex; flex-direction: column;
+  border-radius: 22px; border: 1px solid var(--stroke);
+  background: var(--bg-panel-solid);
+  padding: 26px 26px 24px;
+}
+.il-license-badge {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.7rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--emerald); background: var(--emerald-soft);
+  border: 1px solid color-mix(in srgb, var(--emerald) 30%, transparent);
+  padding: 5px 12px; border-radius: 100px; margin-bottom: 14px;
+}
+.il-license-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); flex-shrink: 0; }
+.il-license-badge--indigo {
+  color: var(--accent); background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.il-license-badge--indigo::before { background: var(--accent); }
+.il-license-title { font-size: 1.08rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-strong); margin: 0 0 16px; line-height: 1.35; }
+.il-license-meta { display: flex; flex-direction: column; gap: 9px; margin: 0 0 16px; }
+.il-license-meta > div { display: flex; justify-content: space-between; gap: 14px; padding-bottom: 9px; border-bottom: 1px dashed var(--stroke); font-size: 0.86rem; }
+.il-license-meta dt { color: var(--text-dim); font-weight: 600; flex-shrink: 0; }
+.il-license-meta dd { margin: 0; color: var(--text-strong); font-weight: 700; text-align: right; }
+.il-license-scope { flex: 1; font-size: 0.86rem; line-height: 1.6; color: var(--text-muted); margin: 0 0 20px; }
+.il-license-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.86rem; font-weight: 700; color: var(--accent); text-decoration: none;
+  margin-top: auto;
+}
+.il-license-link span { transition: transform 0.2s; }
+.il-license-link:hover span { transform: translateX(3px); }
+.il-license-qr-card { align-items: center; text-align: center; gap: 6px; background: linear-gradient(160deg, var(--accent-soft), var(--bg-panel-solid) 55%); }
+.il-license-qr-link {
+  display: block; padding: 10px; border-radius: 16px; background: #fff;
+  box-shadow: 0 12px 30px -16px color-mix(in srgb, var(--accent) 55%, transparent);
+  transition: transform 0.2s;
+}
+.il-license-qr-link:hover { transform: translateY(-2px) scale(1.02); }
+.il-license-qr-link img { display: block; width: 130px; height: 130px; border-radius: 6px; }
+.il-license-qr-copy { display: flex; flex-direction: column; align-items: center; }
+.il-license-qr-label { font-size: 0.94rem; font-weight: 800; color: var(--text-strong); margin-top: 14px; }
+.il-license-qr-text { font-size: 0.82rem; line-height: 1.55; color: var(--text-muted); margin: 8px 0 16px; }
+.il-license-company {
+  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 28px; font-size: 0.82rem; font-weight: 600; color: var(--text-dim);
+}
+.il-license-company i { font-style: normal; opacity: 0.5; }
+
 /* ── FAQ ── */
 .il-faq { display: flex; flex-direction: column; gap: 12px; }
 .il-faq-item {
@@ -2426,6 +2555,11 @@ html.il-lb-open body {
   .il-step-line { display: none; }
   .il-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .il-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .il-license-grid { grid-template-columns: 1fr 1fr; }
+  .il-license-qr-card { grid-column: 1 / -1; flex-direction: row; text-align: left; align-items: center; gap: 22px; }
+  .il-license-qr-link { flex-shrink: 0; }
+  .il-license-qr-copy { align-items: flex-start; }
+  .il-license-qr-label { margin-top: 0; }
   .il-footer-grid { grid-template-columns: 1fr 1fr; }
   .il-preview-chip--1 { left: 8px; }
   .il-preview-chip--2 { right: 8px; }
@@ -2457,6 +2591,10 @@ html.il-lb-open body {
   .il-preview-side { display: none; }
   .il-preview-kpis { grid-template-columns: 1fr 1fr; }
   .il-cta-panel { padding: 56px 22px; }
+  .il-license-grid { grid-template-columns: 1fr; }
+  .il-license-qr-card { flex-direction: column; text-align: center; align-items: center; }
+  .il-license-qr-copy { align-items: center; }
+  .il-license-qr-label { margin-top: 14px; }
   .il-footer-grid { grid-template-columns: 1fr; gap: 26px; }
   .il-footer-bottom { flex-direction: column; align-items: flex-start; }
 }
