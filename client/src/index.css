@@ -111,10 +111,10 @@
 :root {
   --radius: 16px;
   --radius-sm: 10px;
-  /* Презентация: Noto Sans — текст; Geometria — лого/бренд (файлы в client/public/fonts/geometria) */
-  --font-display: 'Noto Sans', system-ui, -apple-system, sans-serif;
-  --font-ui: 'Noto Sans', system-ui, -apple-system, sans-serif;
-  --font-brand: 'Geometria', 'Noto Sans', system-ui, -apple-system, sans-serif;
+  /* UI и бренд — self-host Geometria (без Google Fonts / трансграничной загрузки шрифтов) */
+  --font-display: 'Geometria', system-ui, -apple-system, sans-serif;
+  --font-ui: 'Geometria', system-ui, -apple-system, sans-serif;
+  --font-brand: 'Geometria', system-ui, -apple-system, sans-serif;
 
   /* === ТИПОГРАФИЧЕСКАЯ ШКАЛА ===
      На больших экранах — масштаб «увереннее», на мобиле — компактнее.

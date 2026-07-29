@@ -322,6 +322,7 @@ function withSbp(text) {
 function ConsultLeadForm() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState(false);
@@ -330,6 +331,10 @@ function ConsultLeadForm() {
     e.preventDefault();
     setErr('');
     setOk(false);
+    if (!consent) {
+      setErr('Отметьте согласие на обработку персональных данных');
+      return;
+    }
     setBusy(true);
     try {
       const API_BASE = import.meta.env.DEV ? '/api' : import.meta.env.VITE_API_BASE || '/api';
@@ -343,6 +348,7 @@ function ConsultLeadForm() {
       setOk(true);
       setName('');
       setPhone('');
+      setConsent(false);
     } catch (e2) {
       setErr(e2?.message || 'Не удалось отправить заявку');
     } finally {
@@ -374,7 +380,21 @@ function ConsultLeadForm() {
           required
         />
       </label>
-      <button type="submit" className="il-btn il-btn--primary" disabled={busy}>
+      <label className="il-lead-consent">
+        <input
+          type="checkbox"
+          checked={consent}
+          onChange={(e) => setConsent(e.target.checked)}
+          required
+        />
+        <span>
+          Даю согласие на обработку персональных данных в соответствии с{' '}
+          <a href="/privacy" target="_blank" rel="noopener noreferrer">
+            Политикой обработки персональных данных
+          </a>
+        </span>
+      </label>
+      <button type="submit" className="il-btn il-btn--primary" disabled={busy || !consent}>
         {busy ? 'Отправляем…' : 'Оставить заявку'}
       </button>
       {err && <p className="il-lead-err">{err}</p>}
@@ -1613,6 +1633,7 @@ export function InvestLanding() {
           </div>
           <div className="il-footer-bottom">
             <span>© {new Date().getFullYear()} REAKTIVO.PRO</span>
+            <a href="/privacy" className="il-footer-privacy">Политика персональных данных</a>
             <span>Не является индивидуальной инвестиционной рекомендацией</span>
           </div>
         </div>
@@ -2425,6 +2446,17 @@ html.il-lb-open body {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .il-lead-form .il-btn { width: 100%; justify-content: center; margin-top: 4px; }
+.il-lead-consent {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 0.8rem; line-height: 1.45; color: var(--text-muted); cursor: pointer;
+  margin: 2px 0 0;
+}
+.il-lead-consent input {
+  width: 18px; height: 18px; margin: 1px 0 0; flex-shrink: 0;
+  accent-color: var(--accent); cursor: pointer;
+}
+.il-lead-consent a { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.il-lead-consent a:hover { opacity: 0.85; }
 .il-lead-err { margin: 0; font-size: 0.84rem; color: var(--accent); font-weight: 600; }
 .il-lead-ok { margin: 0; font-size: 0.84rem; color: var(--emerald); font-weight: 600; }
 
@@ -2525,6 +2557,8 @@ html.il-lb-open body {
   border-top: 1px solid var(--stroke-soft); padding-top: 22px;
   font-size: 0.78rem; color: var(--text-dim);
 }
+.il-footer-privacy { color: var(--text-dim); text-decoration: underline; text-underline-offset: 2px; font-weight: 600; }
+.il-footer-privacy:hover { color: var(--accent); }
 .il-nav-link--dim { color: var(--text-dim); font-weight: 500; }
 
 /* ── Адаптив ── */

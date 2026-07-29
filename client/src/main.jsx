@@ -6,6 +6,7 @@ import { FieldDealConfirm } from './FieldDealConfirm.jsx';
 import { ClientPortal } from './ClientPortal.jsx';
 import { ClientDisplay } from './ClientDisplay.jsx';
 import { InvestLanding } from './InvestLanding.jsx';
+import { PrivacyPolicy } from './PrivacyPolicy.jsx';
 import { ToastProvider } from './ToastContext.jsx';
 import { initThemeFromStorage } from './theme.js';
 import { recoverAuthIfNeeded } from './supabase.js';
@@ -32,6 +33,7 @@ const m = path.match(/^\/podtverzhdenie\/([^/]+)\/?$/);
 const token = m?.[1] ? decodeURIComponent(m[1]) : '';
 const isClientPortal = /^\/kabinet\/?$/.test(path);
 const isClientDisplay = /^\/display\/?$/.test(path);
+const isPrivacy = /^\/privacy\/?$/.test(path);
 // Публичный лендинг Invest: корень домена + /invest (оба ведут на одну страницу).
 const isInvestLanding = /^\/(?:invest\/?)?$/.test(path);
 // Панель сотрудников (оценка/выкуп) — отдельный путь, чтобы корень был маркетинговым.
@@ -40,6 +42,8 @@ const isStaffApp = /^\/pro\/?$/.test(path);
 let inner;
 if (token) {
   inner = <FieldDealConfirm token={token} />;
+} else if (isPrivacy) {
+  inner = <PrivacyPolicy />;
 } else if (isClientPortal) {
   inner = <ClientPortal />;
 } else if (isClientDisplay) {

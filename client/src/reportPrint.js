@@ -284,8 +284,8 @@ export function reportBaseCss(t, { orientation = 'landscape' } = {}) {
   --panel: ${pageBg}; --surface: ${surfaceSolid}; --elevated: ${elevatedSolid}; --bg-deep: ${pageBg};
   --shadow-card: ${cardShadow};
   --today-tint: ${todayTint};
-  --font-display: 'Noto Sans', system-ui, -apple-system, sans-serif;
-  --font-ui: 'Noto Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Geometria', system-ui, -apple-system, sans-serif;
+  --font-ui: 'Geometria', system-ui, -apple-system, sans-serif;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 html { font-size: 13px; }
@@ -638,9 +638,7 @@ html, body { margin: 0 !important; padding: 0 !important; background: ${pageBg} 
 <head>
 <meta charset="UTF-8"/>
 <title>${escapeHtml(title || 'Отчёт')}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/fonts/brand.css"/>
 <style>${css}</style>
 </head>
 <body>
