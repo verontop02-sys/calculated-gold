@@ -82,6 +82,8 @@ import {
   sellGold,
   getClientPortfolio as getFintechPortfolio,
   getClientLedger as getFintechLedger,
+  getFintechSettings,
+  setFintechSettings,
 } from './fintechLedger.js';
 import {
   listFintechClients,
@@ -93,6 +95,24 @@ import {
   getFintechAdminSummary,
   deleteFintechClient,
 } from './fintechAdmin.js';
+import {
+  requestWithdrawal as fintechRequestWithdrawal,
+  getClientWithdrawals as getFintechClientWithdrawals,
+  listWithdrawalRequests as listFintechWithdrawalRequests,
+  decideWithdrawal as decideFintechWithdrawal,
+} from './fintechWithdrawals.js';
+import {
+  createPriceAlert as createFintechPriceAlert,
+  listClientPriceAlerts as listFintechClientPriceAlerts,
+  cancelPriceAlert as cancelFintechPriceAlert,
+  listActivePriceAlertsForStaff,
+  processPriceAlerts,
+  getClientRecurringInvestment as getFintechRecurringInvestment,
+  upsertRecurringInvestment as upsertFintechRecurringInvestment,
+  setRecurringStatus as setFintechRecurringStatus,
+  listRecurringRuns as listFintechRecurringRuns,
+  processRecurringInvestments,
+} from './fintechAutomation.js';
 import {
   clientGetSupportChat,
   clientSendSupportMessage,
@@ -910,6 +930,27 @@ setInterval(async () => {
   } catch {}
 }, 60_000);
 
+// ── Fintech-автоматизация: ценовые коридоры и регулярные инвестиции ────────
+// Курс проверяем чаще (коридоры реагируют почти сразу), подписки — реже
+// (next_run_at сам решает, кому пора платить, тик просто периодически заглядывает).
+setInterval(async () => {
+  try {
+    const cache = await refreshPriceCache(false);
+    const rate = Number(cache?.goldRubPerGram);
+    if (Number.isFinite(rate) && rate > 0) await processPriceAlerts(supabase, rate);
+  } catch (e) {
+    console.warn('[fintech automation] price tick', e?.message || e);
+  }
+}, 90_000);
+
+setInterval(async () => {
+  try {
+    await processRecurringInvestments(supabase);
+  } catch (e) {
+    console.warn('[fintech automation] recurring tick', e?.message || e);
+  }
+}, 30 * 60_000);
+
 /**
  * Эти три маршрута — напрямую на app (не через Router), до authMiddleware: только JWT внутри.
  * Так POST /api/price/refresh никогда не попадает в цепочку с проверкой ролей (403).
@@ -1524,6 +1565,141 @@ app.post(
       res.json(out);
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message || 'Ошибка', code: e.code });
+    }
+  })
+);
+
+app.post(
+  '/api/public/fintech/withdraw',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await fintechRequestWithdrawal(supabase, {
+        clientId: session.clientId,
+        rubAmount: req.body?.rubAmount,
+        payoutDetails: req.body?.payoutDetails,
+        idempotencyKey: req.body?.idempotencyKey,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка', code: e.code });
+    }
+  })
+);
+
+app.get(
+  '/api/public/fintech/withdrawals',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await getFintechClientWithdrawals(supabase, session.clientId, { limit: 20 });
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ requests: out });
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+// ── Ценовые коридоры: клиент задаёт условие, дальше срабатывает автоматически ──
+app.post(
+  '/api/public/fintech/price-alerts',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await createFintechPriceAlert(supabase, {
+        clientId: session.clientId,
+        direction: req.body?.direction,
+        targetRate: req.body?.targetRate,
+        amountMode: req.body?.amountMode,
+        amountValue: req.body?.amountValue,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.get(
+  '/api/public/fintech/price-alerts',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await listFintechClientPriceAlerts(supabase, session.clientId);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ alerts: out });
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.delete(
+  '/api/public/fintech/price-alerts/:id',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await cancelFintechPriceAlert(supabase, { clientId: session.clientId, alertId: req.params.id });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+// ── Регулярные инвестиции: подписка на автопокупку с баланса по расписанию ──
+app.get(
+  '/api/public/fintech/recurring',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const [subscription, runs] = await Promise.all([
+        getFintechRecurringInvestment(supabase, session.clientId),
+        listFintechRecurringRuns(supabase, session.clientId, { limit: 12 }),
+      ]);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ subscription, runs });
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.put(
+  '/api/public/fintech/recurring',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await upsertFintechRecurringInvestment(supabase, {
+        clientId: session.clientId,
+        rubAmount: req.body?.rubAmount,
+        dayOfMonth: req.body?.dayOfMonth,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+app.patch(
+  '/api/public/fintech/recurring/status',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await setFintechRecurringStatus(supabase, { clientId: session.clientId, status: req.body?.status });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
     }
   })
 );
@@ -3266,6 +3442,93 @@ app.post(
         staffId: req.user.id,
         comment: req.body?.comment,
         idempotencyKey: req.body?.idempotencyKey,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+// Комиссии и лимиты биржи — настраиваются из админки (правка Руслана: раньше только правкой в БД).
+app.get(
+  '/api/fintech/admin/settings',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await getFintechSettings(supabase);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось загрузить настройки' });
+    }
+  })
+);
+
+app.put(
+  '/api/fintech/admin/settings',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      const patch = {};
+      for (const k of ['buyFeePercent', 'sellFeePercent', 'minPurchaseGrams', 'minSellGrams', 'withdrawFeePercent', 'minWithdrawRub']) {
+        if (req.body?.[k] == null) continue;
+        const v = Number(req.body[k]);
+        if (!Number.isFinite(v) || v < 0) {
+          return res.status(400).json({ error: `Некорректное значение поля ${k}` });
+        }
+        patch[k] = v;
+      }
+      const out = await setFintechSettings(supabase, patch);
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось сохранить настройки' });
+    }
+  })
+);
+
+// ── Fintech: заявки на вывод средств (модерация, без интеграции A7/ПСБ) ─────
+app.get(
+  '/api/fintech/admin/withdrawals',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '100'), 10) || 100));
+      const offset = Math.max(0, parseInt(String(req.query.offset || '0'), 10) || 0);
+      const out = await listFintechWithdrawalRequests(supabase, { status: req.query.status, limit, offset });
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось загрузить заявки на вывод' });
+    }
+  })
+);
+
+// ── Обзор автоматизации (ценовые условия) для админки, только чтение ───────
+app.get(
+  '/api/fintech/admin/price-alerts',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await listActivePriceAlertsForStaff(supabase);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ alerts: out });
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось загрузить условия' });
+    }
+  })
+);
+
+app.patch(
+  '/api/fintech/admin/withdrawals/:id',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await decideFintechWithdrawal(supabase, {
+        requestId: req.params.id,
+        decision: req.body?.decision,
+        staffId: req.user.id,
+        rejectReason: req.body?.rejectReason,
       });
       res.json(out);
     } catch (e) {

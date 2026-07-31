@@ -17,6 +17,8 @@ const DEFAULT_SETTINGS = {
   sellFeePercent: 1.5,
   minPurchaseGrams: 0.01,
   minSellGrams: 0.01,
+  withdrawFeePercent: 0,
+  minWithdrawRub: 1000,
 };
 
 async function getKv(supabase, key) {
@@ -142,6 +144,7 @@ export async function buyGold(supabase, { clientId, rubAmount, grams, idempotenc
   const row = Array.isArray(data) ? data[0] : data;
   return {
     ok: true,
+    entryId: row.entry_id,
     gramsBought,
     rubSpent: rubToSpend,
     feeRub,
@@ -223,6 +226,7 @@ export async function sellGold(supabase, { clientId, grams, rubAmount, idempoten
   const row = Array.isArray(data) ? data[0] : data;
   return {
     ok: true,
+    entryId: row.entry_id,
     gramsSold,
     rubReceived: rubToCredit,
     feeRub,
@@ -365,6 +369,8 @@ export async function getClientPortfolio(supabase, clientId) {
     sellFeePercent: settings ? Number(settings.sellFeePercent || 0) : null,
     minPurchaseGrams: settings ? Number(settings.minPurchaseGrams || 0.01) : 0.01,
     minSellGrams: settings ? Number(settings.minSellGrams || 0.01) : 0.01,
+    withdrawFeePercent: settings ? Number(settings.withdrawFeePercent || 0) : 0,
+    minWithdrawRub: settings ? Number(settings.minWithdrawRub || 1000) : 1000,
   };
 }
 

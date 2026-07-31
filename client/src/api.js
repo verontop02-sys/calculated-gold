@@ -630,6 +630,16 @@ export const fintechApi = {
   ledger: (limit = 100, offset = 0) => fintechFetch(`/public/fintech/ledger?limit=${limit}&offset=${offset}`),
   buy: (payload) => fintechFetch('/public/fintech/buy', { method: 'POST', body: JSON.stringify(payload) }),
   sell: (payload) => fintechFetch('/public/fintech/sell', { method: 'POST', body: JSON.stringify(payload) }),
+  requestWithdrawal: (payload) => fintechFetch('/public/fintech/withdraw', { method: 'POST', body: JSON.stringify(payload) }),
+  withdrawals: () => fintechFetch('/public/fintech/withdrawals'),
+  /** Ценовые коридоры: клиент задаёт целевой курс, срабатывает автоматически фоновым тиком. */
+  priceAlerts: () => fintechFetch('/public/fintech/price-alerts'),
+  createPriceAlert: (payload) => fintechFetch('/public/fintech/price-alerts', { method: 'POST', body: JSON.stringify(payload) }),
+  cancelPriceAlert: (id) => fintechFetch(`/public/fintech/price-alerts/${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
+  /** Регулярные инвестиции: подписка на автопокупку золота с баланса по расписанию. */
+  recurring: () => fintechFetch('/public/fintech/recurring'),
+  setRecurring: (payload) => fintechFetch('/public/fintech/recurring', { method: 'PUT', body: JSON.stringify(payload) }),
+  setRecurringStatus: (status) => fintechFetch('/public/fintech/recurring/status', { method: 'PATCH', body: JSON.stringify({ status }) }),
   /** Дневная история курса золота для графика: Мосбиржа GLDRUBF (₽/г) или мировая COMEX ($/oz). */
   goldHistory: (days = 365, source = 'moex') =>
     fintechFetch(`/public/fintech/gold-history?days=${days}${source && source !== 'moex' ? `&source=${encodeURIComponent(source)}` : ''}`),
@@ -911,6 +921,17 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ rubAmount, comment, idempotencyKey: crypto.randomUUID() }),
     }),
+  fintechAdminSettings: () => request('/fintech/admin/settings'),
+  fintechAdminUpdateSettings: (patch) =>
+    request('/fintech/admin/settings', { method: 'PUT', body: JSON.stringify(patch) }),
+  fintechAdminWithdrawals: (status) =>
+    request(`/fintech/admin/withdrawals${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  fintechAdminDecideWithdrawal: (id, decision, rejectReason) =>
+    request(`/fintech/admin/withdrawals/${encodeURIComponent(String(id))}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ decision, rejectReason }),
+    }),
+  fintechAdminPriceAlerts: () => request('/fintech/admin/price-alerts'),
 
   // ── Чат поддержки (сторона сотрудников) ──
   supportThreads: (status) =>

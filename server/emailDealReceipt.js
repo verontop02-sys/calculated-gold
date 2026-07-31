@@ -417,6 +417,176 @@ export async function sendFintechDecisionEmailIfConfigured({ toEmail, fullName, 
 }
 
 /**
+ * Письмо клиенту fintech-кабинета о решении по заявке на вывод средств.
+ * decision: 'approved' (принята в обработку) | 'paid' (деньги переведены) | 'rejected' (отклонена, деньги вернулись на баланс).
+ */
+export async function sendFintechWithdrawalEmailIfConfigured({ toEmail, fullName, decision, rubAmount, rejectReason }) {
+  const key = (process.env.RESEND_API_KEY || '').trim();
+  const from = (process.env.DEAL_RECEIPT_EMAIL_FROM || '').trim();
+  if (!key || !from || !toEmail) {
+    if (toEmail) console.info('[email fintech withdrawal] skip: RESEND_API_KEY or DEAL_RECEIPT_EMAIL_FROM missing');
+    return { sent: false, reason: 'not_configured' };
+  }
+
+  const name = String(fullName || '').trim();
+  const greeting = name ? `Здравствуйте, ${name}!` : 'Здравствуйте!';
+  const amount = formatMoney(rubAmount);
+
+  const subject = decision === 'paid'
+    ? `Вывод ${amount} выполнен`
+    : decision === 'rejected'
+      ? `Заявка на вывод ${amount} отклонена`
+      : `Заявка на вывод ${amount} принята в обработку`;
+
+  const heroBg = decision === 'paid'
+    ? 'linear-gradient(135deg,#12824f,#0f7a4a)'
+    : decision === 'rejected'
+      ? 'linear-gradient(135deg,#b23c3c,#8f2e2e)'
+      : 'linear-gradient(135deg,#b45309,#92400e)';
+
+  const heroText = decision === 'paid'
+    ? `Деньги переведены по указанным реквизитам`
+    : decision === 'rejected'
+      ? `Сумма ${amount} возвращена на баланс кабинета`
+      : `Заявка на вывод принята, ожидайте перевод`;
+
+  const reasonHtml = decision === 'rejected' && rejectReason
+    ? `<tr><td style="padding:0 32px 18px;">
+         <table width="100%" cellpadding="0" cellspacing="0" style="background:#fdf2f2;border:1px solid #f5c6c6;border-radius:12px;">
+           <tr><td style="padding:14px 18px;">
+             <p style="margin:0;font-size:11px;color:#b23c3c;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;">Причина отклонения</p>
+             <p style="margin:6px 0 0;font-size:14px;color:#16181d;">${String(rejectReason)}</p>
+           </td></tr>
+         </table>
+       </td></tr>`
+    : '';
+
+  const html = `<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${subject}</title></head>
+<body style="margin:0;padding:0;background:#f4f4f6;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:32px 0;">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(20,22,40,0.10);">
+      <tr>
+        <td style="background:linear-gradient(135deg,#f0437a 0%,#e02d5f 55%,#c22052 100%);padding:30px 32px;text-align:center;">
+          <p style="margin:0;font-size:23px;font-weight:800;color:#ffffff;letter-spacing:0.10em;">REAKTIVO <span style="opacity:0.85;">INVEST</span></p>
+          <p style="margin:7px 0 0;font-size:13px;color:#ffffff;opacity:0.85;">Инвестиции в золото · вывод средств</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:24px 32px 12px;">
+          <p style="margin:0;font-size:18px;font-weight:700;color:#16181d;">${greeting}</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:6px 32px 18px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:${heroBg};border-radius:16px;">
+            <tr>
+              <td style="padding:20px 22px;">
+                <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:0.08em;">Сумма вывода</p>
+                <p style="margin:6px 0 0;font-size:19px;font-weight:800;color:#ffffff;letter-spacing:-0.01em;">${amount}</p>
+                <p style="margin:8px 0 0;font-size:13px;color:rgba(255,255,255,0.9);">${heroText}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      ${reasonHtml}
+      <tr>
+        <td style="padding:0 32px 28px;">
+          <p style="margin:0;font-size:12px;color:#9aa0aa;line-height:1.6;">Это автоматическое письмо сервиса Reaktivo Invest. По вопросам — team@reaktivo.ru.</p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
+
+  const j = await resendSend({ to: [toEmail], subject, html });
+  return { sent: true, id: j?.id };
+}
+
+/**
+ * Письмо клиенту об автоматическом действии биржи: срабатывание ценового условия
+ * или выполнение/остановка регулярной инвестиции. Best-effort, без него ничего не падает.
+ */
+export async function sendFintechAutomationEmailIfConfigured({ toEmail, fullName, kind, ok, direction, rate, rubAmount, pausedAfterFailures }) {
+  const key = (process.env.RESEND_API_KEY || '').trim();
+  const from = (process.env.DEAL_RECEIPT_EMAIL_FROM || '').trim();
+  if (!key || !from || !toEmail) {
+    if (toEmail) console.info('[email fintech automation] skip: RESEND_API_KEY or DEAL_RECEIPT_EMAIL_FROM missing');
+    return { sent: false, reason: 'not_configured' };
+  }
+
+  const name = String(fullName || '').trim();
+  const greeting = name ? `Здравствуйте, ${name}!` : 'Здравствуйте!';
+
+  let subject;
+  let heroText;
+  if (kind === 'price_alert') {
+    const dirText = direction === 'buy' ? 'покупка' : 'продажа';
+    subject = ok ? `Сработало ценовое условие: ${dirText}` : 'Не удалось исполнить ценовое условие';
+    heroText = ok
+      ? `Курс достиг ${new Intl.NumberFormat('ru-RU').format(Math.round(rate))} ₽/г — ${dirText} выполнена автоматически`
+      : 'Курс достиг заданного значения, но сделку выполнить не удалось (недостаточно средств/золота). Условие снято, создайте новое при необходимости.';
+  } else {
+    subject = ok ? 'Регулярная покупка золота выполнена' : (pausedAfterFailures ? 'Автоинвестиции приостановлены' : 'Не удалось выполнить регулярную покупку');
+    heroText = ok
+      ? `Списано ${formatMoney(rubAmount)} с баланса и куплено золото по расписанию`
+      : pausedAfterFailures
+        ? `Несколько попыток списать ${formatMoney(rubAmount)} с баланса не удались — подписка приостановлена. Пополните баланс и включите её заново в кабинете.`
+        : `Не удалось списать ${formatMoney(rubAmount)} с баланса — попробуем ещё раз завтра. Пополните баланс, чтобы платёж прошёл.`;
+  }
+
+  const heroBg = ok
+    ? 'linear-gradient(135deg,#12824f,#0f7a4a)'
+    : 'linear-gradient(135deg,#b45309,#92400e)';
+
+  const html = `<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${subject}</title></head>
+<body style="margin:0;padding:0;background:#f4f4f6;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:32px 0;">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(20,22,40,0.10);">
+      <tr>
+        <td style="background:linear-gradient(135deg,#f0437a 0%,#e02d5f 55%,#c22052 100%);padding:30px 32px;text-align:center;">
+          <p style="margin:0;font-size:23px;font-weight:800;color:#ffffff;letter-spacing:0.10em;">REAKTIVO <span style="opacity:0.85;">INVEST</span></p>
+          <p style="margin:7px 0 0;font-size:13px;color:#ffffff;opacity:0.85;">Автоматизация золотого счёта</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:24px 32px 12px;">
+          <p style="margin:0;font-size:18px;font-weight:700;color:#16181d;">${greeting}</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:6px 32px 26px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:${heroBg};border-radius:16px;">
+            <tr><td style="padding:20px 22px;">
+              <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.92);line-height:1.5;">${heroText}</p>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 32px 28px;">
+          <p style="margin:0;font-size:12px;color:#9aa0aa;line-height:1.6;">Это автоматическое письмо сервиса Reaktivo Invest. По вопросам — team@reaktivo.ru.</p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
+
+  const j = await resendSend({ to: [toEmail], subject, html });
+  return { sent: true, id: j?.id };
+}
+
+/**
  * Заявка на консультацию с лендинга → письмо команде.
  */
 export async function sendConsultLeadEmailIfConfigured({ name, phone }) {

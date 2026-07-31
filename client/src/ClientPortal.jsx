@@ -2747,6 +2747,15 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
   box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .cpx-fin-estimate { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--cpx-gold); }
+
+/* Быстрые пресеты цели (+5%/+10%…) для ценовых условий — не нужно считать курс вручную. */
+.cpx-fin-preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin: -4px 0 2px; }
+.cpx-fin-preset-btn {
+  padding: 6px 12px; border-radius: 999px; border: 1px solid var(--stroke-soft);
+  background: var(--surface); color: var(--text-muted); font-size: 0.78rem; font-weight: 700; cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.cpx-fin-preset-btn:hover { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .cpx-fin-ok { color: var(--cpx-emerald); font-size: 0.85rem; margin: 0; font-weight: 600; }
 
 .cpx-fin-history-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; gap: 10px; flex-wrap: wrap; }

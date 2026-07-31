@@ -1234,14 +1234,19 @@ function BuyPanel({ portfolio, onDone, onTopup }) {
   );
 }
 
+const WITHDRAW_STATUS_LABEL = {
+  pending: 'На модерации',
+  approved: 'Принята в обработку',
+  paid: 'Выплачено',
+  rejected: 'Отклонена',
+};
+
 // ── Продажа + заявка на вывод ───────────────────────────────────────────────
 function SellPanel({ portfolio, onDone }) {
   const [grams, setGrams] = useState('');
   const [selling, setSelling] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
-  const [withdrawRub, setWithdrawRub] = useState('');
-  const [withdrawNote, setWithdrawNote] = useState('');
 
   const rate = Number(portfolio?.currentRatePerGram) || 0;
   const feePct = Number(portfolio?.sellFeePercent) || 0;
@@ -1287,26 +1292,6 @@ function SellPanel({ portfolio, onDone }) {
     } finally {
       setSelling(false);
     }
-  }
-
-  function requestWithdraw(e) {
-    e.preventDefault();
-    const v = parseFloat(String(withdrawRub).replace(',', '.'));
-    if (!Number.isFinite(v) || v <= 0) {
-      setWithdrawNote('Укажите сумму вывода');
-      return;
-    }
-    if (v > rubBal) {
-      setWithdrawNote('Сумма больше рублёвого баланса');
-      return;
-    }
-    setWithdrawNote('Заявка сохранена. Вывод на карту/СБП откроется после подключения эквайринга и правил комиссий. A7/ПСБ пока не подключаем.');
-    try {
-      const key = 'cpx_fin_withdraw_drafts';
-      const prev = JSON.parse(localStorage.getItem(key) || '[]');
-      prev.unshift({ rub: v, at: new Date().toISOString(), status: 'awaiting_integration' });
-      localStorage.setItem(key, JSON.stringify(prev.slice(0, 20)));
-    } catch { /* ignore */ }
   }
 
   return (
@@ -1357,29 +1342,139 @@ function SellPanel({ portfolio, onDone }) {
       </Reveal>
 
       <Reveal delay={0.08} y={18}>
-      <div className="cpx-card cpx-fin-withdraw-card">
-        <div className="cpx-fin-soon-badge" aria-hidden>
-          <span className="cpx-fin-soon-label">Скоро</span>
-          Вывод
-        </div>
-        <h2 className="cpx-fin-side-title">Вывод средств</h2>
-        <p className="cpx-fin-side-sub">
-          Доступно {formatMoney(rubBal)}. {withSbp('Банковский вывод (карта / СБП)')} — после Т-Банка и таблицы комиссий. A7/ПСБ пока не подключаем.
-        </p>
-        <form onSubmit={requestWithdraw} className="cpx-form cpx-fin-buy-form">
-          <label className="cpx-field">
-            <span className="cpx-field-label">Сумма вывода, ₽</span>
-            <input inputMode="decimal" value={withdrawRub} onChange={(e) => setWithdrawRub(e.target.value)} placeholder="5000" />
-          </label>
-          <div className="cpx-fin-status-row">
-            <span className="cpx-fin-badge cpx-fin-badge--pending">Ожидает интеграции</span>
-            <span className="cpx-muted" style={{ fontSize: '0.75rem' }}>Модерация → выплата</span>
-          </div>
-          {withdrawNote && <p className="cpx-fin-ok" style={{ color: 'var(--text-muted)' }}>{withdrawNote}</p>}
-          <button type="submit" className="cpx-btn cpx-btn--sm">Оставить заявку</button>
-        </form>
-      </div>
+        <WithdrawPanel portfolio={portfolio} onDone={onDone} />
       </Reveal>
+    </div>
+  );
+}
+
+/**
+ * Заявка на вывод. Пока нет A7/ПСБ, деньги переводятся вручную по реквизитам,
+ * которые указывает клиент, но сумма резервируется на балансе сразу — заявка
+ * реальная (не заглушка), с историей статусов и письмом клиенту по решению.
+ */
+function WithdrawPanel({ portfolio, onDone }) {
+  const [rub, setRub] = useState('');
+  const [details, setDetails] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState('');
+  const [history, setHistory] = useState(null);
+
+  const rubBal = Number(portfolio?.rubBalance) || 0;
+  const feePct = Number(portfolio?.withdrawFeePercent) || 0;
+  const minRub = Number(portfolio?.minWithdrawRub) || 0;
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const out = await fintechApi.withdrawals();
+      setHistory(out.requests || []);
+    } catch {
+      setHistory([]);
+    }
+  }, []);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+
+  const quote = useMemo(() => {
+    const v = parseFloat(String(rub).replace(',', '.'));
+    if (!Number.isFinite(v) || v <= 0) return null;
+    const fee = Math.round(v * (feePct / 100) * 100) / 100;
+    const net = Math.round((v - fee) * 100) / 100;
+    return { gross: v, fee, net };
+  }, [rub, feePct]);
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr('');
+    setOk('');
+    const v = parseFloat(String(rub).replace(',', '.'));
+    if (!Number.isFinite(v) || v <= 0) {
+      setErr('Укажите сумму вывода');
+      return;
+    }
+    if (minRub && v < minRub) {
+      setErr(`Минимальная сумма вывода — ${formatMoney(minRub)}`);
+      return;
+    }
+    if (v > rubBal) {
+      setErr('Сумма больше рублёвого баланса');
+      return;
+    }
+    if (!details.trim()) {
+      setErr('Укажите реквизиты для перевода — номер карты или телефон СБП');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const out = await fintechApi.requestWithdrawal({ rubAmount: v, payoutDetails: details.trim(), idempotencyKey: crypto.randomUUID() });
+      setOk(`Заявка на ${formatMoney(out.request.rubAmount)} принята. Деньги зарезервированы, менеджер свяжется по реквизитам.`);
+      setRub('');
+      setDetails('');
+      await Promise.all([loadHistory(), onDone?.()]);
+    } catch (e2) {
+      setErr(e2?.message || 'Не удалось оформить заявку');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="cpx-card cpx-fin-withdraw-card">
+      <h2 className="cpx-fin-side-title">Вывод средств</h2>
+      <p className="cpx-fin-side-sub">
+        Доступно {formatMoney(rubBal)}. {withSbp('Перевод на карту или по СБП')} — вручную менеджером, пока нет прямой интеграции с банком.
+        {feePct ? ` Комиссия за вывод ${feePct}%.` : ''}
+      </p>
+      <form onSubmit={submit} className="cpx-form cpx-fin-buy-form">
+        <label className="cpx-field">
+          <span className="cpx-field-label">Сумма вывода, ₽</span>
+          <input inputMode="decimal" value={rub} onChange={(e) => setRub(e.target.value)} placeholder={minRub ? String(minRub) : '5000'} />
+        </label>
+        <label className="cpx-field">
+          <span className="cpx-field-label">Реквизиты для перевода</span>
+          <input value={details} onChange={(e) => setDetails(e.target.value)} placeholder="Номер карты или телефон СБП" />
+        </label>
+        {quote && (
+          <div className="cpx-fin-order">
+            <div className="cpx-fin-order-title">Результат вывода</div>
+            <div className="cpx-fin-order-row"><span>Сумма к списанию</span><strong>{formatMoney(quote.gross)}</strong></div>
+            {feePct > 0 && <div className="cpx-fin-order-row"><span>Комиссия {feePct}%</span><strong>−{formatMoney(quote.fee)}</strong></div>}
+            <div className="cpx-fin-order-total"><span>Вы получите</span><strong>{formatMoney(quote.net)}</strong></div>
+          </div>
+        )}
+        {err && <p className="cpx-err">{err}</p>}
+        <AnimatePresence>
+          {ok && (
+            <motion.p
+              key={ok}
+              className="cpx-fin-flash cpx-fin-flash--ok"
+              initial={{ opacity: 0, y: 10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {ok}
+            </motion.p>
+          )}
+        </AnimatePresence>
+        <button type="submit" className="cpx-btn cpx-btn--sm" disabled={submitting}>
+          {submitting ? <><span className="cpx-spinner" /> Отправляем…</> : 'Оставить заявку'}
+        </button>
+      </form>
+
+      {history !== null && history.length > 0 && (
+        <div className="cpx-fin-doc-status-list" style={{ marginTop: 16 }}>
+          {history.map((h) => (
+            <div key={h.id} className="cpx-fin-doc-status-row">
+              <span>{formatMoney(h.rubAmount)} · {formatDateTime(h.createdAt)}</span>
+              <span className={`cpx-fin-badge cpx-fin-badge--${h.status === 'paid' ? 'approved' : h.status === 'rejected' ? 'rejected' : 'pending'}`}>
+                {WITHDRAW_STATUS_LABEL[h.status] || h.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1388,6 +1483,7 @@ const DASH_TABS = [
   { key: 'overview', label: 'Обзор' },
   { key: 'buy', label: 'Купить' },
   { key: 'sell', label: 'Продать' },
+  { key: 'auto', label: 'Автоматизация' },
   { key: 'benefit', label: 'Выгода' },
 ];
 
@@ -1595,7 +1691,389 @@ function FintechDashboard({ profile }) {
 
       {view === 'sell' && <SellPanel portfolio={portfolio} onDone={load} />}
 
+      {view === 'auto' && <AutomationPanel portfolio={portfolio} onDone={load} />}
+
       {view === 'benefit' && <MissedBenefitCalc />}
+    </div>
+  );
+}
+
+const ALERT_STATUS_LABEL = {
+  active: 'Активно',
+  triggered: 'Сработало',
+  failed: 'Не удалось',
+  cancelled: 'Отменено',
+};
+
+const RECURRING_STATUS_LABEL = {
+  active: 'Активна',
+  paused: 'На паузе',
+  cancelled: 'Отменена',
+};
+
+/**
+ * Автоматизация: ценовые коридоры (п.6 ТЗ) и регулярные инвестиции (п.7).
+ * Автопокупка пока списывает деньги с уже пополненного рублёвого баланса —
+ * прямого списания с карты не будет, пока не подключён эквайринг с сохранением токена.
+ */
+function AutomationPanel({ portfolio, onDone }) {
+  return (
+    <div className="cpx-fin-sell-grid">
+      <Reveal y={18}><PriceAlertsPanel portfolio={portfolio} onDone={onDone} /></Reveal>
+      <Reveal delay={0.08} y={18}><RecurringPanel portfolio={portfolio} onDone={onDone} /></Reveal>
+    </div>
+  );
+}
+
+const SELL_TARGET_PRESETS = [5, 10, 20, 30];
+const BUY_TARGET_PRESETS = [-5, -10, -15];
+
+function PriceAlertsPanel({ portfolio, onDone }) {
+  const [direction, setDirection] = useState('sell');
+  // sellMode: 'total' — «хочу продать весь портфель за ₽X» (понятно без курса);
+  // 'rate' — прямой ввод курса ₽/г, для тех, кто уже мыслит в этих цифрах.
+  const [sellMode, setSellMode] = useState('total');
+  const [targetRate, setTargetRate] = useState('');
+  const [targetTotal, setTargetTotal] = useState('');
+  const [amountMode, setAmountMode] = useState('grams');
+  const [amountValue, setAmountValue] = useState('1');
+  const [alerts, setAlerts] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState('');
+
+  const rate = Number(portfolio?.currentRatePerGram) || 0;
+  const goldGrams = Number(portfolio?.goldGrams) || 0;
+  const investedRub = Number(portfolio?.investedRub) || 0;
+  const avgCostPerGram = goldGrams > 0 ? investedRub / goldGrams : 0;
+
+  const load = useCallback(async () => {
+    try {
+      const out = await fintechApi.priceAlerts();
+      setAlerts(out.alerts || []);
+    } catch {
+      setAlerts([]);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Продажа «за сумму»: считаем нужный курс сами и продаём весь текущий остаток золота.
+  const effectiveRate = useMemo(() => {
+    if (direction === 'sell' && sellMode === 'total') {
+      const total = parseFloat(String(targetTotal).replace(',', '.'));
+      if (!Number.isFinite(total) || total <= 0 || goldGrams <= 0) return null;
+      return total / goldGrams;
+    }
+    return parseFloat(String(targetRate).replace(',', '.'));
+  }, [direction, sellMode, targetTotal, targetRate, goldGrams]);
+
+  const effectiveAmountMode = direction === 'sell' && sellMode === 'total' ? 'grams' : amountMode;
+  const effectiveAmountValue = direction === 'sell' && sellMode === 'total' ? goldGrams : parseFloat(String(amountValue).replace(',', '.'));
+
+  const profitPct = effectiveRate && avgCostPerGram > 0 ? Math.round(((effectiveRate - avgCostPerGram) / avgCostPerGram) * 1000) / 10 : null;
+  const dropPct = effectiveRate && rate > 0 ? Math.round(((effectiveRate - rate) / rate) * 1000) / 10 : null;
+
+  function applyPreset(pct) {
+    const base = direction === 'sell' && avgCostPerGram > 0 ? avgCostPerGram : rate;
+    if (!base) return;
+    const target = Math.round(base * (1 + pct / 100));
+    if (direction === 'sell' && sellMode === 'total' && goldGrams > 0) {
+      setTargetTotal(String(Math.round(target * goldGrams)));
+    } else {
+      setTargetRate(String(target));
+    }
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr('');
+    setOk('');
+    if (!Number.isFinite(effectiveRate) || effectiveRate <= 0) {
+      setErr(direction === 'sell' && sellMode === 'total' ? 'Укажите желаемую сумму за портфель' : 'Укажите целевой курс');
+      return;
+    }
+    if (!Number.isFinite(effectiveAmountValue) || effectiveAmountValue <= 0) {
+      setErr('Укажите сумму или вес');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await fintechApi.createPriceAlert({
+        direction,
+        targetRate: effectiveRate,
+        amountMode: effectiveAmountMode,
+        amountValue: effectiveAmountValue,
+      });
+      setOk('Условие создано. Как только курс дойдёт до цели — сделка выполнится автоматически.');
+      setTargetRate('');
+      setTargetTotal('');
+      await Promise.all([load(), onDone?.()]);
+    } catch (e2) {
+      setErr(e2?.message || 'Не удалось создать условие');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function cancel(id) {
+    try {
+      await fintechApi.cancelPriceAlert(id);
+      await load();
+    } catch (e) {
+      setErr(e?.message || 'Не удалось отменить условие');
+    }
+  }
+
+  const active = (alerts || []).filter((a) => a.status === 'active');
+  const history = (alerts || []).filter((a) => a.status !== 'active');
+  const presets = direction === 'sell' ? SELL_TARGET_PRESETS : BUY_TARGET_PRESETS;
+
+  return (
+    <div className="cpx-card">
+      <h2 className="cpx-fin-side-title">Ценовые условия</h2>
+      <p className="cpx-fin-side-sub">
+        Задайте условие — купим или продадим автоматически, как только биржа его достигнет.
+        {rate ? ` Сейчас курс ${formatMoney(rate)} / г.` : ''}
+      </p>
+
+      <form onSubmit={submit} className="cpx-form cpx-fin-buy-form">
+        <div className="cpx-fin-unit-switch" role="tablist" aria-label="Направление условия">
+          <button type="button" role="tab" aria-selected={direction === 'sell'} className={`cpx-fin-unit-btn${direction === 'sell' ? ' cpx-fin-unit-btn--on' : ''}`} onClick={() => setDirection('sell')}>
+            <span className="cpx-fin-unit-cap">Продать при росте</span>
+          </button>
+          <button type="button" role="tab" aria-selected={direction === 'buy'} className={`cpx-fin-unit-btn${direction === 'buy' ? ' cpx-fin-unit-btn--on' : ''}`} onClick={() => setDirection('buy')}>
+            <span className="cpx-fin-unit-cap">Купить при падении</span>
+          </button>
+        </div>
+
+        {direction === 'sell' && goldGrams > 0 && (
+          <div className="cpx-fin-unit-switch">
+            <button type="button" className={`cpx-fin-unit-btn${sellMode === 'total' ? ' cpx-fin-unit-btn--on' : ''}`} onClick={() => setSellMode('total')}>
+              <span className="cpx-fin-unit-cap">По сумме продажи</span>
+            </button>
+            <button type="button" className={`cpx-fin-unit-btn${sellMode === 'rate' ? ' cpx-fin-unit-btn--on' : ''}`} onClick={() => setSellMode('rate')}>
+              <span className="cpx-fin-unit-cap">По курсу ₽/г</span>
+            </button>
+          </div>
+        )}
+
+        {direction === 'sell' && sellMode === 'total' && goldGrams > 0 ? (
+          <label className="cpx-field">
+            <span className="cpx-field-label">Продать все {formatGrams(goldGrams)}, когда за них дадут, ₽</span>
+            <input inputMode="decimal" value={targetTotal} onChange={(e) => setTargetTotal(e.target.value)} placeholder={String(Math.round(goldGrams * (avgCostPerGram || rate) * 1.1))} />
+          </label>
+        ) : (
+          <label className="cpx-field">
+            <span className="cpx-field-label">Целевой курс, ₽/г</span>
+            <input inputMode="decimal" value={targetRate} onChange={(e) => setTargetRate(e.target.value)} placeholder={rate ? String(Math.round(rate)) : '8000'} />
+          </label>
+        )}
+
+        {(rate > 0 || avgCostPerGram > 0) && (
+          <div className="cpx-fin-preset-row">
+            {presets.map((pct) => (
+              <button key={pct} type="button" className="cpx-fin-preset-btn" onClick={() => applyPreset(pct)}>
+                {pct > 0 ? `+${pct}%` : `${pct}%`}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {effectiveRate > 0 && (
+          <p className="cpx-fin-step-hint">
+            Это курс ≈ {formatMoney(effectiveRate)} / г
+            {direction === 'sell' && profitPct != null && ` · доходность ${profitPct > 0 ? '+' : ''}${profitPct}% от вложенного`}
+            {direction === 'buy' && dropPct != null && ` · это ${dropPct > 0 ? '+' : ''}${dropPct}% к текущему курсу`}
+          </p>
+        )}
+
+        {!(direction === 'sell' && sellMode === 'total') && (
+          <div className="cpx-fin-form-row">
+            <label className="cpx-field">
+              <span className="cpx-field-label">{amountMode === 'grams' ? 'Вес, г' : 'Сумма, ₽'}</span>
+              <input inputMode="decimal" value={amountValue} onChange={(e) => setAmountValue(e.target.value)} />
+            </label>
+            <div className="cpx-fin-unit-switch">
+              <button type="button" className={`cpx-fin-unit-btn${amountMode === 'grams' ? ' cpx-fin-unit-btn--on' : ''}`} onClick={() => setAmountMode('grams')}>г</button>
+              <button type="button" className={`cpx-fin-unit-btn${amountMode === 'rub' ? ' cpx-fin-unit-btn--on' : ''}`} onClick={() => setAmountMode('rub')}>₽</button>
+            </div>
+          </div>
+        )}
+
+        {err && <p className="cpx-err">{err}</p>}
+        <AnimatePresence>
+          {ok && (
+            <motion.p key={ok} className="cpx-fin-flash cpx-fin-flash--ok" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              {ok}
+            </motion.p>
+          )}
+        </AnimatePresence>
+        <button type="submit" className="cpx-btn cpx-btn--sm" disabled={submitting}>
+          {submitting ? <><span className="cpx-spinner" /> Создаём…</> : 'Создать условие'}
+        </button>
+      </form>
+
+      {active.length > 0 && (
+        <div className="cpx-fin-doc-status-list" style={{ marginTop: 16 }}>
+          {active.map((a) => (
+            <div key={a.id} className="cpx-fin-doc-status-row">
+              <span>
+                {a.direction === 'buy' ? 'Купить' : 'Продать'} {a.amountMode === 'grams' ? formatGrams(a.amountValue) : formatMoney(a.amountValue)} при {formatMoney(a.targetRatePerGram)}/г
+              </span>
+              <button type="button" className="cpx-link" onClick={() => cancel(a.id)}>Отменить</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {history.length > 0 && (
+        <div className="cpx-fin-doc-status-list" style={{ marginTop: 10 }}>
+          {history.slice(0, 6).map((a) => (
+            <div key={a.id} className="cpx-fin-doc-status-row">
+              <span>{a.direction === 'buy' ? 'Купить' : 'Продать'} при {formatMoney(a.targetRatePerGram)}/г</span>
+              <span className={`cpx-fin-badge cpx-fin-badge--${a.status === 'triggered' ? 'approved' : a.status === 'failed' ? 'rejected' : 'pending'}`}>
+                {ALERT_STATUS_LABEL[a.status] || a.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RecurringPanel({ portfolio, onDone }) {
+  const [sub, setSub] = useState(null);
+  const [runs, setRuns] = useState([]);
+  const [rub, setRub] = useState('5000');
+  const [day, setDay] = useState('1');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const out = await fintechApi.recurring();
+      setSub(out.subscription);
+      setRuns(out.runs || []);
+      if (out.subscription) {
+        setRub(String(out.subscription.rubAmount));
+        setDay(String(out.subscription.dayOfMonth));
+      }
+    } catch {
+      setSub(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr('');
+    setOk('');
+    const rubVal = parseFloat(String(rub).replace(',', '.'));
+    const dayVal = parseInt(day, 10);
+    if (!Number.isFinite(rubVal) || rubVal <= 0) {
+      setErr('Укажите сумму больше нуля');
+      return;
+    }
+    setBusy(true);
+    try {
+      await fintechApi.setRecurring({ rubAmount: rubVal, dayOfMonth: dayVal });
+      setOk('Подписка настроена — каждый месяц будем покупать золото с баланса автоматически.');
+      await Promise.all([load(), onDone?.()]);
+    } catch (e2) {
+      setErr(e2?.message || 'Не удалось настроить подписку');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggle(status) {
+    setBusy(true);
+    try {
+      await fintechApi.setRecurringStatus(status);
+      await load();
+    } catch (e) {
+      setErr(e?.message || 'Ошибка');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Загрузка…</div>;
+
+  return (
+    <div className="cpx-card">
+      <h2 className="cpx-fin-side-title">Регулярные инвестиции</h2>
+      <p className="cpx-fin-side-sub">
+        Каждый месяц автоматически купим золото на баланс — деньги списываются с уже пополненного рублёвого баланса кабинета
+        (прямое списание с карты подключим вместе с эквайрингом).
+      </p>
+
+      {sub && (
+        <div className="cpx-fin-status-row" style={{ marginBottom: 12 }}>
+          <span className={`cpx-fin-badge cpx-fin-badge--${sub.status === 'active' ? 'approved' : 'pending'}`}>
+            {RECURRING_STATUS_LABEL[sub.status] || sub.status}
+          </span>
+          <span className="cpx-muted" style={{ fontSize: '0.8rem' }}>
+            {formatMoney(sub.rubAmount)} · {sub.dayOfMonth} числа{sub.nextRunAt ? ` · следующее списание ${formatDateTime(sub.nextRunAt)}` : ''}
+          </span>
+        </div>
+      )}
+
+      <form onSubmit={submit} className="cpx-form cpx-fin-buy-form">
+        <div className="cpx-fin-form-row">
+          <label className="cpx-field">
+            <span className="cpx-field-label">Сумма в месяц, ₽</span>
+            <input inputMode="decimal" value={rub} onChange={(e) => setRub(e.target.value)} placeholder="5000" />
+          </label>
+          <label className="cpx-field">
+            <span className="cpx-field-label">Число месяца</span>
+            <input inputMode="numeric" value={day} onChange={(e) => setDay(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="1" />
+          </label>
+        </div>
+        {err && <p className="cpx-err">{err}</p>}
+        <AnimatePresence>
+          {ok && (
+            <motion.p key={ok} className="cpx-fin-flash cpx-fin-flash--ok" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              {ok}
+            </motion.p>
+          )}
+        </AnimatePresence>
+        <div className="cpx-fin-topup-actions">
+          <button type="submit" className="cpx-btn cpx-btn--sm" disabled={busy}>
+            {sub ? 'Обновить подписку' : 'Включить автоинвестиции'}
+          </button>
+          {sub?.status === 'active' && (
+            <button type="button" className="cpx-btn cpx-btn--ghost" disabled={busy} onClick={() => toggle('paused')}>Приостановить</button>
+          )}
+          {sub?.status === 'paused' && (
+            <button type="button" className="cpx-btn cpx-btn--ghost" disabled={busy} onClick={() => toggle('active')}>Возобновить</button>
+          )}
+          {sub && sub.status !== 'cancelled' && (
+            <button type="button" className="cpx-btn cpx-btn--ghost" disabled={busy} onClick={() => toggle('cancelled')}>Отменить</button>
+          )}
+        </div>
+      </form>
+
+      {runs.length > 0 && (
+        <div className="cpx-fin-doc-status-list" style={{ marginTop: 16 }}>
+          {runs.map((r) => (
+            <div key={r.id} className="cpx-fin-doc-status-row">
+              <span>{r.runDate} · {formatMoney(r.rubAmount)}{r.gramsBought ? ` → ${formatGrams(r.gramsBought)}` : ''}</span>
+              <span className={`cpx-fin-badge cpx-fin-badge--${r.status === 'success' ? 'approved' : 'rejected'}`}>
+                {r.status === 'success' ? 'Успешно' : 'Ошибка'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

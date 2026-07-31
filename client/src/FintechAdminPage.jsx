@@ -33,6 +33,30 @@ const ENTRY_LABEL = {
   correction: 'Корректировка',
 };
 
+const WITHDRAWAL_STATUS_TABS = [
+  { key: 'pending', label: 'На модерации' },
+  { key: 'approved', label: 'В обработке' },
+  { key: 'paid', label: 'Выплачены' },
+  { key: 'rejected', label: 'Отклонены' },
+  { key: '', label: 'Все' },
+];
+
+const WITHDRAWAL_STATUS_LABEL = {
+  pending: 'На модерации',
+  approved: 'В обработке',
+  paid: 'Выплачено',
+  rejected: 'Отклонена',
+};
+
+const SETTINGS_FIELDS = [
+  { key: 'buyFeePercent', label: 'Комиссия покупки, %', hint: 'Закладывается в курс при покупке золота клиентом' },
+  { key: 'sellFeePercent', label: 'Комиссия продажи, %', hint: 'Удерживается при продаже золота клиентом' },
+  { key: 'minPurchaseGrams', label: 'Минимальная покупка, г', hint: 'Порог входа для новой покупки' },
+  { key: 'minSellGrams', label: 'Минимальная продажа, г', hint: 'Порог для продажи золота на баланс' },
+  { key: 'withdrawFeePercent', label: 'Комиссия вывода, %', hint: 'Удерживается при выводе рублей клиенту' },
+  { key: 'minWithdrawRub', label: 'Минимальный вывод, ₽', hint: 'Порог для заявки на вывод средств' },
+];
+
 function formatMoneyRub(n) {
   if (n == null || !Number.isFinite(Number(n))) return '—';
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(Number(n));
@@ -107,9 +131,25 @@ export function FintechAdminPage({ toast, isSuperAdmin = false }) {
           >
             Клиенты
           </button>
+          <button
+            type="button"
+            className={`fea-view-tab${view === 'withdrawals' ? ' fea-view-tab--on' : ''}`}
+            onClick={() => setView('withdrawals')}
+          >
+            Выводы
+          </button>
+          <button
+            type="button"
+            className={`fea-view-tab${view === 'settings' ? ' fea-view-tab--on' : ''}`}
+            onClick={() => setView('settings')}
+          >
+            Настройки
+          </button>
         </div>
 
         {view === 'dashboard' && <ExchangeDashboard onOpenClients={openClients} />}
+        {view === 'withdrawals' && <WithdrawalsPanel toast={toast} />}
+        {view === 'settings' && <SettingsPanelFintech toast={toast} />}
 
         {view === 'clients' && (
           <div className="fea-card">
@@ -175,28 +215,30 @@ export function FintechAdminPage({ toast, isSuperAdmin = false }) {
         )}
       </div>
 
-      <aside className="cg-page__side cg-stagger">
-        {selectedId ? (
-          <ClientDetailPanel
-            clientId={selectedId}
-            toast={toast}
-            isSuperAdmin={isSuperAdmin}
-            onChanged={() => { load(); }}
-            onDeleted={() => { setSelectedId(null); load(); }}
-            onClose={() => setSelectedId(null)}
-          />
-        ) : (
-          <div className="fea-card fea-card--accent">
-            <div className="fea-side-label">{view === 'dashboard' ? `${STATUS_LABEL[status] || 'Клиенты'} · в списке` : 'Клиенты в списке'}</div>
-            <div className="fea-side-big mono-nums">{total}</div>
-            <div className="fea-side-sub">
-              {view === 'dashboard'
-                ? 'Сводка по бирже: объём золота у клиентов, обороты и статусы. Вкладка «Клиенты» — проверка документов.'
-                : 'Выберите клиента в списке, чтобы проверить документы и управлять балансом'}
+      {(view === 'dashboard' || view === 'clients') && (
+        <aside className="cg-page__side cg-stagger">
+          {selectedId && view === 'clients' ? (
+            <ClientDetailPanel
+              clientId={selectedId}
+              toast={toast}
+              isSuperAdmin={isSuperAdmin}
+              onChanged={() => { load(); }}
+              onDeleted={() => { setSelectedId(null); load(); }}
+              onClose={() => setSelectedId(null)}
+            />
+          ) : (
+            <div className="fea-card fea-card--accent">
+              <div className="fea-side-label">{view === 'dashboard' ? `${STATUS_LABEL[status] || 'Клиенты'} · в списке` : 'Клиенты в списке'}</div>
+              <div className="fea-side-big mono-nums">{total}</div>
+              <div className="fea-side-sub">
+                {view === 'dashboard'
+                  ? 'Сводка по бирже: объём золота у клиентов, обороты и статусы. Вкладка «Клиенты» — проверка документов.'
+                  : 'Выберите клиента в списке, чтобы проверить документы и управлять балансом'}
+              </div>
             </div>
-          </div>
-        )}
-      </aside>
+          )}
+        </aside>
+      )}
 
       <style>{CSS}</style>
     </div>
@@ -301,6 +343,194 @@ function ExchangeDashboard({ onOpenClients }) {
         </div>
       </div>
     </>
+  );
+}
+
+/** Заявки на вывод средств — пока без A7/ПСБ выплата ручная, но заявки настоящие. */
+function WithdrawalsPanel({ toast }) {
+  const [status, setStatus] = useState('pending');
+  const [requests, setRequests] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [busyId, setBusyId] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErr('');
+    try {
+      const out = await api.fintechAdminWithdrawals(status || undefined);
+      setRequests(out.requests || []);
+      setTotal(out.total || 0);
+    } catch (e) {
+      setErr(e?.message || 'Не удалось загрузить заявки на вывод');
+    } finally {
+      setLoading(false);
+    }
+  }, [status]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function decide(id, decision) {
+    const reason = decision === 'rejected' ? window.prompt('Причина отклонения заявки:', '') : null;
+    if (decision === 'rejected' && reason == null) return;
+    if (decision === 'rejected' && !reason.trim()) {
+      toast?.('Укажите причину отклонения', 'error');
+      return;
+    }
+    setBusyId(id);
+    try {
+      await api.fintechAdminDecideWithdrawal(id, decision, reason || undefined);
+      toast?.(decision === 'rejected' ? 'Заявка отклонена, деньги вернулись клиенту' : decision === 'paid' ? 'Заявка отмечена оплаченной' : 'Заявка принята в обработку', 'success');
+      await load();
+    } catch (e) {
+      toast?.(e?.message || 'Ошибка', 'error');
+    } finally {
+      setBusyId('');
+    }
+  }
+
+  return (
+    <div className="fea-card">
+      <div className="fea-head">
+        <h2 className="fea-title">Заявки на вывод · {total}</h2>
+      </div>
+      <div className="fea-tabs">
+        {WITHDRAWAL_STATUS_TABS.map((t) => (
+          <button
+            key={t.key || 'all'}
+            type="button"
+            className={`fea-tab${status === t.key ? ' fea-tab--on' : ''}`}
+            onClick={() => setStatus(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {loading && <div className="fea-empty"><span className="fea-spinner" /> Загрузка…</div>}
+      {err && !loading && <div className="fea-empty fea-err">{err}</div>}
+      {!loading && !err && requests.length === 0 && <div className="fea-empty">Заявок нет</div>}
+
+      {!loading && requests.length > 0 && (
+        <div className="fea-docs">
+          {requests.map((r) => (
+            <div key={r.id} className="fea-doc-row" style={{ alignItems: 'flex-start' }}>
+              <div className="fea-doc-main">
+                <span style={{ fontWeight: 700 }}>
+                  {r.client?.fullName || 'Без имени'} · +7 {r.client?.phone}
+                </span>
+                <span className="mono-nums">
+                  {formatMoneyRub(r.rubAmount)}{r.feeRub ? ` (комиссия ${formatMoneyRub(r.feeRub)}, к выплате ${formatMoneyRub(r.netRub)})` : ''}
+                </span>
+                <span className="fea-muted">{r.payoutDetails}</span>
+                <span className="fea-muted">{formatDateTime(r.createdAt)}</span>
+                {r.status === 'rejected' && r.rejectReason && <span style={{ color: 'var(--crimson)', fontSize: '0.8rem' }}>{r.rejectReason}</span>}
+                <span className={`fea-badge fea-badge--${r.status}`} style={{ marginTop: 4 }}>{WITHDRAWAL_STATUS_LABEL[r.status] || r.status}</span>
+              </div>
+              {(r.status === 'pending' || r.status === 'approved') && (
+                <div className="fea-doc-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                  {r.status === 'pending' && (
+                    <button type="button" className="fea-btn-sm fea-btn-sm--ok" disabled={busyId === r.id} onClick={() => decide(r.id, 'approved')}>
+                      В обработку
+                    </button>
+                  )}
+                  <button type="button" className="fea-btn-sm fea-btn-sm--ok" disabled={busyId === r.id} onClick={() => decide(r.id, 'paid')}>
+                    Отметить оплаченной
+                  </button>
+                  <button type="button" className="fea-btn-sm fea-btn-sm--bad" disabled={busyId === r.id} onClick={() => decide(r.id, 'rejected')}>
+                    Отклонить
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Комиссии и лимиты биржи — раньше правились только в базе, теперь из админки. */
+function SettingsPanelFintech({ toast }) {
+  const [values, setValues] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErr('');
+    try {
+      const out = await api.fintechAdminSettings();
+      setValues(out);
+    } catch (e) {
+      setErr(e?.message || 'Не удалось загрузить настройки');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  function setField(key, v) {
+    setValues((prev) => ({ ...prev, [key]: v }));
+  }
+
+  async function save(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const patch = {};
+      for (const f of SETTINGS_FIELDS) {
+        const v = Number(String(values[f.key]).replace(',', '.'));
+        if (!Number.isFinite(v) || v < 0) {
+          toast?.(`Некорректное значение: ${f.label}`, 'error');
+          setSaving(false);
+          return;
+        }
+        patch[f.key] = v;
+      }
+      const out = await api.fintechAdminUpdateSettings(patch);
+      setValues(out);
+      toast?.('Настройки сохранены', 'success');
+    } catch (e2) {
+      toast?.(e2?.message || 'Не удалось сохранить настройки', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <div className="fea-card fea-empty"><span className="fea-spinner" /> Загрузка…</div>;
+  if (err) return <div className="fea-card fea-empty fea-err">{err}</div>;
+  if (!values) return null;
+
+  return (
+    <div className="fea-card">
+      <div className="fea-head">
+        <h2 className="fea-title">Комиссии и лимиты биржи</h2>
+      </div>
+      <p className="fea-muted" style={{ margin: '0 0 14px' }}>
+        Применяются сразу ко всем новым сделкам и заявкам на вывод. Источник курса золота — тот же, что у калькулятора скупки.
+      </p>
+      <form onSubmit={save} className="fea-settings-form">
+        {SETTINGS_FIELDS.map((f) => (
+          <label key={f.key} className="fea-settings-field">
+            <span className="fea-settings-label">{f.label}</span>
+            <input
+              className="fea-input"
+              inputMode="decimal"
+              value={values[f.key] ?? ''}
+              onChange={(e) => setField(f.key, e.target.value)}
+            />
+            <span className="fea-muted" style={{ fontSize: '0.74rem' }}>{f.hint}</span>
+          </label>
+        ))}
+        <button type="submit" className="fea-btn" disabled={saving} style={{ maxWidth: 220 }}>
+          {saving ? 'Сохраняем…' : 'Сохранить настройки'}
+        </button>
+      </form>
+    </div>
   );
 }
 
@@ -702,6 +932,11 @@ const CSS = `
 .fea-badge--approved { background: var(--emerald-soft); color: var(--emerald); }
 .fea-badge--rejected { background: var(--crimson-soft); color: var(--crimson); }
 .fea-badge--blocked { background: var(--crimson-soft); color: var(--crimson); }
+.fea-badge--paid { background: var(--emerald-soft); color: var(--emerald); }
+
+.fea-settings-form { display: flex; flex-direction: column; gap: 16px; max-width: 420px; }
+.fea-settings-field { display: flex; flex-direction: column; gap: 4px; }
+.fea-settings-label { font-size: 0.82rem; font-weight: 700; color: var(--text); }
 
 .fea-close { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--stroke); background: transparent; color: var(--text-muted); cursor: pointer; }
 .fea-side-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); font-weight: 700; margin-bottom: 6px; }
