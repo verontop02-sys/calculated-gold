@@ -100,8 +100,11 @@
   .step .txt strong { display: block; font-size: 0.88rem; margin-bottom: 2px; }
   .step .txt span { font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
 
+  #deck-scale { transform-origin: top center; }
+
   @media print {
     body { background: #fff; }
+    #deck-scale { zoom: 1 !important; }
     .page { box-shadow: none; border: none; border-radius: 0; margin: 0; page-break-after: always; width: auto; min-height: auto; height: 167mm; }
     .page:last-child { page-break-after: auto; }
     @page { size: 297mm 167mm; margin: 0; }
@@ -109,6 +112,7 @@
 </style>
 </head>
 <body>
+<div id="deck-scale">
 
   <section class="page title-page">
     <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
@@ -322,5 +326,24 @@
     <div class="pagenum">9 / 9</div>
   </section>
 
+</div>
+<script>
+  (function () {
+    var wrap = document.getElementById('deck-scale');
+    function fit() {
+      if (window.matchMedia('print').matches) { wrap.style.zoom = 1; return; }
+      wrap.style.zoom = 1;
+      var page = wrap.querySelector('.page');
+      if (!page) return;
+      var natural = page.getBoundingClientRect().width;
+      var available = window.innerWidth - 32;
+      var z = Math.min(1, available / natural);
+      wrap.style.zoom = z;
+    }
+    window.addEventListener('resize', fit);
+    window.addEventListener('beforeprint', function () { wrap.style.zoom = 1; });
+    fit();
+  })();
+</script>
 </body>
 </html>
