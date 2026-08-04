@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Reaktivo.pro — золотой инвестиционный кабинет для физлиц</title>
+<style>
+  :root {
+    --bg: #0f1013;
+    --bg2: #17181c;
+    --card: #1c1e23;
+    --card-line: rgba(255,255,255,0.08);
+    --ink: #f4f5f7;
+    --muted: rgba(244,245,247,0.62);
+    --muted2: rgba(244,245,247,0.42);
+    --accent: #fe0000;
+    --accent-soft: rgba(254,0,0,0.14);
+    --gold: #e8c874;
+    --gold-soft: rgba(232,200,116,0.14);
+    --ok: #4ade80;
+    --ok-soft: rgba(74,222,128,0.12);
+    --blue: #6fa8ff;
+    --blue-soft: rgba(111,168,255,0.12);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+  }
+  .deck {
+    position: fixed; inset: 0;
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  .deck::-webkit-scrollbar { display: none; }
+  .slide {
+    flex: 0 0 100vw;
+    width: 100vw; height: 100%;
+    scroll-snap-align: start;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 6vw 96px;
+    position: relative;
+    background:
+      radial-gradient(ellipse 70% 45% at 85% 0%, rgba(232,200,116,0.12), transparent 55%),
+      radial-gradient(ellipse 60% 40% at 5% 100%, rgba(254,0,0,0.07), transparent 55%),
+      linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%);
+  }
+  .slide-inner { width: 100%; max-width: 980px; }
+  .kicker {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 14px;
+  }
+  .kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+  h1.slide-title {
+    font-size: clamp(1.5rem, 3.4vw, 2.5rem);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin: 0 0 12px;
+    font-weight: 800;
+  }
+  p.slide-sub {
+    font-size: clamp(0.92rem, 1.3vw, 1.08rem);
+    color: var(--muted);
+    line-height: 1.55;
+    margin: 0 0 30px;
+    max-width: 720px;
+  }
+  .grid { display: grid; gap: 14px; }
+  .grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-line);
+    border-radius: 16px;
+    padding: 18px 20px;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 0.98rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .card p { margin: 0; font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+  .badge {
+    width: 30px; height: 30px; border-radius: 9px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.9rem; flex: none;
+  }
+  .badge.red { background: var(--accent-soft); color: var(--accent); }
+  .badge.gold { background: var(--gold-soft); color: var(--gold); }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.blue { background: var(--blue-soft); color: var(--blue); }
+
+  .title-slide .mark {
+    width: 60px; height: 60px; border-radius: 16px; background: var(--gold);
+    display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.6rem; color: #1a1508;
+    margin-bottom: 24px; box-shadow: 0 12px 32px rgba(232,200,116,0.35);
+  }
+  .title-slide h1 { font-size: clamp(1.9rem, 4.6vw, 3.4rem); margin-bottom: 16px; }
+  .title-slide .lede { font-size: clamp(1rem, 1.6vw, 1.25rem); color: var(--muted); max-width: 640px; margin-bottom: 34px; line-height: 1.5; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .pill { border: 1px solid var(--card-line); border-radius: 999px; padding: 8px 16px; font-size: 0.82rem; color: var(--muted); background: rgba(255,255,255,0.03); }
+  .pill b { color: var(--ink); }
+
+  .flow-row { display: flex; align-items: stretch; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .flow-box { flex: 1; min-width: 150px; border: 1px solid var(--card-line); border-radius: 14px; padding: 14px 16px; background: rgba(255,255,255,0.03); }
+  .flow-box .tag { font-size: 0.65rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted2); margin-bottom: 6px; display: block; }
+  .flow-box strong { display: block; font-size: 0.95rem; margin-bottom: 4px; }
+  .flow-box span.d { font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+  .flow-arrow { display: flex; align-items: center; justify-content: center; color: var(--muted2); font-size: 1.2rem; flex: 0 0 24px; }
+
+  .mock { border: 1px solid var(--card-line); border-radius: 18px; overflow: hidden; background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)); }
+  .mock-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--card-line); font-size: 0.72rem; color: var(--muted2); font-weight: 700; letter-spacing: 0.04em; }
+  .mock-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); opacity: 0.7; }
+  .mock-body { padding: 16px; }
+  .kpi-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .kpi { flex: 1; min-width: 110px; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 10px 12px; }
+  .kpi .n { font-size: 1.1rem; font-weight: 800; }
+  .kpi .l { font-size: 0.68rem; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+  .bars { display: flex; align-items: flex-end; gap: 5px; height: 60px; }
+  .bars i { flex: 1; background: linear-gradient(180deg, var(--gold), rgba(232,200,116,0.25)); border-radius: 4px 4px 0 0; }
+
+  ul.check-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+  ul.check-list li { display: flex; gap: 10px; font-size: 0.88rem; color: var(--muted); line-height: 1.5; }
+  ul.check-list li::before { content: '✓'; color: var(--ok); font-weight: 800; flex: none; }
+
+  .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 40px; align-items: center; }
+
+  .steps { display: grid; gap: 10px; }
+  .step { display: flex; gap: 14px; align-items: flex-start; }
+  .step .num { flex: none; width: 34px; height: 34px; border-radius: 10px; background: var(--gold-soft); color: var(--gold); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; }
+  .step .txt strong { display: block; font-size: 0.94rem; margin-bottom: 2px; }
+  .step .txt span { font-size: 0.83rem; color: var(--muted); line-height: 1.45; }
+
+  .nav { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; gap: 18px; padding: 18px 0 26px; z-index: 20; pointer-events: none; }
+  .nav > * { pointer-events: auto; }
+  .dots { display: flex; gap: 7px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.18); transition: all 0.25s; cursor: pointer; }
+  .dot.active { background: var(--gold); width: 20px; border-radius: 4px; }
+  .nav-btn { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--card-line); background: rgba(255,255,255,0.05); color: var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; }
+  .nav-btn:hover { background: rgba(255,255,255,0.12); }
+  .counter { position: fixed; top: 22px; right: 26px; z-index: 20; font-size: 0.78rem; color: var(--muted2); font-weight: 600; letter-spacing: 0.04em; }
+  .brandmini { position: fixed; top: 22px; left: 26px; z-index: 20; display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 0.85rem; letter-spacing: 0.02em; }
+  .brandmini .m { width: 22px; height: 22px; border-radius: 6px; background: var(--gold); }
+  .brandmini span { color: var(--gold); }
+
+  @media (max-width: 760px) {
+    .slide { padding: 90px 6vw 110px; align-items: flex-start; }
+    .grid.cols-2, .grid.cols-3 { grid-template-columns: 1fr; }
+    .two-col { grid-template-columns: 1fr; gap: 22px; }
+    .counter { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+  <div class="counter"><span id="cnt">1</span> / <span id="total">9</span></div>
+
+  <div class="deck" id="deck">
+
+    <!-- 1. Титул -->
+    <section class="slide title-slide">
+      <div class="slide-inner">
+        <div class="mark">Au</div>
+        <h1>Личный кабинет для инвестиций в золото</h1>
+        <p class="lede">Reaktivo.pro даёт физлицу простой способ купить, держать и продать учётное золото онлайн — без визитов в офис, скрытых комиссий и сложных финансовых инструментов.</p>
+        <div class="pill-row">
+          <div class="pill">Вход по <b>телефону + SMS</b></div>
+          <div class="pill">Покупка от <b>1 грамма</b></div>
+          <div class="pill">Учёт до <b>0,0001 г</b></div>
+          <div class="pill">Вывод на <b>карту любого банка</b></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Вход и старт -->
+    <section class="slide">
+      <div class="slide-inner two-col">
+        <div>
+          <div class="kicker">Старт</div>
+          <h1 class="slide-title">От регистрации до открытого кабинета — 2 минуты</h1>
+          <p class="slide-sub">Никаких анкет на бумаге и визитов в офис. Проверка документов проходит онлайн и открывает доступ к покупке золота.</p>
+          <div class="steps">
+            <div class="step"><div class="num">1</div><div class="txt"><strong>Номер телефона + код из SMS</strong><span>Без паролей и лишних полей</span></div></div>
+            <div class="step"><div class="num">2</div><div class="txt"><strong>Паспорт РФ и селфи</strong><span>Проверка документов онлайн, без визита в офис</span></div></div>
+            <div class="step"><div class="num">3</div><div class="txt"><strong>Кабинет открыт</strong><span>Доступны покупка, продажа и вывод средств</span></div></div>
+          </div>
+        </div>
+        <div class="mock">
+          <div class="mock-head"><span class="dot"></span> ВХОД В КАБИНЕТ</div>
+          <div class="mock-body">
+            <div class="flow-box" style="margin-bottom:10px;"><span class="tag">Шаг 1</span><strong>+7 999 •• •• •••</strong><span class="d">Код подтверждения отправлен по SMS</span></div>
+            <div class="flow-box" style="background: var(--gold-soft); border-color: rgba(232,200,116,0.3);"><span class="tag" style="color:#e8c874;">Статус</span><strong>Документы проверены</strong><span class="d">Кабинет активен, сделки доступны</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Покупка золота -->
+    <section class="slide">
+      <div class="slide-inner two-col">
+        <div class="mock" style="order:2;">
+          <div class="mock-head"><span class="dot"></span> ПОКУПКА ЗОЛОТА</div>
+          <div class="mock-body">
+            <div class="kpi-row">
+              <div class="kpi"><div class="n">7 240 ₽/г</div><div class="l">курс сейчас</div></div>
+              <div class="kpi"><div class="n">1,5%</div><div class="l">комиссия</div></div>
+            </div>
+            <div class="flow-box" style="background: var(--gold-soft); border-color: rgba(232,200,116,0.3);">
+              <span class="tag" style="color:#e8c874;">К покупке</span>
+              <strong style="font-size:1.4rem;">0,6906 г</strong>
+              <span class="d">На сумму 5 000 ₽ — комиссия уже включена в расчёт</span>
+            </div>
+          </div>
+        </div>
+        <div style="order:1;">
+          <div class="kicker">Покупка</div>
+          <h1 class="slide-title">Покупка золота от 1 грамма, курс виден до сделки</h1>
+          <p class="slide-sub">Клиент фиксирует биржевой курс в моменте нажатия и видит итоговую сумму с комиссией заранее — без сюрпризов после подтверждения.</p>
+          <ul class="check-list">
+            <li>Учёт до 0,0001 грамма — без «удобных» округлений</li>
+            <li>Комиссия показана заранее, скрытых удержаний нет</li>
+            <li>Пополнение баланса через СБП за секунды</li>
+            <li>Курс — из официальных источников (Мосбиржа, ЦБ РФ)</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Портфель -->
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="kicker">Портфель</div>
+        <h1 class="slide-title">Баланс и рост золота — всегда перед глазами</h1>
+        <p class="slide-sub">Курс обновляется в реальном времени, а весь портфель — граммы, рубли и история операций — собран в одном экране.</p>
+        <div class="grid cols-3">
+          <div class="card"><span class="badge gold">Ⓖ</span><h3>Граммы и рубли</h3><p>Текущий остаток золота и его стоимость по актуальному курсу</p></div>
+          <div class="card"><span class="badge blue">📈</span><h3>Динамика портфеля</h3><p>График роста стоимости золота на балансе клиента во времени</p></div>
+          <div class="card"><span class="badge ok">🧾</span><h3>PDF-выписка в один клик</h3><p>Полная история операций — для контроля и отчётности</p></div>
+        </div>
+        <div class="mock" style="margin-top:18px;">
+          <div class="mock-head"><span class="dot"></span> МОЙ ПОРТФЕЛЬ</div>
+          <div class="mock-body">
+            <div class="kpi-row">
+              <div class="kpi"><div class="n">14,32 г</div><div class="l">золото на балансе</div></div>
+              <div class="kpi"><div class="n">103 680 ₽</div><div class="l">по текущему курсу</div></div>
+              <div class="kpi"><div class="n">+12,4%</div><div class="l">с момента покупки</div></div>
+            </div>
+            <div class="bars">
+              <i style="height:30%"></i><i style="height:40%"></i><i style="height:38%"></i><i style="height:55%"></i><i style="height:50%"></i><i style="height:68%"></i><i style="height:72%"></i><i style="height:80%"></i><i style="height:90%"></i><i style="height:100%"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Продажа и вывод -->
+    <section class="slide">
+      <div class="slide-inner two-col">
+        <div>
+          <div class="kicker">Продажа и вывод</div>
+          <h1 class="slide-title">Продать золото и получить деньги на карту</h1>
+          <p class="slide-sub">Клиент продаёт часть или весь остаток по текущему курсу и подаёт заявку на вывод. Заявка проходит проверку — деньги приходят на карту любого банка.</p>
+          <ul class="check-list">
+            <li>Продажа по граммам или по нужной сумме в рублях</li>
+            <li>Заявка на вывод резервирует сумму — повторно её не потратить</li>
+            <li>После проверки деньги переводятся на карту клиента</li>
+            <li>Комиссия и минимальная сумма вывода — настраиваются в системе</li>
+          </ul>
+        </div>
+        <div class="mock">
+          <div class="mock-head"><span class="dot"></span> ЗАЯВКА НА ВЫВОД</div>
+          <div class="mock-body">
+            <div class="flow-box" style="margin-bottom:10px;"><span class="tag">Сумма</span><strong>25 000 ₽</strong><span class="d">Заявка создана, средства зарезервированы</span></div>
+            <div class="flow-box" style="background: var(--ok-soft); border-color: rgba(74,222,128,0.3);"><span class="tag" style="color:#4ade80;">Статус</span><strong>Выплачено</strong><span class="d">Деньги переведены на карту клиента</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Ценовые коридоры -->
+    <section class="slide">
+      <div class="slide-inner two-col">
+        <div class="mock" style="order:2;">
+          <div class="mock-head"><span class="dot"></span> ЦЕНОВОЙ КОРИДОР</div>
+          <div class="mock-body">
+            <div class="flow-box" style="margin-bottom:10px;"><span class="tag">Условие</span><strong>Продать при портфеле 130 000 ₽</strong><span class="d">Или при доходности +20% от цены покупки</span></div>
+            <div class="flow-box" style="background: var(--gold-soft); border-color: rgba(232,200,116,0.3);"><span class="tag" style="color:#e8c874;">Автоматически</span><strong>Курс достиг цели → сделка исполнена</strong><span class="d">Без участия клиента в момент срабатывания</span></div>
+          </div>
+        </div>
+        <div style="order:1;">
+          <div class="kicker">Автоматизация</div>
+          <h1 class="slide-title">Ценовые коридоры: продать или купить на своих условиях</h1>
+          <p class="slide-sub">Клиент задаёт не «сложный курс в рублях», а понятную цель — желаемую стоимость портфеля или процент прибыли. Система сама переводит цель в курс и исполняет сделку, когда рынок доходит до нужной точки.</p>
+          <ul class="check-list">
+            <li>Цель по сумме портфеля или по процентной доходности</li>
+            <li>Готовые пресеты («+10%», «+20%») для быстрой настройки</li>
+            <li>Фоновая проверка курса — сделка исполняется без участия клиента</li>
+            <li>Защита от повторного срабатывания одной и той же заявки</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. Регулярные инвестиции -->
+    <section class="slide">
+      <div class="slide-inner two-col">
+        <div>
+          <div class="kicker">Автоматизация</div>
+          <h1 class="slide-title">Регулярные инвестиции — покупка золота по графику</h1>
+          <p class="slide-sub">Клиент один раз задаёт сумму и день месяца — дальше золото покупается автоматически, как автоплатёж. Вся история покупок сохраняется в кабинете.</p>
+          <ul class="check-list">
+            <li>Сумма и день месяца настраиваются один раз</li>
+            <li>Покупка выполняется автоматически по расписанию</li>
+            <li>История платежей и результатов доступна в кабинете</li>
+            <li>Подписку можно приостановить или отменить в любой момент</li>
+          </ul>
+        </div>
+        <div class="mock">
+          <div class="mock-head"><span class="dot"></span> АВТОПЛАТЁЖ</div>
+          <div class="mock-body">
+            <div class="kpi-row">
+              <div class="kpi"><div class="n">10 000 ₽</div><div class="l">сумма в месяц</div></div>
+              <div class="kpi"><div class="n">5 число</div><div class="l">день покупки</div></div>
+            </div>
+            <div class="flow-box"><span class="tag">Последний запуск</span><strong>05.08 · куплено 1,38 г</strong><span class="d">Следующая покупка — 05.09</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. AI и отчётность -->
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="kicker">Сервис</div>
+        <h1 class="slide-title">AI-ассистент и отчётность по первому запросу</h1>
+        <p class="slide-sub">Кабинет не просто показывает цифры — он объясняет их и даёт готовые документы для контроля и отчётности.</p>
+        <div class="grid cols-2">
+          <div class="card"><span class="badge red">🤖</span><h3>AI-ассистент портфеля</h3><p>Отвечает на вопросы о балансе и строит прогнозы на исторических данных ЦБ РФ</p></div>
+          <div class="card"><span class="badge ok">🧾</span><h3>PDF-выписка в один клик</h3><p>Полная история операций выгружается мгновенно</p></div>
+          <div class="card"><span class="badge gold">🛡️</span><h3>Официальные котировки</h3><p>Курс — из данных Мосбиржи и ЦБ РФ, а не из непрозрачных источников</p></div>
+          <div class="card"><span class="badge blue">📄</span><h3>Полная история сделок</h3><p>Каждая покупка, продажа и вывод — с датой, курсом и суммой</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9. Итог -->
+    <section class="slide title-slide">
+      <div class="slide-inner">
+        <div class="kicker">Итог</div>
+        <h1>Простой путь физлица в золото — без визитов в офис</h1>
+        <p class="lede">От входа по номеру телефона до автоматической покупки по графику и продажи по целевой цене — весь путь инвестора в золото собран в одном кабинете, прозрачно и без скрытых условий.</p>
+        <div class="pill-row">
+          <div class="pill">Готово: <b>покупка, продажа, вывод, портфель</b></div>
+          <div class="pill">Готово: <b>ценовые коридоры, автоплатёж</b></div>
+          <div class="pill">Далее: <b>эквайринг для оплаты картой напрямую</b></div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="nav">
+    <button class="nav-btn" id="prev" aria-label="Назад">‹</button>
+    <div class="dots" id="dots"></div>
+    <button class="nav-btn" id="next" aria-label="Далее">›</button>
+  </div>
+
+  <script>
+    const deck = document.getElementById('deck');
+    const slides = Array.from(deck.querySelectorAll('.slide'));
+    const dotsWrap = document.getElementById('dots');
+    const cnt = document.getElementById('cnt');
+    document.getElementById('total').textContent = slides.length;
+
+    slides.forEach((_, i) => {
+      const d = document.createElement('div');
+      d.className = 'dot' + (i === 0 ? ' active' : '');
+      d.addEventListener('click', () => goTo(i));
+      dotsWrap.appendChild(d);
+    });
+    const dots = Array.from(dotsWrap.children);
+
+    let current = 0;
+    function goTo(i) {
+      current = Math.max(0, Math.min(slides.length - 1, i));
+      deck.scrollTo({ left: current * window.innerWidth, behavior: 'smooth' });
+    }
+    function updateActive(i) {
+      dots.forEach((d, idx) => d.classList.toggle('active', idx === i));
+      cnt.textContent = i + 1;
+    }
+
+    document.getElementById('prev').addEventListener('click', () => goTo(current - 1));
+    document.getElementById('next').addEventListener('click', () => goTo(current + 1));
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') goTo(current + 1);
+      if (e.key === 'ArrowLeft') goTo(current - 1);
+    });
+
+    let scrollTimeout;
+    deck.addEventListener('scroll', () => {
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        const idx = Math.round(deck.scrollLeft / window.innerWidth);
+        current = idx;
+        updateActive(idx);
+      }, 60);
+    }, { passive: true });
+
+    window.addEventListener('resize', () => goTo(current));
+  </script>
+</body>
+</html>

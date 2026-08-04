@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Reaktivo.pro — возможности для скупки золота и управления сетью</title>
+<style>
+  :root {
+    --bg: #0f1013;
+    --bg2: #17181c;
+    --card: #1c1e23;
+    --card-line: rgba(255,255,255,0.08);
+    --ink: #f4f5f7;
+    --muted: rgba(244,245,247,0.62);
+    --muted2: rgba(244,245,247,0.42);
+    --accent: #fe0000;
+    --accent-soft: rgba(254,0,0,0.14);
+    --gold: #e8c874;
+    --gold-soft: rgba(232,200,116,0.14);
+    --ok: #4ade80;
+    --ok-soft: rgba(74,222,128,0.12);
+    --blue: #6fa8ff;
+    --blue-soft: rgba(111,168,255,0.12);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+  }
+  .deck {
+    position: fixed; inset: 0;
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  .deck::-webkit-scrollbar { display: none; }
+  .slide {
+    flex: 0 0 100vw;
+    width: 100vw; height: 100%;
+    scroll-snap-align: start;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 6vw 96px;
+    position: relative;
+    background:
+      radial-gradient(ellipse 70% 45% at 85% 0%, rgba(254,0,0,0.10), transparent 55%),
+      radial-gradient(ellipse 60% 40% at 5% 100%, rgba(232,200,116,0.07), transparent 55%),
+      linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%);
+  }
+  .slide-inner { width: 100%; max-width: 980px; }
+  .kicker {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  .kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  h1.slide-title {
+    font-size: clamp(1.5rem, 3.4vw, 2.5rem);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin: 0 0 12px;
+    font-weight: 800;
+  }
+  p.slide-sub {
+    font-size: clamp(0.92rem, 1.3vw, 1.08rem);
+    color: var(--muted);
+    line-height: 1.55;
+    margin: 0 0 30px;
+    max-width: 720px;
+  }
+  .grid { display: grid; gap: 14px; }
+  .grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-line);
+    border-radius: 16px;
+    padding: 18px 20px;
+  }
+  .card h3 {
+    margin: 0 0 6px; font-size: 0.98rem; font-weight: 700; display: flex; align-items: center; gap: 8px;
+  }
+  .card p { margin: 0; font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+  .badge {
+    width: 30px; height: 30px; border-radius: 9px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.9rem; flex: none;
+  }
+  .badge.red { background: var(--accent-soft); color: var(--accent); }
+  .badge.gold { background: var(--gold-soft); color: var(--gold); }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.blue { background: var(--blue-soft); color: var(--blue); }
+
+  /* Title slide */
+  .title-slide .mark {
+    width: 60px; height: 60px; border-radius: 16px; background: var(--accent);
+    display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.6rem;
+    margin-bottom: 24px; box-shadow: 0 12px 32px rgba(254,0,0,0.35);
+  }
+  .title-slide h1 { font-size: clamp(1.9rem, 4.6vw, 3.4rem); margin-bottom: 16px; }
+  .title-slide .lede { font-size: clamp(1rem, 1.6vw, 1.25rem); color: var(--muted); max-width: 640px; margin-bottom: 34px; line-height: 1.5; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .pill {
+    border: 1px solid var(--card-line); border-radius: 999px; padding: 8px 16px;
+    font-size: 0.82rem; color: var(--muted); background: rgba(255,255,255,0.03);
+  }
+  .pill b { color: var(--ink); }
+
+  /* Schematic diagram helpers */
+  .flow-row { display: flex; align-items: stretch; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .flow-box {
+    flex: 1; min-width: 150px;
+    border: 1px solid var(--card-line); border-radius: 14px; padding: 14px 16px;
+    background: rgba(255,255,255,0.03);
+  }
+  .flow-box .tag { font-size: 0.65rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted2); margin-bottom: 6px; display: block; }
+  .flow-box strong { display: block; font-size: 0.95rem; margin-bottom: 4px; }
+  .flow-box span.d { font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+  .flow-arrow { display: flex; align-items: center; justify-content: center; color: var(--muted2); font-size: 1.2rem; flex: 0 0 24px; }
+
+  .mock {
+    border: 1px solid var(--card-line); border-radius: 18px; overflow: hidden;
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+  }
+  .mock-head {
+    display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+    border-bottom: 1px solid var(--card-line); font-size: 0.72rem; color: var(--muted2); font-weight: 700; letter-spacing: 0.04em;
+  }
+  .mock-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); opacity: 0.6; }
+  .mock-body { padding: 16px; }
+  .kpi-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .kpi { flex: 1; min-width: 110px; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 10px 12px; }
+  .kpi .n { font-size: 1.1rem; font-weight: 800; }
+  .kpi .l { font-size: 0.68rem; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+  .bars { display: flex; align-items: flex-end; gap: 5px; height: 60px; }
+  .bars i { flex: 1; background: linear-gradient(180deg, var(--gold), rgba(232,200,116,0.25)); border-radius: 4px 4px 0 0; }
+
+  ul.check-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+  ul.check-list li { display: flex; gap: 10px; font-size: 0.88rem; color: var(--muted); line-height: 1.5; }
+  ul.check-list li::before { content: '✓'; color: var(--ok); font-weight: 800; flex: none; }
+
+  .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 40px; align-items: center; }
+
+  /* nav */
+  .nav {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center; gap: 18px;
+    padding: 18px 0 26px;
+    z-index: 20;
+    pointer-events: none;
+  }
+  .nav > * { pointer-events: auto; }
+  .dots { display: flex; gap: 7px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.18); transition: all 0.25s; cursor: pointer; }
+  .dot.active { background: var(--accent); width: 20px; border-radius: 4px; }
+  .nav-btn {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 1px solid var(--card-line); background: rgba(255,255,255,0.05); color: var(--ink);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .nav-btn:hover { background: rgba(255,255,255,0.12); }
+  .counter {
+    position: fixed; top: 22px; right: 26px; z-index: 20;
+    font-size: 0.78rem; color: var(--muted2); font-weight: 600; letter-spacing: 0.04em;
+  }
+  .brandmini {
+    position: fixed; top: 22px; left: 26px; z-index: 20;
+    display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 0.85rem; letter-spacing: 0.02em;
+  }
+  .brandmini .m { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); }
+  .brandmini span { color: var(--accent); }
+
+  @media (max-width: 760px) {
+    .slide { padding: 90px 6vw 110px; align-items: flex-start; }
+    .grid.cols-2, .grid.cols-3 { grid-template-columns: 1fr; }
+    .two-col { grid-template-columns: 1fr; gap: 22px; }
+    .counter { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+  <div class="counter"><span id="cnt">1</span> / <span id="total">9</span></div>
+
+  <div class="deck" id="deck">
+
+    <!-- 1. Титул -->
+    <section class="slide title-slide">
+      <div class="slide-inner">
+        <div class="mark">R</div>
+        <h1>Инфраструктура для скупки золота и управления сетью</h1>
+        <p class="lede">Программа Reaktivo.pro закрывает полный цикл офлайн-скупки драгоценных металлов: от расчёта цены на кассе до аналитики по всей сети. Показываем, что уже работает и что даёт команде-оператору.</p>
+        <div class="pill-row">
+          <div class="pill">Лицензия <b>Пробирной палаты</b></div>
+          <div class="pill">Учёт в <b>ГИИС ДМДК</b></div>
+          <div class="pill">Оператор — <b>ООО «СЭТ»</b></div>
+          <div class="pill">Готово к <b>франшизе и новым регионам</b></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Калькулятор скупки -->
+    <section class="slide">
+      <div class="slide-inner two-col">
+        <div>
+          <div class="kicker">На кассе</div>
+          <h1 class="slide-title">Калькулятор скупки за секунды</h1>
+          <p class="slide-sub">Оператор вводит вес и пробу — программа сама берёт актуальный курс биржи или ЦБ и считает сумму выкупа с учётом наценки пункта. Никакого ручного пересчёта на калькуляторе.</p>
+          <ul class="check-list">
+            <li>Курсы Мосбиржи, ЦБ РФ и мировой биржи (XAUT) — обновляются автоматически</li>
+            <li>Пробы 585 / 750 / 999 и произвольная — расчёт мгновенный</li>
+            <li>Процент наценки настраивается по пункту / городу</li>
+            <li>История расчётов сохраняется по клиенту</li>
+          </ul>
+        </div>
+        <div class="mock">
+          <div class="mock-head"><span class="dot"></span> КАЛЬКУЛЯТОР СКУПКИ</div>
+          <div class="mock-body">
+            <div class="kpi-row">
+              <div class="kpi"><div class="n">5,8 г</div><div class="l">вес</div></div>
+              <div class="kpi"><div class="n">585</div><div class="l">проба</div></div>
+              <div class="kpi"><div class="n">7 240 ₽/г</div><div class="l">курс</div></div>
+            </div>
+            <div class="flow-box" style="background: var(--accent-soft); border-color: rgba(254,0,0,0.3);">
+              <span class="tag" style="color:#ffb3b3;">Итог к выплате</span>
+              <strong style="font-size:1.4rem;">24 630 ₽</strong>
+              <span class="d">Комиссия и проба учтены — сумма видна оператору и клиенту одновременно</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Показ клиенту / договор -->
+    <section class="slide">
+      <div class="slide-inner two-col">
+        <div class="mock" style="order:2;">
+          <div class="mock-head"><span class="dot"></span> РЕЖИМ «ПОКАЗАТЬ КЛИЕНТУ»</div>
+          <div class="mock-body">
+            <div class="flow-box" style="margin-bottom:10px;">
+              <span class="tag">Второй экран / планшет</span>
+              <strong>Премиальный тёмный экран</strong>
+              <span class="d">Клиент видит расчёт крупно и понятно, без «компьютерных» окон и лишних цифр</span>
+            </div>
+            <div class="flow-box">
+              <span class="tag">Документ</span>
+              <strong>Договор и чек — автоматически</strong>
+              <span class="d">PDF формируется из расчёта и печатается сразу, без набора вручную</span>
+            </div>
+          </div>
+        </div>
+        <div style="order:1;">
+          <div class="kicker">Работа с клиентом</div>
+          <h1 class="slide-title">Прозрачность прямо на месте</h1>
+          <p class="slide-sub">Отдельный экран для клиента — на планшете или втором мониторе — показывает расчёт крупно и честно. Это снимает вопросы «а как считали» и ускоряет закрытие сделки.</p>
+          <ul class="check-list">
+            <li>Полноэкранный клиентский режим одним нажатием у оператора</li>
+            <li>Договор купли-продажи и чек формируются автоматически по расчёту</li>
+            <li>Печать или отправка PDF клиенту сразу после сделки</li>
+            <li>Каждая сделка привязана к клиенту в справочнике</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Дашборд руководителя -->
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="kicker">Управление</div>
+        <h1 class="slide-title">Дашборд руководителя в реальном времени</h1>
+        <p class="slide-sub">Один экран — вся суть бизнеса за сегодня, неделю, месяц: сколько выкупили, сколько заплатили, как двигаются курсы и кто в команде показывает лучший результат.</p>
+        <div class="grid cols-3">
+          <div class="card"><span class="badge red">₽</span><h3>Денежный поток</h3><p>График выплат по дням за выбранный период, сравнение с предыдущим</p></div>
+          <div class="card"><span class="badge gold">◐</span><h3>Курсы в реальном времени</h3><p>Мосбиржа, ЦБ РФ, мировая биржа (XAUT) — на одном экране</p></div>
+          <div class="card"><span class="badge blue">🏆</span><h3>Рейтинг команды</h3><p>Кто из сотрудников и точек приносит больше сделок и оборота</p></div>
+        </div>
+        <div class="mock" style="margin-top:18px;">
+          <div class="mock-head"><span class="dot"></span> KPI ЗА ПЕРИОД</div>
+          <div class="mock-body">
+            <div class="kpi-row">
+              <div class="kpi"><div class="n">1 240 000 ₽</div><div class="l">выплачено за месяц</div></div>
+              <div class="kpi"><div class="n">312</div><div class="l">сделок</div></div>
+              <div class="kpi"><div class="n">+18%</div><div class="l">к прошлому месяцу</div></div>
+            </div>
+            <div class="bars">
+              <i style="height:35%"></i><i style="height:55%"></i><i style="height:40%"></i><i style="height:70%"></i><i style="height:50%"></i><i style="height:85%"></i><i style="height:60%"></i><i style="height:95%"></i><i style="height:75%"></i><i style="height:100%"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Аналитика и отчётность -->
+    <section class="slide">
+      <div class="slide-inner two-col">
+        <div>
+          <div class="kicker">Отчётность</div>
+          <h1 class="slide-title">Глубокая аналитика без Excel-таблиц</h1>
+          <p class="slide-sub">Всё, что нужно для собственника и бухгалтерии — фильтры по датам, сотрудникам и точкам, выгрузка в PDF и таблицы одним нажатием.</p>
+          <ul class="check-list">
+            <li>Фильтры по периоду, сотруднику, точке продаж</li>
+            <li>Экспорт отчётов в PDF и таблицы для бухгалтерии</li>
+            <li>Динамика по пробам металла и среднему чеку</li>
+            <li>История всех договоров с возможностью пересмотреть детали сделки</li>
+          </ul>
+        </div>
+        <div class="mock">
+          <div class="mock-head"><span class="dot"></span> АНАЛИТИКА</div>
+          <div class="mock-body">
+            <div class="flow-row" style="margin-bottom:0;">
+              <div class="flow-box"><span class="tag">Фильтр</span><strong>Период / сотрудник / точка</strong><span class="d">Отбор данных за пару кликов</span></div>
+            </div>
+            <div class="bars" style="margin-top:14px; height:80px;">
+              <i style="height:40%; background:linear-gradient(180deg,#6fa8ff,rgba(111,168,255,0.2))"></i>
+              <i style="height:65%; background:linear-gradient(180deg,#6fa8ff,rgba(111,168,255,0.2))"></i>
+              <i style="height:50%; background:linear-gradient(180deg,#6fa8ff,rgba(111,168,255,0.2))"></i>
+              <i style="height:80%; background:linear-gradient(180deg,#6fa8ff,rgba(111,168,255,0.2))"></i>
+              <i style="height:60%; background:linear-gradient(180deg,#6fa8ff,rgba(111,168,255,0.2))"></i>
+              <i style="height:90%; background:linear-gradient(180deg,#6fa8ff,rgba(111,168,255,0.2))"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Команда -->
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="kicker">Команда</div>
+        <h1 class="slide-title">Мотивация и контроль по каждому сотруднику</h1>
+        <p class="slide-sub">Видно, кто и как работает: количество сделок, оборот, средний чек. Это основа для бонусов и для быстрого выявления слабых точек.</p>
+        <div class="grid cols-2">
+          <div class="card"><span class="badge gold">👤</span><h3>Личная статистика</h3><p>По каждому сотруднику — сделки, оборот, средний чек, динамика за периоды</p></div>
+          <div class="card"><span class="badge ok">💬</span><h3>Чат поддержки внутри системы</h3><p>Сотрудники получают ответы на рабочие вопросы без внешних мессенджеров</p></div>
+          <div class="card"><span class="badge blue">🔐</span><h3>Роли и доступ</h3><p>Администратор, менеджер, сотрудник — у каждого свой набор разделов</p></div>
+          <div class="card"><span class="badge red">📱</span><h3>Проверка устройств</h3><p>Вход контролируется — снижает риск утечки доступа к кассе</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. Мультирегиональность / франшиза -->
+    <section class="slide">
+      <div class="slide-inner">
+        <div class="kicker">Масштабирование</div>
+        <h1 class="slide-title">Готово к новым точкам, регионам и франшизе</h1>
+        <p class="slide-sub">Система изначально строилась не под одну кассу, а под сеть: у каждого города и точки — свои настройки курса, при этом руководитель видит картину по всей сети целиком.</p>
+        <div class="flow-row">
+          <div class="flow-box"><span class="tag">Пункт 1 · Город А</span><strong>Своя наценка и курс</strong><span class="d">Настраивается отдельно под локальный рынок</span></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" style="background: var(--accent-soft); border-color: rgba(254,0,0,0.3);"><span class="tag" style="color:#ffb3b3;">Единая база</span><strong>Reaktivo.pro</strong><span class="d">Все точки и сотрудники — в одной системе учёта</span></div>
+          <div class="flow-arrow">←</div>
+          <div class="flow-box"><span class="tag">Пункт N · Город Б</span><strong>Своя наценка и курс</strong><span class="d">Добавляется без переписывания системы</span></div>
+        </div>
+        <ul class="check-list" style="margin-top:20px;">
+          <li>Новая точка или город добавляются без остановки работы остальной сети</li>
+          <li>Руководитель видит сводную аналитику по всей сети и по каждой точке отдельно</li>
+          <li>Подходит как основа для развития собственной сети ПВЗ или франшизы</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 8. Безопасность -->
+    <section class="slide">
+      <div class="slide-inner two-col">
+        <div>
+          <div class="kicker">Контроль</div>
+          <h1 class="slide-title">Официальность и контроль на каждом шаге</h1>
+          <p class="slide-sub">Бизнес по обороту драгметаллов регулируется — программа изначально сделана с учётом требований, а не «подкручена» под них позже.</p>
+          <ul class="check-list">
+            <li>Работа в рамках лицензии Пробирной палаты РФ</li>
+            <li>Постановка сделок на учёт в ГИИС ДМДК</li>
+            <li>Курсы — из официальных источников (Мосбиржа, ЦБ РФ), а не «с потолка»</li>
+            <li>Каждая сделка и договор сохраняются и доступны для проверки</li>
+          </ul>
+        </div>
+        <div class="mock">
+          <div class="mock-head"><span class="dot"></span> ЖУРНАЛ ОПЕРАЦИЙ</div>
+          <div class="mock-body">
+            <div class="flow-box" style="margin-bottom:10px;"><span class="tag">14:02</span><strong>Сделка №4821 · 5,8 г · 585</strong><span class="d">Оператор: Иванов И. · Пункт: Москва-1</span></div>
+            <div class="flow-box" style="margin-bottom:10px;"><span class="tag">13:47</span><strong>Сделка №4820 · 12,1 г · 750</strong><span class="d">Оператор: Петрова А. · Пункт: Казань-2</span></div>
+            <div class="flow-box"><span class="tag">13:30</span><strong>Сделка №4819 · 3,4 г · 999</strong><span class="d">Оператор: Иванов И. · Пункт: Москва-1</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9. Итог -->
+    <section class="slide title-slide">
+      <div class="slide-inner">
+        <div class="kicker">Итог</div>
+        <h1>Всё для операционной части — уже работает</h1>
+        <p class="lede">Калькулятор, договоры, дашборд, аналитика, команда и мультирегиональность собраны в одной системе. Это фундамент, на котором можно открывать новые точки и форматы без риска потерять контроль над цифрами.</p>
+        <div class="pill-row">
+          <div class="pill">Готово: <b>расчёт, договоры, аналитика, команда</b></div>
+          <div class="pill">Далее: <b>новые точки, регионы, форматы</b></div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="nav">
+    <button class="nav-btn" id="prev" aria-label="Назад">‹</button>
+    <div class="dots" id="dots"></div>
+    <button class="nav-btn" id="next" aria-label="Далее">›</button>
+  </div>
+
+  <script>
+    const deck = document.getElementById('deck');
+    const slides = Array.from(deck.querySelectorAll('.slide'));
+    const dotsWrap = document.getElementById('dots');
+    const cnt = document.getElementById('cnt');
+    document.getElementById('total').textContent = slides.length;
+
+    slides.forEach((_, i) => {
+      const d = document.createElement('div');
+      d.className = 'dot' + (i === 0 ? ' active' : '');
+      d.addEventListener('click', () => goTo(i));
+      dotsWrap.appendChild(d);
+    });
+    const dots = Array.from(dotsWrap.children);
+
+    let current = 0;
+    function goTo(i) {
+      current = Math.max(0, Math.min(slides.length - 1, i));
+      deck.scrollTo({ left: current * window.innerWidth, behavior: 'smooth' });
+    }
+    function updateActive(i) {
+      dots.forEach((d, idx) => d.classList.toggle('active', idx === i));
+      cnt.textContent = i + 1;
+    }
+
+    document.getElementById('prev').addEventListener('click', () => goTo(current - 1));
+    document.getElementById('next').addEventListener('click', () => goTo(current + 1));
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') goTo(current + 1);
+      if (e.key === 'ArrowLeft') goTo(current - 1);
+    });
+
+    let scrollTimeout;
+    deck.addEventListener('scroll', () => {
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        const idx = Math.round(deck.scrollLeft / window.innerWidth);
+        current = idx;
+        updateActive(idx);
+      }, 60);
+    }, { passive: true });
+
+    window.addEventListener('resize', () => goTo(current));
+  </script>
+</body>
+</html>
