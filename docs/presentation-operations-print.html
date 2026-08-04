@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<title>Reaktivo.pro — возможности для скупки золота и управления сетью</title>
+<style>
+  :root {
+    --bg: #f4f5f6;
+    --card: #ffffff;
+    --ink: #14151a;
+    --muted: #5c636b;
+    --line: #e2e4e6;
+    --accent: #fe0000;
+    --accent-soft: #ffeaea;
+    --gold: #9a7412;
+    --gold-soft: #fdf3de;
+    --ok: #0e7c48;
+    --ok-soft: #e6f5ee;
+    --blue: #1a4a8a;
+    --blue-soft: #e8f0fa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .page {
+    width: 297mm; min-height: 167mm;
+    margin: 0 auto 22px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    padding: 15mm 16mm;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .pagenum { position: absolute; bottom: 8mm; right: 16mm; font-size: 9px; color: var(--muted); letter-spacing: 0.04em; }
+  .brandmini { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 0.82rem; letter-spacing: 0.02em; margin-bottom: 18px; }
+  .brandmini .m { width: 20px; height: 20px; border-radius: 6px; background: var(--accent); }
+  .brandmini span { color: var(--accent); }
+
+  .kicker { display: inline-flex; align-items: center; gap: 7px; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+  .kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  h1.slide-title { font-size: 1.78rem; line-height: 1.18; letter-spacing: -0.01em; margin: 0 0 10px; font-weight: 800; }
+  p.slide-sub { font-size: 0.92rem; color: var(--muted); line-height: 1.5; margin: 0 0 18px; max-width: 640px; }
+
+  .grid { display: grid; gap: 12px; }
+  .grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .card { background: #fafbfc; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .card h3 { margin: 0 0 5px; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .card p { margin: 0; font-size: 0.78rem; color: var(--muted); line-height: 1.45; }
+  .badge { width: 26px; height: 26px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; flex: none; }
+  .badge.red { background: var(--accent-soft); color: var(--accent); }
+  .badge.gold { background: var(--gold-soft); color: var(--gold); }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.blue { background: var(--blue-soft); color: var(--blue); }
+
+  .title-page { align-items: flex-start; justify-content: center; }
+  .title-page .mark { width: 52px; height: 52px; border-radius: 14px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.4rem; color: #fff; margin-bottom: 20px; }
+  .title-page h1 { font-size: 2.5rem; margin-bottom: 14px; max-width: 720px; }
+  .title-page .lede { font-size: 1.05rem; color: var(--muted); max-width: 620px; margin-bottom: 26px; line-height: 1.5; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill { border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font-size: 0.78rem; color: var(--muted); background: #fafbfc; }
+  .pill b { color: var(--ink); }
+
+  .flow-row { display: flex; align-items: stretch; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .flow-box { flex: 1; min-width: 140px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fafbfc; }
+  .flow-box .tag { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: #9099a3; margin-bottom: 5px; display: block; }
+  .flow-box strong { display: block; font-size: 0.9rem; margin-bottom: 3px; }
+  .flow-box span.d { font-size: 0.76rem; color: var(--muted); line-height: 1.4; }
+  .flow-arrow { display: flex; align-items: center; justify-content: center; color: #9099a3; font-size: 1.1rem; flex: 0 0 22px; }
+
+  .mock { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; }
+  .mock-head { display: flex; align-items: center; gap: 8px; padding: 9px 13px; border-bottom: 1px solid var(--line); font-size: 0.68rem; color: #9099a3; font-weight: 700; letter-spacing: 0.04em; background: #fafbfc; }
+  .mock-head .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); opacity: 0.6; }
+  .mock-body { padding: 14px; }
+  .kpi-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .kpi { flex: 1; min-width: 100px; background: #f4f5f6; border-radius: 10px; padding: 8px 10px; }
+  .kpi .n { font-size: 1rem; font-weight: 800; }
+  .kpi .l { font-size: 0.62rem; color: #9099a3; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 46px; }
+  .bars i { flex: 1; background: linear-gradient(180deg, #d9b65a, #f6e6bf); border-radius: 3px 3px 0 0; }
+
+  ul.check-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  ul.check-list li { display: flex; gap: 9px; font-size: 0.82rem; color: var(--muted); line-height: 1.45; }
+  ul.check-list li::before { content: '✓'; color: var(--ok); font-weight: 800; flex: none; }
+
+  .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 28px; align-items: center; flex: 1; }
+
+  @media print {
+    body { background: #fff; }
+    .page { box-shadow: none; border: none; border-radius: 0; margin: 0; page-break-after: always; width: auto; min-height: auto; height: 167mm; }
+    .page:last-child { page-break-after: auto; }
+    @page { size: 297mm 167mm; margin: 0; }
+  }
+</style>
+</head>
+<body>
+
+  <section class="page title-page">
+    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="mark">R</div>
+    <h1>Инфраструктура для скупки золота и управления сетью</h1>
+    <p class="lede">Программа Reaktivo.pro закрывает полный цикл офлайн-скупки драгоценных металлов: от расчёта цены на кассе до аналитики по всей сети. Показываем, что уже работает и что даёт команде-оператору.</p>
+    <div class="pill-row">
+      <div class="pill">Лицензия <b>Пробирной палаты</b></div>
+      <div class="pill">Учёт в <b>ГИИС ДМДК</b></div>
+      <div class="pill">Оператор — <b>ООО «СЭТ»</b></div>
+      <div class="pill">Готово к <b>франшизе и новым регионам</b></div>
+    </div>
+    <div class="pagenum">1 / 9</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">На кассе</div>
+        <h1 class="slide-title">Калькулятор скупки за секунды</h1>
+        <p class="slide-sub">Оператор вводит вес и пробу — программа сама берёт актуальный курс биржи или ЦБ и считает сумму выкупа с учётом наценки пункта. Никакого ручного пересчёта на калькуляторе.</p>
+        <ul class="check-list">
+          <li>Курсы Мосбиржи, ЦБ РФ и мировой биржи (XAUT) — обновляются автоматически</li>
+          <li>Пробы 585 / 750 / 999 и произвольная — расчёт мгновенный</li>
+          <li>Процент наценки настраивается по пункту / городу</li>
+          <li>История расчётов сохраняется по клиенту</li>
+        </ul>
+      </div>
+      <div class="mock">
+        <div class="mock-head"><span class="dot"></span> КАЛЬКУЛЯТОР СКУПКИ</div>
+        <div class="mock-body">
+          <div class="kpi-row">
+            <div class="kpi"><div class="n">5,8 г</div><div class="l">вес</div></div>
+            <div class="kpi"><div class="n">585</div><div class="l">проба</div></div>
+            <div class="kpi"><div class="n">7 240 ₽/г</div><div class="l">курс</div></div>
+          </div>
+          <div class="flow-box" style="background: var(--accent-soft); border-color:#ffc7c7;">
+            <span class="tag" style="color:#c23b3b;">Итог к выплате</span>
+            <strong style="font-size:1.3rem;">24 630 ₽</strong>
+            <span class="d">Комиссия и проба учтены — сумма видна оператору и клиенту одновременно</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pagenum">2 / 9</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="two-col">
+      <div class="mock" style="order:2;">
+        <div class="mock-head"><span class="dot"></span> РЕЖИМ «ПОКАЗАТЬ КЛИЕНТУ»</div>
+        <div class="mock-body">
+          <div class="flow-box" style="margin-bottom:10px;">
+            <span class="tag">Второй экран / планшет</span>
+            <strong>Премиальный тёмный экран</strong>
+            <span class="d">Клиент видит расчёт крупно и понятно, без «компьютерных» окон и лишних цифр</span>
+          </div>
+          <div class="flow-box">
+            <span class="tag">Документ</span>
+            <strong>Договор и чек — автоматически</strong>
+            <span class="d">PDF формируется из расчёта и печатается сразу, без набора вручную</span>
+          </div>
+        </div>
+      </div>
+      <div style="order:1;">
+        <div class="kicker">Работа с клиентом</div>
+        <h1 class="slide-title">Прозрачность прямо на месте</h1>
+        <p class="slide-sub">Отдельный экран для клиента — на планшете или втором мониторе — показывает расчёт крупно и честно. Это снимает вопросы «а как считали» и ускоряет закрытие сделки.</p>
+        <ul class="check-list">
+          <li>Полноэкранный клиентский режим одним нажатием у оператора</li>
+          <li>Договор купли-продажи и чек формируются автоматически по расчёту</li>
+          <li>Печать или отправка PDF клиенту сразу после сделки</li>
+          <li>Каждая сделка привязана к клиенту в справочнике</li>
+        </ul>
+      </div>
+    </div>
+    <div class="pagenum">3 / 9</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="kicker">Управление</div>
+    <h1 class="slide-title">Дашборд руководителя в реальном времени</h1>
+    <p class="slide-sub">Один экран — вся суть бизнеса за сегодня, неделю, месяц: сколько выкупили, сколько заплатили, как двигаются курсы и кто в команде показывает лучший результат.</p>
+    <div class="grid cols-3">
+      <div class="card"><span class="badge red">₽</span><h3>Денежный поток</h3><p>График выплат по дням за выбранный период, сравнение с предыдущим</p></div>
+      <div class="card"><span class="badge gold">◐</span><h3>Курсы в реальном времени</h3><p>Мосбиржа, ЦБ РФ, мировая биржа (XAUT) — на одном экране</p></div>
+      <div class="card"><span class="badge blue">🏆</span><h3>Рейтинг команды</h3><p>Кто из сотрудников и точек приносит больше сделок и оборота</p></div>
+    </div>
+    <div class="mock" style="margin-top:14px;">
+      <div class="mock-head"><span class="dot"></span> KPI ЗА ПЕРИОД</div>
+      <div class="mock-body">
+        <div class="kpi-row">
+          <div class="kpi"><div class="n">1 240 000 ₽</div><div class="l">выплачено за месяц</div></div>
+          <div class="kpi"><div class="n">312</div><div class="l">сделок</div></div>
+          <div class="kpi"><div class="n">+18%</div><div class="l">к прошлому месяцу</div></div>
+        </div>
+        <div class="bars">
+          <i style="height:35%"></i><i style="height:55%"></i><i style="height:40%"></i><i style="height:70%"></i><i style="height:50%"></i><i style="height:85%"></i><i style="height:60%"></i><i style="height:95%"></i><i style="height:75%"></i><i style="height:100%"></i>
+        </div>
+      </div>
+    </div>
+    <div class="pagenum">4 / 9</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Отчётность</div>
+        <h1 class="slide-title">Глубокая аналитика без Excel-таблиц</h1>
+        <p class="slide-sub">Всё, что нужно для собственника и бухгалтерии — фильтры по датам, сотрудникам и точкам, выгрузка в PDF и таблицы одним нажатием.</p>
+        <ul class="check-list">
+          <li>Фильтры по периоду, сотруднику, точке продаж</li>
+          <li>Экспорт отчётов в PDF и таблицы для бухгалтерии</li>
+          <li>Динамика по пробам металла и среднему чеку</li>
+          <li>История всех договоров с возможностью пересмотреть детали сделки</li>
+        </ul>
+      </div>
+      <div class="mock">
+        <div class="mock-head"><span class="dot"></span> АНАЛИТИКА</div>
+        <div class="mock-body">
+          <div class="flow-row" style="margin-bottom:0;">
+            <div class="flow-box"><span class="tag">Фильтр</span><strong>Период / сотрудник / точка</strong><span class="d">Отбор данных за пару кликов</span></div>
+          </div>
+          <div class="bars" style="margin-top:12px; height:64px;">
+            <i style="height:40%; background:linear-gradient(180deg,#6fa8ff,#dce9ff)"></i>
+            <i style="height:65%; background:linear-gradient(180deg,#6fa8ff,#dce9ff)"></i>
+            <i style="height:50%; background:linear-gradient(180deg,#6fa8ff,#dce9ff)"></i>
+            <i style="height:80%; background:linear-gradient(180deg,#6fa8ff,#dce9ff)"></i>
+            <i style="height:60%; background:linear-gradient(180deg,#6fa8ff,#dce9ff)"></i>
+            <i style="height:90%; background:linear-gradient(180deg,#6fa8ff,#dce9ff)"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pagenum">5 / 9</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="kicker">Команда</div>
+    <h1 class="slide-title">Мотивация и контроль по каждому сотруднику</h1>
+    <p class="slide-sub">Видно, кто и как работает: количество сделок, оборот, средний чек. Это основа для бонусов и для быстрого выявления слабых точек.</p>
+    <div class="grid cols-2">
+      <div class="card"><span class="badge gold">👤</span><h3>Личная статистика</h3><p>По каждому сотруднику — сделки, оборот, средний чек, динамика за периоды</p></div>
+      <div class="card"><span class="badge ok">💬</span><h3>Чат поддержки внутри системы</h3><p>Сотрудники получают ответы на рабочие вопросы без внешних мессенджеров</p></div>
+      <div class="card"><span class="badge blue">🔐</span><h3>Роли и доступ</h3><p>Администратор, менеджер, сотрудник — у каждого свой набор разделов</p></div>
+      <div class="card"><span class="badge red">📱</span><h3>Проверка устройств</h3><p>Вход контролируется — снижает риск утечки доступа к кассе</p></div>
+    </div>
+    <div class="pagenum">6 / 9</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="kicker">Масштабирование</div>
+    <h1 class="slide-title">Готово к новым точкам, регионам и франшизе</h1>
+    <p class="slide-sub">Система изначально строилась не под одну кассу, а под сеть: у каждого города и точки — свои настройки курса, при этом руководитель видит картину по всей сети целиком.</p>
+    <div class="flow-row">
+      <div class="flow-box"><span class="tag">Пункт 1 · Город А</span><strong>Своя наценка и курс</strong><span class="d">Настраивается отдельно под локальный рынок</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background: var(--accent-soft); border-color:#ffc7c7;"><span class="tag" style="color:#c23b3b;">Единая база</span><strong>Reaktivo.pro</strong><span class="d">Все точки и сотрудники — в одной системе учёта</span></div>
+      <div class="flow-arrow">←</div>
+      <div class="flow-box"><span class="tag">Пункт N · Город Б</span><strong>Своя наценка и курс</strong><span class="d">Добавляется без переписывания системы</span></div>
+    </div>
+    <ul class="check-list" style="margin-top:14px;">
+      <li>Новая точка или город добавляются без остановки работы остальной сети</li>
+      <li>Руководитель видит сводную аналитику по всей сети и по каждой точке отдельно</li>
+      <li>Подходит как основа для развития собственной сети ПВЗ или франшизы</li>
+    </ul>
+    <div class="pagenum">7 / 9</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Контроль</div>
+        <h1 class="slide-title">Официальность и контроль на каждом шаге</h1>
+        <p class="slide-sub">Бизнес по обороту драгметаллов регулируется — программа изначально сделана с учётом требований, а не «подкручена» под них позже.</p>
+        <ul class="check-list">
+          <li>Работа в рамках лицензии Пробирной палаты РФ</li>
+          <li>Постановка сделок на учёт в ГИИС ДМДК</li>
+          <li>Курсы — из официальных источников (Мосбиржа, ЦБ РФ), а не «с потолка»</li>
+          <li>Каждая сделка и договор сохраняются и доступны для проверки</li>
+        </ul>
+      </div>
+      <div class="mock">
+        <div class="mock-head"><span class="dot"></span> ЖУРНАЛ ОПЕРАЦИЙ</div>
+        <div class="mock-body">
+          <div class="flow-box" style="margin-bottom:10px;"><span class="tag">14:02</span><strong>Сделка №4821 · 5,8 г · 585</strong><span class="d">Оператор: Иванов И. · Пункт: Москва-1</span></div>
+          <div class="flow-box" style="margin-bottom:10px;"><span class="tag">13:47</span><strong>Сделка №4820 · 12,1 г · 750</strong><span class="d">Оператор: Петрова А. · Пункт: Казань-2</span></div>
+          <div class="flow-box"><span class="tag">13:30</span><strong>Сделка №4819 · 3,4 г · 999</strong><span class="d">Оператор: Иванов И. · Пункт: Москва-1</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="pagenum">8 / 9</div>
+  </section>
+
+  <section class="page title-page">
+    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="kicker">Итог</div>
+    <h1>Всё для операционной части — уже работает</h1>
+    <p class="lede">Калькулятор, договоры, дашборд, аналитика, команда и мультирегиональность собраны в одной системе. Это фундамент, на котором можно открывать новые точки и форматы без риска потерять контроль над цифрами.</p>
+    <div class="pill-row">
+      <div class="pill">Готово: <b>расчёт, договоры, аналитика, команда</b></div>
+      <div class="pill">Далее: <b>новые точки, регионы, форматы</b></div>
+    </div>
+    <div class="pagenum">9 / 9</div>
+  </section>
+
+</body>
+</html>
