@@ -34,9 +34,10 @@
     flex-direction: column;
   }
   .pagenum { position: absolute; bottom: 8mm; right: 16mm; font-size: 9px; color: var(--muted); letter-spacing: 0.04em; }
-  .brandmini { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 0.82rem; letter-spacing: 0.02em; margin-bottom: 18px; }
-  .brandmini .m { width: 20px; height: 20px; border-radius: 6px; background: var(--accent); }
-  .brandmini span { color: var(--accent); }
+  .brandmini { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .brandmini .mark-icon { width: 30px; height: 30px; border-radius: 9px; box-shadow: 0 6px 16px -6px rgba(254,0,0,0.55); flex-shrink: 0; display: block; }
+  .brandmini .word { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; color: var(--ink); white-space: nowrap; }
+  .brandmini .word span { color: var(--accent); }
 
   .kicker { display: inline-flex; align-items: center; gap: 7px; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
   .kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
@@ -56,7 +57,9 @@
   .badge.blue { background: var(--blue-soft); color: var(--blue); }
 
   .title-page { align-items: flex-start; justify-content: center; }
-  .title-page .mark { width: 52px; height: 52px; border-radius: 14px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.4rem; color: #fff; margin-bottom: 20px; }
+  .title-page .brandmini { margin-bottom: 34px; }
+  .title-page .brandmini .mark-icon { width: 46px; height: 46px; border-radius: 13px; }
+  .title-page .brandmini .word { font-size: 1.5rem; }
   .title-page h1 { font-size: 2.5rem; margin-bottom: 14px; max-width: 720px; }
   .title-page .lede { font-size: 1.05rem; color: var(--muted); max-width: 620px; margin-bottom: 26px; line-height: 1.5; }
   .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -70,16 +73,23 @@
   .flow-box span.d { font-size: 0.76rem; color: var(--muted); line-height: 1.4; }
   .flow-arrow { display: flex; align-items: center; justify-content: center; color: #9099a3; font-size: 1.1rem; flex: 0 0 22px; }
 
-  .mock { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; }
-  .mock-head { display: flex; align-items: center; gap: 8px; padding: 9px 13px; border-bottom: 1px solid var(--line); font-size: 0.68rem; color: #9099a3; font-weight: 700; letter-spacing: 0.04em; background: #fafbfc; }
+  .mock-frame { background: linear-gradient(160deg, #eef0f2, #e3e6ea); border-radius: 20px; padding: 16px; }
+  .mock { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 18px 40px -18px rgba(20,21,26,0.28); }
+  .mock-head { display: flex; align-items: center; gap: 7px; padding: 10px 13px; border-bottom: 1px solid var(--line); font-size: 0.66rem; color: #9099a3; font-weight: 700; letter-spacing: 0.05em; background: #fbfbfc; }
+  .mock-head .traffic { display: flex; gap: 5px; margin-right: 4px; }
+  .mock-head .traffic i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+  .mock-head .traffic i:nth-child(1) { background: #ff6159; }
+  .mock-head .traffic i:nth-child(2) { background: #ffbd2e; }
+  .mock-head .traffic i:nth-child(3) { background: #28c941; }
   .mock-head .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); opacity: 0.6; }
-  .mock-body { padding: 14px; }
-  .kpi-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-  .kpi { flex: 1; min-width: 100px; background: #f4f5f6; border-radius: 10px; padding: 8px 10px; }
-  .kpi .n { font-size: 1rem; font-weight: 800; }
+  .mock-body { padding: 16px; }
+  .kpi-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .kpi { flex: 1; min-width: 100px; background: linear-gradient(160deg, #f6f7f8, #eef0f2); border: 1px solid #eceef0; border-radius: 10px; padding: 9px 11px; }
+  .kpi .n { font-size: 1.05rem; font-weight: 800; }
   .kpi .l { font-size: 0.62rem; color: #9099a3; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
-  .bars { display: flex; align-items: flex-end; gap: 4px; height: 46px; }
-  .bars i { flex: 1; background: linear-gradient(180deg, #d9b65a, #f6e6bf); border-radius: 3px 3px 0 0; }
+  .bars { display: flex; align-items: flex-end; gap: 5px; height: 52px; position: relative; }
+  .bars i { flex: 1; background: linear-gradient(180deg, #e8c874, #f8ecc9); border-radius: 4px 4px 1px 1px; }
+  .bars.blue i { background: linear-gradient(180deg, #6fa8ff, #d8e7ff); }
 
   ul.check-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
   ul.check-list li { display: flex; gap: 9px; font-size: 0.82rem; color: var(--muted); line-height: 1.45; }
@@ -98,8 +108,7 @@
 <body>
 
   <section class="page title-page">
-    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
-    <div class="mark">R</div>
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
     <h1>Инфраструктура для скупки золота и управления сетью</h1>
     <p class="lede">Программа Reaktivo.pro закрывает полный цикл офлайн-скупки драгоценных металлов: от расчёта цены на кассе до аналитики по всей сети. Показываем, что уже работает и что даёт команде-оператору.</p>
     <div class="pill-row">
@@ -112,7 +121,7 @@
   </section>
 
   <section class="page">
-    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
     <div class="two-col">
       <div>
         <div class="kicker">На кассе</div>
@@ -125,8 +134,9 @@
           <li>История расчётов сохраняется по клиенту</li>
         </ul>
       </div>
+      <div class="mock-frame">
       <div class="mock">
-        <div class="mock-head"><span class="dot"></span> КАЛЬКУЛЯТОР СКУПКИ</div>
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>КАЛЬКУЛЯТОР СКУПКИ</div>
         <div class="mock-body">
           <div class="kpi-row">
             <div class="kpi"><div class="n">5,8 г</div><div class="l">вес</div></div>
@@ -140,15 +150,17 @@
           </div>
         </div>
       </div>
+      </div>
     </div>
     <div class="pagenum">2 / 9</div>
   </section>
 
   <section class="page">
-    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
     <div class="two-col">
-      <div class="mock" style="order:2;">
-        <div class="mock-head"><span class="dot"></span> РЕЖИМ «ПОКАЗАТЬ КЛИЕНТУ»</div>
+      <div class="mock-frame" style="order:2;">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>РЕЖИМ «ПОКАЗАТЬ КЛИЕНТУ»</div>
         <div class="mock-body">
           <div class="flow-box" style="margin-bottom:10px;">
             <span class="tag">Второй экран / планшет</span>
@@ -161,6 +173,7 @@
             <span class="d">PDF формируется из расчёта и печатается сразу, без набора вручную</span>
           </div>
         </div>
+      </div>
       </div>
       <div style="order:1;">
         <div class="kicker">Работа с клиентом</div>
@@ -178,7 +191,7 @@
   </section>
 
   <section class="page">
-    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
     <div class="kicker">Управление</div>
     <h1 class="slide-title">Дашборд руководителя в реальном времени</h1>
     <p class="slide-sub">Один экран — вся суть бизнеса за сегодня, неделю, месяц: сколько выкупили, сколько заплатили, как двигаются курсы и кто в команде показывает лучший результат.</p>
@@ -187,16 +200,29 @@
       <div class="card"><span class="badge gold">◐</span><h3>Курсы в реальном времени</h3><p>Мосбиржа, ЦБ РФ, мировая биржа (XAUT) — на одном экране</p></div>
       <div class="card"><span class="badge blue">🏆</span><h3>Рейтинг команды</h3><p>Кто из сотрудников и точек приносит больше сделок и оборота</p></div>
     </div>
-    <div class="mock" style="margin-top:14px;">
-      <div class="mock-head"><span class="dot"></span> KPI ЗА ПЕРИОД</div>
-      <div class="mock-body">
-        <div class="kpi-row">
-          <div class="kpi"><div class="n">1 240 000 ₽</div><div class="l">выплачено за месяц</div></div>
-          <div class="kpi"><div class="n">312</div><div class="l">сделок</div></div>
-          <div class="kpi"><div class="n">+18%</div><div class="l">к прошлому месяцу</div></div>
+    <div class="flow-row" style="margin-top:14px; margin-bottom:0; align-items:stretch;">
+      <div class="mock-frame" style="flex:1.4; margin:0;">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>KPI ЗА ПЕРИОД</div>
+        <div class="mock-body">
+          <div class="kpi-row">
+            <div class="kpi"><div class="n">1 240 000 ₽</div><div class="l">выплачено за месяц</div></div>
+            <div class="kpi"><div class="n">312</div><div class="l">сделок</div></div>
+            <div class="kpi"><div class="n">+18%</div><div class="l">к прошлому месяцу</div></div>
+          </div>
+          <div class="bars">
+            <i style="height:35%"></i><i style="height:55%"></i><i style="height:40%"></i><i style="height:70%"></i><i style="height:50%"></i><i style="height:85%"></i><i style="height:60%"></i><i style="height:95%"></i><i style="height:75%"></i><i style="height:100%"></i>
+          </div>
         </div>
-        <div class="bars">
-          <i style="height:35%"></i><i style="height:55%"></i><i style="height:40%"></i><i style="height:70%"></i><i style="height:50%"></i><i style="height:85%"></i><i style="height:60%"></i><i style="height:95%"></i><i style="height:75%"></i><i style="height:100%"></i>
+      </div>
+      </div>
+      <div class="flow-box" style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:8px;">
+        <span class="tag">Оформление</span>
+        <strong>Светлая тема — по умолчанию</strong>
+        <span class="d">Максимальная читаемость для быстрой работы на кассе</span>
+        <div style="display:flex; gap:6px; margin-top:4px;">
+          <span class="pill" style="padding:5px 10px; font-size:0.7rem;">☀ Светлая — основная</span>
+          <span class="pill" style="padding:5px 10px; font-size:0.7rem;">🌙 Тёмная — по желанию</span>
         </div>
       </div>
     </div>
@@ -204,7 +230,7 @@
   </section>
 
   <section class="page">
-    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
     <div class="two-col">
       <div>
         <div class="kicker">Отчётность</div>
@@ -217,28 +243,30 @@
           <li>История всех договоров с возможностью пересмотреть детали сделки</li>
         </ul>
       </div>
+      <div class="mock-frame">
       <div class="mock">
-        <div class="mock-head"><span class="dot"></span> АНАЛИТИКА</div>
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>АНАЛИТИКА</div>
         <div class="mock-body">
           <div class="flow-row" style="margin-bottom:0;">
             <div class="flow-box"><span class="tag">Фильтр</span><strong>Период / сотрудник / точка</strong><span class="d">Отбор данных за пару кликов</span></div>
           </div>
-          <div class="bars" style="margin-top:12px; height:64px;">
-            <i style="height:40%; background:linear-gradient(180deg,#6fa8ff,#dce9ff)"></i>
-            <i style="height:65%; background:linear-gradient(180deg,#6fa8ff,#dce9ff)"></i>
-            <i style="height:50%; background:linear-gradient(180deg,#6fa8ff,#dce9ff)"></i>
-            <i style="height:80%; background:linear-gradient(180deg,#6fa8ff,#dce9ff)"></i>
-            <i style="height:60%; background:linear-gradient(180deg,#6fa8ff,#dce9ff)"></i>
-            <i style="height:90%; background:linear-gradient(180deg,#6fa8ff,#dce9ff)"></i>
+          <div class="bars blue" style="margin-top:12px; height:64px;">
+            <i style="height:40%"></i>
+            <i style="height:65%"></i>
+            <i style="height:50%"></i>
+            <i style="height:80%"></i>
+            <i style="height:60%"></i>
+            <i style="height:90%"></i>
           </div>
         </div>
+      </div>
       </div>
     </div>
     <div class="pagenum">5 / 9</div>
   </section>
 
   <section class="page">
-    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
     <div class="kicker">Команда</div>
     <h1 class="slide-title">Мотивация и контроль по каждому сотруднику</h1>
     <p class="slide-sub">Видно, кто и как работает: количество сделок, оборот, средний чек. Это основа для бонусов и для быстрого выявления слабых точек.</p>
@@ -252,7 +280,7 @@
   </section>
 
   <section class="page">
-    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
     <div class="kicker">Масштабирование</div>
     <h1 class="slide-title">Готово к новым точкам, регионам и франшизе</h1>
     <p class="slide-sub">Система изначально строилась не под одну кассу, а под сеть: у каждого города и точки — свои настройки курса, при этом руководитель видит картину по всей сети целиком.</p>
@@ -272,7 +300,7 @@
   </section>
 
   <section class="page">
-    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
     <div class="two-col">
       <div>
         <div class="kicker">Контроль</div>
@@ -285,20 +313,22 @@
           <li>Каждая сделка и договор сохраняются и доступны для проверки</li>
         </ul>
       </div>
+      <div class="mock-frame">
       <div class="mock">
-        <div class="mock-head"><span class="dot"></span> ЖУРНАЛ ОПЕРАЦИЙ</div>
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ЖУРНАЛ ОПЕРАЦИЙ</div>
         <div class="mock-body">
           <div class="flow-box" style="margin-bottom:10px;"><span class="tag">14:02</span><strong>Сделка №4821 · 5,8 г · 585</strong><span class="d">Оператор: Иванов И. · Пункт: Москва-1</span></div>
           <div class="flow-box" style="margin-bottom:10px;"><span class="tag">13:47</span><strong>Сделка №4820 · 12,1 г · 750</strong><span class="d">Оператор: Петрова А. · Пункт: Казань-2</span></div>
           <div class="flow-box"><span class="tag">13:30</span><strong>Сделка №4819 · 3,4 г · 999</strong><span class="d">Оператор: Иванов И. · Пункт: Москва-1</span></div>
         </div>
       </div>
+      </div>
     </div>
     <div class="pagenum">8 / 9</div>
   </section>
 
   <section class="page title-page">
-    <div class="brandmini"><span class="m"></span>REAKTIVO<span>.PRO</span></div>
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
     <div class="kicker">Итог</div>
     <h1>Всё для операционной части — уже работает</h1>
     <p class="lede">Калькулятор, договоры, дашборд, аналитика, команда и мультирегиональность собраны в одной системе. Это фундамент, на котором можно открывать новые точки и форматы без риска потерять контроль над цифрами.</p>
