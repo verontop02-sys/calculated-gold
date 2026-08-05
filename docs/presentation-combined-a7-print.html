@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<title>Reaktivo.pro — возможности системы для A7</title>
+<style>
+  :root {
+    --bg: #f4f5f6; --card: #ffffff; --ink: #14151a; --muted: #5c636b; --line: #e2e4e6;
+    --accent: #fe0000; --accent-soft: #ffeaea; --gold: #9a7412; --gold-soft: #fdf3de;
+    --ok: #0e7c48; --ok-soft: #e6f5ee; --blue: #1a4a8a; --blue-soft: #e8f0fa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .page { width: 297mm; min-height: 167mm; margin: 0 auto 22px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 15mm 16mm; position: relative; display: flex; flex-direction: column; }
+  .pagenum { position: absolute; bottom: 8mm; right: 16mm; font-size: 9px; color: var(--muted); letter-spacing: 0.04em; }
+  .brandmini { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .brandmini .mark-icon { width: 30px; height: 30px; border-radius: 9px; box-shadow: 0 6px 16px -6px rgba(254,0,0,0.55); flex-shrink: 0; display: block; }
+  .brandmini .word { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; color: var(--ink); white-space: nowrap; }
+  .brandmini .word span { color: var(--accent); }
+  .kicker { display: inline-flex; align-items: center; gap: 7px; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+  .kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .part-invest .kicker { color: var(--gold); }
+  h1.slide-title { font-size: 1.78rem; line-height: 1.18; letter-spacing: -0.01em; margin: 0 0 10px; font-weight: 800; }
+  p.slide-sub { font-size: 0.92rem; color: var(--muted); line-height: 1.5; margin: 0 0 18px; max-width: 640px; }
+  .grid { display: grid; gap: 12px; }
+  .grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .card { background: #fafbfc; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .card h3 { margin: 0 0 5px; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .card p { margin: 0; font-size: 0.78rem; color: var(--muted); line-height: 1.45; }
+  .badge { width: 26px; height: 26px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; flex: none; }
+  .badge.red { background: var(--accent-soft); color: var(--accent); }
+  .badge.gold { background: var(--gold-soft); color: var(--gold); }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.blue { background: var(--blue-soft); color: var(--blue); }
+  .title-page { align-items: flex-start; justify-content: center; }
+  .title-page .brandmini { margin-bottom: 34px; }
+  .title-page .brandmini .mark-icon { width: 46px; height: 46px; border-radius: 13px; }
+  .title-page .brandmini .word { font-size: 1.5rem; }
+  .title-page h1 { font-size: 2.5rem; margin-bottom: 14px; max-width: 720px; }
+  .title-page .lede { font-size: 1.05rem; color: var(--muted); max-width: 640px; margin-bottom: 26px; line-height: 1.5; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill { border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font-size: 0.78rem; color: var(--muted); background: #fafbfc; }
+  .pill b { color: var(--ink); }
+  .flow-row { display: flex; align-items: stretch; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .flow-box { flex: 1; min-width: 140px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fafbfc; }
+  .flow-box .tag { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: #9099a3; margin-bottom: 5px; display: block; }
+  .flow-box strong { display: block; font-size: 0.9rem; margin-bottom: 3px; }
+  .flow-box span.d { font-size: 0.76rem; color: var(--muted); line-height: 1.4; }
+  .flow-arrow { display: flex; align-items: center; justify-content: center; color: #9099a3; font-size: 1.1rem; flex: 0 0 22px; }
+  .mock-frame { background: linear-gradient(160deg, #eef0f2, #e3e6ea); border-radius: 20px; padding: 16px; }
+  .mock { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 18px 40px -18px rgba(20,21,26,0.28); }
+  .mock-head { display: flex; align-items: center; gap: 7px; padding: 10px 13px; border-bottom: 1px solid var(--line); font-size: 0.66rem; color: #9099a3; font-weight: 700; letter-spacing: 0.05em; background: #fbfbfc; }
+  .mock-head .traffic { display: flex; gap: 5px; margin-right: 4px; }
+  .mock-head .traffic i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+  .mock-head .traffic i:nth-child(1) { background: #ff6159; }
+  .mock-head .traffic i:nth-child(2) { background: #ffbd2e; }
+  .mock-head .traffic i:nth-child(3) { background: #28c941; }
+  .mock-body { padding: 16px; }
+  .kpi-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .kpi { flex: 1; min-width: 100px; background: linear-gradient(160deg, #f6f7f8, #eef0f2); border: 1px solid #eceef0; border-radius: 10px; padding: 9px 11px; }
+  .kpi .n { font-size: 1.05rem; font-weight: 800; }
+  .kpi .l { font-size: 0.62rem; color: #9099a3; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+  .bars { display: flex; align-items: flex-end; gap: 5px; height: 52px; position: relative; }
+  .bars i { flex: 1; background: linear-gradient(180deg, #e8c874, #f8ecc9); border-radius: 4px 4px 1px 1px; }
+  .bars.blue i { background: linear-gradient(180deg, #6fa8ff, #d8e7ff); }
+  .row { display: flex; justify-content: space-between; gap: 10px; font-size: 0.78rem; color: var(--muted); padding: 5px 0; border-bottom: 1px dashed #eceef0; }
+  .row:last-child { border-bottom: none; }
+  .row b { color: var(--ink); font-weight: 700; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 0.68rem; color: var(--muted); background: #fff; }
+  .chip.on { background: var(--gold-soft); border-color: #f0dfa8; color: var(--gold); font-weight: 700; }
+  ul.check-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  ul.check-list li { display: flex; gap: 9px; font-size: 0.82rem; color: var(--muted); line-height: 1.45; }
+  ul.check-list li::before { content: '✓'; color: var(--ok); font-weight: 800; flex: none; }
+  .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 28px; align-items: center; flex: 1; }
+  .steps { display: grid; gap: 9px; }
+  .step { display: flex; gap: 12px; align-items: flex-start; }
+  .step .num { flex: none; width: 28px; height: 28px; border-radius: 8px; background: var(--gold-soft); color: var(--gold); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.78rem; }
+  .step .txt strong { display: block; font-size: 0.88rem; margin-bottom: 2px; }
+  .step .txt span { font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
+  .chat { display: grid; gap: 8px; }
+  .bubble { border-radius: 12px; padding: 10px 12px; font-size: 0.78rem; line-height: 1.4; max-width: 92%; }
+  .bubble.user { background: #f4f5f6; color: var(--muted); justify-self: end; }
+  .bubble.bot { background: var(--gold-soft); color: var(--ink); justify-self: start; }
+  #deck-scale { transform-origin: top center; }
+  @media print {
+    body { background: #fff; }
+    #deck-scale { zoom: 1 !important; }
+    .page { box-shadow: none; border: none; border-radius: 0; margin: 0; page-break-after: always; width: auto; min-height: auto; height: 167mm; }
+    .page:last-child { page-break-after: auto; }
+    @page { size: 297mm 167mm; margin: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="deck-scale">
+<section class="page title-page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <h1>Инфраструктура для скупки золота и управления сетью</h1>
+    <p class="lede">Программа Reaktivo.pro закрывает полный цикл офлайн и онлайн скупки драгоценных металлов: от расчёта цены на кассе до аналитики по всей сети. Демонстрация возможностей программы.</p>
+    <div class="pill-row">
+      <div class="pill">Лицензия <b>Пробирной палаты</b></div>
+      <div class="pill">Учёт в <b>ГИИС ДМДК</b></div>
+      <div class="pill">Оператор — <b>ООО «СЭТ»</b></div>
+      <div class="pill">Готово к <b>франшизе и новым регионам</b></div>
+    </div>
+    <div class="pagenum">1 / 22</div>
+  </section>
+
+<section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">На кассе</div>
+        <h1 class="slide-title">Калькулятор скупки за секунды</h1>
+        <p class="slide-sub">Оператор вводит вес и пробу — программа сама берёт актуальный курс биржи или ЦБ и считает сумму выкупа с учётом наценки пункта. Никакого ручного пересчёта на калькуляторе.</p>
+        <ul class="check-list">
+          <li>Курсы Мосбиржи, ЦБ РФ и мировой биржи (XAUT) — обновляются автоматически</li>
+          <li>Пробы 585 / 750 / 999 и произвольная — расчёт мгновенный</li>
+          <li>Процент наценки настраивается по пункту / городу</li>
+          <li>История расчётов сохраняется по клиенту</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>КАЛЬКУЛЯТОР СКУПКИ</div>
+        <div class="mock-body">
+          <div class="kpi-row">
+            <div class="kpi"><div class="n">5,8 г</div><div class="l">вес</div></div>
+            <div class="kpi"><div class="n">585</div><div class="l">проба</div></div>
+            <div class="kpi"><div class="n">7 240 ₽/г</div><div class="l">курс</div></div>
+          </div>
+          <div class="flow-box" style="background: var(--accent-soft); border-color:#ffc7c7;">
+            <span class="tag" style="color:#c23b3b;">Итог к выплате</span>
+            <strong style="font-size:1.3rem;">24 630 ₽</strong>
+            <span class="d">Комиссия и проба учтены — сумма видна оператору и клиенту одновременно</span>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="pagenum">2 / 22</div>
+  </section>
+
+<section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div class="mock-frame" style="order:2;">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ЭКРАН КЛИЕНТА</div>
+        <div class="mock-body" style="background: linear-gradient(180deg, #16181e 0%, #1c1f26 100%); color: #f4f5f7;">
+          <div style="text-align:center; margin-bottom:12px;">
+            <div style="font-size:0.65rem; letter-spacing:0.1em; text-transform:uppercase; color:rgba(244,245,247,0.5); margin-bottom:4px;">Ваш выкуп</div>
+            <div style="font-size:1.7rem; font-weight:800; letter-spacing:-0.02em;">24 630 ₽</div>
+            <div style="font-size:0.72rem; color:rgba(244,245,247,0.55); margin-top:2px;">За 5,8 г · 585 проба</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:center; margin-bottom:10px;">
+            <div style="background:rgba(255,255,255,0.06); border-radius:10px; padding:10px;">
+              <div style="font-size:0.58rem; text-transform:uppercase; letter-spacing:0.06em; color:rgba(244,245,247,0.45);">Наша цена за 1 г</div>
+              <div style="font-weight:800; font-size:0.95rem; margin-top:2px;">4 247 ₽</div>
+            </div>
+            <div style="font-size:0.65rem; font-weight:800; color:rgba(244,245,247,0.35);">VS</div>
+            <div style="background:rgba(255,255,255,0.06); border-radius:10px; padding:10px;">
+              <div style="font-size:0.58rem; text-transform:uppercase; letter-spacing:0.06em; color:rgba(244,245,247,0.45);">Среднее по городу</div>
+              <div style="font-weight:800; font-size:0.95rem; margin-top:2px;">3 920 ₽</div>
+            </div>
+          </div>
+          <div style="background:rgba(74,222,128,0.14); border:1px solid rgba(74,222,128,0.35); border-radius:10px; padding:10px 12px; display:flex; gap:10px; align-items:center;">
+            <strong style="color:#4ade80; font-size:1.05rem;">+8,3%</strong>
+            <span style="font-size:0.72rem; color:rgba(244,245,247,0.75); line-height:1.35;">выгоднее средней по городу — это +327 ₽ за каждый грамм</span>
+          </div>
+        </div>
+      </div>
+      </div>
+      <div style="order:1;">
+        <div class="kicker">Работа с клиентом</div>
+        <h1 class="slide-title">Прозрачность прямо на месте</h1>
+        <p class="slide-sub">Отдельный экран для клиента — на планшете или втором мониторе — показывает сумму выкупа и сравнение с рынком города. Клиент сразу видит, насколько предложение выгоднее конкурентов.</p>
+        <ul class="check-list">
+          <li>Крупная сумма «сколько вы получаете» — без лишних окон</li>
+          <li>Сравнение нашей цены со средней по городу в процентах и рублях</li>
+          <li>Договор и чек формируются автоматически по расчёту</li>
+          <li>Каждая сделка привязана к клиенту в справочнике</li>
+        </ul>
+      </div>
+    </div>
+    <div class="pagenum">3 / 22</div>
+  </section>
+
+<section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Управление</div>
+    <h1 class="slide-title">Дашборд руководителя в реальном времени</h1>
+    <p class="slide-sub">Один экран — вся суть бизнеса за сегодня, неделю, месяц: сколько выкупили, сколько заплатили, как двигаются курсы и кто в команде показывает лучший результат.</p>
+    <div class="grid cols-3">
+      <div class="card"><span class="badge red">₽</span><h3>Денежный поток</h3><p>График выплат по дням за выбранный период, сравнение с предыдущим</p></div>
+      <div class="card"><span class="badge gold">◐</span><h3>Курсы в реальном времени</h3><p>Мосбиржа, ЦБ РФ, мировая биржа (XAUT) — на одном экране</p></div>
+      <div class="card"><span class="badge blue">🏆</span><h3>Рейтинг команды</h3><p>Кто из сотрудников и точек приносит больше сделок и оборота</p></div>
+    </div>
+    <div class="flow-row" style="margin-top:14px; margin-bottom:0; align-items:stretch;">
+      <div class="mock-frame" style="flex:1.4; margin:0;">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>KPI ЗА ПЕРИОД</div>
+        <div class="mock-body">
+          <div class="kpi-row">
+            <div class="kpi"><div class="n">1 240 000 ₽</div><div class="l">выплачено за месяц</div></div>
+            <div class="kpi"><div class="n">312</div><div class="l">сделок</div></div>
+            <div class="kpi"><div class="n">+18%</div><div class="l">к прошлому месяцу</div></div>
+          </div>
+          <div class="bars">
+            <i style="height:35%"></i><i style="height:55%"></i><i style="height:40%"></i><i style="height:70%"></i><i style="height:50%"></i><i style="height:85%"></i><i style="height:60%"></i><i style="height:95%"></i><i style="height:75%"></i><i style="height:100%"></i>
+          </div>
+        </div>
+      </div>
+      </div>
+      <div class="flow-box" style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:8px;">
+        <span class="tag">Оформление</span>
+        <strong>Светлая тема — по умолчанию</strong>
+        <span class="d">Максимальная читаемость для быстрой работы на кассе</span>
+        <div style="display:flex; gap:6px; margin-top:4px;">
+          <span class="pill" style="padding:5px 10px; font-size:0.7rem;">☀ Светлая — основная</span>
+          <span class="pill" style="padding:5px 10px; font-size:0.7rem;">🌙 Тёмная — по желанию</span>
+        </div>
+      </div>
+    </div>
+    <div class="pagenum">4 / 22</div>
+  </section>
+
+<section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Отчётность</div>
+        <h1 class="slide-title">Глубокая аналитика без Excel-таблиц</h1>
+        <p class="slide-sub">Всё, что нужно для собственника и бухгалтерии — фильтры по датам, сотрудникам и точкам, выгрузка в PDF и таблицы одним нажатием.</p>
+        <ul class="check-list">
+          <li>Фильтры по периоду, сотруднику, точке продаж</li>
+          <li>Экспорт отчётов в PDF и таблицы для бухгалтерии</li>
+          <li>Динамика по пробам металла и среднему чеку</li>
+          <li>История всех договоров с возможностью пересмотреть детали сделки</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>АНАЛИТИКА</div>
+        <div class="mock-body">
+          <div class="flow-row" style="margin-bottom:0;">
+            <div class="flow-box"><span class="tag">Фильтр</span><strong>Период / сотрудник / точка</strong><span class="d">Отбор данных за пару кликов</span></div>
+          </div>
+          <div class="bars blue" style="margin-top:12px; height:64px;">
+            <i style="height:40%"></i>
+            <i style="height:65%"></i>
+            <i style="height:50%"></i>
+            <i style="height:80%"></i>
+            <i style="height:60%"></i>
+            <i style="height:90%"></i>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="pagenum">5 / 22</div>
+  </section>
+
+<section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Команда</div>
+    <h1 class="slide-title">Мотивация и контроль по каждому сотруднику</h1>
+    <p class="slide-sub">Видно, кто и как работает: количество сделок, оборот, средний чек. Это основа для бонусов и для быстрого выявления слабых точек.</p>
+    <div class="grid cols-2">
+      <div class="card"><span class="badge gold">👤</span><h3>Личная статистика</h3><p>По каждому сотруднику — сделки, оборот, средний чек, динамика за периоды</p></div>
+      <div class="card"><span class="badge ok">💬</span><h3>Чат поддержки внутри системы</h3><p>Сотрудники получают ответы на рабочие вопросы без внешних мессенджеров</p></div>
+      <div class="card"><span class="badge blue">🔐</span><h3>Роли и доступ</h3><p>Администратор, менеджер, сотрудник — у каждого свой набор разделов</p></div>
+      <div class="card"><span class="badge red">📱</span><h3>Проверка устройств</h3><p>Вход контролируется — снижает риск утечки доступа к кассе</p></div>
+    </div>
+    <div class="pagenum">6 / 22</div>
+  </section>
+
+<section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Масштабирование</div>
+    <h1 class="slide-title">Готово к новым точкам, регионам и франшизе</h1>
+    <p class="slide-sub">Система изначально проектировалась не для одной кассы, а для сети: у каждого города и точки — свои настройки курса, а руководитель видит картину по всей сети целиком.</p>
+    <div class="flow-row">
+      <div class="flow-box"><span class="tag">Пункт 1 · Город А</span><strong>Своя наценка и курс</strong><span class="d">Настраивается отдельно под локальный рынок</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background: var(--accent-soft); border-color:#ffc7c7;"><span class="tag" style="color:#c23b3b;">Единая база</span><strong>Reaktivo.pro</strong><span class="d">Все точки и сотрудники — в одной системе учёта</span></div>
+      <div class="flow-arrow">←</div>
+      <div class="flow-box"><span class="tag">Пункт N · Город Б</span><strong>Своя наценка и курс</strong><span class="d">Добавляется без переписывания системы</span></div>
+    </div>
+    <ul class="check-list" style="margin-top:14px;">
+      <li>Новая точка или город добавляются без остановки работы остальной сети</li>
+      <li>Руководитель видит сводную аналитику по всей сети и по каждой точке отдельно</li>
+      <li>Подходит как основа для развития собственной сети ПВЗ или франшизы</li>
+    </ul>
+    <div class="pagenum">7 / 22</div>
+  </section>
+
+<section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Контроль</div>
+        <h1 class="slide-title">Официальность и контроль на каждом шаге</h1>
+        <p class="slide-sub">Бизнес по обороту драгметаллов регулируется — программа с самого начала создавалась с учётом требований, а не «подкручивалась» под них позже.</p>
+        <ul class="check-list">
+          <li>Работа в рамках лицензии Пробирной палаты РФ</li>
+          <li>Постановка сделок на учёт в ГИИС ДМДК</li>
+          <li>Курсы — из официальных источников (Мосбиржа, ЦБ РФ)</li>
+          <li>Каждая сделка и договор сохраняются и доступны для проверки</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ЖУРНАЛ ОПЕРАЦИЙ</div>
+        <div class="mock-body">
+          <div class="flow-box" style="margin-bottom:10px;"><span class="tag">14:02</span><strong>Сделка №4821 · 5,8 г · 585</strong><span class="d">Оператор: Иванов И. · Пункт: Москва-1</span></div>
+          <div class="flow-box" style="margin-bottom:10px;"><span class="tag">13:47</span><strong>Сделка №4820 · 12,1 г · 750</strong><span class="d">Оператор: Петрова А. · Пункт: Казань-2</span></div>
+          <div class="flow-box"><span class="tag">13:30</span><strong>Сделка №4819 · 3,4 г · 999</strong><span class="d">Оператор: Иванов И. · Пункт: Москва-1</span></div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="pagenum">8 / 22</div>
+  </section>
+
+<section class="page title-page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Итог</div>
+    <h1>Всё для операционной части — уже работает</h1>
+    <p class="lede">Калькулятор, договоры, дашборд, аналитика, команда и мультирегиональность объединены в одной системе. Это фундамент, который позволяет открывать новые точки в разных форматах без риска потерять контроль над цифрами.</p>
+    <div class="pill-row">
+      <div class="pill">Готово: <b>расчёт, договоры, аналитика, команда</b></div>
+      <div class="pill">Далее: <b>новые точки, регионы, форматы</b></div>
+    </div>
+    <div class="pagenum">9 / 22</div>
+  </section>
+
+<section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Доставка</div>
+        <h1 class="slide-title">Курьеры и выездная скупка</h1>
+        <p class="slide-sub">Система поддерживает не только кассу в отделении, но и работу курьера на выезде: сделка оформляется на месте, клиент подтверждает её по SMS, чек уходит на почту или в мессенджер.</p>
+        <ul class="check-list">
+          <li>Роль «Курьер» — отдельный доступ без лишних админ-разделов</li>
+          <li>Сделка на месте: расчёт → договор → SMS-подтверждение клиенту</li>
+          <li>Отправка чека на email или в мессенджер сразу после сделки</li>
+          <li>В аналитике видно долю отделения и доставки — отдельно по каналам</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ВЫЕЗДНАЯ СДЕЛКА</div>
+        <div class="mock-body">
+          <div class="flow-box" style="margin-bottom:10px;"><span class="tag">Шаг 1</span><strong>Курьер считает и оформляет</strong><span class="d">Те же калькулятор и договор, что на кассе</span></div>
+          <div class="flow-box" style="margin-bottom:10px;"><span class="tag">Шаг 2</span><strong>Клиент подтверждает по SMS</strong><span class="d">Код на телефон — без бумажной подписи на месте</span></div>
+          <div class="flow-box" style="background: var(--ok-soft); border-color:#bfe4cf;"><span class="tag" style="color:#0e7c48;">Шаг 3</span><strong>Чек отправлен</strong><span class="d">Email / мессенджер · сделка в общей аналитике</span></div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="pagenum">10 / 22</div>
+  </section>
+
+<section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Рынок</div>
+        <h1 class="slide-title">Индекс золота по регионам</h1>
+        <p class="slide-sub">Отдельный модуль собирает цены конкурентов по городам и сравнивает их с биржевым курсом. Руководитель видит, где рынок «горячий», а где можно смелее работать с наценкой.</p>
+        <ul class="check-list">
+          <li>Карта и сводка по регионам России</li>
+          <li>Средние цены конкурентов по пробам (585, 750, 999…)</li>
+          <li>Отношение к биржевому курсу — в процентах и цветом</li>
+          <li>Данные для настройки курса каждой точки сети</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ИНДЕКС ЗОЛОТА</div>
+        <div class="mock-body">
+          <div class="kpi-row">
+            <div class="kpi"><div class="n">Москва</div><div class="l">регион</div></div>
+            <div class="kpi"><div class="n">68,4%</div><div class="l">от биржи · 585</div></div>
+            <div class="kpi"><div class="n" style="color:#0e7c48;">● норм</div><div class="l">статус рынка</div></div>
+          </div>
+          <div class="flow-box" style="margin-bottom:10px;"><span class="tag">Конкуренты</span><strong>Среднее 3 920 ₽/г · от 3 650 до 4 180</strong><span class="d">На основе 14 точек в городе</span></div>
+          <div class="bars" style="height:40px;">
+            <i style="height:55%; background:linear-gradient(180deg,#22c55e,#bbf7d0)"></i>
+            <i style="height:70%; background:linear-gradient(180deg,#22c55e,#bbf7d0)"></i>
+            <i style="height:45%; background:linear-gradient(180deg,#eab308,#fde68a)"></i>
+            <i style="height:85%; background:linear-gradient(180deg,#22c55e,#bbf7d0)"></i>
+            <i style="height:60%; background:linear-gradient(180deg,#eab308,#fde68a)"></i>
+            <i style="height:95%; background:linear-gradient(180deg,#ef4444,#fecaca)"></i>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="pagenum">11 / 22</div>
+  </section>
+
+<section class="page title-page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker" style="color:var(--gold)">Часть 2</div>
+    <h1>Инвестиционный кабинет</h1>
+    <p class="lede">Возможности программы для физлиц: покупка и продажа золота онлайн, портфель, вывод средств и автоматизация.</p>
+    <div class="pill-row">
+      <div class="pill">Часть 1: <b>управление сетью и скупка</b></div>
+      <div class="pill">Часть 2: <b>личный кабинет инвестора</b></div>
+    </div>
+      <div class="pagenum">12 / 22</div>
+  </section>
+
+<section class="page part-invest title-page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <h1>Личный кабинет для инвестиций в золото</h1>
+    <p class="lede">Программа Reaktivo.pro предоставляет клиентам полный онлайн-цикл работы с золотом: вход по телефону, покупка и продажа; управление доходностью, вывод средств и автоматизация процесса. Демонстрация возможностей личного кабинета.</p>
+    <div class="pill-row">
+      <div class="pill">Вход по <b>телефону + SMS</b></div>
+      <div class="pill">Покупка от <b>1 грамма</b></div>
+      <div class="pill">Учёт до <b>0,0001 г</b></div>
+      <div class="pill">Вывод на <b>карту любого банка</b></div>
+    </div>
+    <div class="pagenum">13 / 22</div>
+  </section>
+
+<section class="page part-invest">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Старт</div>
+        <h1 class="slide-title">От регистрации до открытого кабинета — 2 минуты</h1>
+        <p class="slide-sub">Без бумажных анкет и визитов в офис. Клиент входит по номеру телефона, проходит проверку документов онлайн — и получает доступ к покупке золота.</p>
+        <div class="steps">
+          <div class="step"><div class="num">1</div><div class="txt"><strong>Номер телефона + код из SMS</strong><span>Без паролей и лишних полей</span></div></div>
+          <div class="step"><div class="num">2</div><div class="txt"><strong>Паспорт РФ и селфи</strong><span>Проверка документов онлайн, без визита в офис</span></div></div>
+          <div class="step"><div class="num">3</div><div class="txt"><strong>Кабинет открыт</strong><span>Доступны покупка, продажа и вывод средств</span></div></div>
+        </div>
+      </div>
+      <div class="mock-frame">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ВХОД В КАБИНЕТ</div>
+        <div class="mock-body">
+          <div class="flow-box" style="margin-bottom:10px;"><span class="tag">Шаг 1</span><strong>+7 999 •• •• •••</strong><span class="d">Код подтверждения отправлен по SMS</span></div>
+          <div class="flow-box" style="margin-bottom:10px;"><span class="tag">Шаг 2</span><strong>Паспорт и селфи загружены</strong><span class="d">Документы на проверке у модератора</span></div>
+          <div class="flow-box" style="background: var(--ok-soft); border-color:#bfe4cf;"><span class="tag" style="color:#0e7c48;">Статус</span><strong>Документы проверены</strong><span class="d">Кабинет активен, сделки доступны</span></div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="pagenum">14 / 22</div>
+  </section>
+
+<section class="page part-invest">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Покупка</div>
+        <h1 class="slide-title">Покупка золота от 1 грамма, курс виден до сделки</h1>
+        <p class="slide-sub">Клиент фиксирует биржевой курс в момент подтверждения и заранее видит итог с комиссией — без сюрпризов после сделки.</p>
+        <ul class="check-list">
+          <li>Учёт до 0,0001 грамма — без «удобных» округлений</li>
+          <li>Комиссия показана заранее, скрытых удержаний нет</li>
+          <li>Пополнение баланса через СБП за секунды</li>
+          <li>Курс — из официальных источников (Мосбиржа, ЦБ РФ)</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ПОКУПКА ЗОЛОТА</div>
+        <div class="mock-body">
+          <div class="kpi-row">
+            <div class="kpi"><div class="n">7 240 ₽/г</div><div class="l">курс сейчас</div></div>
+            <div class="kpi"><div class="n">5 000 ₽</div><div class="l">сумма покупки</div></div>
+          </div>
+          <div class="row"><span>Золото</span><b>0,6806 г</b></div>
+          <div class="row"><span>Комиссия 1,5%</span><b>75 ₽</b></div>
+          <div class="row"><span>Итого с баланса</span><b>5 000 ₽</b></div>
+          <div class="flow-box" style="margin-top:10px; background: var(--gold-soft); border-color:#f0dfa8;">
+            <span class="tag" style="color:#9a7412;">К зачислению</span>
+            <strong style="font-size:1.25rem;">0,6806 г</strong>
+            <span class="d">Курс зафиксирован до подтверждения</span>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="pagenum">15 / 22</div>
+  </section>
+
+<section class="page part-invest">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Портфель</div>
+    <h1 class="slide-title">Баланс и рост золота — всегда перед глазами</h1>
+    <p class="slide-sub">Курс обновляется в реальном времени. Граммы, рубли, доходность и история операций — в одном экране.</p>
+    <div class="grid cols-3">
+      <div class="card"><span class="badge gold">Ⓖ</span><h3>Граммы и рубли</h3><p>Текущий остаток золота и его стоимость по актуальному курсу</p></div>
+      <div class="card"><span class="badge blue">📈</span><h3>Динамика портфеля</h3><p>График роста стоимости золота на балансе клиента во времени</p></div>
+      <div class="card"><span class="badge ok">🧾</span><h3>PDF-выписка</h3><p>Полная история операций — для контроля и отчётности</p></div>
+    </div>
+    <div class="mock-frame" style="margin-top:14px;">
+    <div class="mock">
+      <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>МОЙ ПОРТФЕЛЬ</div>
+      <div class="mock-body">
+        <div class="kpi-row">
+          <div class="kpi"><div class="n">14,32 г</div><div class="l">золото на балансе</div></div>
+          <div class="kpi"><div class="n">103 680 ₽</div><div class="l">по текущему курсу</div></div>
+          <div class="kpi"><div class="n" style="color:#0e7c48;">+12,4%</div><div class="l">с момента покупки</div></div>
+        </div>
+        <div class="bars">
+          <i style="height:30%"></i><i style="height:40%"></i><i style="height:38%"></i><i style="height:55%"></i><i style="height:50%"></i><i style="height:68%"></i><i style="height:72%"></i><i style="height:80%"></i><i style="height:90%"></i><i style="height:100%"></i>
+        </div>
+      </div>
+    </div>
+    </div>
+    <div class="pagenum">16 / 22</div>
+  </section>
+
+<section class="page part-invest">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Продажа и вывод</div>
+        <h1 class="slide-title">Продать золото и получить деньги на карту</h1>
+        <p class="slide-sub">Клиент продаёт часть или весь остаток по текущему курсу и подаёт заявку на вывод. Сумма резервируется сразу — повторно её не потратить. После проверки деньги уходят на карту любого банка.</p>
+        <ul class="check-list">
+          <li>Продажа по граммам или по нужной сумме в рублях</li>
+          <li>Заявка на вывод резервирует средства на балансе</li>
+          <li>После проверки — перевод на карту клиента</li>
+          <li>Комиссия и минимум вывода настраиваются в системе</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ПРОДАЖА → ВЫВОД</div>
+        <div class="mock-body">
+          <div class="flow-box" style="margin-bottom:10px;"><span class="tag">Продажа</span><strong>3,50 г → 25 000 ₽</strong><span class="d">Курс 7 240 ₽/г · комиссия учтена</span></div>
+          <div class="flow-box" style="margin-bottom:10px;"><span class="tag">Заявка на вывод</span><strong>25 000 ₽ зарезервировано</strong><span class="d">Деньги нельзя потратить повторно</span></div>
+          <div class="flow-box" style="background: var(--ok-soft); border-color:#bfe4cf;"><span class="tag" style="color:#0e7c48;">Статус</span><strong>Выплачено</strong><span class="d">Перевод на карту клиента выполнен</span></div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="pagenum">17 / 22</div>
+  </section>
+
+<section class="page part-invest">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Автоматизация</div>
+        <h1 class="slide-title">Ценовые коридоры — цель понятна без «курса в рублях»</h1>
+        <p class="slide-sub">Клиент задаёт желаемую стоимость портфеля или процент прибыли. Система сама переводит цель в курс и исполняет сделку, когда рынок доходит до нужной точки.</p>
+        <ul class="check-list">
+          <li>Цель по сумме портфеля или по процентной доходности</li>
+          <li>Пресеты «+10%», «+20%» для быстрой настройки</li>
+          <li>Сделка исполняется без участия клиента в момент срабатывания</li>
+          <li>Защита от повторного исполнения одной заявки</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ЦЕНОВОЕ УСЛОВИЕ</div>
+        <div class="mock-body">
+          <div class="chip-row" style="margin-top:0; margin-bottom:10px;">
+            <span class="chip on">Продать</span>
+            <span class="chip">Купить</span>
+            <span class="chip on">По сумме портфеля</span>
+            <span class="chip">По %</span>
+          </div>
+          <div class="flow-box" style="margin-bottom:10px;"><span class="tag">Хочу продать весь портфель за</span><strong style="font-size:1.2rem;">130 000 ₽</strong><span class="d">Сейчас портфель ≈ 103 680 ₽</span></div>
+          <div class="chip-row">
+            <span class="chip">+10%</span>
+            <span class="chip on">+20%</span>
+            <span class="chip">+30%</span>
+          </div>
+          <div class="flow-box" style="margin-top:10px; background: var(--gold-soft); border-color:#f0dfa8;"><span class="tag" style="color:#9a7412;">Цель</span><strong>Курс ≈ 9 078 ₽/г</strong><span class="d">Когда рынок дойдёт — продажа исполнится сама</span></div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="pagenum">18 / 22</div>
+  </section>
+
+<section class="page part-invest">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Автоплатёж</div>
+        <h1 class="slide-title">Регулярные инвестиции — покупка золота по графику</h1>
+        <p class="slide-sub">Клиент один раз задаёт сумму и день месяца — дальше золото покупается автоматически. Историю запусков можно посмотреть в кабинете, подписку — поставить на паузу или отменить.</p>
+        <ul class="check-list">
+          <li>Сумма и день месяца настраиваются один раз</li>
+          <li>Покупка выполняется автоматически по расписанию</li>
+          <li>История платежей и результатов доступна в кабинете</li>
+          <li>Подписку можно приостановить или отменить в любой момент</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>АВТОПЛАТЁЖ</div>
+        <div class="mock-body">
+          <div class="kpi-row">
+            <div class="kpi"><div class="n">10 000 ₽</div><div class="l">сумма в месяц</div></div>
+            <div class="kpi"><div class="n">5 число</div><div class="l">день покупки</div></div>
+            <div class="kpi"><div class="n" style="color:#0e7c48;">активен</div><div class="l">статус</div></div>
+          </div>
+          <div class="flow-box" style="margin-bottom:10px;"><span class="tag">Последний запуск</span><strong>05.08 · куплено 1,38 г</strong><span class="d">Списано 10 000 ₽ с баланса</span></div>
+          <div class="flow-box"><span class="tag">Следующая покупка</span><strong>05.09</strong><span class="d">Автоматически, если на балансе достаточно средств</span></div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="pagenum">19 / 22</div>
+  </section>
+
+<section class="page part-invest">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Сервис</div>
+        <h1 class="slide-title">AI-ассистент и отчётность по первому запросу</h1>
+        <p class="slide-sub">Кабинет не только показывает цифры — он объясняет их и даёт готовые документы для контроля.</p>
+        <ul class="check-list">
+          <li>AI-ассистент отвечает на вопросы о балансе и портфеле</li>
+          <li>Прогнозы на исторических данных ЦБ РФ</li>
+          <li>PDF-выписка всей истории операций в один клик</li>
+          <li>Курс — из данных Мосбиржи и ЦБ РФ</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+      <div class="mock">
+        <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>AI-АССИСТЕНТ</div>
+        <div class="mock-body">
+          <div class="chat">
+            <div class="bubble user">Сколько сейчас стоит мой портфель?</div>
+            <div class="bubble bot">Сейчас на балансе 14,32 г — это около 103 680 ₽ по текущему курсу. С момента первой покупки портфель вырос на +12,4%.</div>
+            <div class="bubble user">А если продать всё сегодня?</div>
+            <div class="bubble bot">После комиссии продажи на рублёвый баланс поступит примерно 102 120 ₽. Дальше можно подать заявку на вывод на карту.</div>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="pagenum">20 / 22</div>
+  </section>
+
+<section class="page part-invest title-page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Итог</div>
+    <h1>Простой путь клиента к золоту — без визитов в офис</h1>
+    <p class="lede">Покупка и продажа, вывод средств, портфель, ценовые коридоры и автоплатёж объединены в одном кабинете. Это основа, которая позволяет клиенту держать и управлять золотом онлайн — прозрачно и без скрытых условий.</p>
+    <div class="pill-row">
+      <div class="pill">Готово: <b>покупка, продажа, вывод, портфель</b></div>
+      <div class="pill">Готово: <b>ценовые коридоры, автоплатёж</b></div>
+      <div class="pill">Далее: <b>эквайринг для оплаты картой напрямую</b></div>
+    </div>
+    <div class="pagenum">21 / 22</div>
+  </section>
+
+<section class="page part-invest title-page" style="align-items:center; text-align:center; justify-content:center;">
+    <h1 style="margin:0 0 48px; max-width:none;">Спасибо</h1>
+    <div class="brandmini" style="margin:0; justify-content:center;">
+      <img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" style="width:40px; height:40px; border-radius:11px; box-shadow:none;" />
+      <span class="word" style="font-size:1.35rem;">REAKTIVO<span>.PRO</span></span>
+    </div>
+      <div class="pagenum">22 / 22</div>
+  </section>
+</div>
+<script>
+  (function () {
+    var wrap = document.getElementById('deck-scale');
+    function fit() {
+      if (window.matchMedia('print').matches) { wrap.style.zoom = 1; return; }
+      wrap.style.zoom = 1;
+      var page = wrap.querySelector('.page');
+      if (!page) return;
+      var natural = page.getBoundingClientRect().width;
+      var available = window.innerWidth - 32;
+      wrap.style.zoom = Math.min(1, available / natural);
+    }
+    window.addEventListener('resize', fit);
+    window.addEventListener('beforeprint', function () { wrap.style.zoom = 1; });
+    fit();
+  })();
+</script>
+</body>
+</html>
