@@ -233,7 +233,7 @@ function seedTicks(target, vol, windowMs, maxDev = 0.02) {
   return out;
 }
 
-const fmtUsdNum = new Intl.NumberFormat('en-US', {
+const fmtUsdNum = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
   currency: 'USD',
   maximumFractionDigits: 0,
@@ -244,7 +244,7 @@ function formatUsd(n) {
 }
 function fmtAxisUsd(v) {
   if (v == null || !Number.isFinite(v)) return '—';
-  return `$${fmtAxisNum.format(Math.round(v))}`;
+  return `${fmtAxisNum.format(Math.round(v))} $`;
 }
 
 /**

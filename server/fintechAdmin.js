@@ -186,11 +186,21 @@ export async function manualTopup(supabase, { clientId, rubAmount, staffId, comm
  * его же использует главный дашборд для «продано золота».
  */
 export async function getFintechAdminSummary(supabase, { from, to } = {}) {
-  // Статусы клиентов.
-  const { data: clientRows, error: cErr } = await supabase
-    .from('fintech_clients')
-    .select('status')
-    .limit(10000);
+  // Независимые запросы — раньше шли последовательно (4 круговых обращения к БД подряд),
+  // из-за чего сводка на дашборде админки открывалась заметно дольше, чем нужно.
+  // Правка Руслана: запускаем параллельно, курс золота не валит всю сводку при сбое.
+  const [clientsRes, balancesRes, ledgerRes, rateRes] = await Promise.all([
+    supabase.from('fintech_clients').select('status').limit(10000),
+    supabase.from('fintech_balances').select('rub_balance, gold_grams').limit(10000),
+    supabase
+      .from('fintech_ledger_entries')
+      .select('entry_type, rub_delta, gold_grams_delta, fee_rub, created_at')
+      .order('created_at', { ascending: false })
+      .limit(10000),
+    getLiveGoldRatePerGram(supabase).catch(() => null), // курс не критичен для сводки
+  ]);
+
+  const { data: clientRows, error: cErr } = clientsRes;
   if (cErr) throw cErr;
   const clientsByStatus = { new: 0, pending_review: 0, approved: 0, rejected: 0, blocked: 0 };
   for (const r of clientRows || []) {
@@ -199,10 +209,7 @@ export async function getFintechAdminSummary(supabase, { from, to } = {}) {
   const clientsTotal = (clientRows || []).length;
 
   // Балансы: сколько золота и рублей у клиентов суммарно.
-  const { data: balances, error: bErr } = await supabase
-    .from('fintech_balances')
-    .select('rub_balance, gold_grams')
-    .limit(10000);
+  const { data: balances, error: bErr } = balancesRes;
   if (bErr) throw bErr;
   let totalRubBalance = 0;
   let totalGoldGrams = 0;
@@ -213,21 +220,12 @@ export async function getFintechAdminSummary(supabase, { from, to } = {}) {
   totalGoldGrams = Math.round(totalGoldGrams * 1e6) / 1e6;
   totalRubBalance = Math.round(totalRubBalance * 100) / 100;
 
-  let rate = null;
-  let rateSource = null;
-  try {
-    const live = await getLiveGoldRatePerGram(supabase);
-    rate = live.rate;
-    rateSource = live.source;
-  } catch { /* курс не критичен для сводки */ }
+  const rate = rateRes?.rate ?? null;
+  const rateSource = rateRes?.source ?? null;
   const goldValueRub = rate != null ? Math.round(totalGoldGrams * rate * 100) / 100 : null;
 
   // Обороты по журналу. На текущем объёме (сотни записей) агрегируем в JS.
-  const { data: ledger, error: lErr } = await supabase
-    .from('fintech_ledger_entries')
-    .select('entry_type, rub_delta, gold_grams_delta, fee_rub, created_at')
-    .order('created_at', { ascending: false })
-    .limit(10000);
+  const { data: ledger, error: lErr } = ledgerRes;
   if (lErr) throw lErr;
 
   const makeBucket = () => ({

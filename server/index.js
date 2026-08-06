@@ -704,12 +704,23 @@ let projectHasManagerCache = null;
 const profileRoleMem = new Map();
 const PROFILE_ROLE_MEM_TTL_MS = 120_000;
 
+/**
+ * Кэш «профиль точно существует» — раньше ensureProfileAndBootstrap дергал БД
+ * (SELECT profiles) на КАЖДЫЙ авторизованный запрос, для любой страницы (в т.ч.
+ * админку и инвестиции), хотя после первого раза профиль уже гарантированно есть.
+ * Правка: как только видим строку — запоминаем на время жизни процесса.
+ */
+const profileExistsMem = new Set();
+
 async function ensureProfileAndBootstrap(userId) {
-  const { data: row } = await supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
-  if (!row) {
-    const { error: insErr } = await supabase.from('profiles').insert({ id: userId, role: 'courier' });
-    if (insErr && insErr.code !== '23505') throw insErr;
-    profileRoleMem.delete(userId);
+  if (!profileExistsMem.has(userId)) {
+    const { data: row } = await supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
+    if (!row) {
+      const { error: insErr } = await supabase.from('profiles').insert({ id: userId, role: 'courier' });
+      if (insErr && insErr.code !== '23505') throw insErr;
+      profileRoleMem.delete(userId);
+    }
+    profileExistsMem.add(userId);
   }
   if (projectHasManagerCache === true) return;
   const { data: managers, error: mErr } = await supabase
