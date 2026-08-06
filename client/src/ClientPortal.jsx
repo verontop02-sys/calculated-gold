@@ -1673,6 +1673,23 @@ const CSS = `
     radial-gradient(circle at 8% -30%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 45%),
     linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 80%, var(--cpx-panel)), var(--cpx-panel));
   box-shadow: 0 18px 40px -28px color-mix(in srgb, var(--accent) 40%, transparent);
+  transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+/* Портфель в плюсе — зелёная шапка (иначе красный фон читается как убыток, правка Руслана). */
+.cpx-fin-hero--pos {
+  border-color: color-mix(in srgb, var(--emerald) 32%, var(--stroke));
+  background:
+    radial-gradient(circle at 8% -30%, color-mix(in srgb, var(--emerald) 22%, transparent), transparent 45%),
+    linear-gradient(135deg, color-mix(in srgb, var(--emerald-soft) 85%, var(--cpx-panel)), var(--cpx-panel));
+  box-shadow: 0 18px 40px -28px color-mix(in srgb, var(--emerald) 40%, transparent);
+}
+.cpx-fin-hero--pos .cpx-fin-greeting-sub { color: var(--emerald); }
+.cpx-fin-hero--neg {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--stroke));
+  background:
+    radial-gradient(circle at 8% -30%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 45%),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 80%, var(--cpx-panel)), var(--cpx-panel));
+  box-shadow: 0 18px 40px -28px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 .cpx-fin-hero-main { min-width: 0; flex: 1; }
 .cpx-fin-hero-title {

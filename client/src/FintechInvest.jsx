@@ -1555,7 +1555,7 @@ function FintechDashboard({ profile }) {
   return (
     <div className="cpx-finx">
       <Reveal y={16}>
-      <div className="cpx-fin-hero">
+      <div className={`cpx-fin-hero ${(portfolio?.pnlRub ?? 0) >= 0 ? 'cpx-fin-hero--pos' : 'cpx-fin-hero--neg'}`}>
         <div className="cpx-fin-hero-main">
           <p className="cpx-fin-greeting-sub">Reaktivo · золотой счёт</p>
           <h2 className="cpx-fin-hero-title">{firstName ? `${firstName}, ваш портфель` : 'Ваш портфель'}</h2>
