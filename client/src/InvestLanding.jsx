@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AnimatePresence,
   animate,
@@ -1878,7 +1878,7 @@ const CSS = `
 .il-badge {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--accent); background: var(--accent-soft);
+  color: var(--text-strong); background: var(--accent-soft);
   border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
   padding: 7px 15px; border-radius: 100px; margin-bottom: 26px;
 }
@@ -2114,7 +2114,7 @@ const CSS = `
 .il-step-head { position: relative; display: flex; align-items: center; margin-bottom: 18px; }
 .il-step-n {
   display: inline-block; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.06em;
-  color: var(--accent); background: var(--accent-soft);
+  color: var(--text-strong); background: var(--accent-soft);
   padding: 6px 12px; border-radius: 100px;
 }
 .il-step-line { position: absolute; left: calc(100% - 46px); right: -44px; top: 50%; height: 2px; background: linear-gradient(90deg, var(--stroke), transparent); }
@@ -2164,7 +2164,7 @@ const CSS = `
 .il-card-icon {
   display: inline-flex; align-items: center; justify-content: center;
   width: 46px; height: 46px; border-radius: 14px;
-  background: var(--accent-soft); color: var(--accent); margin-bottom: 18px;
+  background: var(--accent-soft); color: var(--text-strong); margin-bottom: 18px;
 }
 .il-card-icon svg { width: 24px; height: 24px; }
 .il-card-title { font-size: 1.04rem; font-weight: 800; margin: 0 0 9px; color: var(--text-strong); letter-spacing: -0.01em; }
@@ -2481,7 +2481,7 @@ html.il-lb-open body {
 }
 .il-license-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); flex-shrink: 0; }
 .il-license-badge--indigo {
-  color: var(--accent); background: var(--accent-soft);
+  color: var(--text-strong); background: var(--accent-soft);
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .il-license-badge--indigo::before { background: var(--accent); }

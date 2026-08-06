@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
 import { useToast } from './ToastContext.jsx';
 import { isAdminOrSuperProfile, isSuperAdminRole, isUserManagerRole, roleLabel } from './roles.js';
@@ -597,7 +597,7 @@ export function SettingsPanel({ user }) {
           width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
           display: flex; align-items: center; justify-content: center;
         }
-        .st-icon--accent { background: var(--accent-soft); color: var(--accent); }
+        .st-icon--accent { background: var(--accent-soft); color: var(--text-strong); }
         .st-icon--emerald { background: var(--emerald-soft); color: var(--emerald); }
         .block-title { font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; margin: 0; letter-spacing: -0.01em; color: var(--text-strong); }
         .block-desc { margin: 0 0 18px; line-height: 1.5; font-size: 0.84rem; color: var(--text-muted); }
@@ -649,7 +649,7 @@ export function SettingsPanel({ user }) {
         .role-badge-btn:disabled { opacity: 0.5; cursor: default; }
         .role-change-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
         .role-chip { padding: 5px 12px; border-radius: 999px; font-size: 0.74rem; font-weight: 600; border: 1px solid var(--stroke-soft); background: transparent; color: var(--text-muted); cursor: pointer; transition: all 0.16s; }
-        .role-chip:hover:not(:disabled):not(.role-chip--active) { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+        .role-chip:hover:not(:disabled):not(.role-chip--active) { background: var(--accent-soft); color: var(--text-strong); border-color: var(--accent); }
         .role-chip--active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; cursor: default; }
         .confirm-row { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .btn-ghost.danger { color: var(--crimson); }

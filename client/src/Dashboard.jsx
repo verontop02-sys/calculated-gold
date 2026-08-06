@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -1804,11 +1804,11 @@ const CSS = `
 .dx-buysell-ico {
   display: flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--text-strong);
 }
 .dx-buysell-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .dx-buysell-v { font-size: 1.22rem; font-weight: 800; color: var(--text-strong); letter-spacing: -0.02em; white-space: nowrap; }
-.dx-buysell-tile--gold .dx-buysell-v { color: var(--accent); }
+.dx-buysell-tile--gold .dx-buysell-v { color: var(--text-strong); }
 .dx-buysell-meta { font-size: 0.74rem; color: var(--text-muted); }
 .dx-card--flow { grid-column: span 8; }
 .dx-card--staff { grid-column: span 4; }
@@ -2046,7 +2046,7 @@ const CSS = `
   cursor: pointer;
   transition: border-color 0.16s, background 0.16s, padding 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.dx-mini-action:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.dx-mini-action:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--text-strong); }
 /* В акцентной карточке «Сегодня» кнопки — полупрозрачное стекло */
 .dx-card--today .dx-mini-action {
   background: color-mix(in srgb, var(--bg-panel-solid) 58%, transparent);
@@ -2309,7 +2309,7 @@ const CSS = `
 .dx-deal:hover { background: var(--surface); transform: translateX(2px); }
 .dx-deal__avatar {
   width: 34px; height: 34px; border-radius: 50%;
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--text-strong);
   font-size: 0.82rem; font-weight: 700;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
@@ -2351,7 +2351,7 @@ const CSS = `
 .dd-header__main { display: flex; align-items: center; gap: 12px; }
 .dd-avatar {
   width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0;
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--text-strong);
   font-size: 1.1rem; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
 }
@@ -2420,7 +2420,7 @@ const CSS = `
 }
 .dx-probe:hover { border-color: var(--stroke-strong); transform: translateY(-1px); }
 .dx-probe--hot { border-color: var(--accent); }
-.dx-probe--hot .dx-probe__name { color: var(--accent); }
+.dx-probe--hot .dx-probe__name { color: var(--text-strong); }
 .dx-probe__name {
   font-size: 0.7rem;
   font-weight: 700;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { setShowInstructions } from './Profile.jsx';
 
 const STEPS = [
@@ -137,7 +137,7 @@ export function Instructions({ open, onClose }) {
         .in-icon {
           position: relative; z-index: 1;
           width: 72px; height: 72px; margin: 0 auto 20px;
-          border-radius: 20px; background: var(--accent-soft); color: var(--accent);
+          border-radius: 20px; background: var(--accent-soft); color: var(--text-strong);
           display: flex; align-items: center; justify-content: center;
           animation: inPop 500ms cubic-bezier(0.34,1.56,0.64,1) both;
         }

@@ -1498,7 +1498,7 @@ const ANALYTICS_CSS = `
   width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
 }
-.an-ch--office .an-ch__chip { background: var(--accent-soft); color: var(--accent); }
+.an-ch--office .an-ch__chip { background: var(--accent-soft); color: var(--text-strong); }
 .an-ch--delivery .an-ch__chip { background: var(--emerald-soft); color: var(--emerald); }
 .an-ch__label { font-size: 0.86rem; font-weight: 600; flex: 1; min-width: 0; }
 .an-ch__pct { font-size: 0.82rem; font-weight: 700; color: var(--text-muted); }
@@ -1575,7 +1575,7 @@ const ANALYTICS_CSS = `
   margin-bottom: 14px;
   position: relative;
 }
-.an-insight--gold    .an-insight__chip { background: var(--gold-soft); color: var(--gold); }
+.an-insight--gold    .an-insight__chip { background: var(--gold-soft); color: var(--text-strong); }
 .an-insight--emerald .an-insight__chip { background: var(--emerald-soft); color: var(--emerald); }
 .an-insight--neutral .an-insight__chip { background: var(--stroke-soft); color: var(--text-muted); }
 

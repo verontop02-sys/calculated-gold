@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
 
 /** Чат поддержки в панели: слева диалоги клиентов, справа переписка (как в онлайн-банке). */
@@ -427,7 +427,7 @@ const CSS = `
 .sup-dialog-empty p { margin: 0; }
 .sup-dialog-empty-icon {
   width: 58px; height: 58px; border-radius: 18px;
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--text-strong);
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 8px;
 }

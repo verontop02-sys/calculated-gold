@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 
 const RESEND_COOLDOWN_SEC = 60;
@@ -159,7 +159,7 @@ const CSS = `
 }
 .dv-icon {
   width: 52px; height: 52px; border-radius: 15px;
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--text-strong);
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 16px;
 }

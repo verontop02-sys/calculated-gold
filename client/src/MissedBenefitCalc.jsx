@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { fintechApi } from './api.js';
 
@@ -232,7 +232,7 @@ const MBC_CSS = `
 .mbc-pill {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;
-  color: var(--accent); background: var(--accent-soft, rgba(230,0,0,0.1));
+  color: var(--text-strong); background: var(--accent-soft, rgba(230,0,0,0.1));
   padding: 4px 10px; border-radius: 100px;
 }
 .mbc-title { font-size: 1rem; font-weight: 700; margin: 0 0 4px; color: var(--text-strong); letter-spacing: -0.01em; }

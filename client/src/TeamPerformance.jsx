@@ -582,7 +582,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
         .tm-card__sub { margin: 4px 0 0; font-size: 0.82rem; color: var(--text-muted); line-height: 1.45; }
         .tm-muted { font-size: 0.82rem; color: var(--text-muted); }
         .tm-hint { margin: 12px 0 0; font-size: 0.76rem; color: var(--text-dim); line-height: 1.5; }
-        .tm-hint code { font-family: ui-monospace, monospace; font-size: 0.72rem; color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 5px; }
+        .tm-hint code { font-family: ui-monospace, monospace; font-size: 0.72rem; color: var(--text-strong); background: var(--accent-soft); padding: 1px 6px; border-radius: 5px; }
 
         /* Head */
         .tm-head {
@@ -655,7 +655,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
           cursor: pointer; transition: all 180ms cubic-bezier(0.22,1,0.36,1);
         }
         .tm-staff__chip:hover { border-color: var(--accent); transform: translateY(-1px); }
-        .tm-staff__chip--on { border-color: var(--accent); background: var(--accent-soft); }
+        .tm-staff__chip--on { border-color: var(--accent); background: var(--accent-soft); color: var(--text-strong); }
         .tm-staff__check {
           width: 18px; height: 18px; border-radius: 6px; flex-shrink: 0;
           border: 1.5px solid var(--stroke-strong); background: transparent;
@@ -690,7 +690,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
           width: 38px; height: 38px; border-radius: 11px; margin-bottom: 12px;
           display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         }
-        .tm-kpi__chip--accent { background: var(--accent-soft); color: var(--accent); }
+        .tm-kpi__chip--accent { background: var(--accent-soft); color: var(--text-strong); }
         .tm-kpi__chip--emerald { background: var(--emerald-soft); color: var(--emerald); }
         .tm-kpi__label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); font-weight: 600; }
         .tm-kpi__value { font-size: clamp(1.3rem, 1.1rem + 1vw, 1.7rem); font-weight: 800; color: var(--text-strong); letter-spacing: -0.03em; line-height: 1.1; margin-top: 4px; font-family: var(--font-display); }

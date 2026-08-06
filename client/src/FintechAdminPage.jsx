@@ -856,7 +856,7 @@ const CSS = `
   font-size: 0.86rem; font-weight: 700; cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
-.fea-view-tab--on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.fea-view-tab--on { background: var(--accent-soft); border-color: var(--accent); color: var(--text-strong); }
 
 /* ── Дашборд биржи ── */
 .fea-dash-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
@@ -876,7 +876,7 @@ const CSS = `
   background: linear-gradient(150deg, var(--accent-soft), transparent 65%);
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
-.fea-dash-card--gold .fea-dash-value { color: var(--accent); }
+.fea-dash-card--gold .fea-dash-value { color: var(--text-strong); }
 .fea-dash-card--fee::before { background: linear-gradient(90deg, var(--emerald), transparent); }
 .fea-dash-label { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
 .fea-dash-value { font-size: 1.5rem; font-weight: 800; color: var(--text-strong); letter-spacing: -0.02em; white-space: nowrap; }
@@ -910,7 +910,7 @@ const CSS = `
 
 .fea-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
 .fea-tab { padding: 8px 14px; border-radius: 9px; border: 1px solid var(--stroke-soft); background: transparent; color: var(--text-muted); font-size: 0.82rem; font-weight: 600; cursor: pointer; }
-.fea-tab--on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.fea-tab--on { background: var(--accent-soft); border-color: var(--accent); color: var(--text-strong); }
 
 .fea-empty { text-align: center; padding: 32px; color: var(--text-muted); display: flex; align-items: center; justify-content: center; gap: 8px; }
 .fea-err { color: var(--crimson); }

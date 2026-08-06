@@ -281,7 +281,7 @@ const CSS = `
   box-sizing: border-box;
 }
 .cpm-drawer__item:active { background: var(--cpx-accent-soft); }
-.cpm-drawer__item--active { background: var(--cpx-accent-soft); color: var(--cpx-accent); }
+.cpm-drawer__item--active { background: var(--cpx-accent-soft); color: var(--text-strong, #fff); }
 .cpm-drawer__item--danger { color: var(--danger, #ef4444); }
 .cpm-drawer__item--danger:active { background: color-mix(in srgb, var(--danger, #ef4444) 15%, transparent); }
 .cpm-drawer__item-icon {

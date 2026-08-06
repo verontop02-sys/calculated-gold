@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clientApi, getClientToken, setClientToken, setFintechToken, fintechApi, getFintechToken } from './api.js';
 import { FintechInvest } from './FintechInvest.jsx';
 import { ThemeToggle } from './ThemeToggle.jsx';
@@ -1829,7 +1829,7 @@ const CSS = `
 .cpx-fin-soon-badge .cpx-fin-soon-label {
   display: inline-flex; align-items: center;
   padding: 3px 8px; border-radius: 999px;
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--text-strong);
   font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase;
 }
 .cpx-sbp {
@@ -1969,7 +1969,7 @@ const CSS = `
 .cpx-fin-pill {
   display: inline-flex; align-items: center;
   padding: 4px 10px; border-radius: 999px;
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--text-strong);
   font-size: 0.68rem; font-weight: 700;
 }
 .cpx-fin-sliders { display: flex; flex-direction: column; gap: 16px; margin: 8px 0 16px; }
@@ -2055,7 +2055,7 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
 .cpx-fin-ai-heading { margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-strong); letter-spacing: -0.01em; }
 .cpx-fin-ai-icon {
   width: 28px; height: 28px; border-radius: 8px;
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--text-strong);
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .cpx-fin-ai-badge {
@@ -2063,7 +2063,7 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
   padding: 2px 7px; border-radius: 999px;
   background: var(--stroke); color: var(--text-muted);
 }
-.cpx-fin-ai-badge--grok { background: var(--accent-soft); color: var(--accent); }
+.cpx-fin-ai-badge--grok { background: var(--accent-soft); color: var(--text-strong); }
 .cpx-fin-ai-answer {
   white-space: pre-wrap; font-size: 0.84rem; line-height: 1.55; color: var(--cpx-ink);
   background: var(--surface); border: 1px solid var(--stroke-soft); border-radius: 10px;
@@ -2505,7 +2505,7 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
   padding: 10px 16px; border-radius: 10px; border: 1px solid var(--cpx-stroke); background: var(--cpx-panel);
   color: var(--cpx-muted); font-size: 0.92rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
 }
-.cpx-probe--on { background: var(--cpx-accent-soft); border-color: var(--cpx-accent); color: var(--cpx-gold); }
+.cpx-probe--on { background: var(--cpx-accent-soft); border-color: var(--cpx-accent); color: var(--text-strong, #fff); }
 
 .cpx-result {
   text-align: center; padding: 22px 16px; border-radius: 14px;
@@ -2697,7 +2697,7 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
   border-color: color-mix(in srgb, var(--accent) 38%, transparent);
   box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 14%, transparent);
 }
-.cpx-fin-kpi--hero .cpx-fin-kpi-value { color: var(--accent); }
+.cpx-fin-kpi--hero .cpx-fin-kpi-value { color: var(--text-strong); }
 .cpx-fin-kpi--pos::before { background: linear-gradient(90deg, var(--cpx-emerald), color-mix(in srgb, var(--cpx-emerald) 30%, transparent)); }
 .cpx-fin-kpi--neg::before { background: linear-gradient(90deg, var(--crimson), color-mix(in srgb, var(--crimson) 30%, transparent)); }
 .cpx-fin-kpi--pos .cpx-fin-kpi-value { color: var(--cpx-emerald); }
@@ -2742,7 +2742,7 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
 .cpx-fin-unit-cap { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; }
 .cpx-fin-unit-btn:hover { color: var(--text-strong); }
 .cpx-fin-unit-btn--on {
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--text-strong);
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
   box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 18%, transparent);
 }
@@ -2755,7 +2755,7 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
   background: var(--surface); color: var(--text-muted); font-size: 0.78rem; font-weight: 700; cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.cpx-fin-preset-btn:hover { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.cpx-fin-preset-btn:hover { background: var(--accent-soft); color: var(--text-strong); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .cpx-fin-ok { color: var(--cpx-emerald); font-size: 0.85rem; margin: 0; font-weight: 600; }
 
 .cpx-fin-history-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; gap: 10px; flex-wrap: wrap; }
@@ -2800,10 +2800,10 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
 .cpx-fin-op-icon {
   display: flex; align-items: center; justify-content: center;
   width: 44px; height: 44px; border-radius: 13px;
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--text-strong);
   font-size: 1.3rem; font-weight: 800; margin-bottom: 10px;
 }
-.cpx-fin-op-icon--buy { background: var(--accent-soft); color: var(--accent); }
+.cpx-fin-op-icon--buy { background: var(--accent-soft); color: var(--text-strong); }
 .cpx-fin-op-icon--sell { background: var(--emerald-soft, rgba(16,185,129,0.14)); color: var(--emerald); }
 .cpx-fin-op-title { margin: 0 0 2px; font-size: 1.05rem; font-weight: 800; color: var(--text-strong); }
 .cpx-fin-op-date { margin: 0 0 14px; font-size: 0.78rem; color: var(--text-muted); }
@@ -2833,7 +2833,7 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
 .cpx-home-hero-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .cpx-home-avatar {
   width: 48px; height: 48px; border-radius: 50%;
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--text-strong);
   display: flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: 1.1rem; flex-shrink: 0;
 }
@@ -2931,7 +2931,7 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
   color: var(--text); font-size: 0.88rem; font-weight: 600; cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
-.cpx-settings-theme-opt--on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.cpx-settings-theme-opt--on { border-color: var(--accent); background: var(--accent-soft); color: var(--text-strong); }
 .cpx-settings-theme-ico { font-size: 1.1rem; line-height: 1; }
 
 .cpx-settings-toggles { display: flex; flex-direction: column; gap: 4px; }

@@ -355,8 +355,9 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
           transition: background 0.15s, color 0.15s, border-color 0.15s;
           white-space: nowrap;
         }
-        .preset-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
-        .preset-btn.active { background: var(--gold-soft); border-color: var(--gold); color: var(--gold); }
+        .preset-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--text-strong); }
+        /* Активная проба: белый текст на мягком красном — иначе красное на красном рябит (правка Руслана). */
+        .preset-btn.active { background: var(--gold-soft); border-color: var(--gold); color: var(--text-strong); }
         .preset-btn:disabled { opacity: 0.45; cursor: not-allowed; }
         .purity-select { flex: 1; min-width: 0; }
 
@@ -378,7 +379,7 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
         .result-row { display: flex; justify-content: space-between; margin-bottom: 8px; gap: 12px; }
         .result-hero { margin-top: 16px; text-align: center; padding: 18px 14px; border-radius: var(--radius-sm); background: var(--gold-soft); border: 1px solid var(--stroke); }
         .result-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.14em; display: block; margin-bottom: 8px; }
-        .result-range { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; color: var(--gold); margin: 0 0 6px; line-height: 1.25; word-break: break-word; }
+        .result-range { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; color: var(--text-strong); margin: 0 0 6px; line-height: 1.25; word-break: break-word; }
         .result-range .dash { color: var(--text-muted); font-weight: 400; }
         .result-mid { display: block; }
 
@@ -409,7 +410,7 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
           border-radius: var(--radius-sm);
           border: 1px solid var(--gold);
           background: linear-gradient(180deg, var(--gold-soft), var(--accent-soft));
-          color: var(--gold);
+          color: var(--text-strong);
           font-size: 0.9rem;
           font-weight: 600;
           cursor: pointer;

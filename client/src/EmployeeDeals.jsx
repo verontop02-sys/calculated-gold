@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 import { roleLabel } from './roles.js';
 import { SkeletonRow, SkeletonCard } from './Skeleton.jsx';
@@ -260,7 +260,7 @@ export function EmployeeDeals({ formatMoney, toast }) {
         }
         .ed-staff__row:hover { background: var(--surface); border-color: var(--stroke-soft); transform: translateX(2px); }
         .ed-staff__row--active { background: var(--accent-soft); border-color: var(--accent); }
-        .ed-staff__avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; background: var(--accent-soft); color: var(--accent); font-size: 0.8rem; font-weight: 700; font-family: var(--font-display); display: flex; align-items: center; justify-content: center; }
+        .ed-staff__avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; background: var(--accent-soft); color: var(--text-strong); font-size: 0.8rem; font-weight: 700; font-family: var(--font-display); display: flex; align-items: center; justify-content: center; }
         .ed-staff__row--active .ed-staff__avatar { background: var(--accent); color: #fff; }
         .ed-staff__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
         .ed-staff__email { font-size: 0.84rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from './api.js';
 import { mergeSettings, calculateBuybackRange } from './calc.js';
@@ -1096,7 +1096,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           transition: border-color 200ms, background 200ms, color 200ms;
           padding: 8px;
         }
-        .crp-upload:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+        .crp-upload:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--text-strong); }
         .crp-file-input { display: none; }
         .crp-preview-wrap {
           position: relative; width: 100%; aspect-ratio: 1 / 1; border-radius: 14px; overflow: hidden;
@@ -1177,7 +1177,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         .csm-step__n {
           width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
           display: flex; align-items: center; justify-content: center;
-          background: var(--accent-soft); color: var(--accent); font-size: 0.72rem; font-weight: 700;
+          background: var(--accent-soft); color: var(--text-strong); font-size: 0.72rem; font-weight: 700;
         }
         .csm-link-row { display: flex; gap: 8px; margin-bottom: 6px; }
         .csm-link {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
 import { SkeletonRow, SkeletonCard } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
@@ -487,7 +487,7 @@ export function Clients({ formatMoney, toast }) {
         .cl-row--active { background: var(--accent-soft); border-color: var(--accent); }
         .cl-row-avatar {
           width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
-          background: var(--accent-soft); color: var(--accent);
+          background: var(--accent-soft); color: var(--text-strong);
           font-size: 0.8rem; font-weight: 700; font-family: var(--font-display);
           display: flex; align-items: center; justify-content: center;
         }
@@ -548,7 +548,7 @@ export function Clients({ formatMoney, toast }) {
         .cl-deals-head { display: flex; align-items: center; gap: 8px; }
         .cl-deals-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; color: var(--text-muted); }
         .cl-deals-count {
-          background: var(--accent-soft); color: var(--accent);
+          background: var(--accent-soft); color: var(--text-strong);
           font-size: 0.72rem; font-weight: 700; border-radius: 999px;
           padding: 2px 8px;
         }

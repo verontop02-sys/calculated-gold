@@ -241,7 +241,7 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, to
           <div className="cg-side-card__rows">
             <div className="cg-side-row">
               <span className="cg-side-row__k">Процент от биржи</span>
-              <span className="cg-side-row__v tone-gold">{buyPct != null ? `${buyPct}%` : '—'}</span>
+              <span className="cg-side-row__v">{buyPct != null ? `${buyPct}%` : '—'}</span>
             </div>
             <div className="cg-side-row">
               <span className="cg-side-row__k">Коридор</span>
@@ -268,7 +268,7 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, to
               </div>
               <div className="cg-side-stat">
                 <span className="cg-side-stat__k">Сумма</span>
-                <span className="cg-side-stat__v tone-gold">{todaySum != null ? formatMoney(todaySum) : '—'}</span>
+                <span className="cg-side-stat__v">{todaySum != null ? formatMoney(todaySum) : '—'}</span>
               </div>
             </div>
           </div>
@@ -361,8 +361,9 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, to
         .cg-cd-pair__code {
           flex-shrink: 0;
           font-size: 1.1rem; font-weight: 800; letter-spacing: 0.18em;
-          color: var(--accent); font-family: var(--font-display, inherit);
+          color: var(--text-strong); font-family: var(--font-display, inherit);
           padding: 4px 10px; border-radius: 8px; background: var(--accent-soft);
+          border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
         }
 
         .cg-pergram {
@@ -391,7 +392,7 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, to
         .cg-pergram__val {
           font-size: 0.98rem;
           font-weight: 700;
-          color: var(--gold);
+          color: var(--text-strong);
           line-height: 1.1;
         }
         .cg-pergram__per { font-size: 0.66rem; color: var(--text-muted); font-weight: 500; }

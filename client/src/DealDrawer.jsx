@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from './api.js';
 
@@ -171,7 +171,7 @@ export function DealDrawer({ deal, onClose, formatMoney, toast }) {
 
         .ddw-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
         .ddw-head__main { display: flex; align-items: center; gap: 12px; min-width: 0; }
-        .ddw-avatar { width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0; background: var(--accent-soft); color: var(--accent); font-size: 1.1rem; font-weight: 700; font-family: var(--font-display); display: flex; align-items: center; justify-content: center; }
+        .ddw-avatar { width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0; background: var(--accent-soft); color: var(--text-strong); font-size: 1.1rem; font-weight: 700; font-family: var(--font-display); display: flex; align-items: center; justify-content: center; }
         .ddw-seller { font-size: 1.05rem; font-weight: 700; color: var(--text-strong); word-break: break-word; }
         .ddw-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
         .ddw-close { flex-shrink: 0; border: 1px solid var(--stroke-soft); background: var(--bg-elevated); color: var(--text-muted); border-radius: 10px; padding: 6px; cursor: pointer; display: flex; transition: all 160ms; }

@@ -474,9 +474,9 @@ export const SIDEBAR_CSS = `
 .cg-sidebar__item:active { opacity: 0.8; }
 .cg-sidebar__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
 
-/* Active: only left bar + colored text — no fill */
+/* Active: soft fill + светлый текст (не красное на красном). */
 .cg-sidebar__item--active {
-  color: var(--accent);
+  color: var(--text-strong);
   background: var(--accent-soft);
 }
 .cg-sidebar__item--active .cg-sidebar__item-icon { color: var(--accent); }

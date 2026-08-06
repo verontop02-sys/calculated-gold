@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -2390,7 +2390,7 @@ export function GoldIndex({ formatMoney, toast }) {
           display: flex; align-items: center; justify-content: center;
           transition: transform 320ms cubic-bezier(0.34, 1.45, 0.64, 1);
         }
-        .gi-stat-icon--accent { background: var(--accent-soft); color: var(--accent); }
+        .gi-stat-icon--accent { background: var(--accent-soft); color: var(--text-strong); }
         .gi-stat-icon--emerald { background: var(--emerald-soft); color: var(--emerald); }
         .gi-stat-label { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px; }
         .gi-stat-value { font-size: 1rem; font-weight: 700; line-height: 1.2; }
@@ -2426,7 +2426,7 @@ export function GoldIndex({ formatMoney, toast }) {
           border-color: var(--stroke-soft);
         }
         .gold-index__map .leaflet-control-zoom a:hover {
-          background: var(--accent-soft); color: var(--accent);
+          background: var(--accent-soft); color: var(--text-strong);
         }
         .gi-quick-add-btn {
           position: absolute; bottom: 12px; left: 12px; z-index: 500;

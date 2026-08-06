@@ -594,13 +594,14 @@ input[type='search'] {
 
 .badge.gold {
   background: var(--gold-soft);
-  color: var(--gold);
+  color: var(--text-strong);
   border: 1px solid var(--stroke-strong);
 }
 
 .tone-ok { color: var(--emerald); }
 .tone-bad { color: var(--crimson); }
-.tone-gold { color: var(--gold); }
+/* Крупные цифры — нейтральный светлый, не фирменный красный (рябит на тёмном). */
+.tone-gold { color: var(--text-strong); }
 
 /* ───── Двухколоночный layout страницы с боковой панелью виджетов ───── */
 .cg-page {

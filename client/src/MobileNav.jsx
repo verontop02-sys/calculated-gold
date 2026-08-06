@@ -443,7 +443,7 @@ const MOBNAV_CSS = `
   transition: background 0.18s, color 0.18s;
 }
 .cg-drawer__item:active { background: var(--gold-soft); }
-.cg-drawer__item--active { background: var(--gold-soft); color: var(--gold); }
+.cg-drawer__item--active { background: var(--gold-soft); color: var(--text-strong); }
 .cg-drawer__item--danger { color: var(--crimson); }
 .cg-drawer__item--danger:active { background: var(--crimson-soft); }
 .cg-drawer__item-icon {
