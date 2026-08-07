@@ -6,7 +6,7 @@ import { ThemeToggle } from './ThemeToggle.jsx';
  * Мобильная навигация: нижний bar с 4-5 ключевыми разделами + кнопка «Ещё»,
  * которая открывает drawer-меню с остальными пунктами, темой и выходом.
  */
-export function MobileNav({ tab, onChange, user, onSignOut, onOpenProfile, supportUnread = 0 }) {
+export function MobileNav({ tab, onChange, user, onSignOut, onOpenProfile, supportUnread = 0, fintechPending = 0 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const isSuper = isSuperAdminRole(user?.role);
   const isAdmin = isUserManagerRole(user?.role);
@@ -26,7 +26,7 @@ export function MobileNav({ tab, onChange, user, onSignOut, onOpenProfile, suppo
     ...(isAdmin ? [{ key: 'team', label: 'Команда и KPI', icon: <IconTeam /> }] : []),
     ...(isAdmin ? [{ key: 'employees', label: 'Сделки сотрудников', icon: <IconClients /> }] : []),
     ...(isSuper ? [{ key: 'gold-index', label: 'Индекс золота', icon: <IconMap /> }] : []),
-    ...(isAdmin ? [{ key: 'fintech-clients', label: 'Клиенты биржи', icon: <IconInvest /> }] : []),
+    ...(isAdmin ? [{ key: 'fintech-clients', label: 'Клиенты биржи', icon: <IconInvest />, badge: fintechPending }] : []),
     ...(isAdmin ? [{ key: 'support-chat', label: 'Поддержка', icon: <IconChatBubble />, badge: supportUnread }] : []),
     ...(isAdmin ? [{
       key: 'settings',

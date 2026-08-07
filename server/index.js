@@ -3472,6 +3472,21 @@ app.get(
   })
 );
 
+/** Лёгкий счётчик «на проверке» для бейджа в сайдбаре (правка Руслана). */
+app.get(
+  '/api/fintech/admin/pending-count',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (_req, res) => {
+    const { count, error } = await supabase
+      .from('fintech_clients')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending_review');
+    if (error) throw error;
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ pendingReview: count || 0 });
+  })
+);
+
 // Полное удаление клиента — только супер-админ (правка Руслана).
 app.delete(
   '/api/fintech/admin/clients/:id',

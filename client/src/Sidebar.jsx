@@ -11,7 +11,7 @@ import { isSuperAdminRole, isUserManagerRole, roleLabel } from './roles.js';
  * Состояние «свёрнут/развёрнут» сохраняется в localStorage,
  * плюс автоматически расширяется при наведении (CSS-only).
  */
-export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpenProfile, supportUnread = 0 }) {
+export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpenProfile, supportUnread = 0, fintechPending = 0 }) {
   const [pinned, setPinned] = useState(() => {
     try {
       const v = localStorage.getItem('cg_sidebar_pinned');
@@ -40,7 +40,7 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpen
     ...(isAdmin ? [{ key: 'team', label: 'Команда и KPI', icon: <IconTeam /> }] : []),
     ...(isAdmin ? [{ key: 'employees', label: 'Сделки сотрудников', icon: <IconEmployees /> }] : []),
     ...(isSuper ? [{ key: 'gold-index', label: 'Индекс золота', icon: <IconMap /> }] : []),
-    ...(isAdmin ? [{ key: 'fintech-clients', label: 'Клиенты биржи', icon: <IconInvest /> }] : []),
+    ...(isAdmin ? [{ key: 'fintech-clients', label: 'Клиенты биржи', icon: <IconInvest />, badge: fintechPending }] : []),
     ...(isAdmin ? [{ key: 'support-chat', label: 'Поддержка', icon: <IconChatBubble />, badge: supportUnread }] : []),
   ];
 

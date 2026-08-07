@@ -520,6 +520,10 @@ export default function App() {
 
   // Бейдж «непрочитанное в поддержке» для сайдбара (только у admin/super_admin).
   const [supportUnread, setSupportUnread] = useState(0);
+  // Бейдж KYC «на проверке»: висит, пока админ не откроет «Клиенты биржи».
+  const [fintechPendingRaw, setFintechPendingRaw] = useState(0);
+  const [fintechPendingBadge, setFintechPendingBadge] = useState(0);
+
   useEffect(() => {
     if (!user || !isUserManagerRole(user.role)) {
       setSupportUnread(0);
@@ -535,6 +539,49 @@ export default function App() {
     const id = setInterval(poll, 60_000);
     return () => { cancelled = true; clearInterval(id); };
   }, [user, tab]);
+
+  useEffect(() => {
+    if (!user || !isUserManagerRole(user.role)) {
+      setFintechPendingRaw(0);
+      setFintechPendingBadge(0);
+      return undefined;
+    }
+    let cancelled = false;
+    const KYC_ACK_KEY = 'cg_kyc_acked_pending';
+    const poll = () => {
+      api.fintechAdminPendingCount()
+        .then((out) => {
+          if (cancelled) return;
+          const n = Number(out?.pendingReview) || 0;
+          setFintechPendingRaw(n);
+          let acked = 0;
+          try { acked = Number(localStorage.getItem(KYC_ACK_KEY) || 0) || 0; } catch { /* ignore */ }
+          // Пока не открыли раздел — показываем текущее число на проверке.
+          // После открытия «запоминаем» число; бейдж снова появится, если придут новые.
+          if (n === 0) {
+            try { localStorage.setItem(KYC_ACK_KEY, '0'); } catch { /* ignore */ }
+            setFintechPendingBadge(0);
+          } else if (n > acked) {
+            setFintechPendingBadge(n);
+          } else {
+            setFintechPendingBadge(0);
+          }
+        })
+        .catch(() => { /* бейдж не критичен */ });
+    };
+    poll();
+    const id = setInterval(poll, 45_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [user]);
+
+  // Открыли «Клиенты биржи» — снимаем бейдж до появления новых заявок.
+  useEffect(() => {
+    if (tab !== 'fintech-clients') return;
+    try {
+      localStorage.setItem('cg_kyc_acked_pending', String(fintechPendingRaw || 0));
+    } catch { /* ignore */ }
+    setFintechPendingBadge(0);
+  }, [tab, fintechPendingRaw]);
 
   if (!authReady) {
     return (
@@ -630,6 +677,7 @@ export default function App() {
         onPinnedChange={setSidebarPinned}
         onOpenProfile={() => setProfileOpen(true)}
         supportUnread={supportUnread}
+        fintechPending={fintechPendingBadge}
       />
 
       <div className="cg-shell__main">
@@ -780,7 +828,11 @@ export default function App() {
               <SettingsPage user={user} formatMoney={formatMoney} price={price} />
             )}
             {tab === 'fintech-clients' && isUserManagerRole(user.role) && (
-              <FintechAdminPage toast={toast} isSuperAdmin={isSuperAdminRole(user.role)} />
+              <FintechAdminPage
+                toast={toast}
+                isSuperAdmin={isSuperAdminRole(user.role)}
+                initialView={fintechPendingRaw > 0 ? 'clients' : undefined}
+              />
             )}
             {tab === 'support-chat' && isUserManagerRole(user.role) && (
               <SupportAdminPage toast={toast} />
@@ -795,6 +847,7 @@ export default function App() {
           onSignOut={handleSignOut}
           onOpenProfile={() => setProfileOpen(true)}
           supportUnread={supportUnread}
+          fintechPending={fintechPendingBadge}
         />
       </div>
 

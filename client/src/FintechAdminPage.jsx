@@ -82,8 +82,8 @@ function formatDateTime(iso) {
  * Раздел «Биржа» для админов: дашборд со сводкой (по умолчанию — правка Руслана)
  * и модерация клиентов: KYC, статус, ручное пополнение, удаление (супер-админ).
  */
-export function FintechAdminPage({ toast, isSuperAdmin = false }) {
-  const [view, setView] = useState('dashboard'); // dashboard | clients
+export function FintechAdminPage({ toast, isSuperAdmin = false, initialView }) {
+  const [view, setView] = useState(initialView === 'clients' ? 'clients' : 'dashboard'); // dashboard | clients
   const [status, setStatus] = useState('pending_review');
   const [q, setQ] = useState('');
   const [clients, setClients] = useState([]);
@@ -697,24 +697,20 @@ function ClientDetailPanel({ clientId, toast, isSuperAdmin = false, onChanged, o
 
       <div className="fea-card">
         <div className="fea-card__title">Документы</div>
+        <p className="fea-muted" style={{ margin: '0 0 12px' }}>
+          Нажмите на превью или «Открыть», чтобы увеличить фото для проверки.
+        </p>
         <div className="fea-docs">
           {(detail.documents || []).length === 0 && <p className="fea-muted">Документы не загружены</p>}
           {(detail.documents || []).map((d) => (
-            <div key={d.id} className="fea-doc-row">
-              <div className="fea-doc-main">
-                <span>{DOC_LABEL[d.docType] || d.docType}</span>
-                <span className={`fea-badge fea-badge--${d.status}`}>{d.status === 'approved' ? 'Одобрено' : d.status === 'rejected' ? 'Отклонено' : 'На проверке'}</span>
-              </div>
-              <div className="fea-doc-actions">
-                <button type="button" className="fea-btn-sm" onClick={() => viewDoc(d.id, DOC_LABEL[d.docType] || d.docType)}>Открыть</button>
-                {d.status !== 'approved' && (
-                  <button type="button" className="fea-btn-sm fea-btn-sm--ok" disabled={busyDoc === d.id} onClick={() => reviewDoc(d.id, 'approved')}>Одобрить</button>
-                )}
-                {d.status !== 'rejected' && (
-                  <button type="button" className="fea-btn-sm fea-btn-sm--bad" disabled={busyDoc === d.id} onClick={() => reviewDoc(d.id, 'rejected')}>Отклонить</button>
-                )}
-              </div>
-            </div>
+            <KycDocCard
+              key={d.id}
+              doc={d}
+              busy={busyDoc === d.id}
+              onView={() => viewDoc(d.id, DOC_LABEL[d.docType] || d.docType)}
+              onApprove={() => reviewDoc(d.id, 'approved')}
+              onReject={() => reviewDoc(d.id, 'rejected')}
+            />
           ))}
         </div>
       </div>
@@ -806,6 +802,53 @@ function ClientDetailPanel({ clientId, toast, isSuperAdmin = false, onChanged, o
 
       {docPreview && <DocPreviewModal preview={docPreview} onClose={() => setDocPreview(null)} />}
     </>
+  );
+}
+
+/** Карточка KYC-документа с превью фото для проверки. */
+function KycDocCard({ doc, busy, onView, onApprove, onReject }) {
+  const [thumb, setThumb] = useState(null);
+  const label = DOC_LABEL[doc.docType] || doc.docType;
+
+  useEffect(() => {
+    let cancelled = false;
+    api.fintechAdminDocSignedUrl(doc.id)
+      .then((out) => {
+        if (cancelled || !out?.url) return;
+        const isPdf = /\.pdf(\?|$)/i.test(out.url);
+        setThumb({ url: out.url, isPdf });
+      })
+      .catch(() => { /* превью не критично — останется кнопка Открыть */ });
+    return () => { cancelled = true; };
+  }, [doc.id]);
+
+  return (
+    <div className="fea-doc-card">
+      <button type="button" className="fea-doc-thumb" onClick={onView} title="Открыть для проверки">
+        {thumb?.url && !thumb.isPdf ? (
+          <img src={thumb.url} alt={label} />
+        ) : (
+          <span className="fea-doc-thumb-ph">{thumb?.isPdf ? 'PDF' : '…'}</span>
+        )}
+      </button>
+      <div className="fea-doc-card-main">
+        <div className="fea-doc-main">
+          <span>{label}</span>
+          <span className={`fea-badge fea-badge--${doc.status}`}>
+            {doc.status === 'approved' ? 'Одобрено' : doc.status === 'rejected' ? 'Отклонено' : 'На проверке'}
+          </span>
+        </div>
+        <div className="fea-doc-actions">
+          <button type="button" className="fea-btn-sm" onClick={onView}>Открыть</button>
+          {doc.status !== 'approved' && (
+            <button type="button" className="fea-btn-sm fea-btn-sm--ok" disabled={busy} onClick={onApprove}>Одобрить</button>
+          )}
+          {doc.status !== 'rejected' && (
+            <button type="button" className="fea-btn-sm fea-btn-sm--bad" disabled={busy} onClick={onReject}>Отклонить</button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1010,4 +1053,20 @@ const CSS = `
 .fea-modal-body { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; background: var(--surface); min-height: 240px; }
 .fea-modal-img { max-width: 100%; max-height: calc(92vh - 60px); object-fit: contain; display: block; }
 .fea-modal-frame { width: 100%; height: calc(92vh - 60px); border: none; }
+
+.fea-doc-card {
+  display: flex; gap: 12px; align-items: stretch;
+  padding: 10px; border-radius: 12px;
+  border: 1px solid var(--stroke-soft); background: var(--surface);
+}
+.fea-doc-thumb {
+  flex-shrink: 0; width: 96px; height: 96px; padding: 0; border: none;
+  border-radius: 10px; overflow: hidden; cursor: pointer;
+  background: var(--bg-panel-solid); border: 1px solid var(--stroke);
+  display: flex; align-items: center; justify-content: center;
+}
+.fea-doc-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fea-doc-thumb:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
+.fea-doc-thumb-ph { font-size: 0.75rem; font-weight: 700; color: var(--text-dim); }
+.fea-doc-card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 8px; }
 `;

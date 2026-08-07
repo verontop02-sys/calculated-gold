@@ -2497,6 +2497,17 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
 }
 .cpx-field input::placeholder, .cpx-phone input::placeholder { color: var(--text-dim); }
 .cpx-field input:focus, .cpx-phone input:focus { border-color: var(--cpx-accent); box-shadow: 0 0 0 3px var(--cpx-accent-soft); }
+/* Автозаполнение браузера: иначе в тёмной теме предложенный email/ФИО невидимы. */
+.cpx-field input:-webkit-autofill,
+.cpx-field input:-webkit-autofill:hover,
+.cpx-field input:-webkit-autofill:focus,
+.cpx-phone input:-webkit-autofill,
+.cpx-phone input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--cpx-ink, #fff) !important;
+  caret-color: var(--cpx-ink, #fff);
+  box-shadow: 0 0 0 1000px var(--input-bg, #222427) inset !important;
+  transition: background-color 99999s ease-out 0s;
+}
 .cpx-phone { display: flex; align-items: stretch; gap: 8px; }
 .cpx-phone-prefix {
   display: flex; align-items: center; padding: 0 14px; border-radius: 11px;

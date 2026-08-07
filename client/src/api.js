@@ -897,6 +897,8 @@ export const api = {
     const qs = q.toString();
     return request(`/fintech/admin/summary${qs ? `?${qs}` : ''}`);
   },
+  /** Счётчик клиентов со status=pending_review — бейдж в сайдбаре. */
+  fintechAdminPendingCount: () => request('/fintech/admin/pending-count'),
   fintechAdminDeleteClient: (id) =>
     request(`/fintech/admin/clients/${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
   fintechAdminClients: (opts = {}) => {
