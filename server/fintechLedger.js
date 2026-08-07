@@ -238,9 +238,55 @@ export async function sellGold(supabase, { clientId, grams, rubAmount, idempoten
 }
 
 /**
- * Ручное пополнение рублёвого баланса модератором — единственный способ завести деньги
- * на счёт клиента, пока нет реального эквайринга. Клиент переводит по реквизитам,
- * модератор подтверждает поступление с обязательным комментарием (номер платежа/выписка).
+ * Пополнение через эквайринг (ЮKassa и т.п.). Идемпотентность — по paymentId провайдера.
+ */
+export async function depositFromAcquiring(supabase, {
+  clientId,
+  rubAmount,
+  paymentId,
+  provider = 'yookassa',
+  detail = {},
+}) {
+  const amount = Math.round(Number(rubAmount) * 100) / 100;
+  if (!Number.isFinite(amount) || amount <= 0) {
+    const err = new Error('Некорректная сумма пополнения');
+    err.status = 400;
+    throw err;
+  }
+  const pid = String(paymentId || '').trim();
+  if (!pid) {
+    const err = new Error('Нет идентификатора платежа');
+    err.status = 400;
+    throw err;
+  }
+  const key = `${provider}:${pid}`;
+  const { data, error } = await supabase.rpc('fintech_record_ledger_entry', {
+    p_client_id: clientId,
+    p_entry_type: 'deposit_rub',
+    p_rub_delta: amount,
+    p_gold_grams_delta: 0,
+    p_rate_rub_per_gram: null,
+    p_fee_rub: 0,
+    p_idempotency_key: key,
+    p_created_by_type: 'system',
+    p_created_by_id: null, // uuid; провайдер и paymentId — в detail
+    p_detail: { provider, paymentId: pid, ...detail },
+    p_reversal_of: null,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    ok: true,
+    rubBalance: Number(row.rub_balance),
+    goldGrams: Number(row.gold_grams),
+    duplicate: Boolean(row.is_duplicate),
+  };
+}
+
+/**
+ * Ручное пополнение рублёвого баланса модератором.
+ * Клиент переводит по реквизитам, модератор подтверждает с комментарием (номер платежа).
+ * Параллельно работает эквайринг (depositFromAcquiring) — оба пишут deposit_rub в ledger.
  */
 export async function manualTopup(supabase, { clientId, rubAmount, staffId, comment, idempotencyKey }) {
   const amount = Math.round(Number(rubAmount) * 100) / 100;

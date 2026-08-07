@@ -60,7 +60,13 @@ const PRESET_PROBES = ['585', '750', '999'];
 export function ClientPortal() {
   // 'checking' | 'login' | 'authed'
   const [phase, setPhase] = useState('checking');
-  const [tab, setTab] = useState('home');
+  const [tab, setTab] = useState(() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      if (q.get('topup') === '1' || q.get('invest') === '1') return 'invest';
+    } catch { /* ignore */ }
+    return 'home';
+  });
 
   // login state
   const [step, setStep] = useState('phone'); // 'phone' | 'pin' | 'code' | 'setpin'

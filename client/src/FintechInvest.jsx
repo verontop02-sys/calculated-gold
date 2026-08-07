@@ -976,63 +976,94 @@ function TradeCtaBar({ active, onBuy, onTopup, rubBalance }) {
   );
 }
 
-// ── Пополнение баланса (заявка до эквайринга) ───────────────────────────────
-function TopUpPanel({ portfolio, onClose }) {
-  const [amount, setAmount] = useState('50000');
+const TOPUP_PENDING_KEY = 'cpx_yookassa_pending_payment';
+
+// ── Пополнение баланса через ЮKassa (карта / СБП) ───────────────────────────
+function TopUpPanel({ portfolio, onClose, onCredited }) {
+  const [amount, setAmount] = useState('1000');
   const [note, setNote] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [cfg, setCfg] = useState({ enabled: false, testMode: false, minRub: 10 });
   const rubBal = Number(portfolio?.rubBalance) || 0;
 
-  function submit(e) {
+  useEffect(() => {
+    fintechApi.topupConfig()
+      .then(setCfg)
+      .catch(() => setCfg({ enabled: false, testMode: false, minRub: 10 }));
+  }, []);
+
+  async function submit(e) {
     e.preventDefault();
-    const v = parseFloat(String(amount).replace(',', '.'));
-    if (!Number.isFinite(v) || v <= 0) {
-      setNote('Укажите сумму пополнения');
+    setErr('');
+    setNote('');
+    const v = parseFloat(String(amount).replace(/\s/g, '').replace(',', '.'));
+    const min = Number(cfg.minRub) || 10;
+    if (!Number.isFinite(v) || v < min) {
+      setErr(`Минимальная сумма — ${min} ₽`);
       return;
     }
+    if (!cfg.enabled) {
+      setErr('Онлайн-оплата временно недоступна. Напишите в поддержку.');
+      return;
+    }
+    setBusy(true);
     try {
-      const key = 'cpx_fin_topup_drafts';
-      const prev = JSON.parse(localStorage.getItem(key) || '[]');
-      prev.unshift({ rub: v, at: new Date().toISOString(), status: 'awaiting_credit' });
-      localStorage.setItem(key, JSON.stringify(prev.slice(0, 20)));
-    } catch { /* ignore */ }
-    setNote(`Заявка на ${formatMoney(v)} сохранена. Напишите в поддержку или на team@reaktivo.ru — модератор зачислит сумму на баланс. Онлайн-оплата через СБП подключится после эквайринга.`);
+      const returnUrl = `${window.location.origin}/kabinet?topup=1`;
+      const out = await fintechApi.createTopup({ rubAmount: v, returnUrl });
+      try {
+        sessionStorage.setItem(TOPUP_PENDING_KEY, JSON.stringify({
+          paymentId: out.paymentId,
+          amountRub: out.amountRub,
+          at: Date.now(),
+        }));
+      } catch { /* ignore */ }
+      if (!out.confirmationUrl) throw new Error('Нет ссылки на оплату');
+      window.location.href = out.confirmationUrl;
+    } catch (e2) {
+      setErr(e2?.message || 'Не удалось создать платёж');
+      setBusy(false);
+    }
   }
 
   return (
     <Reveal y={20}>
     <div className="cpx-card cpx-fin-topup-panel" id="fin-topup">
-      <div className="cpx-fin-soon-badge" aria-hidden>
-        <span className="cpx-fin-soon-label">Скоро</span>
-        <SbpMark className="cpx-sbp--compact" /> · карта
-      </div>
       <div className="cpx-fin-topup-head">
         <div>
           <h2 className="cpx-fin-side-title">Пополнить баланс</h2>
-          <p className="cpx-fin-side-sub">Сейчас на счёте {formatMoney(rubBal)}. Онлайн-оплата подключится после эквайринга — пока зачисление через модератора.</p>
+          <p className="cpx-fin-side-sub">
+            Сейчас на счёте {formatMoney(rubBal)}. Оплата картой или <SbpMark className="cpx-sbp--inline" /> через ЮKassa
+            {cfg.testMode ? ' · тестовый режим' : ''}.
+          </p>
         </div>
         {onClose && (
           <button type="button" className="cpx-link" onClick={onClose}>Скрыть</button>
         )}
       </div>
-      <div className="cpx-fin-soon-card">
-        <strong>Эквайринг и <SbpMark className="cpx-sbp--inline" /> в подключении</strong>
-        <p>Оставьте заявку на сумму — напишите в поддержку или на team@reaktivo.ru, и модератор зачислит рубли на баланс. После этого можно сразу купить золото.</p>
-      </div>
       <ol className="cpx-fin-topup-steps">
-        <li>Укажите сумму и оставьте заявку</li>
-        <li>Напишите в поддержку или на <a href="mailto:team@reaktivo.ru">team@reaktivo.ru</a></li>
-        <li>Модератор зачислит рубли — можно покупать золото</li>
+        <li>Укажите сумму пополнения</li>
+        <li>Оплатите картой или <SbpMark className="cpx-sbp--inline" /> на странице ЮKassa</li>
+        <li>Деньги зачислятся на баланс — можно сразу купить золото</li>
       </ol>
       <form onSubmit={submit} className="cpx-form cpx-fin-buy-form">
         <label className="cpx-field">
           <span className="cpx-field-label">Сумма пополнения, ₽</span>
-          <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="50000" />
+          <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="1000" disabled={busy} />
         </label>
-        <div className="cpx-fin-topup-actions">
-          <button type="submit" className="cpx-btn">Оставить заявку</button>
-          <a className="cpx-btn cpx-btn--ghost" href="https://t.me/Reaktivoai" target="_blank" rel="noopener noreferrer">Telegram</a>
-          <a className="cpx-btn cpx-btn--ghost" href="mailto:team@reaktivo.ru">Написать на почту</a>
+        <div className="cpx-fin-preset-row" role="group" aria-label="Быстрая сумма">
+          {[1000, 5000, 10000, 50000].map((n) => (
+            <button key={n} type="button" className="cpx-fin-preset-btn" disabled={busy} onClick={() => setAmount(String(n))}>
+              {n.toLocaleString('ru-RU')} ₽
+            </button>
+          ))}
         </div>
+        <div className="cpx-fin-topup-actions">
+          <button type="submit" className="cpx-btn" disabled={busy || !cfg.enabled}>
+            {busy ? <><span className="cpx-spinner" /> Переход к оплате…</> : <>Оплатить · <SbpMark className="cpx-sbp--inline" /> / карта</>}
+          </button>
+        </div>
+        {err && <p className="cpx-err" style={{ marginTop: 10 }}>{err}</p>}
         <AnimatePresence>
           {note && (
             <motion.p
@@ -1047,7 +1078,11 @@ function TopUpPanel({ portfolio, onClose }) {
           )}
         </AnimatePresence>
       </form>
-      <p className="cpx-fin-topup-foot">{withSbp('Онлайн-оплата картой и СБП — после подключения эквайринга. Пока зачисление вручную через модератора.')}</p>
+      <p className="cpx-fin-topup-foot">
+        {cfg.enabled
+          ? withSbp('Оплата через ЮKassa: карта и СБП. После успешного платежа баланс обновится автоматически.')
+          : 'Онлайн-оплата временно недоступна — напишите в поддержку.'}
+      </p>
     </div>
     </Reveal>
   );
@@ -1531,6 +1566,44 @@ function FintechDashboard({ profile }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Возврат с ЮKassa: дозачисляем по paymentId (если webhook ещё не дошёл) и открываем панель.
+  useEffect(() => {
+    let pending = null;
+    try {
+      pending = JSON.parse(sessionStorage.getItem(TOPUP_PENDING_KEY) || 'null');
+    } catch { pending = null; }
+    const q = new URLSearchParams(window.location.search);
+    const fromReturn = q.get('topup') === '1';
+    if (!pending?.paymentId && !fromReturn) return undefined;
+
+    if (fromReturn || pending?.paymentId) {
+      setShowTopup(true);
+      setView('buy');
+    }
+    if (!pending?.paymentId) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const out = await fintechApi.confirmTopup(pending.paymentId);
+        if (cancelled) return;
+        try { sessionStorage.removeItem(TOPUP_PENDING_KEY); } catch { /* ignore */ }
+        await load();
+        if (out?.status === 'succeeded') {
+          // очистить ?topup=1 из адресной строки
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('topup');
+            window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+          } catch { /* ignore */ }
+        }
+      } catch (e) {
+        console.warn('[topup confirm]', e?.message || e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [load]);
+
   async function downloadStatement() {
     setPdfBusy(true);
     try {
@@ -1675,7 +1748,13 @@ function FintechDashboard({ profile }) {
               onBuy={openBuy}
               onTopup={openTopup}
             />
-            {showTopup && <TopUpPanel portfolio={portfolio} onClose={() => setShowTopup(false)} />}
+            {showTopup && (
+              <TopUpPanel
+                portfolio={portfolio}
+                onClose={() => setShowTopup(false)}
+                onCredited={() => { void load(); }}
+              />
+            )}
           </div>
           <div className="cpx-fin-trade-side">
             <BuyPanel portfolio={portfolio} onDone={load} onTopup={openTopup} />

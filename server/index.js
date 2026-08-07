@@ -102,6 +102,13 @@ import {
   decideWithdrawal as decideFintechWithdrawal,
 } from './fintechWithdrawals.js';
 import {
+  yookassaConfigured,
+  createTopupPayment as createYooTopupPayment,
+  creditYooPaymentIfSucceeded,
+  handleYooWebhook,
+  getYooPayment,
+} from './yookassa.js';
+import {
   createPriceAlert as createFintechPriceAlert,
   listClientPriceAlerts as listFintechClientPriceAlerts,
   cancelPriceAlert as cancelFintechPriceAlert,
@@ -1610,6 +1617,106 @@ app.get(
       res.json({ requests: out });
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+// ── ЮKassa: пополнение баланса (тестовый / боевой магазин) ──────────────────
+function allowedTopupReturnUrl(candidate) {
+  const fallback = (process.env.PUBLIC_APP_ORIGIN || 'https://reaktivo.pro').replace(/\/$/, '');
+  const raw = String(candidate || fallback).trim() || fallback;
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    return `${fallback}/kabinet`;
+  }
+  const allowed = new Set(
+    [
+      fallback,
+      ...(process.env.CORS_ORIGIN || '').split(',').map((s) => s.trim()).filter(Boolean),
+      'http://localhost:5173',
+      'https://reaktivo.pro',
+      'https://gold-panel.web.app',
+      'https://gold-panel.firebaseapp.com',
+    ].map((o) => {
+      try { return new URL(o).origin; } catch { return null; }
+    }).filter(Boolean)
+  );
+  if (!allowed.has(u.origin)) return `${fallback}/kabinet`;
+  // Всегда возвращаем в кабинет (вкладка invest откроется на клиенте по sessionStorage).
+  if (!u.pathname || u.pathname === '/') u.pathname = '/kabinet';
+  u.searchParams.set('topup', '1');
+  return u.toString();
+}
+
+app.get(
+  '/api/public/fintech/topup/config',
+  asyncHandler(async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      enabled: yookassaConfigured(),
+      provider: 'yookassa',
+      testMode: String(process.env.YOOKASSA_SECRET_KEY || '').startsWith('test_'),
+      minRub: Number(process.env.YOOKASSA_MIN_TOPUP_RUB || 10) || 10,
+    });
+  })
+);
+
+app.post(
+  '/api/public/fintech/topup/create',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await createYooTopupPayment(supabase, {
+        clientId: session.clientId,
+        rubAmount: req.body?.rubAmount,
+        returnUrl: allowedTopupReturnUrl(req.body?.returnUrl),
+        description: req.body?.description,
+        customerEmail: req.body?.email,
+      });
+      res.json(out);
+    } catch (e) {
+      console.warn('[yookassa create]', e?.message || e, e?.yookassa || '');
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось создать платёж', code: e.code });
+    }
+  })
+);
+
+/** Клиент после return_url: дозачислить, если webhook ещё не дошёл (Render cold start). */
+app.post(
+  '/api/public/fintech/topup/confirm',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    const paymentId = String(req.body?.paymentId || '').trim();
+    if (!paymentId) return res.status(400).json({ error: 'Укажите paymentId' });
+    try {
+      const raw = await getYooPayment(paymentId);
+      if (String(raw?.metadata?.clientId || '') !== String(session.clientId)) {
+        return res.status(403).json({ error: 'Платёж принадлежит другому клиенту' });
+      }
+      const payment = await creditYooPaymentIfSucceeded(supabase, raw);
+      res.json(payment);
+    } catch (e) {
+      console.warn('[yookassa confirm]', e?.message || e);
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось подтвердить платёж' });
+    }
+  })
+);
+
+app.post(
+  '/api/public/fintech/topup/webhook',
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await handleYooWebhook(supabase, req.body);
+      res.status(200).json(out);
+    } catch (e) {
+      console.error('[yookassa webhook]', e?.message || e);
+      // 500 → ЮKassa ретраит; лучше 200 после логирования только для «своих» ошибок бизнеса.
+      // Сетевые/временные — 500.
+      res.status(e.status && e.status < 500 ? 200 : 500).json({ error: e.message || 'webhook error' });
     }
   })
 );
