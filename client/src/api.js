@@ -1,12 +1,7 @@
 import { supabase } from './supabase.js';
 
-const API_BASE = import.meta.env.DEV ? '/api' : import.meta.env.VITE_API_BASE || '/api';
-
-if (import.meta.env.PROD && !import.meta.env.VITE_API_BASE) {
-  console.error(
-    '[Calculated Gold] Задайте VITE_API_BASE в client/.env.production (полный URL API, заканчивается на /api) перед vite build.'
-  );
-}
+// Прод: same-origin /api (Firebase proxy → Render). Dev: Vite proxy → localhost:8787.
+const API_BASE = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_BASE || '/api');
 
 const AUTH_EXPIRED_EVENT = 'cg:session-expired';
 const DEVICE_UNVERIFIED_EVENT = 'cg:device-unverified';

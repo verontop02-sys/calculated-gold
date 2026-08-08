@@ -346,53 +346,64 @@ export async function getClientPortfolio(supabase, clientId) {
   const { rate: currentRate, cachedAt } = await getLiveGoldRatePerGram(supabase).catch(() => ({ rate: null, cachedAt: null }));
   const settings = await getFintechSettings(supabase).catch(() => null);
 
-  // Берутся и покупки, и продажи: иначе «вложено» = сумма всех покупок, а стоимость —
-  // только оставшиеся граммы, и после продажи доходность уходит в минус неверно.
+  // Покупки и продажи. Себестоимость — по курсу металла БЕЗ buy-комиссии
+  // (rate_rub_per_gram × граммы). Иначе сразу после покупки «доход» = −fee% —
+  // клиент видит минус 1.5% при неизменном рынке.
   const { data: trades, error } = await supabase
     .from('fintech_ledger_entries')
-    .select('rub_delta, gold_grams_delta, entry_type')
+    .select('rub_delta, gold_grams_delta, entry_type, fee_rub, rate_rub_per_gram')
     .eq('client_id', clientId)
     .in('entry_type', ['buy_gold', 'sell_gold']);
   if (error) throw error;
 
-  let buyRub = 0;
+  let buyCashRub = 0; // сколько списали с баланса (с комиссией)
+  let buyMetalRub = 0; // стоимость металла по споту на момент покупки
+  let feesPaidRubAcc = 0;
   let buyGrams = 0;
-  let sellRub = 0;
+  let sellGrossRub = 0; // металл по споту на момент продажи
   let sellGrams = 0;
   for (const r of trades || []) {
     const rub = Math.abs(Number(r.rub_delta) || 0);
     const grams = Math.abs(Number(r.gold_grams_delta) || 0);
+    const fee = Math.abs(Number(r.fee_rub) || 0);
+    const spot = Number(r.rate_rub_per_gram) || 0;
+    const metalAtSpot = spot > 0 && grams > 0
+      ? Math.round(grams * spot * 100) / 100
+      : Math.max(0, Math.round((rub - fee) * 100) / 100);
     if (r.entry_type === 'buy_gold') {
-      buyRub += rub;
+      buyCashRub += rub;
+      buyMetalRub += metalAtSpot;
+      feesPaidRubAcc += fee || Math.max(0, rub - metalAtSpot);
       buyGrams += grams;
     } else if (r.entry_type === 'sell_gold') {
-      sellRub += rub;
+      sellGrossRub += metalAtSpot;
+      feesPaidRubAcc += fee || Math.max(0, metalAtSpot - rub);
       sellGrams += grams;
     }
   }
 
-  const avgCostPerGram = buyGrams > 0 ? buyRub / buyGrams : 0;
-  // Себестоимость открытой позиции (средняя цена покупки × граммы на счёте).
+  const avgCostPerGram = buyGrams > 0 ? buyMetalRub / buyGrams : 0;
+  // Себестоимость открытой позиции (средняя спот-цена покупки × граммы на счёте).
   const investedRub = balance.goldGrams > 0 && avgCostPerGram > 0
     ? Math.round(balance.goldGrams * avgCostPerGram * 100) / 100
     : 0;
   const marketValueRub = currentRate != null
     ? Math.round(balance.goldGrams * currentRate * 100) / 100
     : null;
-  // Нереализованный доход по текущему золоту.
+  // Нереализованный: движение курса металла (комиссия покупки сюда не входит).
   const unrealizedPnlRub = marketValueRub != null
     ? Math.round((marketValueRub - investedRub) * 100) / 100
     : null;
-  // Реализованный: выручка продаж − себестоимость проданных граммов (по средней цене покупки).
+  // Реализованный по металлу: спот продажи − себестоимость; sell-комиссия — отдельно в fees.
   const soldCostRub = Math.round(sellGrams * avgCostPerGram * 100) / 100;
-  const realizedPnlRub = Math.round((sellRub - soldCostRub) * 100) / 100;
-  // Итоговая доходность = нереализованный + реализованный.
+  const realizedPnlRub = Math.round((sellGrossRub - soldCostRub) * 100) / 100;
   const pnlRub = unrealizedPnlRub != null
     ? Math.round((unrealizedPnlRub + realizedPnlRub) * 100) / 100
     : Math.round(realizedPnlRub * 100) / 100;
-  // База для % — всё, что когда-либо вложено в покупки (понятнее клиенту, чем только open position).
-  const pnlPercent = buyRub > 0 && pnlRub != null
-    ? Math.round((pnlRub / buyRub) * 10000) / 100
+  // % от стоимости металла в открытой позиции (+ реализованная база по проданному).
+  const pnlBaseRub = investedRub + soldCostRub;
+  const pnlPercent = pnlBaseRub > 0 && pnlRub != null
+    ? Math.round((pnlRub / pnlBaseRub) * 10000) / 100
     : null;
 
   return {
@@ -400,7 +411,9 @@ export async function getClientPortfolio(supabase, clientId) {
     goldGrams: balance.goldGrams,
     marketValueRub,
     investedRub,
-    investedTotalRub: Math.round(buyRub * 100) / 100,
+    investedTotalRub: Math.round(buyMetalRub * 100) / 100,
+    investedCashTotalRub: Math.round(buyCashRub * 100) / 100,
+    feesPaidRub: Math.round(feesPaidRubAcc * 100) / 100,
     gramsBoughtTotal: Math.round(buyGrams * 1e6) / 1e6,
     gramsSoldTotal: Math.round(sellGrams * 1e6) / 1e6,
     unrealizedPnlRub,
