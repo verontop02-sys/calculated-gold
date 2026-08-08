@@ -38,8 +38,48 @@ async function getApprovedClient(supabase, clientId) {
   return client;
 }
 
+function buildPayoutDetails({ payoutDetails, payoutMethod, cardNumber, sbpPhone, recipientName }) {
+  const raw = String(payoutDetails || '').trim();
+  if (raw) return { details: raw.slice(0, 500), method: 'freeform', cardMasked: null, phone: null, recipientName: null };
+
+  const method = payoutMethod === 'sbp' ? 'sbp' : 'card';
+  const name = String(recipientName || '').trim().slice(0, 120);
+  if (method === 'card') {
+    const card = String(cardNumber || '').replace(/\D/g, '');
+    if (card.length < 16 || card.length > 19) {
+      const err = new Error('Введите номер карты полностью (16–19 цифр)');
+      err.status = 400;
+      throw err;
+    }
+    const grouped = card.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+    const masked = `${card.slice(0, 4)} ···· ···· ${card.slice(-4)}`;
+    const details = [`Карта ${grouped}`, name ? `получатель ${name}` : null].filter(Boolean).join(' · ').slice(0, 500);
+    return { details, method: 'card', cardMasked: masked, phone: null, recipientName: name || null };
+  }
+
+  const phone = String(sbpPhone || '').replace(/\D/g, '');
+  if (phone.length < 10 || phone.length > 11) {
+    const err = new Error('Введите телефон СБП в формате +7 XXX XXX-XX-XX');
+    err.status = 400;
+    throw err;
+  }
+  const norm = phone.length === 10 ? `7${phone}` : phone;
+  const pretty = `+${norm[0]} ${norm.slice(1, 4)} ${norm.slice(4, 7)}-${norm.slice(7, 9)}-${norm.slice(9)}`;
+  const details = [`СБП ${pretty}`, name ? `получатель ${name}` : null].filter(Boolean).join(' · ').slice(0, 500);
+  return { details, method: 'sbp', cardMasked: null, phone: pretty, recipientName: name || null };
+}
+
 /** Подать заявку на вывод: списывает деньги с баланса и создаёт заявку в статусе pending. */
-export async function requestWithdrawal(supabase, { clientId, rubAmount, payoutDetails, idempotencyKey }) {
+export async function requestWithdrawal(supabase, {
+  clientId,
+  rubAmount,
+  payoutDetails,
+  payoutMethod,
+  cardNumber,
+  sbpPhone,
+  recipientName,
+  idempotencyKey,
+}) {
   await getApprovedClient(supabase, clientId);
   const settings = await getFintechSettings(supabase);
 
@@ -55,9 +95,10 @@ export async function requestWithdrawal(supabase, { clientId, rubAmount, payoutD
     err.status = 400;
     throw err;
   }
-  const details = String(payoutDetails || '').trim().slice(0, 500);
+  const payout = buildPayoutDetails({ payoutDetails, payoutMethod, cardNumber, sbpPhone, recipientName });
+  const details = payout.details;
   if (!details) {
-    const err = new Error('Укажите реквизиты для перевода (карта, телефон СБП и т.п.)');
+    const err = new Error('Укажите реквизиты для перевода (карта или телефон СБП)');
     err.status = 400;
     throw err;
   }
@@ -80,7 +121,13 @@ export async function requestWithdrawal(supabase, { clientId, rubAmount, payoutD
     p_idempotency_key: key,
     p_created_by_type: 'client',
     p_created_by_id: clientId,
-    p_detail: { payoutDetails: details },
+    p_detail: {
+      payoutDetails: details,
+      payoutMethod: payout.method,
+      cardMasked: payout.cardMasked,
+      sbpPhone: payout.phone,
+      recipientName: payout.recipientName,
+    },
     p_reversal_of: null,
   });
   if (error) {

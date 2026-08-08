@@ -1597,6 +1597,10 @@ app.post(
         clientId: session.clientId,
         rubAmount: req.body?.rubAmount,
         payoutDetails: req.body?.payoutDetails,
+        payoutMethod: req.body?.payoutMethod,
+        cardNumber: req.body?.cardNumber,
+        sbpPhone: req.body?.sbpPhone,
+        recipientName: req.body?.recipientName,
         idempotencyKey: req.body?.idempotencyKey,
       });
       res.json(out);
@@ -1703,6 +1707,18 @@ app.post(
       console.warn('[yookassa confirm]', e?.message || e);
       res.status(e.status || 500).json({ error: e.message || 'Не удалось подтвердить платёж' });
     }
+  })
+);
+
+/** Проверка URL в браузере / кабинете ЮKassa: GET не = «вход», это просто ping эндпоинта. */
+app.get(
+  '/api/public/fintech/topup/webhook',
+  asyncHandler(async (_req, res) => {
+    res.status(200).json({
+      ok: true,
+      endpoint: 'yookassa_webhook',
+      hint: 'Сюда ЮKassa шлёт POST при смене статуса платежа. Открывать в браузере не нужно.',
+    });
   })
 );
 

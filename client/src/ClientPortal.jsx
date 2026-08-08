@@ -114,23 +114,39 @@ export function ClientPortal() {
   }, [phase]);
 
   // Проверяем сохранённый токен.
+  // Важно: сетевой сбой (Render sleep / Failed to fetch) ≠ «сессия протухла».
+  // Иначе после возврата с ЮKassa пользователя выкидывает на логин.
+  const [bootErr, setBootErr] = useState('');
+  const [bootNonce, setBootNonce] = useState(0);
   useEffect(() => {
     if (!getClientToken()) {
       setPhase('login');
       return;
     }
+    let cancelled = false;
+    setPhase('checking');
+    setBootErr('');
     clientApi
       .me()
       .then((out) => {
+        if (cancelled) return;
         setPhoneNormalized(out?.phoneNormalized || '');
         setHasPin(!!out?.hasPin);
         setPhase('authed');
       })
-      .catch(() => {
-        setClientToken('');
-        setPhase('login');
+      .catch((e) => {
+        if (cancelled) return;
+        const st = e?.status;
+        if (st === 401 || st === 403) {
+          setClientToken('');
+          setPhase('login');
+          return;
+        }
+        setBootErr(e?.message || 'Не удалось связаться с сервером. Попробуйте ещё раз.');
+        setPhase('boot_retry');
       });
-  }, []);
+    return () => { cancelled = true; };
+  }, [bootNonce]);
 
   // Таймер повторной отправки.
   useEffect(() => {
@@ -318,7 +334,12 @@ export function ClientPortal() {
             )}
             {tab === 'calc' && <ClientCalculator />}
             {tab === 'history' && <ClientDeals onAuthExpired={logout} />}
-            {tab === 'invest' && <FintechInvest clientToken={getClientToken()} expectedPhone={phoneNormalized} />}
+            {tab === 'invest' && (
+              <FintechInvest
+                clientToken={getClientToken() || ''}
+                expectedPhone={phoneNormalized}
+              />
+            )}
             {tab === 'support' && <ClientSupportChat onUnreadCleared={() => setSupportUnread(0)} />}
             {tab === 'settings' && (
               <ClientSettings
@@ -370,6 +391,24 @@ export function ClientPortal() {
         {phase === 'checking' && (
           <div className="cpx-center">
             <span className="cpx-spinner" /> Загрузка…
+          </div>
+        )}
+
+        {phase === 'boot_retry' && (
+          <div className="cpx-card cpx-login cpx-login--fin">
+            <p className="cpx-login-eyebrow">REAKTIVO · КАБИНЕТ</p>
+            <h1 className="cpx-title">Почти готово</h1>
+            <p className="cpx-sub">
+              Сервер не ответил после оплаты или при входе. Сессия сохранена — просто повторите запрос.
+            </p>
+            {bootErr && <p className="cpx-err">{bootErr}</p>}
+            <button
+              type="button"
+              className="cpx-btn"
+              onClick={() => setBootNonce((n) => n + 1)}
+            >
+              Обновить кабинет
+            </button>
           </div>
         )}
 
@@ -2852,6 +2891,53 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
 .cpx-fin-op-row--rate strong { color: var(--accent); }
 .cpx-fin-op-comment { font-weight: 600; white-space: normal; text-align: right; word-break: break-word; }
 .cpx-fin-op-ok { width: 100%; margin-top: 14px; }
+
+/* Успешное пополнение после возврата с ЮKassa */
+.cpx-fin-success-modal { text-align: left; max-width: 400px; }
+.cpx-fin-success-mark {
+  display: flex; align-items: center; justify-content: center;
+  width: 52px; height: 52px; border-radius: 16px; margin-bottom: 12px;
+  background: var(--emerald-soft, rgba(16,185,129,0.16));
+  color: var(--emerald, #34d399);
+  font-size: 1.55rem; font-weight: 800;
+  box-shadow: 0 0 0 1px rgba(16,185,129,0.25);
+}
+.cpx-fin-success-mark--pending {
+  background: var(--accent-soft);
+  color: var(--text-strong);
+  box-shadow: 0 0 0 1px var(--stroke-soft);
+}
+.cpx-fin-success-eyebrow {
+  margin: 0 0 4px; font-size: 0.68rem; font-weight: 700;
+  letter-spacing: 0.08em; color: var(--text-dim);
+}
+.cpx-fin-success-lead {
+  margin: 0 0 16px; font-size: 0.9rem; line-height: 1.45; color: var(--text-muted);
+}
+.cpx-fin-success-sum {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 10px 12px; margin-bottom: 8px;
+  border-radius: 12px; background: var(--accent-soft);
+  border: 1px solid var(--stroke-soft);
+  font-size: 0.88rem;
+}
+.cpx-fin-success-sum span { color: var(--text-muted); }
+.cpx-fin-success-sum strong {
+  font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text-strong);
+}
+.cpx-fin-success-sum--muted { background: var(--surface); }
+.cpx-fin-success-actions {
+  display: flex; flex-direction: column; gap: 8px; margin-top: 16px;
+}
+.cpx-fin-success-actions .cpx-btn,
+.cpx-fin-success-actions .cpx-fin-pdf-btn { width: 100%; justify-content: center; }
+.cpx-fin-topup-sync {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 12px; padding: 10px 14px;
+  border-radius: 12px; border: 1px solid var(--stroke-soft);
+  background: var(--surface); color: var(--text-muted); font-size: 0.86rem;
+}
+
 .cpx-fin-ledger-row:last-child { border-bottom: none; }
 .cpx-fin-ledger-main { display: flex; flex-direction: column; gap: 2px; }
 .cpx-fin-ledger-type { font-weight: 600; color: var(--cpx-ink); }

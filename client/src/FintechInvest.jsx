@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { fintechApi, getFintechToken, setFintechToken, onFintechSessionExpired } from './api.js';
+import { fintechApi, getFintechToken, setFintechToken, onFintechSessionExpired, pingApiHealth } from './api.js';
 import { openFintechStatementReport } from './fintechStatementReport.js';
 import { WorldClocksCard } from './WorldClocks.jsx';
 import { MissedBenefitCalc } from './MissedBenefitCalc.jsx';
@@ -87,6 +87,11 @@ export function FintechInvest({ clientToken = '', expectedPhone = '' }) {
   const [phase, setPhase] = useState('checking'); // checking | login | app
   const [profile, setProfile] = useState(null);
   const [loadErr, setLoadErr] = useState('');
+  const clientTokenRef = useRef(clientToken);
+  const expectedPhoneRef = useRef(expectedPhone);
+  const restoringRef = useRef(false);
+  clientTokenRef.current = clientToken;
+  expectedPhoneRef.current = expectedPhone;
 
   const loadProfile = useCallback(async () => {
     const p = await fintechApi.profile();
@@ -98,15 +103,17 @@ export function FintechInvest({ clientToken = '', expectedPhone = '' }) {
 
   /** Тихий вход: есть клиентская сессия кабинета → выпускаем fintech-токен без SMS. */
   const ensureSession = useCallback(async () => {
+    const token = clientTokenRef.current;
+    const phone = expectedPhoneRef.current;
     if (getFintechToken()) {
       try {
         const p = await loadProfile();
         // Сохранённый fintech-токен может принадлежать предыдущему пользователю
         // этого устройства — сверяем с телефоном текущей клиентской сессии.
         const last10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
-        const mismatch = expectedPhone && p?.phoneNormalized && last10(p.phoneNormalized) !== last10(expectedPhone);
+        const mismatch = phone && p?.phoneNormalized && last10(p.phoneNormalized) !== last10(phone);
         if (!mismatch) return true;
-        setProfile(null);
+        // Не обнуляем profile до нового токена — иначе экран мигает в null.
         setFintechToken('');
       } catch (e) {
         // Стейл-токен: ниже попробуем обмен из client-сессии.
@@ -118,18 +125,19 @@ export function FintechInvest({ clientToken = '', expectedPhone = '' }) {
         setFintechToken('');
       }
     }
-    if (clientToken) {
+    if (token) {
       try {
-        await fintechApi.sessionFromClient(clientToken);
+        await fintechApi.sessionFromClient(token);
         await loadProfile();
         return true;
       } catch {
         /* покажем форму входа */
       }
     }
+    setProfile(null);
     setPhase('login');
     return false;
-  }, [clientToken, expectedPhone, loadProfile]);
+  }, [loadProfile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,23 +146,28 @@ export function FintechInvest({ clientToken = '', expectedPhone = '' }) {
       if (cancelled) return;
     })();
     return () => { cancelled = true; };
-  }, [ensureSession]);
+    // Только при монтировании / смене телефона кабинета — не на каждый ререндер родителя.
+  }, [ensureSession, expectedPhone]);
 
-  // 401 от фонового запроса: сначала пробуем восстановить сессию из кабинета, не выкидывая на SMS.
+  // 401 от фонового запроса: восстанавливаем сессию из кабинета, UI не сбрасываем в login сразу.
   useEffect(() => onFintechSessionExpired(() => {
-    if (clientToken) {
-      fintechApi
-        .sessionFromClient(clientToken)
-        .then(() => loadProfile())
-        .catch(() => {
-          setProfile(null);
-          setPhase('login');
-        });
+    if (restoringRef.current) return;
+    const token = clientTokenRef.current;
+    if (!token) {
+      setProfile(null);
+      setPhase('login');
       return;
     }
-    setProfile(null);
-    setPhase('login');
-  }), [clientToken, loadProfile]);
+    restoringRef.current = true;
+    fintechApi
+      .sessionFromClient(token)
+      .then(() => loadProfile())
+      .catch(() => {
+        setProfile(null);
+        setPhase('login');
+      })
+      .finally(() => { restoringRef.current = false; });
+  }), [loadProfile]);
 
   // Пока документы на проверке — тихо обновляем статус, чтобы не заставлять жать «Обновить».
   useEffect(() => {
@@ -167,11 +180,11 @@ export function FintechInvest({ clientToken = '', expectedPhone = '' }) {
     return <FintechLogin onDone={() => { void ensureSession(); }} />;
   }
 
-  if (phase === 'checking') {
+  if (phase === 'checking' && !profile) {
     return <div className="cpx-center"><span className="cpx-spinner" /> Загрузка…</div>;
   }
 
-  if (loadErr) {
+  if (loadErr && !profile) {
     return (
       <div className="cpx-card">
         <p className="cpx-err">{loadErr}</p>
@@ -180,7 +193,9 @@ export function FintechInvest({ clientToken = '', expectedPhone = '' }) {
     );
   }
 
-  if (!profile) return null;
+  if (!profile) {
+    return <div className="cpx-center"><span className="cpx-spinner" /> Загрузка…</div>;
+  }
 
   if (profile.status === 'new' || profile.status === 'rejected') {
     return <FintechOnboarding profile={profile} onUpdated={() => { void loadProfile().catch(() => {}); }} />;
@@ -586,18 +601,20 @@ function formatChartDate(iso, rangeKey) {
 function GoldChartCard({ currentRate, rateUpdatedAt }) {
   // История по источникам кэшируется отдельно: переключение MOEX ↔ мир не перезагружает данные.
   const [series, setSeries] = useState({ moex: null, global: null });
+  const seriesRef = useRef(series);
+  seriesRef.current = series;
   const [range, setRange] = useState('3m');
   const [source, setSource] = useState('moex');
 
   useEffect(() => {
-    if (series[source] !== null) return undefined;
+    if (seriesRef.current[source] !== null) return undefined;
     let alive = true;
     fintechApi
       .goldHistory(1830, source)
       .then((out) => { if (alive) setSeries((s) => ({ ...s, [source]: out.points || [] })); })
       .catch(() => { if (alive) setSeries((s) => ({ ...s, [source]: [] })); });
     return () => { alive = false; };
-  }, [source, series]);
+  }, [source]);
 
   const points = series[source];
   const isGlobal = source === 'global';
@@ -978,6 +995,76 @@ function TradeCtaBar({ active, onBuy, onTopup, rubBalance }) {
 
 const TOPUP_PENDING_KEY = 'cpx_yookassa_pending_payment';
 
+function readTopupPending() {
+  for (const store of [sessionStorage, localStorage]) {
+    try {
+      const raw = store.getItem(TOPUP_PENDING_KEY);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (parsed?.paymentId) return parsed;
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+
+function writeTopupPending(payload) {
+  const raw = JSON.stringify(payload);
+  try { sessionStorage.setItem(TOPUP_PENDING_KEY, raw); } catch { /* ignore */ }
+  try { localStorage.setItem(TOPUP_PENDING_KEY, raw); } catch { /* ignore */ }
+}
+
+function clearTopupPending() {
+  try { sessionStorage.removeItem(TOPUP_PENDING_KEY); } catch { /* ignore */ }
+  try { localStorage.removeItem(TOPUP_PENDING_KEY); } catch { /* ignore */ }
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Диалог после успешного пополнения — в стиле кабинета, не страница ЮKassa. */
+function TopupSuccessModal({ amountRub, balanceRub, pending = false, onClose, onBuy }) {
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape' && !pending) onClose?.(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, pending]);
+
+  return (
+    <div className="cpx-fin-op-backdrop" onClick={pending ? undefined : onClose} role="dialog" aria-modal="true" aria-label="Баланс пополнен">
+      <div className="cpx-fin-op-modal cpx-fin-success-modal" onClick={(e) => e.stopPropagation()}>
+        {!pending && (
+          <button type="button" className="cpx-fin-op-close" onClick={onClose} aria-label="Закрыть">✕</button>
+        )}
+        <span className={`cpx-fin-success-mark${pending ? ' cpx-fin-success-mark--pending' : ''}`} aria-hidden>
+          {pending ? <span className="cpx-spinner" /> : '✓'}
+        </span>
+        <p className="cpx-fin-success-eyebrow">REAKTIVO · ЗОЛОТОЙ СЧЁТ</p>
+        <h3 className="cpx-fin-op-title">{pending ? 'Зачисляем оплату…' : 'Круто, баланс пополнен'}</h3>
+        <p className="cpx-fin-success-lead">
+          {pending
+            ? 'Платёж прошёл — подождите пару секунд, пока баланс обновится.'
+            : 'Деньги уже на счёте. Можно сразу купить золото по курсу биржи.'}
+        </p>
+        <div className="cpx-fin-success-sum">
+          <span>{pending ? 'Сумма платежа' : 'Зачислено'}</span>
+          <strong className="cpx-fin-pos">+{formatMoney(amountRub)}</strong>
+        </div>
+        <div className="cpx-fin-success-sum cpx-fin-success-sum--muted">
+          <span>Сейчас на балансе</span>
+          <strong>{balanceRub == null ? '…' : formatMoney(balanceRub)}</strong>
+        </div>
+        {!pending && (
+          <div className="cpx-fin-success-actions">
+            <button type="button" className="cpx-btn" onClick={onBuy}>Купить золото</button>
+            <button type="button" className="cpx-fin-pdf-btn" onClick={onClose}>Отлично</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Пополнение баланса через ЮKassa (карта / СБП) ───────────────────────────
 function TopUpPanel({ portfolio, onClose, onCredited }) {
   const [amount, setAmount] = useState('1000');
@@ -1009,15 +1096,16 @@ function TopUpPanel({ portfolio, onClose, onCredited }) {
     }
     setBusy(true);
     try {
-      const returnUrl = `${window.location.origin}/kabinet?topup=1`;
+      // Прогрев API (Render) параллельно с созданием платежа — меньше «висит» на первом клике.
+      void pingApiHealth({ timeout: 45_000 });
+      // invest=1 — сразу вкладка «Покупка золота»; topup=1 — confirm + success-диалог.
+      const returnUrl = `${window.location.origin}/kabinet?invest=1&topup=1`;
       const out = await fintechApi.createTopup({ rubAmount: v, returnUrl });
-      try {
-        sessionStorage.setItem(TOPUP_PENDING_KEY, JSON.stringify({
-          paymentId: out.paymentId,
-          amountRub: out.amountRub,
-          at: Date.now(),
-        }));
-      } catch { /* ignore */ }
+      writeTopupPending({
+        paymentId: out.paymentId,
+        amountRub: out.amountRub,
+        at: Date.now(),
+      });
       if (!out.confirmationUrl) throw new Error('Нет ссылки на оплату');
       window.location.href = out.confirmationUrl;
     } catch (e2) {
@@ -1383,17 +1471,29 @@ function SellPanel({ portfolio, onDone }) {
   );
 }
 
+function formatCardInput(v) {
+  const d = String(v || '').replace(/\D/g, '').slice(0, 19);
+  return d.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+}
+
+function formatPhoneInputWithdraw(v) {
+  return String(v || '').replace(/\D/g, '').slice(0, 10);
+}
+
 /**
- * Заявка на вывод. Пока нет A7/ПСБ, деньги переводятся вручную по реквизитам,
- * которые указывает клиент, но сумма резервируется на балансе сразу — заявка
- * реальная (не заглушка), с историей статусов и письмом клиенту по решению.
+ * Заявка на вывод на карту / СБП.
+ * Пока договор ЮKassa без автовыплат — деньги резервируются сразу, перевод делает менеджер
+ * из админки (статусы + письмо клиенту). Когда появится payout API — подменим исполнение.
  */
 function WithdrawPanel({ portfolio, onDone }) {
   const [rub, setRub] = useState('');
-  const [details, setDetails] = useState('');
+  const [method, setMethod] = useState('card'); // card | sbp
+  const [card, setCard] = useState('');
+  const [phone, setPhone] = useState('');
+  const [recipient, setRecipient] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState('');
-  const [ok, setOk] = useState('');
+  const [success, setSuccess] = useState(null); // { amount, net, details }
   const [history, setHistory] = useState(null);
 
   const rubBal = Number(portfolio?.rubBalance) || 0;
@@ -1422,7 +1522,6 @@ function WithdrawPanel({ portfolio, onDone }) {
   async function submit(e) {
     e.preventDefault();
     setErr('');
-    setOk('');
     const v = parseFloat(String(rub).replace(',', '.'));
     if (!Number.isFinite(v) || v <= 0) {
       setErr('Укажите сумму вывода');
@@ -1436,16 +1535,33 @@ function WithdrawPanel({ portfolio, onDone }) {
       setErr('Сумма больше рублёвого баланса');
       return;
     }
-    if (!details.trim()) {
-      setErr('Укажите реквизиты для перевода — номер карты или телефон СБП');
+    if (method === 'card' && card.replace(/\D/g, '').length < 16) {
+      setErr('Введите номер карты полностью');
+      return;
+    }
+    if (method === 'sbp' && phone.replace(/\D/g, '').length !== 10) {
+      setErr('Введите телефон СБП полностью');
       return;
     }
     setSubmitting(true);
     try {
-      const out = await fintechApi.requestWithdrawal({ rubAmount: v, payoutDetails: details.trim(), idempotencyKey: crypto.randomUUID() });
-      setOk(`Заявка на ${formatMoney(out.request.rubAmount)} принята. Деньги зарезервированы, менеджер свяжется по реквизитам.`);
+      const out = await fintechApi.requestWithdrawal({
+        rubAmount: v,
+        payoutMethod: method,
+        cardNumber: method === 'card' ? card : undefined,
+        sbpPhone: method === 'sbp' ? `7${phone.replace(/\D/g, '')}` : undefined,
+        recipientName: recipient.trim() || undefined,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      setSuccess({
+        amount: out.request.rubAmount,
+        net: out.request.netRub,
+        details: out.request.payoutDetails,
+      });
       setRub('');
-      setDetails('');
+      setCard('');
+      setPhone('');
+      setRecipient('');
       await Promise.all([loadHistory(), onDone?.()]);
     } catch (e2) {
       setErr(e2?.message || 'Не удалось оформить заявку');
@@ -1456,45 +1572,77 @@ function WithdrawPanel({ portfolio, onDone }) {
 
   return (
     <div className="cpx-card cpx-fin-withdraw-card">
-      <h2 className="cpx-fin-side-title">Вывод средств</h2>
+      {success && (
+        <div className="cpx-fin-op-backdrop" role="dialog" aria-modal="true" aria-label="Заявка на вывод принята">
+          <div className="cpx-fin-op-modal cpx-fin-success-modal" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="cpx-fin-op-close" onClick={() => setSuccess(null)} aria-label="Закрыть">✕</button>
+            <span className="cpx-fin-success-mark" aria-hidden>✓</span>
+            <p className="cpx-fin-success-eyebrow">REAKTIVO · ВЫВОД</p>
+            <h3 className="cpx-fin-op-title">Заявка принята</h3>
+            <p className="cpx-fin-success-lead">
+              Сумма зарезервирована на счёте. Перевод на карту/<SbpMark className="cpx-sbp--inline" /> обычно в течение рабочего дня после проверки менеджером.
+            </p>
+            <div className="cpx-fin-success-sum">
+              <span>К выводу</span>
+              <strong>{formatMoney(success.net ?? success.amount)}</strong>
+            </div>
+            <div className="cpx-fin-success-sum cpx-fin-success-sum--muted">
+              <span>Реквизиты</span>
+              <strong style={{ fontSize: '0.85rem', whiteSpace: 'normal', textAlign: 'right' }}>{success.details}</strong>
+            </div>
+            <div className="cpx-fin-success-actions">
+              <button type="button" className="cpx-btn" onClick={() => setSuccess(null)}>Понятно</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <h2 className="cpx-fin-side-title">Вывод на карту</h2>
       <p className="cpx-fin-side-sub">
-        Доступно {formatMoney(rubBal)}. {withSbp('Перевод на карту или по СБП')} — вручную менеджером, пока нет прямой интеграции с банком.
-        {feePct ? ` Комиссия за вывод ${feePct}%.` : ''}
+        Доступно {formatMoney(rubBal)}. {withSbp('Карта или СБП')} — сумма списывается сразу, перевод подтверждает менеджер.
+        {feePct ? ` Комиссия ${feePct}%.` : ' Без комиссии за вывод.'}
       </p>
       <form onSubmit={submit} className="cpx-form cpx-fin-buy-form">
+        <div className="cpx-fin-range cpx-fin-source" role="group" aria-label="Способ вывода">
+          <button type="button" className={`cpx-fin-range-btn${method === 'card' ? ' cpx-fin-range-btn--on' : ''}`} onClick={() => setMethod('card')}>
+            Карта
+          </button>
+          <button type="button" className={`cpx-fin-range-btn${method === 'sbp' ? ' cpx-fin-range-btn--on' : ''}`} onClick={() => setMethod('sbp')}>
+            <SbpMark className="cpx-sbp--inline" /> СБП
+          </button>
+        </div>
         <label className="cpx-field">
           <span className="cpx-field-label">Сумма вывода, ₽</span>
-          <input inputMode="decimal" value={rub} onChange={(e) => setRub(e.target.value)} placeholder={minRub ? String(minRub) : '5000'} />
+          <input inputMode="decimal" value={rub} onChange={(e) => setRub(e.target.value)} placeholder={minRub ? String(minRub) : '1000'} />
         </label>
+        {method === 'card' ? (
+          <label className="cpx-field">
+            <span className="cpx-field-label">Номер карты</span>
+            <input inputMode="numeric" autoComplete="cc-number" value={card} onChange={(e) => setCard(formatCardInput(e.target.value))} placeholder="2200 0000 0000 0000" />
+          </label>
+        ) : (
+          <label className="cpx-field">
+            <span className="cpx-field-label">Телефон СБП</span>
+            <div className="cpx-phone">
+              <span className="cpx-phone-prefix">+7</span>
+              <input inputMode="tel" value={phone} onChange={(e) => setPhone(formatPhoneInputWithdraw(e.target.value))} placeholder="9001234567" />
+            </div>
+          </label>
+        )}
         <label className="cpx-field">
-          <span className="cpx-field-label">Реквизиты для перевода</span>
-          <input value={details} onChange={(e) => setDetails(e.target.value)} placeholder="Номер карты или телефон СБП" />
+          <span className="cpx-field-label">ФИО получателя (как в банке)</span>
+          <input value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="Иванов Иван Иванович" autoComplete="name" />
         </label>
         {quote && (
           <div className="cpx-fin-order">
-            <div className="cpx-fin-order-title">Результат вывода</div>
-            <div className="cpx-fin-order-row"><span>Сумма к списанию</span><strong>{formatMoney(quote.gross)}</strong></div>
+            <div className="cpx-fin-order-title">К переводу</div>
+            <div className="cpx-fin-order-row"><span>Спишем с баланса</span><strong>{formatMoney(quote.gross)}</strong></div>
             {feePct > 0 && <div className="cpx-fin-order-row"><span>Комиссия {feePct}%</span><strong>−{formatMoney(quote.fee)}</strong></div>}
-            <div className="cpx-fin-order-total"><span>Вы получите</span><strong>{formatMoney(quote.net)}</strong></div>
+            <div className="cpx-fin-order-total"><span>Получите</span><strong>{formatMoney(quote.net)}</strong></div>
           </div>
         )}
         {err && <p className="cpx-err">{err}</p>}
-        <AnimatePresence>
-          {ok && (
-            <motion.p
-              key={ok}
-              className="cpx-fin-flash cpx-fin-flash--ok"
-              initial={{ opacity: 0, y: 10, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-            >
-              {ok}
-            </motion.p>
-          )}
-        </AnimatePresence>
-        <button type="submit" className="cpx-btn cpx-btn--sm" disabled={submitting}>
-          {submitting ? <><span className="cpx-spinner" /> Отправляем…</> : 'Оставить заявку'}
+        <button type="submit" className="cpx-btn" disabled={submitting || !quote}>
+          {submitting ? <><span className="cpx-spinner" /> Отправляем…</> : 'Вывести на карту'}
         </button>
       </form>
 
@@ -1531,9 +1679,14 @@ function FintechDashboard({ profile }) {
   const [view, setView] = useState('buy');
   const [pdfBusy, setPdfBusy] = useState(false);
   const [showTopup, setShowTopup] = useState(false);
+  const [topupSuccess, setTopupSuccess] = useState(null); // { amountRub, balanceRub } | null
+  const [topupSyncing, setTopupSyncing] = useState(false);
+  const loadGenRef = useRef(0);
+  const topupConfirmStarted = useRef(false);
 
   const openBuy = useCallback(() => {
     setShowTopup(false);
+    setTopupSuccess(null);
     setView('buy');
   }, []);
 
@@ -1543,63 +1696,99 @@ function FintechDashboard({ profile }) {
   }, []);
 
   useEffect(() => {
-    if (!showTopup || view !== 'buy') return undefined;
+    if (!showTopup || view !== 'buy' || topupSuccess) return undefined;
     const t = window.setTimeout(() => {
       document.getElementById('fin-topup')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 80);
     return () => window.clearTimeout(t);
-  }, [showTopup, view]);
+  }, [showTopup, view, topupSuccess]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  /** soft: не снимаем весь UI в спиннер (повторные load после ЮKassa/покупки мигали страницей). */
+  const load = useCallback(async (opts = {}) => {
+    const soft = opts.soft === true;
+    const gen = ++loadGenRef.current;
+    if (!soft) setLoading(true);
     setErr('');
     try {
       const [p, l] = await Promise.all([fintechApi.portfolio(), fintechApi.ledger(100)]);
+      if (gen !== loadGenRef.current) return null;
       setPortfolio(p);
       setLedger(l.entries || []);
+      return p;
     } catch (e) {
+      if (gen !== loadGenRef.current) return null;
       setErr(e?.message || 'Не удалось загрузить портфель');
+      return null;
     } finally {
-      setLoading(false);
+      if (gen === loadGenRef.current) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
-  // Возврат с ЮKassa: дозачисляем по paymentId (если webhook ещё не дошёл) и открываем панель.
+  // Возврат с ЮKassa: сразу показываем диалог, confirm в фоне с короткими ретраями.
   useEffect(() => {
-    let pending = null;
-    try {
-      pending = JSON.parse(sessionStorage.getItem(TOPUP_PENDING_KEY) || 'null');
-    } catch { pending = null; }
+    const pending = readTopupPending();
     const q = new URLSearchParams(window.location.search);
     const fromReturn = q.get('topup') === '1';
     if (!pending?.paymentId && !fromReturn) return undefined;
 
-    if (fromReturn || pending?.paymentId) {
-      setShowTopup(true);
-      setView('buy');
+    setView('buy');
+    if (!pending?.paymentId || topupConfirmStarted.current) {
+      if (fromReturn && !pending?.paymentId) setShowTopup(true);
+      return undefined;
     }
-    if (!pending?.paymentId) return undefined;
+    topupConfirmStarted.current = true;
+    const amountHint = Number(pending.amountRub) || 0;
+    setTopupSyncing(true);
+    setShowTopup(false);
+    // Окно сразу — не ждём ответ API (главная жалоба: «долго после вернулись на сайт»).
+    setTopupSuccess({
+      amountRub: amountHint,
+      balanceRub: null,
+      pending: true,
+    });
 
     let cancelled = false;
     (async () => {
-      try {
-        const out = await fintechApi.confirmTopup(pending.paymentId);
-        if (cancelled) return;
-        try { sessionStorage.removeItem(TOPUP_PENDING_KEY); } catch { /* ignore */ }
-        await load();
-        if (out?.status === 'succeeded') {
-          // очистить ?topup=1 из адресной строки
-          try {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('topup');
-            window.history.replaceState({}, '', url.pathname + url.search + url.hash);
-          } catch { /* ignore */ }
+      void pingApiHealth({ timeout: 20_000 });
+      let out = null;
+      let lastErr = null;
+      for (let i = 0; i < 12 && !cancelled; i++) {
+        try {
+          out = await fintechApi.confirmTopup(pending.paymentId);
+          if (out?.status === 'succeeded' || out?.status === 'canceled') break;
+        } catch (e) {
+          lastErr = e;
         }
-      } catch (e) {
-        console.warn('[topup confirm]', e?.message || e);
+        await sleep(i === 0 ? 350 : 650);
       }
+      if (cancelled) return;
+
+      const p = await load({ soft: true });
+      const balanceRub = out?.rubBalance != null ? Number(out.rubBalance) : Number(p?.rubBalance);
+      const amountRub = out?.amountRub != null ? Number(out.amountRub) : amountHint;
+
+      if (out?.status === 'succeeded') {
+        clearTopupPending();
+        setTopupSuccess({
+          amountRub: Number.isFinite(amountRub) ? amountRub : amountHint,
+          balanceRub: Number.isFinite(balanceRub) ? balanceRub : 0,
+          pending: false,
+        });
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('topup');
+          url.searchParams.delete('invest');
+          window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+        } catch { /* ignore */ }
+      } else {
+        console.warn('[topup confirm]', out?.status || lastErr?.message || lastErr);
+        topupConfirmStarted.current = false;
+        setTopupSuccess(null);
+        setShowTopup(true);
+      }
+      setTopupSyncing(false);
     })();
     return () => { cancelled = true; };
   }, [load]);
@@ -1618,8 +1807,16 @@ function FintechDashboard({ profile }) {
     }
   }
 
-  if (loading) return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Загружаем портфель…</div>;
-  if (err) return <div className="cpx-card"><p className="cpx-err">{err}</p><button type="button" className="cpx-btn cpx-btn--sm" onClick={load}>Повторить</button></div>;
+  // Только первая загрузка — полный спиннер. Повторные обновления не размонтируют дашборд.
+  if (loading && !portfolio) {
+    return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Загружаем портфель…</div>;
+  }
+  if (err && !portfolio) {
+    return <div className="cpx-card"><p className="cpx-err">{err}</p><button type="button" className="cpx-btn cpx-btn--sm" onClick={() => void load()}>Повторить</button></div>;
+  }
+  if (!portfolio) {
+    return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Загружаем портфель…</div>;
+  }
 
   const firstName = String(profile?.fullName || '').trim().split(/\s+/)[1]
     || String(profile?.fullName || '').trim().split(/\s+/)[0]
@@ -1627,6 +1824,20 @@ function FintechDashboard({ profile }) {
 
   return (
     <div className="cpx-finx">
+      {topupSyncing && (
+        <div className="cpx-fin-topup-sync" role="status">
+          <span className="cpx-spinner" /> Зачисляем оплату на баланс…
+        </div>
+      )}
+      {topupSuccess && (
+        <TopupSuccessModal
+          amountRub={topupSuccess.amountRub}
+          balanceRub={topupSuccess.balanceRub}
+          pending={!!topupSuccess.pending}
+          onClose={() => setTopupSuccess(null)}
+          onBuy={openBuy}
+        />
+      )}
       <Reveal y={16}>
       <div className={`cpx-fin-hero ${(portfolio?.pnlRub ?? 0) >= 0 ? 'cpx-fin-hero--pos' : 'cpx-fin-hero--neg'}`}>
         <div className="cpx-fin-hero-main">
@@ -1752,12 +1963,12 @@ function FintechDashboard({ profile }) {
               <TopUpPanel
                 portfolio={portfolio}
                 onClose={() => setShowTopup(false)}
-                onCredited={() => { void load(); }}
+                onCredited={() => { void load({ soft: true }); }}
               />
             )}
           </div>
           <div className="cpx-fin-trade-side">
-            <BuyPanel portfolio={portfolio} onDone={load} onTopup={openTopup} />
+            <BuyPanel portfolio={portfolio} onDone={() => load({ soft: true })} onTopup={openTopup} />
             <Reveal delay={0.1} y={14}>
               <div className="cpx-card cpx-fin-history-card">
                 <h2 className="cpx-fin-side-title">Последние операции</h2>
@@ -1768,9 +1979,9 @@ function FintechDashboard({ profile }) {
         </div>
       )}
 
-      {view === 'sell' && <SellPanel portfolio={portfolio} onDone={load} />}
+      {view === 'sell' && <SellPanel portfolio={portfolio} onDone={() => load({ soft: true })} />}
 
-      {view === 'auto' && <AutomationPanel portfolio={portfolio} onDone={load} />}
+      {view === 'auto' && <AutomationPanel portfolio={portfolio} onDone={() => load({ soft: true })} />}
 
       {view === 'benefit' && <MissedBenefitCalc />}
     </div>
