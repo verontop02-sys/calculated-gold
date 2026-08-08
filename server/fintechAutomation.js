@@ -8,12 +8,13 @@
  * если тик запустится параллельно (не должно, но на всякий случай), вторая попытка
  * получит 0 обновлённых строк и просто пропустит алерт.
  *
- * Регулярные инвестиции: пока нет сохранённого платёжного токена эквайринга, подписка
- * выполняет покупку золота с уже пополненного рублёвого баланса клиента по расписанию.
- * Когда появится эквайринг — перед buyGold добавится шаг списания с карты по токену,
- * остальная механика (расписание, ретраи, история) не изменится.
+ * Регулярные инвестиции:
+ * - funding_mode=balance — покупка с рублёвого баланса;
+ * - funding_mode=card — chargeSavedMethod (ЮKassa) → deposit → buyGold.
+ * Расписание, ретраи и история — общие.
  */
 import { buyGold, sellGold } from './fintechLedger.js';
+import { chargeSavedMethod, creditYooPaymentIfSucceeded, minTopupRub } from './yookassa.js';
 import { sendFintechAutomationEmailIfConfigured } from './emailDealReceipt.js';
 
 const MAX_RECURRING_RETRY_DAYS = 5;
@@ -287,7 +288,26 @@ function mapSubscription(r) {
     lastRunStatus: r.last_run_status,
     nextRunAt: r.next_run_at,
     createdAt: r.created_at,
+    fundingMode: r.funding_mode || 'balance',
+    autoTopup: Boolean(r.auto_topup),
+    cardLast4: r.card_last4 || null,
+    cardType: r.card_type || null,
+    hasCard: Boolean(r.yoo_payment_method_id),
   };
+}
+
+async function loadActivePaymentMethod(supabase, clientId) {
+  const { data, error } = await supabase
+    .from('fintech_payment_methods')
+    .select('method_id, card_last4, card_type, status')
+    .eq('client_id', clientId)
+    .eq('provider', 'yookassa')
+    .eq('status', 'active')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
 }
 
 export async function getClientRecurringInvestment(supabase, clientId) {
@@ -297,17 +317,40 @@ export async function getClientRecurringInvestment(supabase, clientId) {
     .eq('client_id', clientId)
     .maybeSingle();
   if (error) throw error;
-  return data ? mapSubscription(data) : null;
+  let sub = data ? mapSubscription(data) : null;
+  if (sub && !sub.hasCard) {
+    const pm = await loadActivePaymentMethod(supabase, clientId);
+    if (pm) {
+      sub = {
+        ...sub,
+        hasCard: true,
+        cardLast4: pm.card_last4 || sub.cardLast4,
+        cardType: pm.card_type || sub.cardType,
+      };
+    }
+  }
+  return sub;
 }
 
 /** Создаёт подписку или переоформляет отменённую/на паузе — на клиента ровно одна запись. */
-export async function upsertRecurringInvestment(supabase, { clientId, rubAmount, dayOfMonth }) {
+export async function upsertRecurringInvestment(supabase, {
+  clientId,
+  rubAmount,
+  dayOfMonth,
+  fundingMode = 'balance',
+}) {
   await requireApprovedClient(supabase, clientId);
 
   const amount = round2(Number(rubAmount));
   const day = parseInt(dayOfMonth, 10);
+  const mode = fundingMode === 'card' ? 'card' : 'balance';
   if (!Number.isFinite(amount) || amount <= 0) {
     const err = new Error('Укажите сумму больше нуля');
+    err.status = 400;
+    throw err;
+  }
+  if (mode === 'card' && amount < minTopupRub()) {
+    const err = new Error(`Для автопополнения с карты минимум ${minTopupRub()} ₽`);
     err.status = 400;
     throw err;
   }
@@ -317,6 +360,28 @@ export async function upsertRecurringInvestment(supabase, { clientId, rubAmount,
     throw err;
   }
 
+  let methodId = null;
+  let last4 = null;
+  let cardType = null;
+  if (mode === 'card') {
+    const pm = await loadActivePaymentMethod(supabase, clientId);
+    if (!pm?.method_id) {
+      const err = new Error('Сначала привяжите карту для автопополнения');
+      err.status = 400;
+      err.code = 'card_required';
+      throw err;
+    }
+    methodId = pm.method_id;
+    last4 = pm.card_last4;
+    cardType = pm.card_type;
+  }
+
+  const { data: existing } = await supabase
+    .from('fintech_recurring_investments')
+    .select('yoo_payment_method_id, card_last4, card_type')
+    .eq('client_id', clientId)
+    .maybeSingle();
+
   const patch = {
     client_id: clientId,
     rub_amount: amount,
@@ -324,6 +389,11 @@ export async function upsertRecurringInvestment(supabase, { clientId, rubAmount,
     status: 'active',
     consecutive_failures: 0,
     next_run_at: nextRunAt(day).toISOString(),
+    funding_mode: mode,
+    auto_topup: mode === 'card',
+    yoo_payment_method_id: mode === 'card' ? methodId : (existing?.yoo_payment_method_id || null),
+    card_last4: mode === 'card' ? last4 : (existing?.card_last4 || null),
+    card_type: mode === 'card' ? cardType : (existing?.card_type || null),
     updated_at: new Date().toISOString(),
   };
   const { data, error } = await supabase
@@ -333,6 +403,33 @@ export async function upsertRecurringInvestment(supabase, { clientId, rubAmount,
     .single();
   if (error) throw error;
   return mapSubscription(data);
+}
+
+/** Отвязать карту от подписки (метод помечаем revoked). */
+export async function unbindRecurringCard(supabase, clientId) {
+  await requireApprovedClient(supabase, clientId);
+  await supabase
+    .from('fintech_payment_methods')
+    .update({ status: 'revoked', updated_at: new Date().toISOString() })
+    .eq('client_id', clientId)
+    .eq('provider', 'yookassa')
+    .eq('status', 'active');
+
+  const { data, error } = await supabase
+    .from('fintech_recurring_investments')
+    .update({
+      funding_mode: 'balance',
+      auto_topup: false,
+      yoo_payment_method_id: null,
+      card_last4: null,
+      card_type: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('client_id', clientId)
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  return { ok: true, subscription: data ? mapSubscription(data) : null };
 }
 
 export async function setRecurringStatus(supabase, { clientId, status }) {
@@ -405,31 +502,124 @@ export async function processRecurringInvestments(supabase) {
   return { checked: due.length, ran };
 }
 
-async function runRecurringOnce(supabase, sub, now) {
-  const runDate = now.toISOString().slice(0, 10);
+async function ensureFundsForRecurring(supabase, sub, runDate) {
+  const amount = Number(sub.rub_amount);
+  const mode = sub.funding_mode === 'card' || sub.auto_topup ? 'card' : 'balance';
+  if (mode !== 'card') return { toppedUp: false };
 
-  // Claim дня: уникальный (subscription_id, run_date) не даст выполнить дважды,
-  // даже если тик случайно запустится параллельно или сервер перезапустится в тот же день.
-  const { data: claim, error: claimErr } = await supabase
+  let methodId = sub.yoo_payment_method_id;
+  if (!methodId) {
+    const pm = await loadActivePaymentMethod(supabase, sub.client_id);
+    methodId = pm?.method_id || null;
+  }
+  if (!methodId) {
+    const err = new Error('Карта не привязана — пополните баланс или привяжите карту');
+    err.status = 400;
+    throw err;
+  }
+
+  const charged = await chargeSavedMethod({
+    clientId: sub.client_id,
+    paymentMethodId: methodId,
+    rubAmount: amount,
+    description: `Автопополнение Reaktivo ${amount} ₽`,
+    idempotenceKey: `recurring-charge:${sub.id}:${runDate}`,
+    purpose: 'fintech_recurring_charge',
+  });
+
+  // waiting_for_capture / pending — дождаться succeeded через get+credit
+  let payment = charged.payment;
+  if (payment.status !== 'succeeded') {
+    for (let i = 0; i < 8; i++) {
+      await new Promise((r) => setTimeout(r, 400 + i * 200));
+      const credited = await creditYooPaymentIfSucceeded(supabase, charged.paymentId);
+      if (credited.status === 'succeeded') {
+        return { toppedUp: true, paymentId: charged.paymentId, amountRub: amount };
+      }
+      if (credited.status === 'canceled') {
+        const err = new Error('Списание с карты отклонено');
+        err.status = 402;
+        throw err;
+      }
+    }
+    const err = new Error('Списание с карты ещё обрабатывается — повторим позже');
+    err.status = 409;
+    throw err;
+  }
+
+  await creditYooPaymentIfSucceeded(supabase, charged.paymentId);
+  return { toppedUp: true, paymentId: charged.paymentId, amountRub: amount };
+}
+
+async function runRecurringOnce(supabase, sub, now, { force = false } = {}) {
+  const claimKeyDate = now.toISOString().slice(0, 10);
+
+  let claim = null;
+  const { data: inserted, error: claimErr } = await supabase
     .from('fintech_recurring_runs')
-    .insert({ subscription_id: sub.id, client_id: sub.client_id, run_date: runDate, status: 'running', rub_amount: sub.rub_amount })
+    .insert({
+      subscription_id: sub.id,
+      client_id: sub.client_id,
+      run_date: claimKeyDate,
+      status: 'running',
+      rub_amount: sub.rub_amount,
+    })
     .select('id')
     .maybeSingle();
   if (claimErr) {
-    if (claimErr.code === '23505') return; // уже обработано сегодня
-    throw claimErr;
+    if (claimErr.code === '23505') {
+      if (!force) return { ok: false, duplicate: true };
+      const { data: existing } = await supabase
+        .from('fintech_recurring_runs')
+        .select('id, status')
+        .eq('subscription_id', sub.id)
+        .eq('run_date', claimKeyDate)
+        .maybeSingle();
+      if (existing?.status === 'success') {
+        const err = new Error('Сегодня автопокупка уже прошла успешно. Следующая — по расписанию.');
+        err.status = 409;
+        err.code = 'already_ran_today';
+        throw err;
+      }
+      // Повторяем failed/running — переводим в running.
+      await supabase
+        .from('fintech_recurring_runs')
+        .update({ status: 'running', error_message: null, rub_amount: sub.rub_amount })
+        .eq('id', existing.id);
+      claim = existing;
+    } else {
+      throw claimErr;
+    }
+  } else {
+    claim = inserted;
   }
+
+  const idemSuffix = force ? `${claimKeyDate}:${claim.id}:retry` : claimKeyDate;
 
   let result = null;
   let failMessage = null;
   try {
+    await ensureFundsForRecurring(supabase, sub, idemSuffix);
     result = await buyGold(supabase, {
       clientId: sub.client_id,
       rubAmount: Number(sub.rub_amount),
-      idempotencyKey: `recurring:${sub.id}:${runDate}`,
+      idempotencyKey: `recurring:${sub.id}:${idemSuffix}`,
     });
   } catch (e) {
     failMessage = e?.message || 'Не удалось выполнить автопокупку';
+    // Карта не списалась — пробуем купить с баланса (fallback), если денег хватает.
+    if (sub.funding_mode === 'card' || sub.auto_topup) {
+      try {
+        result = await buyGold(supabase, {
+          clientId: sub.client_id,
+          rubAmount: Number(sub.rub_amount),
+          idempotencyKey: `recurring-bal:${sub.id}:${idemSuffix}`,
+        });
+        failMessage = null;
+      } catch (e2) {
+        failMessage = failMessage || e2?.message || 'Не удалось купить золото';
+      }
+    }
   }
 
   const ok = Boolean(result);
@@ -455,11 +645,9 @@ async function runRecurringOnce(supabase, sub, now) {
   if (ok) {
     patch.next_run_at = nextRunAt(sub.day_of_month, now).toISOString();
   } else if (giveUp) {
-    // Пополните баланс и включите подписку заново — не долбим клиента бесконечно.
     patch.status = 'paused';
     patch.next_run_at = null;
   } else {
-    // Повторная попытка завтра — деньги могли доложить на баланс в течение дня.
     const tomorrow = new Date(now.getTime() + 24 * 3600 * 1000);
     patch.next_run_at = tomorrow.toISOString();
   }
@@ -481,4 +669,34 @@ async function runRecurringOnce(supabase, sub, now) {
       pausedAfterFailures: giveUp,
     }).catch((e) => console.warn('[recurring email]', e?.message || e));
   }
+
+  return {
+    ok,
+    gramsBought: ok ? result.gramsBought : null,
+    rubAmount: Number(sub.rub_amount),
+    error: ok ? null : failMessage,
+    duplicate: false,
+  };
+}
+
+/** Ручной прогон «сейчас» для теста / срочной покупки по подписке. */
+export async function runRecurringNow(supabase, clientId) {
+  await requireApprovedClient(supabase, clientId);
+  const { data: sub, error } = await supabase
+    .from('fintech_recurring_investments')
+    .select('*')
+    .eq('client_id', clientId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!sub) {
+    const err = new Error('Сначала настройте подписку');
+    err.status = 404;
+    throw err;
+  }
+  if (sub.status !== 'active') {
+    const err = new Error('Подписка не активна — возобновите её');
+    err.status = 400;
+    throw err;
+  }
+  return runRecurringOnce(supabase, sub, new Date(), { force: true });
 }

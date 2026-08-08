@@ -1,6 +1,7 @@
 /**
  * ЮKassa (тестовый / боевой магазин): создание платежа на пополнение
- * fintech-баланса и зачисление по webhook / явному confirm.
+ * fintech-баланса, привязка карты (save_payment_method), безакцептное списание
+ * и зачисление по webhook / явному confirm.
  *
  * Auth: Basic shopId:secretKey → https://api.yookassa.ru/v3
  * Идемпотентность зачисления: ledger key `yookassa:<paymentId>`.
@@ -9,6 +10,8 @@ import crypto from 'crypto';
 import { depositFromAcquiring } from './fintechLedger.js';
 
 const API = 'https://api.yookassa.ru/v3';
+
+const TOPUP_PURPOSES = new Set(['fintech_topup', 'fintech_bind', 'fintech_recurring_charge']);
 
 export function yookassaConfigured() {
   return Boolean(String(process.env.YOOKASSA_SHOP_ID || '').trim() && String(process.env.YOOKASSA_SECRET_KEY || '').trim());
@@ -22,7 +25,7 @@ function secretKey() {
   return String(process.env.YOOKASSA_SECRET_KEY || '').trim();
 }
 
-function minTopupRub() {
+export function minTopupRub() {
   const n = Number(process.env.YOOKASSA_MIN_TOPUP_RUB || 10);
   return Number.isFinite(n) && n > 0 ? n : 10;
 }
@@ -75,8 +78,61 @@ export async function getYooPayment(paymentId) {
   return yooFetch(`/payments/${encodeURIComponent(paymentId)}`);
 }
 
+function cardMetaFromPaymentMethod(pm) {
+  if (!pm || typeof pm !== 'object') return { last4: null, cardType: null };
+  const last4 = pm.card?.last4 || pm.card?.card_last4 || null;
+  const cardType = pm.card?.card_type || pm.type || null;
+  return {
+    last4: last4 ? String(last4) : null,
+    cardType: cardType ? String(cardType) : null,
+  };
+}
+
+/** Сохранить payment_method.id клиента и проставить на активную подписку (если есть). */
+export async function persistYooPaymentMethod(supabase, clientId, payment) {
+  const pm = payment?.payment_method;
+  if (!pm?.id || !pm.saved) return null;
+  const { last4, cardType } = cardMetaFromPaymentMethod(pm);
+  const methodId = String(pm.id);
+
+  const { data: row, error } = await supabase
+    .from('fintech_payment_methods')
+    .upsert(
+      {
+        client_id: clientId,
+        provider: 'yookassa',
+        method_id: methodId,
+        card_last4: last4,
+        card_type: cardType,
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'provider,method_id' },
+    )
+    .select('id, method_id, card_last4, card_type, status')
+    .maybeSingle();
+  if (error) {
+    console.warn('[yookassa] persist method', error.message || error);
+    return null;
+  }
+
+  // Обновляем подписку, если клиент уже настроил регулярку / привязку под bind.
+  await supabase
+    .from('fintech_recurring_investments')
+    .update({
+      yoo_payment_method_id: methodId,
+      card_last4: last4,
+      card_type: cardType,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('client_id', clientId);
+
+  return row;
+}
+
 /**
- * Создать платёж с redirect-confirmation. Клиент уходит на confirmation_url.
+ * Создать платёж с redirect-confirmation.
+ * savePaymentMethod=true — привязка карты для автоплатежей (и зачисление суммы).
  */
 export async function createTopupPayment(supabase, {
   clientId,
@@ -84,6 +140,8 @@ export async function createTopupPayment(supabase, {
   returnUrl,
   description,
   customerEmail,
+  savePaymentMethod = false,
+  purpose = 'fintech_topup',
 }) {
   const amount = Math.round(Number(rubAmount) * 100) / 100;
   const min = minTopupRub();
@@ -103,8 +161,8 @@ export async function createTopupPayment(supabase, {
     err.status = 400;
     throw err;
   }
+  const purposeSafe = TOPUP_PURPOSES.has(purpose) ? purpose : 'fintech_topup';
 
-  // Клиент должен быть approved — иначе деньги нельзя тратить на золото.
   const { data: client, error: cErr } = await supabase
     .from('fintech_clients')
     .select('id, status, email, full_name')
@@ -134,25 +192,30 @@ export async function createTopupPayment(supabase, {
       type: 'redirect',
       return_url: String(returnUrl),
     },
-    description: String(description || `Пополнение золотого счёта Reaktivo ${value} ₽`).slice(0, 128),
+    description: String(
+      description
+        || (savePaymentMethod
+          ? `Привязка карты и пополнение Reaktivo ${value} ₽`
+          : `Пополнение золотого счёта Reaktivo ${value} ₽`),
+    ).slice(0, 128),
     metadata: {
       clientId: String(clientId),
-      purpose: 'fintech_topup',
+      purpose: purposeSafe,
       rubAmount: value,
+      savePaymentMethod: savePaymentMethod ? '1' : '0',
     },
   };
+  if (savePaymentMethod) body.save_payment_method = true;
 
-  // Чек 54-ФЗ — если в тестовом магазине включена фискализация; иначе ЮKassa проигнорирует/вернёт ошибку.
-  // Для теста часто выключено: отправляем receipt только при YOOKASSA_SEND_RECEIPT=1.
   if (process.env.YOOKASSA_SEND_RECEIPT === '1' && email) {
     body.receipt = {
       customer: { email },
       items: [
         {
-          description: 'Пополнение баланса Reaktivo Invest',
+          description: savePaymentMethod ? 'Привязка карты / пополнение Reaktivo Invest' : 'Пополнение баланса Reaktivo Invest',
           quantity: '1.00',
           amount: { value, currency: 'RUB' },
-          vat_code: Number(process.env.YOOKASSA_VAT_CODE || 1), // 1 = без НДС
+          vat_code: Number(process.env.YOOKASSA_VAT_CODE || 1),
           payment_mode: 'full_payment',
           payment_subject: 'service',
         },
@@ -174,6 +237,59 @@ export async function createTopupPayment(supabase, {
     amountRub: amount,
     confirmationUrl,
     test: Boolean(payment.test),
+    savePaymentMethod: Boolean(savePaymentMethod),
+  };
+}
+
+/** Безакцептное списание по сохранённому payment_method_id (автопополнение). */
+export async function chargeSavedMethod({
+  clientId,
+  paymentMethodId,
+  rubAmount,
+  description,
+  idempotenceKey,
+  purpose = 'fintech_recurring_charge',
+}) {
+  const amount = Math.round(Number(rubAmount) * 100) / 100;
+  const min = minTopupRub();
+  if (!Number.isFinite(amount) || amount < min) {
+    const err = new Error(`Минимальная сумма списания — ${min} ₽`);
+    err.status = 400;
+    throw err;
+  }
+  const methodId = String(paymentMethodId || '').trim();
+  if (!methodId) {
+    const err = new Error('Нет сохранённого способа оплаты');
+    err.status = 400;
+    throw err;
+  }
+  const value = amount.toFixed(2);
+  const purposeSafe = TOPUP_PURPOSES.has(purpose) ? purpose : 'fintech_recurring_charge';
+
+  const body = {
+    amount: { value, currency: 'RUB' },
+    capture: true,
+    payment_method_id: methodId,
+    description: String(description || `Автопополнение Reaktivo ${value} ₽`).slice(0, 128),
+    metadata: {
+      clientId: String(clientId),
+      purpose: purposeSafe,
+      rubAmount: value,
+    },
+  };
+
+  const payment = await yooFetch('/payments', {
+    method: 'POST',
+    body,
+    idempotenceKey: idempotenceKey || crypto.randomUUID(),
+  });
+
+  return {
+    paymentId: payment.id,
+    status: payment.status,
+    amountRub: amount,
+    test: Boolean(payment.test),
+    payment,
   };
 }
 
@@ -192,7 +308,6 @@ export async function creditYooPaymentIfSucceeded(supabase, paymentOrId) {
     throw err;
   }
 
-  // Всегда сверяем с API, если пришло из webhook — чтобы не зачислить поддельный payload.
   const verified = await getYooPayment(payment.id);
   if (verified.status !== 'succeeded') {
     return {
@@ -205,7 +320,8 @@ export async function creditYooPaymentIfSucceeded(supabase, paymentOrId) {
 
   const meta = verified.metadata || {};
   const clientId = String(meta.clientId || '').trim();
-  if (!clientId || meta.purpose !== 'fintech_topup') {
+  const purpose = String(meta.purpose || '');
+  if (!clientId || !TOPUP_PURPOSES.has(purpose)) {
     const err = new Error('Платёж не относится к пополнению fintech');
     err.status = 400;
     throw err;
@@ -228,8 +344,11 @@ export async function creditYooPaymentIfSucceeded(supabase, paymentOrId) {
       paidAt: verified.captured_at || verified.created_at,
       test: Boolean(verified.test),
       method: verified.payment_method?.type || null,
+      purpose,
     },
   });
+
+  const savedMethod = await persistYooPaymentMethod(supabase, clientId, verified);
 
   return {
     ok: true,
@@ -240,6 +359,13 @@ export async function creditYooPaymentIfSucceeded(supabase, paymentOrId) {
     rubBalance: out.rubBalance,
     goldGrams: out.goldGrams,
     amountRub: paid,
+    paymentMethod: savedMethod
+      ? {
+          id: savedMethod.method_id,
+          last4: savedMethod.card_last4,
+          cardType: savedMethod.card_type,
+        }
+      : null,
   };
 }
 
@@ -254,6 +380,5 @@ export async function handleYooWebhook(supabase, body) {
     const result = await creditYooPaymentIfSucceeded(supabase, object.id);
     return { ok: true, event, ...result };
   }
-  // waiting_for_capture при capture:true почти не бывает; canceled — ничего не делаем.
   return { ok: true, event, ignored: true };
 }

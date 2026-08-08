@@ -107,6 +107,7 @@ import {
   creditYooPaymentIfSucceeded,
   handleYooWebhook,
   getYooPayment,
+  minTopupRub as yooMinTopupRub,
 } from './yookassa.js';
 import {
   createPriceAlert as createFintechPriceAlert,
@@ -119,6 +120,8 @@ import {
   setRecurringStatus as setFintechRecurringStatus,
   listRecurringRuns as listFintechRecurringRuns,
   processRecurringInvestments,
+  unbindRecurringCard as unbindFintechRecurringCard,
+  runRecurringNow as runFintechRecurringNow,
 } from './fintechAutomation.js';
 import {
   clientGetSupportChat,
@@ -1816,10 +1819,11 @@ app.put(
         clientId: session.clientId,
         rubAmount: req.body?.rubAmount,
         dayOfMonth: req.body?.dayOfMonth,
+        fundingMode: req.body?.fundingMode,
       });
       res.json(out);
     } catch (e) {
-      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка', code: e.code });
     }
   })
 );
@@ -1834,6 +1838,73 @@ app.patch(
       res.json(out);
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+/** Привязка карты: платёж с save_payment_method + зачисление на баланс. */
+app.post(
+  '/api/public/fintech/recurring/bind-card',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const min = yooMinTopupRub();
+      const asked = Number(req.body?.rubAmount);
+      const rubAmount = Number.isFinite(asked) && asked >= min ? asked : min;
+      const returnUrl = allowedTopupReturnUrl(
+        req.body?.returnUrl || `${process.env.PUBLIC_APP_ORIGIN || 'https://reaktivo.pro'}/kabinet?invest=1&bind=1`,
+      );
+      // Гарантируем query bind=1
+      let finalReturn = returnUrl;
+      try {
+        const u = new URL(returnUrl);
+        u.searchParams.set('invest', '1');
+        u.searchParams.set('bind', '1');
+        finalReturn = u.toString();
+      } catch { /* keep */ }
+
+      const out = await createYooTopupPayment(supabase, {
+        clientId: session.clientId,
+        rubAmount,
+        returnUrl: finalReturn,
+        savePaymentMethod: true,
+        purpose: 'fintech_bind',
+        description: `Привязка карты Reaktivo ${rubAmount} ₽`,
+      });
+      res.json(out);
+    } catch (e) {
+      console.warn('[yookassa bind]', e?.message || e, e?.yookassa || '');
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось привязать карту', code: e.code });
+    }
+  })
+);
+
+app.post(
+  '/api/public/fintech/recurring/unbind-card',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await unbindFintechRecurringCard(supabase, session.clientId);
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
+    }
+  })
+);
+
+/** Прогнать автопокупку сейчас (тест / срочно). */
+app.post(
+  '/api/public/fintech/recurring/run-now',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await runFintechRecurringNow(supabase, session.clientId);
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Ошибка', code: e.code });
     }
   })
 );

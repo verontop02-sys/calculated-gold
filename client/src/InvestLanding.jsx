@@ -1,4 +1,4 @@
-﻿import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AnimatePresence,
   animate,
@@ -338,9 +338,17 @@ function ConsultLeadForm() {
     setBusy(true);
     try {
       const API_BASE = import.meta.env.DEV ? '/api' : import.meta.env.VITE_API_BASE || '/api';
+      const anon = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+      const viaSb = /supabase\.co\/functions\//i.test(API_BASE);
       const res = await fetch(`${API_BASE}/public/consult-lead`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...(viaSb && anon
+            ? { apikey: anon, Authorization: `Bearer ${anon}` }
+            : {}),
+        },
         body: JSON.stringify({ name, phone }),
       });
       const j = await res.json().catch(() => ({}));

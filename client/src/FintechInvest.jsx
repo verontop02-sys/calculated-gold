@@ -1023,15 +1023,34 @@ function sleep(ms) {
 }
 
 /** Диалог после успешного пополнения — в стиле кабинета, не страница ЮKassa. */
-function TopupSuccessModal({ amountRub, balanceRub, pending = false, onClose, onBuy }) {
+function TopupSuccessModal({
+  amountRub,
+  balanceRub,
+  pending = false,
+  onClose,
+  onBuy,
+  variant = 'topup', // 'topup' | 'bind'
+}) {
   useEffect(() => {
     function onKey(e) { if (e.key === 'Escape' && !pending) onClose?.(); }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, pending]);
 
+  const isBind = variant === 'bind';
+  const title = pending
+    ? (isBind ? 'Привязываем карту…' : 'Зачисляем оплату…')
+    : (isBind ? 'Карта привязана' : 'Круто, баланс пополнен');
+  const lead = pending
+    ? (isBind
+      ? 'Оплата прошла — сохраняем карту для автопополнения и зачисляем сумму на баланс.'
+      : 'Платёж прошёл — подождите пару секунд, пока баланс обновится.')
+    : (isBind
+      ? 'Карта сохранена для автопополнения. Сумма уже на балансе — можно купить золото или настроить регулярку.'
+      : 'Деньги уже на счёте. Можно сразу купить золото по курсу биржи.');
+
   return (
-    <div className="cpx-fin-op-backdrop" onClick={pending ? undefined : onClose} role="dialog" aria-modal="true" aria-label="Баланс пополнен">
+    <div className="cpx-fin-op-backdrop" onClick={pending ? undefined : onClose} role="dialog" aria-modal="true" aria-label={title}>
       <div className="cpx-fin-op-modal cpx-fin-success-modal" onClick={(e) => e.stopPropagation()}>
         {!pending && (
           <button type="button" className="cpx-fin-op-close" onClick={onClose} aria-label="Закрыть">✕</button>
@@ -1040,12 +1059,8 @@ function TopupSuccessModal({ amountRub, balanceRub, pending = false, onClose, on
           {pending ? <span className="cpx-spinner" /> : '✓'}
         </span>
         <p className="cpx-fin-success-eyebrow">REAKTIVO · ЗОЛОТОЙ СЧЁТ</p>
-        <h3 className="cpx-fin-op-title">{pending ? 'Зачисляем оплату…' : 'Круто, баланс пополнен'}</h3>
-        <p className="cpx-fin-success-lead">
-          {pending
-            ? 'Платёж прошёл — подождите пару секунд, пока баланс обновится.'
-            : 'Деньги уже на счёте. Можно сразу купить золото по курсу биржи.'}
-        </p>
+        <h3 className="cpx-fin-op-title">{title}</h3>
+        <p className="cpx-fin-success-lead">{lead}</p>
         <div className="cpx-fin-success-sum">
           <span>{pending ? 'Сумма платежа' : 'Зачислено'}</span>
           <strong className="cpx-fin-pos">+{formatMoney(amountRub)}</strong>
@@ -1679,7 +1694,7 @@ function FintechDashboard({ profile }) {
   const [view, setView] = useState('buy');
   const [pdfBusy, setPdfBusy] = useState(false);
   const [showTopup, setShowTopup] = useState(false);
-  const [topupSuccess, setTopupSuccess] = useState(null); // { amountRub, balanceRub } | null
+  const [topupSuccess, setTopupSuccess] = useState(null); // { amountRub, balanceRub, variant? } | null
   const [topupSyncing, setTopupSyncing] = useState(false);
   const loadGenRef = useRef(0);
   const topupConfirmStarted = useRef(false);
@@ -1726,16 +1741,21 @@ function FintechDashboard({ profile }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Возврат с ЮKassa: сразу показываем диалог, confirm в фоне с короткими ретраями.
+  // Возврат с ЮKassa (пополнение или привязка карты): диалог сразу, confirm в фоне.
   useEffect(() => {
     const pending = readTopupPending();
     const q = new URLSearchParams(window.location.search);
-    const fromReturn = q.get('topup') === '1';
+    const fromTopup = q.get('topup') === '1';
+    const fromBind = q.get('bind') === '1';
+    const fromReturn = fromTopup || fromBind;
     if (!pending?.paymentId && !fromReturn) return undefined;
 
-    setView('buy');
+    const variant = pending?.purpose === 'fintech_bind' || fromBind ? 'bind' : 'topup';
+    if (fromBind) setView('auto');
+    else setView('buy');
+
     if (!pending?.paymentId || topupConfirmStarted.current) {
-      if (fromReturn && !pending?.paymentId) setShowTopup(true);
+      if (fromTopup && !pending?.paymentId) setShowTopup(true);
       return undefined;
     }
     topupConfirmStarted.current = true;
@@ -1747,6 +1767,7 @@ function FintechDashboard({ profile }) {
       amountRub: amountHint,
       balanceRub: null,
       pending: true,
+      variant,
     });
 
     let cancelled = false;
@@ -1775,10 +1796,12 @@ function FintechDashboard({ profile }) {
           amountRub: Number.isFinite(amountRub) ? amountRub : amountHint,
           balanceRub: Number.isFinite(balanceRub) ? balanceRub : 0,
           pending: false,
+          variant,
         });
         try {
           const url = new URL(window.location.href);
           url.searchParams.delete('topup');
+          url.searchParams.delete('bind');
           url.searchParams.delete('invest');
           window.history.replaceState({}, '', url.pathname + url.search + url.hash);
         } catch { /* ignore */ }
@@ -1786,7 +1809,8 @@ function FintechDashboard({ profile }) {
         console.warn('[topup confirm]', out?.status || lastErr?.message || lastErr);
         topupConfirmStarted.current = false;
         setTopupSuccess(null);
-        setShowTopup(true);
+        if (variant === 'bind') setView('auto');
+        else setShowTopup(true);
       }
       setTopupSyncing(false);
     })();
@@ -1834,6 +1858,7 @@ function FintechDashboard({ profile }) {
           amountRub={topupSuccess.amountRub}
           balanceRub={topupSuccess.balanceRub}
           pending={!!topupSuccess.pending}
+          variant={topupSuccess.variant || 'topup'}
           onClose={() => setTopupSuccess(null)}
           onBuy={openBuy}
         />
@@ -2001,11 +2026,7 @@ const RECURRING_STATUS_LABEL = {
   cancelled: 'Отменена',
 };
 
-/**
- * Автоматизация: ценовые коридоры (п.6 ТЗ) и регулярные инвестиции (п.7).
- * Автопокупка пока списывает деньги с уже пополненного рублёвого баланса —
- * прямого списания с карты не будет, пока не подключён эквайринг с сохранением токена.
- */
+/** Автоматизация: ценовые коридоры и регулярные инвестиции с автопополнением картой. */
 function AutomationPanel({ portfolio, onDone }) {
   return (
     <div className="cpx-fin-sell-grid">
@@ -2238,10 +2259,12 @@ function RecurringPanel({ portfolio, onDone }) {
   const [runs, setRuns] = useState([]);
   const [rub, setRub] = useState('5000');
   const [day, setDay] = useState('1');
+  const [fundingMode, setFundingMode] = useState('balance'); // 'balance' | 'card'
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
+  const rubBal = Number(portfolio?.rubBalance) || 0;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -2252,6 +2275,7 @@ function RecurringPanel({ portfolio, onDone }) {
       if (out.subscription) {
         setRub(String(out.subscription.rubAmount));
         setDay(String(out.subscription.dayOfMonth));
+        setFundingMode(out.subscription.fundingMode === 'card' ? 'card' : 'balance');
       }
     } catch {
       setSub(null);
@@ -2272,10 +2296,18 @@ function RecurringPanel({ portfolio, onDone }) {
       setErr('Укажите сумму больше нуля');
       return;
     }
+    if (fundingMode === 'card' && !(sub?.hasCard)) {
+      setErr('Сначала привяжите карту для автопополнения');
+      return;
+    }
     setBusy(true);
     try {
-      await fintechApi.setRecurring({ rubAmount: rubVal, dayOfMonth: dayVal });
-      setOk('Подписка настроена — каждый месяц будем покупать золото с баланса автоматически.');
+      await fintechApi.setRecurring({ rubAmount: rubVal, dayOfMonth: dayVal, fundingMode });
+      setOk(
+        fundingMode === 'card'
+          ? 'Автопополнение настроено: в выбранный день спишем с карты и купим золото.'
+          : 'Подписка настроена: каждый месяц купим золото с рублёвого баланса.',
+      );
       await Promise.all([load(), onDone?.()]);
     } catch (e2) {
       setErr(e2?.message || 'Не удалось настроить подписку');
@@ -2286,6 +2318,7 @@ function RecurringPanel({ portfolio, onDone }) {
 
   async function toggle(status) {
     setBusy(true);
+    setErr('');
     try {
       await fintechApi.setRecurringStatus(status);
       await load();
@@ -2296,15 +2329,90 @@ function RecurringPanel({ portfolio, onDone }) {
     }
   }
 
+  async function bindCard() {
+    setErr('');
+    setOk('');
+    setBusy(true);
+    try {
+      void pingApiHealth({ timeout: 45_000 });
+      const rubVal = parseFloat(String(rub).replace(',', '.'));
+      const returnUrl = `${window.location.origin}/kabinet?invest=1&bind=1`;
+      const out = await fintechApi.bindRecurringCard({
+        rubAmount: Number.isFinite(rubVal) && rubVal > 0 ? rubVal : undefined,
+        returnUrl,
+      });
+      writeTopupPending({
+        paymentId: out.paymentId,
+        amountRub: out.amountRub,
+        purpose: 'fintech_bind',
+        at: Date.now(),
+      });
+      if (!out.confirmationUrl) throw new Error('Нет ссылки на оплату');
+      window.location.href = out.confirmationUrl;
+    } catch (e2) {
+      setErr(e2?.message || 'Не удалось начать привязку карты');
+      setBusy(false);
+    }
+  }
+
+  async function unbindCard() {
+    setBusy(true);
+    setErr('');
+    setOk('');
+    try {
+      await fintechApi.unbindRecurringCard();
+      setFundingMode('balance');
+      setOk('Карта отвязана. Автопокупка будет с баланса, если подписка активна.');
+      await load();
+    } catch (e2) {
+      setErr(e2?.message || 'Не удалось отвязать карту');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runNow() {
+    setBusy(true);
+    setErr('');
+    setOk('');
+    try {
+      const out = await fintechApi.runRecurringNow();
+      if (out?.ok === false) {
+        setErr(out?.error || 'Автопокупка не выполнена');
+      } else {
+        const grams = out?.gramsBought;
+        setOk(
+          grams != null
+            ? `Готово: куплено ${formatGrams(grams)} золота.`
+            : 'Автопокупка выполнена.',
+        );
+      }
+      await Promise.all([load(), onDone?.()]);
+    } catch (e2) {
+      setErr(e2?.message || 'Не удалось выполнить автопокупку');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Загрузка…</div>;
+
+  const cardLabel = sub?.hasCard
+    ? `${sub.cardType ? `${String(sub.cardType).toUpperCase()} ` : ''}•••• ${sub.cardLast4 || '????'}`
+    : null;
 
   return (
     <div className="cpx-card">
-      <h2 className="cpx-fin-side-title">Регулярные инвестиции</h2>
+      <h2 className="cpx-fin-side-title">Автопополнение</h2>
       <p className="cpx-fin-side-sub">
-        Каждый месяц автоматически купим золото на баланс — деньги списываются с уже пополненного рублёвого баланса кабинета
-        (прямое списание с карты подключим вместе с эквайрингом).
+        Раз в месяц покупаем золото автоматически. Можно списывать с баланса кабинета или с привязанной карты через ЮKassa.
       </p>
+
+      <ol className="cpx-fin-topup-steps">
+        <li>Укажите сумму и день месяца</li>
+        <li>Выберите источник: баланс или карта</li>
+        <li>При режиме «карта» — привяжите карту и при желании проверьте сейчас</li>
+      </ol>
 
       {sub && (
         <div className="cpx-fin-status-row" style={{ marginBottom: 12 }}>
@@ -2312,7 +2420,9 @@ function RecurringPanel({ portfolio, onDone }) {
             {RECURRING_STATUS_LABEL[sub.status] || sub.status}
           </span>
           <span className="cpx-muted" style={{ fontSize: '0.8rem' }}>
-            {formatMoney(sub.rubAmount)} · {sub.dayOfMonth} числа{sub.nextRunAt ? ` · следующее списание ${formatDateTime(sub.nextRunAt)}` : ''}
+            {formatMoney(sub.rubAmount)} · {sub.dayOfMonth} числа
+            {sub.fundingMode === 'card' ? ' · с карты' : ' · с баланса'}
+            {sub.nextRunAt ? ` · следующее ${formatDateTime(sub.nextRunAt)}` : ''}
           </span>
         </div>
       )}
@@ -2321,13 +2431,72 @@ function RecurringPanel({ portfolio, onDone }) {
         <div className="cpx-fin-form-row">
           <label className="cpx-field">
             <span className="cpx-field-label">Сумма в месяц, ₽</span>
-            <input inputMode="decimal" value={rub} onChange={(e) => setRub(e.target.value)} placeholder="5000" />
+            <input inputMode="decimal" value={rub} onChange={(e) => setRub(e.target.value)} placeholder="5000" disabled={busy} />
           </label>
           <label className="cpx-field">
             <span className="cpx-field-label">Число месяца</span>
-            <input inputMode="numeric" value={day} onChange={(e) => setDay(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="1" />
+            <input
+              inputMode="numeric"
+              value={day}
+              onChange={(e) => setDay(e.target.value.replace(/\D/g, '').slice(0, 2))}
+              placeholder="1"
+              disabled={busy}
+            />
           </label>
         </div>
+
+        <fieldset className="cpx-field" style={{ border: 0, margin: 0, padding: 0 }}>
+          <span className="cpx-field-label">Источник средств</span>
+          <div className="cpx-fin-preset-row" role="radiogroup" aria-label="Источник средств" style={{ marginTop: 6 }}>
+            <button
+              type="button"
+              className={`cpx-fin-preset-btn${fundingMode === 'balance' ? ' cpx-fin-preset-btn--on' : ''}`}
+              disabled={busy}
+              onClick={() => setFundingMode('balance')}
+            >
+              С баланса ({formatMoney(rubBal)})
+            </button>
+            <button
+              type="button"
+              className={`cpx-fin-preset-btn${fundingMode === 'card' ? ' cpx-fin-preset-btn--on' : ''}`}
+              disabled={busy}
+              onClick={() => setFundingMode('card')}
+            >
+              Карта (автопополнение)
+            </button>
+          </div>
+        </fieldset>
+
+        <div className="cpx-fin-doc-status-list" style={{ marginTop: 10 }}>
+          <div className="cpx-fin-doc-status-row">
+            <span>
+              {cardLabel
+                ? `Карта ${cardLabel}`
+                : 'Карта не привязана — для автопополнения нужна разовая оплата с сохранением карты'}
+            </span>
+            <span className={`cpx-fin-badge cpx-fin-badge--${cardLabel ? 'approved' : 'pending'}`}>
+              {cardLabel ? 'Привязана' : 'Нет карты'}
+            </span>
+          </div>
+        </div>
+
+        <div className="cpx-fin-topup-actions" style={{ marginTop: 10 }}>
+          {!cardLabel ? (
+            <button type="button" className="cpx-btn cpx-btn--sm" disabled={busy} onClick={bindCard}>
+              {busy ? <><span className="cpx-spinner" /> Переход…</> : 'Привязать карту'}
+            </button>
+          ) : (
+            <button type="button" className="cpx-btn cpx-btn--ghost" disabled={busy} onClick={unbindCard}>
+              Отвязать карту
+            </button>
+          )}
+          {sub?.status === 'active' && (
+            <button type="button" className="cpx-fin-pdf-btn" disabled={busy} onClick={runNow}>
+              Проверить сейчас
+            </button>
+          )}
+        </div>
+
         {err && <p className="cpx-err">{err}</p>}
         <AnimatePresence>
           {ok && (
@@ -2338,7 +2507,7 @@ function RecurringPanel({ portfolio, onDone }) {
         </AnimatePresence>
         <div className="cpx-fin-topup-actions">
           <button type="submit" className="cpx-btn cpx-btn--sm" disabled={busy}>
-            {sub ? 'Обновить подписку' : 'Включить автоинвестиции'}
+            {sub ? 'Сохранить настройки' : 'Включить автоинвестиции'}
           </button>
           {sub?.status === 'active' && (
             <button type="button" className="cpx-btn cpx-btn--ghost" disabled={busy} onClick={() => toggle('paused')}>Приостановить</button>
@@ -2358,7 +2527,7 @@ function RecurringPanel({ portfolio, onDone }) {
             <div key={r.id} className="cpx-fin-doc-status-row">
               <span>{r.runDate} · {formatMoney(r.rubAmount)}{r.gramsBought ? ` → ${formatGrams(r.gramsBought)}` : ''}</span>
               <span className={`cpx-fin-badge cpx-fin-badge--${r.status === 'success' ? 'approved' : 'rejected'}`}>
-                {r.status === 'success' ? 'Успешно' : 'Ошибка'}
+                {r.status === 'success' ? 'Успешно' : (r.errorMessage || 'Ошибка')}
               </span>
             </div>
           ))}

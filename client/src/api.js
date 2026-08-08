@@ -1,7 +1,21 @@
 import { supabase } from './supabase.js';
 
-// Прод: same-origin /api (Firebase proxy → Render). Dev: Vite proxy → localhost:8787.
+// Прод: VITE_API_BASE (Supabase Edge proxy или same-origin /api). Dev: Vite → localhost.
 const API_BASE = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_BASE || '/api');
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const USES_SUPABASE_FN = /supabase\.co\/functions\//i.test(API_BASE);
+
+function apiGatewayHeaders(accessToken) {
+  const hdrs = {};
+  if (USES_SUPABASE_FN && SUPABASE_ANON) {
+    hdrs.apikey = SUPABASE_ANON;
+    // Gateway Supabase требует Authorization; юзерский JWT важнее anon.
+    hdrs.Authorization = `Bearer ${accessToken || SUPABASE_ANON}`;
+  } else if (accessToken) {
+    hdrs.Authorization = `Bearer ${accessToken}`;
+  }
+  return hdrs;
+}
 
 const AUTH_EXPIRED_EVENT = 'cg:session-expired';
 const DEVICE_UNVERIFIED_EVENT = 'cg:device-unverified';
@@ -89,7 +103,11 @@ export async function pingApiHealth(opts = {}) {
   const c = new AbortController();
   const to = setTimeout(() => c.abort(), t);
   try {
-    const r = await fetch(withBase('/health'), { method: 'GET', signal: c.signal });
+    const r = await fetch(withBase('/health'), {
+      method: 'GET',
+      signal: c.signal,
+      headers: apiGatewayHeaders(null),
+    });
     return r.ok;
   } catch {
     return false;
@@ -107,7 +125,7 @@ async function request(path, options = {}) {
   try {
     const deviceToken = getDeviceToken();
     const hdrs = {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...apiGatewayHeaders(token),
       ...(deviceToken ? { 'X-Device-Token': deviceToken } : {}),
       ...(fetchOpts.headers || {}),
     };
@@ -174,7 +192,7 @@ async function requestBlob(path, options = {}) {
   const token = await getAccessToken();
   const deviceToken = getDeviceToken();
   const h = {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...apiGatewayHeaders(token),
     ...(deviceToken ? { 'X-Device-Token': deviceToken } : {}),
     ...(opt.headers || {}),
   };
@@ -277,7 +295,7 @@ export async function connectPriceStream(onData, onError) {
       const res = await fetch(url, {
         headers: {
           Accept: 'text/event-stream',
-          Authorization: `Bearer ${token}`,
+          ...apiGatewayHeaders(token),
           ...(getDeviceToken() ? { 'X-Device-Token': getDeviceToken() } : {}),
         },
         signal: controller.signal,
@@ -359,7 +377,9 @@ export async function connectClientDisplayStream(code, onData, onError) {
 /** Текущее состояние комнаты экрана клиента (polling-fallback), без JWT. */
 export async function clientDisplayGet(code) {
   const c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const r = await fetch(withBase(`/public/client-display/${encodeURIComponent(c)}`));
+  const r = await fetch(withBase(`/public/client-display/${encodeURIComponent(c)}`), {
+    headers: apiGatewayHeaders(null),
+  });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
   return j;
@@ -367,7 +387,9 @@ export async function clientDisplayGet(code) {
 
 /** Публичная страница подтверждения (без JWT). */
 export async function publicFieldDealSessionGet(token) {
-  const r = await fetch(withBase(`/public/field-deal-session/${encodeURIComponent(token)}`));
+  const r = await fetch(withBase(`/public/field-deal-session/${encodeURIComponent(token)}`), {
+    headers: apiGatewayHeaders(null),
+  });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
   return j;
@@ -376,7 +398,7 @@ export async function publicFieldDealSessionGet(token) {
 export async function publicFieldDealSessionVerify(token, code) {
   const r = await fetch(withBase(`/public/field-deal-session/${encodeURIComponent(token)}/verify`), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...apiGatewayHeaders(null), 'Content-Type': 'application/json' },
     body: JSON.stringify({ code }),
   });
   const j = await r.json().catch(() => ({}));
@@ -408,7 +430,7 @@ export const clientApi = {
   requestCode: async (phone) => {
     const r = await fetch(withBase('/public/client-auth/request-code'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...apiGatewayHeaders(null), 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone }),
     });
     const j = await r.json().catch(() => ({}));
@@ -419,7 +441,7 @@ export const clientApi = {
   loginMethod: async (phone) => {
     const r = await fetch(withBase('/public/client-auth/method'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...apiGatewayHeaders(null), 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone }),
     });
     const j = await r.json().catch(() => ({}));
@@ -430,7 +452,7 @@ export const clientApi = {
   verifyPin: async (phone, pin) => {
     const r = await fetch(withBase('/public/client-auth/login-pin'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...apiGatewayHeaders(null), 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, pin }),
     });
     const j = await r.json().catch(() => ({}));
@@ -442,7 +464,10 @@ export const clientApi = {
   setPin: async (pin, currentPin) => {
     const r = await fetch(withBase('/public/client/pin'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getClientToken()}` },
+      headers: {
+        ...apiGatewayHeaders(getClientToken() || null),
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ pin, ...(currentPin ? { currentPin } : {}) }),
     });
     const j = await r.json().catch(() => ({}));
@@ -452,7 +477,7 @@ export const clientApi = {
   verify: async (phone, code) => {
     const r = await fetch(withBase('/public/client-auth/verify'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...apiGatewayHeaders(null), 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, code }),
     });
     const j = await r.json().catch(() => ({}));
@@ -462,7 +487,7 @@ export const clientApi = {
   },
   me: async () => {
     const r = await fetch(withBase('/public/client/me'), {
-      headers: { Authorization: `Bearer ${getClientToken()}` },
+      headers: apiGatewayHeaders(getClientToken() || null),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) {
@@ -474,7 +499,7 @@ export const clientApi = {
   },
   deals: async () => {
     const r = await fetch(withBase('/public/client/deals'), {
-      headers: { Authorization: `Bearer ${getClientToken()}` },
+      headers: apiGatewayHeaders(getClientToken() || null),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) {
@@ -486,7 +511,9 @@ export const clientApi = {
   },
   buybackQuote: async (quote = 'moex') => {
     const q = quote === 'xaut' ? '?quote=xaut' : '';
-    const r = await fetch(withBase(`/public/buyback-quote${q}`));
+    const r = await fetch(withBase(`/public/buyback-quote${q}`), {
+      headers: apiGatewayHeaders(null),
+    });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
     return j;
@@ -494,7 +521,7 @@ export const clientApi = {
   /** Чат поддержки: история сообщений (открытие обнуляет непрочитанное у клиента). */
   supportChat: async () => {
     const r = await fetch(withBase('/public/client/support'), {
-      headers: { Authorization: `Bearer ${getClientToken()}` },
+      headers: apiGatewayHeaders(getClientToken() || null),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) {
@@ -507,7 +534,10 @@ export const clientApi = {
   supportSend: async (body) => {
     const r = await fetch(withBase('/public/client/support/message'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getClientToken()}` },
+      headers: {
+        ...apiGatewayHeaders(getClientToken() || null),
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ body }),
     });
     const j = await r.json().catch(() => ({}));
@@ -517,7 +547,7 @@ export const clientApi = {
   /** Бейдж непрочитанных ответов поддержки (не сбрасывает счётчик). */
   supportUnread: async () => {
     const r = await fetch(withBase('/public/client/support/unread'), {
-      headers: { Authorization: `Bearer ${getClientToken()}` },
+      headers: apiGatewayHeaders(getClientToken() || null),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
@@ -558,7 +588,7 @@ async function fintechFetch(path, opts = {}) {
     ...opts,
     headers: {
       ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
-      Authorization: `Bearer ${tokenUsed}`,
+      ...apiGatewayHeaders(tokenUsed || null),
       ...(opts.headers || {}),
     },
   });
@@ -582,7 +612,7 @@ export const fintechApi = {
   requestCode: async (phone) => {
     const r = await fetch(withBase('/public/fintech-auth/request-code'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...apiGatewayHeaders(null), 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone }),
     });
     const j = await r.json().catch(() => ({}));
@@ -592,7 +622,7 @@ export const fintechApi = {
   verify: async (phone, code) => {
     const r = await fetch(withBase('/public/fintech-auth/verify'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...apiGatewayHeaders(null), 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, code }),
     });
     const j = await r.json().catch(() => ({}));
@@ -608,7 +638,10 @@ export const fintechApi = {
   sessionFromClient: async (clientToken) => {
     const r = await fetch(withBase('/public/fintech-auth/from-client-session'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${clientToken}` },
+      headers: {
+        ...apiGatewayHeaders(clientToken || null),
+        'Content-Type': 'application/json',
+      },
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
@@ -634,10 +667,13 @@ export const fintechApi = {
   priceAlerts: () => fintechFetch('/public/fintech/price-alerts'),
   createPriceAlert: (payload) => fintechFetch('/public/fintech/price-alerts', { method: 'POST', body: JSON.stringify(payload) }),
   cancelPriceAlert: (id) => fintechFetch(`/public/fintech/price-alerts/${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
-  /** Регулярные инвестиции: подписка на автопокупку золота с баланса по расписанию. */
+  /** Регулярные инвестиции: автопокупка с баланса или с привязанной карты (ЮKassa). */
   recurring: () => fintechFetch('/public/fintech/recurring'),
   setRecurring: (payload) => fintechFetch('/public/fintech/recurring', { method: 'PUT', body: JSON.stringify(payload) }),
   setRecurringStatus: (status) => fintechFetch('/public/fintech/recurring/status', { method: 'PATCH', body: JSON.stringify({ status }) }),
+  bindRecurringCard: (payload) => fintechFetch('/public/fintech/recurring/bind-card', { method: 'POST', body: JSON.stringify(payload || {}) }),
+  unbindRecurringCard: () => fintechFetch('/public/fintech/recurring/unbind-card', { method: 'POST', body: '{}' }),
+  runRecurringNow: () => fintechFetch('/public/fintech/recurring/run-now', { method: 'POST', body: '{}' }),
   /** Дневная история курса золота для графика: Мосбиржа GLDRUBF (₽/г) или мировая COMEX ($/oz). */
   goldHistory: (days = 365, source = 'moex') =>
     fintechFetch(`/public/fintech/gold-history?days=${days}${source && source !== 'moex' ? `&source=${encodeURIComponent(source)}` : ''}`),
@@ -646,8 +682,11 @@ export const fintechApi = {
    * Без fintech-сессии: иначе 401 на обзоре выкидывает из кабинета при гонке/стейл-токене.
    */
   cbrGoldHistory: async () => {
-    // Без Authorization: иначе на проде без роута запрос падает в authMiddleware → 401 «Сессия недействительна».
-    const r = await fetch(withBase('/public/fintech/cbr-gold-history'));
+    // Без юзерского JWT: иначе на проде без роута запрос падает в authMiddleware → 401.
+    // Через Supabase Edge всё равно шлём anon (только для gateway).
+    const r = await fetch(withBase('/public/fintech/cbr-gold-history'), {
+      headers: apiGatewayHeaders(null),
+    });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
     return j;
@@ -659,7 +698,7 @@ export const fintechApi = {
 export async function publicFieldDealSessionSendReceipt(token, channel, target) {
   const r = await fetch(withBase(`/public/field-deal-session/${encodeURIComponent(token)}/receipt`), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...apiGatewayHeaders(null), 'Content-Type': 'application/json' },
     body: JSON.stringify({ channel, target }),
   });
   const j = await r.json().catch(() => ({}));

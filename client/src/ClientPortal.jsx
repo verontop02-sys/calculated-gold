@@ -63,10 +63,15 @@ export function ClientPortal() {
   const [tab, setTab] = useState(() => {
     try {
       const q = new URLSearchParams(window.location.search);
-      if (q.get('topup') === '1' || q.get('invest') === '1') return 'invest';
+      if (q.get('topup') === '1' || q.get('invest') === '1' || q.get('bind') === '1') return 'invest';
     } catch { /* ignore */ }
     return 'home';
   });
+
+  // Единая точка входа клиента — /kabinet; не перебиваем SEO-тайтл лендинга.
+  useEffect(() => {
+    document.title = 'Кабинет — Reaktivo';
+  }, []);
 
   // login state
   const [step, setStep] = useState('phone'); // 'phone' | 'pin' | 'code' | 'setpin'
@@ -2829,6 +2834,10 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .cpx-fin-preset-btn:hover { background: var(--accent-soft); color: var(--text-strong); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.cpx-fin-preset-btn--on {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.cpx-fin-preset-btn--on:hover { background: var(--accent); color: #fff; }
 .cpx-fin-ok { color: var(--cpx-emerald); font-size: 0.85rem; margin: 0; font-weight: 600; }
 
 .cpx-fin-history-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; gap: 10px; flex-wrap: wrap; }

@@ -1,5 +1,5 @@
 /**
- * Smoke-test: создать тестовый платёж ЮKassa на 10 ₽ (без зачисления).
+ * Smoke-test ЮKassa: обычный topup + create с save_payment_method (без оплаты).
  * node scripts/yookassa-smoke.mjs
  */
 import { readFileSync } from 'fs';
@@ -27,24 +27,48 @@ if (!shopId || !secret) {
   process.exit(1);
 }
 const auth = Buffer.from(`${shopId}:${secret}`).toString('base64');
-const body = {
+
+async function createPayment(body, label) {
+  const res = await fetch('https://api.yookassa.ru/v3/payments', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': 'application/json',
+      'Idempotence-Key': crypto.randomUUID(),
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  console.log(`[${label}] status`, res.status);
+  console.log(`[${label}] payment`, data.id, data.status, data.test, 'save=', data.payment_method?.saved ?? body.save_payment_method);
+  console.log(`[${label}] url`, data.confirmation?.confirmation_url || data.description || data);
+  if (!res.ok) {
+    console.error(data);
+    process.exit(1);
+  }
+  return data;
+}
+
+await createPayment({
   amount: { value: '10.00', currency: 'RUB' },
   capture: true,
-  confirmation: { type: 'redirect', return_url: 'https://reaktivo.pro/kabinet?topup=1' },
+  confirmation: { type: 'redirect', return_url: 'https://reaktivo.pro/kabinet?invest=1&topup=1' },
   description: 'Smoke test Reaktivo topup',
   metadata: { purpose: 'fintech_topup', clientId: '00000000-0000-0000-0000-000000000000', rubAmount: '10.00' },
-};
-const res = await fetch('https://api.yookassa.ru/v3/payments', {
-  method: 'POST',
-  headers: {
-    Authorization: `Basic ${auth}`,
-    'Content-Type': 'application/json',
-    'Idempotence-Key': crypto.randomUUID(),
+}, 'topup');
+
+await createPayment({
+  amount: { value: '10.00', currency: 'RUB' },
+  capture: true,
+  save_payment_method: true,
+  confirmation: { type: 'redirect', return_url: 'https://reaktivo.pro/kabinet?invest=1&bind=1' },
+  description: 'Smoke test Reaktivo bind card',
+  metadata: {
+    purpose: 'fintech_bind',
+    clientId: '00000000-0000-0000-0000-000000000000',
+    rubAmount: '10.00',
+    savePaymentMethod: '1',
   },
-  body: JSON.stringify(body),
-});
-const data = await res.json();
-console.log('status', res.status);
-console.log('payment', data.id, data.status, data.test);
-console.log('url', data.confirmation?.confirmation_url || data.description || data);
-if (!res.ok) process.exit(1);
+}, 'bind');
+
+console.log('OK both create payments');
