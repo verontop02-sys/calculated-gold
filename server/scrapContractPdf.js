@@ -78,74 +78,51 @@ function parseMoney(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Только заполненные позиции — без пустых строк-заглушек под шаблон. */
+/** Только заполненные позиции (шаблон Reaktivo.pdf — картинка с 3 слотами). */
 function filledDealRows(rows) {
-  return (Array.isArray(rows) ? rows : []).filter((r) => !rowIsEmpty(r));
+  return (Array.isArray(rows) ? rows : []).filter((r) => !rowIsEmpty(r)).slice(0, 3);
 }
 
-/** Геометрия таблицы позиций в шаблоне Reaktivo.pdf (координаты pdf-lib, y снизу). */
-const TABLE = {
-  /** Чуть левее 69.5 — затереть прежние номера 1–3 из шаблона. */
-  xLeft: 40,
-  xRight: 576.4,
-  /** Верх зоны данных (под шапкой таблицы). */
-  yTop: 290.9,
-  /** Низ зоны данных (над блоком ИТОГО). */
-  yBottom: 182.5,
-  /** Высота одной строки как в шаблоне (3 слота). */
-  slotH: 36,
-  /** Границы колонок: № | наименование | металл | проба | вес | чист. | сумма */
-  cols: [40, 69.5, 255.2, 324.7, 382.0, 430.9, 481.0, 576.4],
-}
+/**
+ * Горизонтали сетки таблицы в шаблоне-картинке (y снизу, pdf-lib).
+ * Замерено по Reaktivo.pdf (pageH≈876.24): mupdf y 585.5 / 622 / 658 / 694.5.
+ * Свои линии НЕ рисуем — только текст + белая заливка лишних слотов.
+ */
+const TABLE_Y = [290.74, 254.24, 218.24, 181.74];
+/** yFromTop для baseline текста в слотах 1..3 */
+const TABLE_TEXT_YFT = [598, 634, 670];
+const TABLE_X0 = 35;
+const TABLE_X1 = 585;
 
-function drawItemsTable(page, filledRows, fonts) {
-  const { regularFont } = fonts;
-  const pageH = page.getHeight();
-  const n = filledRows.length;
-  const areaH = TABLE.yTop - TABLE.yBottom;
-  const rowH = n <= 0 ? TABLE.slotH : Math.min(TABLE.slotH, areaH / n);
-
-  // Затираем прежние 3 пустые строки шаблона (линии + номера 1–3).
+function coverUnusedTemplateRows(page, filledCount) {
+  const n = Math.max(0, Math.min(3, filledCount | 0));
+  if (n >= 3) return;
+  /**
+   * Вертикали шаблона сквозные на 3 слота. Заливаем строго НИЖЕ нижней
+   * границы последнего нужного слота (линию оставляем — она закрывает ряд).
+   */
+  const keepLineY = TABLE_Y[n];
+  const tableBottomY = TABLE_Y[3];
+  const padBottom = 3;
+  // Белое начинается сразу под keepLine (~0.35pt), без зазора с «хвостами» вертикалей.
+  const topOfWhite = keepLineY - 0.35;
+  const bottomOfWhite = tableBottomY - padBottom;
+  const h = topOfWhite - bottomOfWhite;
+  if (h <= 1) return;
   page.drawRectangle({
-    x: TABLE.xLeft,
-    y: TABLE.yBottom,
-    width: TABLE.xRight - TABLE.xLeft,
-    height: areaH,
-    color: rgbWhite(),
+    x: TABLE_X0,
+    y: bottomOfWhite,
+    width: TABLE_X1 - TABLE_X0,
+    height: h,
+    color: rgb(1, 1, 1),
     borderWidth: 0,
   });
+}
 
-  if (n === 0) return;
-
-  const stroke = { color: rgbLine(), thickness: 0.7 };
-  // Внешняя рамка только вокруг занятых строк (сверху — стык с шапкой таблицы).
-  const blockH = rowH * n;
-  const blockBottom = TABLE.yTop - blockH;
-
-  page.drawRectangle({
-    x: TABLE.xLeft,
-    y: blockBottom,
-    width: TABLE.xRight - TABLE.xLeft,
-    height: blockH,
-    borderColor: rgbLine(),
-    borderWidth: 0.7,
-  });
-
-  for (let i = 0; i < n; i += 1) {
-    const top = TABLE.yTop - i * rowH;
-    const bottom = top - rowH;
-    const midY = bottom + rowH * 0.32;
-    const yFromTop = pageH - midY;
-
-    if (i > 0) {
-      page.drawLine({
-        start: { x: TABLE.xLeft, y: top },
-        end: { x: TABLE.xRight, y: top },
-        ...stroke,
-      });
-    }
-
+function drawFilledRowTexts(page, filledRows, regularFont) {
+  for (let i = 0; i < filledRows.length; i += 1) {
     const r = filledRows[i];
+    const yFT = TABLE_TEXT_YFT[i];
     const rawName = String(r?.itemName || '').trim();
     const metal = String(r?.metal || '').trim() || '—';
     const probe = String(r?.probe || '').trim() || '—';
@@ -153,35 +130,15 @@ function drawItemsTable(page, filledRows, fonts) {
     const wn = formatCellRu(r?.weightNet);
     const price = parseMoney(r?.priceRub);
     const priceText = formatPriceCell(price ?? 0, false);
-    const fontSize = n > 3 ? 8.5 : 9.5;
 
-    const c = TABLE.cols;
-    drawTop(page, String(i + 1), c[0] + 4, yFromTop, { size: fontSize, font: regularFont, maxWidth: c[1] - c[0] - 6 });
-    drawTop(page, rawName ? formatCellRu(rawName) : '—', c[1] + 4, yFromTop, { size: fontSize, font: regularFont, maxWidth: c[2] - c[1] - 8 });
-    drawTop(page, metal, c[2] + 5, yFromTop, { size: fontSize, font: regularFont, maxWidth: c[3] - c[2] - 8 });
-    drawTop(page, probe, c[3] + 5, yFromTop, { size: fontSize, font: regularFont, maxWidth: c[4] - c[3] - 8 });
-    drawTop(page, wg, c[4] + 5, yFromTop, { size: fontSize, font: regularFont, maxWidth: c[5] - c[4] - 8 });
-    drawTop(page, wn, c[5] + 5, yFromTop, { size: fontSize, font: regularFont, maxWidth: c[6] - c[5] - 8 });
-    drawTop(page, priceText, c[6] + 5, yFromTop, { size: fontSize, font: regularFont, maxWidth: c[7] - c[6] - 8 });
+    // Колонки как в прежнем overlay (совпадают с сеткой картинки шаблона).
+    drawTop(page, rawName ? formatCellRu(rawName) : '—', 75, yFT, { size: 9.5, font: regularFont, maxWidth: 175 });
+    drawTop(page, metal, 260, yFT, { size: 9.5, font: regularFont, maxWidth: 60 });
+    drawTop(page, probe, 330, yFT, { size: 9.5, font: regularFont, maxWidth: 48 });
+    drawTop(page, wg, 387, yFT, { size: 9.5, font: regularFont, maxWidth: 40 });
+    drawTop(page, wn, 436, yFT, { size: 9.5, font: regularFont, maxWidth: 41 });
+    drawTop(page, priceText, 486, yFT, { size: 9.5, font: regularFont, maxWidth: 85 });
   }
-
-  // Вертикали колонок
-  for (let ci = 1; ci < TABLE.cols.length - 1; ci += 1) {
-    const x = TABLE.cols[ci];
-    page.drawLine({
-      start: { x, y: blockBottom },
-      end: { x, y: TABLE.yTop },
-      ...stroke,
-    });
-  }
-}
-
-function rgbWhite() {
-  return rgb(1, 1, 1);
-}
-
-function rgbLine() {
-  return rgb(0.15, 0.15, 0.15);
 }
 
 /**
@@ -255,8 +212,9 @@ export async function buildScrapContractPdfBuffer(body) {
   drawTop(page, passportLine, 118, 502, { size: 10, font: regularFont, maxWidth: 430 });
   drawTop(page, address, 118, 528, { size: 10, font: regularFont, maxWidth: 430 });
 
-  // Таблица: только заполненные позиции (пустые слоты шаблона затираем).
-  drawItemsTable(page, rows, { regularFont });
+  // Таблица: текст в первых N слотах шаблона; пустые слоты 2–3 затираем белым.
+  coverUnusedTemplateRows(page, rows.length);
+  drawFilledRowTexts(page, rows, regularFont);
 
   // Итог и подписи (ИТОГО section: y_from_bottom 182.5..128.2; Сумма прописью line at yFromTop=748)
   drawTop(page, `${totalRub} ₽`, 500, 713, { size: 11, font: boldFont, maxWidth: 86 });
