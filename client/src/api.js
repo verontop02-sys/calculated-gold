@@ -796,6 +796,12 @@ export const api = {
     }),
   /** PDF договора по id сохранённой сделки. */
   scrapDealPdf: (id) => requestBlob(`/scrap-deals/${encodeURIComponent(String(id))}/pdf`, { method: 'GET' }),
+  /** Исправить сделку на месте (ФИО, телефон, позиции, сумма). */
+  updateScrapDeal: (id, payload) =>
+    request(`/scrap-deals/${encodeURIComponent(String(id))}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload || {}),
+    }),
   deleteScrapDeal: (id) => request(`/scrap-deals/${encodeURIComponent(String(id))}`, { method: 'DELETE' }),
   /** Строка AI (Grok): вопрос по аналитике за период Y-M-D. */
   aiAsk: (question, from, to) =>

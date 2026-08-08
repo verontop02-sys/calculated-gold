@@ -228,7 +228,26 @@ export function EmployeeDeals({ formatMoney, toast }) {
       </div>
 
       {openDeal && (
-        <DealDrawer deal={openDeal} onClose={() => setOpenDeal(null)} formatMoney={formatMoney} toast={toast} />
+        <DealDrawer
+          deal={openDeal}
+          onClose={() => setOpenDeal(null)}
+          formatMoney={formatMoney}
+          toast={toast}
+          onUpdated={(next) => {
+            if (!next?.id) return;
+            setData((prev) => {
+              if (!prev?.deals) return prev;
+              const deals = prev.deals.map((x) => (x.id === next.id ? { ...x, ...next } : x));
+              const totalRub = deals.reduce((s, x) => s + (Number(x.total_rub) || 0), 0);
+              return {
+                ...prev,
+                deals,
+                stats: { ...(prev.stats || {}), dealsCount: deals.length, totalRub },
+              };
+            });
+            setOpenDeal((prev) => (prev?.id === next.id ? { ...prev, ...next } : prev));
+          }}
+        />
       )}
 
       {photoModal && (

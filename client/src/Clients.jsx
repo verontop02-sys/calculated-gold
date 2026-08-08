@@ -3,6 +3,7 @@ import { api } from './api.js';
 import { SkeletonRow, SkeletonCard } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
 import { PageHint } from './PageHint.jsx';
+import { DealDrawer } from './DealDrawer.jsx';
 
 const PAGE = 80;
 
@@ -67,6 +68,7 @@ export function Clients({ formatMoney, toast }) {
   const [pdfBusyId, setPdfBusyId] = useState(null);
   const [deletingDealId, setDeletingDealId] = useState(null);
   const [photoModal, setPhotoModal] = useState(null); // { url, name }
+  const [openDeal, setOpenDeal] = useState(null);
 
   const loadList = useCallback(
     async (fromOffset, sortOverride) => {
@@ -184,7 +186,7 @@ export function Clients({ formatMoney, toast }) {
   return (
     <div className="cl-root">
       <PageHint id="clients" title="База клиентов">
-        Клиенты добавляются автоматически при скачивании PDF договора. Ищите по ФИО или телефону, сортируйте по новизне, обороту или алфавиту. В карточке — история сделок и <b>фото изделий</b> (клик по фото открывает крупно).
+        Клиенты добавляются автоматически при скачивании PDF договора. Ищите по ФИО или телефону. В карточке — история сделок: можно <b>исправить</b> ошибочную запись или удалить; PDF пересоберётся после сохранения.
       </PageHint>
       {/* ── Поиск + сортировки ── */}
       <div className="cl-toolbar">
@@ -352,6 +354,9 @@ export function Clients({ formatMoney, toast }) {
                             {d.contract_no && <span className="cl-deal-no">№ {d.contract_no}</span>}
                           </div>
                           <div className="cl-deal-actions">
+                            <button type="button" className="cl-deal-btn" onClick={() => setOpenDeal(d)} title="Открыть / исправить">
+                              Исправить
+                            </button>
                             <button type="button" className="cl-deal-btn" onClick={() => onDownloadPdf(d)} disabled={pdfBusyId === d.id}>
                               {pdfBusyId === d.id ? '…' : (
                                 <>
@@ -389,6 +394,20 @@ export function Clients({ formatMoney, toast }) {
           )}
         </div>
       </div>
+
+      {openDeal && (
+        <DealDrawer
+          deal={openDeal}
+          onClose={() => setOpenDeal(null)}
+          formatMoney={formatMoney}
+          toast={toast}
+          onUpdated={(next) => {
+            if (!next?.id) return;
+            setDeals((prev) => (prev || []).map((x) => (x.id === next.id ? { ...x, ...next } : x)));
+            setOpenDeal((prev) => (prev?.id === next.id ? { ...prev, ...next } : prev));
+          }}
+        />
+      )}
 
       {/* ── Модалка фото ── */}
       {photoModal && (

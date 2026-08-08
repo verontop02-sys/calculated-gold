@@ -17,6 +17,7 @@ import { computeTeamPerformanceData } from './teamPerformanceData.js';
 import { buildTeamPerformancePdfBuffer } from './teamPerformancePdf.js';
 import {
   insertScrapDealRow,
+  updateScrapDealRow,
   createFieldDealSession,
   getPublicFieldDealSession,
   verifyFieldDealSession,
@@ -2991,7 +2992,7 @@ app.get(
     const scope = await analyticsScopeFromRequest(req);
     let q = supabase
       .from('scrap_deals')
-      .select('id, customer_id, contract_no, total_rub, seller_name, phone, appraiser_name, first_probe, first_weight_gross, first_weight_net, created_at, operator_id, rows')
+      .select('id, customer_id, contract_no, total_rub, seller_name, phone, appraiser_name, first_probe, first_weight_gross, first_weight_net, created_at, operator_id, rows, source')
       .eq('id', id);
     if (!scope.viewerIsManager) q = q.eq('operator_id', scope.viewerUserId);
     const { data, error } = await q.maybeSingle();
@@ -3117,6 +3118,32 @@ app.get(
   })
 );
 
+/** Исправить сохранённую сделку (ФИО, телефон, позиции, сумма). PDF пересоберётся при скачивании. */
+app.patch(
+  '/api/scrap-deals/:id',
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    if (!/^[0-9a-f-]{36}$/i.test(id)) {
+      return res.status(400).json({ error: 'Некорректный id' });
+    }
+    const scope = await analyticsScopeFromRequest(req);
+    let q = supabase
+      .from('scrap_deals')
+      .select('id, customer_id, contract_no, total_rub, seller_name, phone, appraiser_name, rows, operator_id, source')
+      .eq('id', id);
+    if (!scope.viewerIsManager) q = q.eq('operator_id', scope.viewerUserId);
+    const { data: existing, error: fErr } = await q.maybeSingle();
+    if (fErr) throw fErr;
+    if (!existing) return res.status(404).json({ error: 'Сделка не найдена' });
+    try {
+      const deal = await updateScrapDealRow(supabase, { dealId: id, body: req.body || {}, existing });
+      res.json({ ok: true, deal });
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось сохранить' });
+    }
+  })
+);
+
 app.delete(
   '/api/scrap-deals/:id',
   asyncHandler(async (req, res) => {
@@ -3124,11 +3151,10 @@ app.delete(
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
       return res.status(400).json({ error: 'Некорректный id' });
     }
-    const { data: row, error: fErr } = await supabase
-      .from('scrap_deals')
-      .select('id')
-      .eq('id', id)
-      .maybeSingle();
+    const scope = await analyticsScopeFromRequest(req);
+    let q = supabase.from('scrap_deals').select('id').eq('id', id);
+    if (!scope.viewerIsManager) q = q.eq('operator_id', scope.viewerUserId);
+    const { data: row, error: fErr } = await q.maybeSingle();
     if (fErr) throw fErr;
     if (!row) return res.status(404).json({ error: 'Сделка не найдена' });
     const { error: dErr } = await supabase.from('scrap_deals').delete().eq('id', id);

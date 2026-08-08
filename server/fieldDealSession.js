@@ -39,6 +39,45 @@ async function resolveCustomerIdByPhone(supabase, phone) {
   return null;
 }
 
+function normalizeDealRowsForWrite(rawRows) {
+  const rows = Array.isArray(rawRows) ? rawRows : [];
+  return rows.map((r) => {
+    const priceRaw = r?.priceRub ?? r?.price_rub;
+    const priceN = parseCellNumber(priceRaw);
+    const out = {
+      itemName: String(r?.itemName ?? r?.item_name ?? '').trim(),
+      metal: String(r?.metal ?? 'Золото').trim() || 'Золото',
+      probe: String(r?.probe ?? '').trim(),
+      weightGross: String(r?.weightGross ?? r?.weight_gross ?? '').trim(),
+      weightNet: String(r?.weightNet ?? r?.weight_net ?? '').trim(),
+      priceRub: priceN != null ? Math.round(priceN) : 0,
+    };
+    const photoUrl = String(r?.photoUrl || r?.photo_url || '').trim();
+    if (photoUrl) out.photoUrl = photoUrl;
+    return out;
+  });
+}
+
+function sumRowsRub(rows) {
+  let s = 0;
+  for (const r of rows || []) {
+    const n = Number(r?.priceRub);
+    if (Number.isFinite(n)) s += Math.round(n);
+  }
+  return s;
+}
+
+function dealDenormFromRows(rows) {
+  const r0 = firstFilledContractRow(rows) || {};
+  const probeStr = String(r0?.probe || '').replace(/\D/g, '');
+  const firstProbe = probeStr ? parseInt(probeStr, 10) : null;
+  return {
+    first_probe: Number.isFinite(firstProbe) ? firstProbe : null,
+    first_weight_gross: parseCellNumber(r0?.weightGross ?? r0?.weight_gross),
+    first_weight_net: parseCellNumber(r0?.weightNet ?? r0?.weight_net),
+  };
+}
+
 export async function insertScrapDealRow(supabase, { operatorUserId, body, totalRub, source = 'office' }) {
   const customerRaw = body?.customerId;
   let customerId =
@@ -49,24 +88,19 @@ export async function insertScrapDealRow(supabase, { operatorUserId, body, total
     const resolved = await resolveCustomerIdByPhone(supabase, phone);
     if (resolved) customerId = resolved;
   }
-  const rows = Array.isArray(body?.rows) ? body.rows : [];
-  const r0 = firstFilledContractRow(rows) || {};
-  const probeStr = String(r0?.probe || '').replace(/\D/g, '');
-  const firstProbe = probeStr ? parseInt(probeStr, 10) : null;
-  const firstWg = parseCellNumber(r0?.weightGross ?? r0?.weight_gross);
-  const firstWn = parseCellNumber(r0?.weightNet ?? r0?.weight_net);
+  const rows = normalizeDealRowsForWrite(body?.rows);
+  const denorm = dealDenormFromRows(rows);
+  const total = Number.isFinite(Number(totalRub)) ? Math.round(Number(totalRub)) : sumRowsRub(rows);
   const baseRow = {
     customer_id: customerId,
     operator_id: operatorUserId,
     contract_no: String(body?.contractNo || '').trim() || null,
-    total_rub: totalRub,
+    total_rub: total,
     seller_name: String(body?.sellerName || '').trim() || null,
     phone,
     phone_normalized: phoneNorm,
     rows,
-    first_probe: Number.isFinite(firstProbe) ? firstProbe : null,
-    first_weight_gross: firstWg,
-    first_weight_net: firstWn,
+    ...denorm,
     appraiser_name: String(body?.appraiserName || '').trim() || null,
   };
   const withSource = { ...baseRow, source: source === 'delivery' ? 'delivery' : 'office' };
@@ -77,6 +111,88 @@ export async function insertScrapDealRow(supabase, { operatorUserId, body, total
   }
   if (error) throw error;
   return data?.id || null;
+}
+
+/**
+ * Исправление сохранённой сделки на месте (ФИО, телефон, позиции, сумма).
+ * PDF при следующем скачивании собирается из обновлённых полей.
+ */
+export async function updateScrapDealRow(supabase, { dealId, body, existing }) {
+  const phone = body?.phone !== undefined
+    ? (String(body.phone || '').trim() || null)
+    : (existing.phone || null);
+  const phoneNorm = normalizeScrapPhoneDigits(phone) || null;
+
+  let customerId = existing.customer_id || null;
+  if (body?.customerId !== undefined) {
+    const raw = body.customerId;
+    customerId = raw && /^[0-9a-f-]{36}$/i.test(String(raw)) ? String(raw) : null;
+  }
+  if (!customerId && phone) {
+    const resolved = await resolveCustomerIdByPhone(supabase, phone);
+    if (resolved) customerId = resolved;
+  }
+
+  const rows = body?.rows !== undefined
+    ? normalizeDealRowsForWrite(body.rows)
+    : (Array.isArray(existing.rows) ? existing.rows : []);
+  if (!rows.length) {
+    const err = new Error('Добавьте хотя бы одну позицию');
+    err.status = 400;
+    throw err;
+  }
+
+  const denorm = dealDenormFromRows(rows);
+  let totalRub;
+  if (body?.totalRub != null && body.totalRub !== '') {
+    totalRub = Math.round(Number(body.totalRub));
+  } else {
+    totalRub = sumRowsRub(rows);
+  }
+  if (!Number.isFinite(totalRub) || totalRub < 0) {
+    const err = new Error('Некорректная сумма сделки');
+    err.status = 400;
+    throw err;
+  }
+
+  let source = existing.source;
+  if (body?.source !== undefined) {
+    const s = String(body.source || '').trim().toLowerCase();
+    if (s !== 'office' && s !== 'delivery') {
+      const err = new Error('Канал сделки: office (отделение) или delivery (курьер)');
+      err.status = 400;
+      throw err;
+    }
+    source = s;
+  }
+
+  const patch = {
+    customer_id: customerId,
+    contract_no: body?.contractNo !== undefined
+      ? (String(body.contractNo || '').trim() || null)
+      : existing.contract_no,
+    total_rub: totalRub,
+    seller_name: body?.sellerName !== undefined
+      ? (String(body.sellerName || '').trim() || null)
+      : existing.seller_name,
+    phone,
+    phone_normalized: phoneNorm,
+    rows,
+    ...denorm,
+    appraiser_name: body?.appraiserName !== undefined
+      ? (String(body.appraiserName || '').trim() || null)
+      : existing.appraiser_name,
+    source: source === 'delivery' ? 'delivery' : 'office',
+  };
+
+  const { data, error } = await supabase
+    .from('scrap_deals')
+    .update(patch)
+    .eq('id', dealId)
+    .select('id, customer_id, contract_no, total_rub, seller_name, phone, appraiser_name, first_probe, first_weight_gross, first_weight_net, created_at, operator_id, rows, source')
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 function codePepper() {

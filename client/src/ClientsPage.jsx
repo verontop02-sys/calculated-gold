@@ -95,7 +95,7 @@ export function ClientsPage({ formatMoney, toast }) {
               </svg>
               <div>
                 <div className="csp-card__title">Подсказка</div>
-                <p className="csp-hint-text">Скачивайте PDF из карточки сделки для печати. Кнопка «Удалить» убирает запись из учёта — восстановить нельзя.</p>
+                <p className="csp-hint-text">«Исправить» правит сумму и позиции на месте (PDF обновится). «Удалить» убирает запись из учёта — восстановить нельзя.</p>
               </div>
             </div>
           </>

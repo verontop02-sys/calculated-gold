@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
+import { DealDrawer } from './DealDrawer.jsx';
 
 const PAGE = 100;
 
@@ -28,6 +29,7 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
   const [saveBusy, setSaveBusy] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [deletingDealId, setDeletingDealId] = useState(null);
+  const [openDeal, setOpenDeal] = useState(null);
 
   const load = useCallback(
     async (fromOffset) => {
@@ -352,6 +354,14 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
                           <span className="mono-nums sc-dir-deal-p">{d.first_probe != null ? `${d.first_probe} пр` : '—'}</span>
                           <button
                             type="button"
+                            className="btn-ghost small"
+                            title="Исправить сделку"
+                            onClick={() => setOpenDeal(d)}
+                          >
+                            ✎
+                          </button>
+                          <button
+                            type="button"
                             className="btn-ghost small sc-dir-deal-x"
                             title="Удалить сделку"
                             onClick={() => removeDeal(c, d)}
@@ -376,6 +386,29 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
           )}
         </div>
       </div>
+      {openDeal && (
+        <DealDrawer
+          deal={openDeal}
+          onClose={() => setOpenDeal(null)}
+          formatMoney={formatMoney}
+          toast={toast}
+          onUpdated={(next) => {
+            if (!next?.id) return;
+            setDealsById((prev) => {
+              const out = { ...prev };
+              for (const [cid, h] of Object.entries(out)) {
+                if (!h?.deals) continue;
+                out[cid] = {
+                  ...h,
+                  deals: h.deals.map((x) => (x.id === next.id ? { ...x, ...next } : x)),
+                };
+              }
+              return out;
+            });
+            setOpenDeal((prev) => (prev?.id === next.id ? { ...prev, ...next } : prev));
+          }}
+        />
+      )}
       <style>{`
         .sc-dir-overlay {
           position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.5);
