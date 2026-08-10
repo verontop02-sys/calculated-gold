@@ -18,6 +18,25 @@ function formatDate(iso) {
   });
 }
 
+/** Лёгкая шапка писем: белый фон, красный Reaktivo — без розового «давящего» блока. */
+const EMAIL_BRAND_RED = '#fe0000';
+function emailBrandHeader(subtitle) {
+  const sub = subtitle
+    ? `<p style="margin:6px 0 0;font-size:13px;color:#8a8f99;">${subtitle}</p>`
+    : '';
+  return `<tr>
+        <td style="background:#ffffff;padding:26px 32px 20px;text-align:center;border-bottom:1px solid #eceef2;">
+          <p style="margin:0;font-size:22px;font-weight:800;color:${EMAIL_BRAND_RED};letter-spacing:0.12em;">REAKTIVO</p>
+          ${sub}
+        </td>
+      </tr>`;
+}
+function emailCtaButton(url, label = 'Открыть кабинет') {
+  return `<tr><td style="padding:4px 32px 26px;" align="center">
+         <a href="${url}" style="display:inline-block;background:${EMAIL_BRAND_RED};color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 34px;border-radius:12px;">${label}</a>
+       </td></tr>`;
+}
+
 /** Красивый HTML-чек для клиента */
 function buildClientReceiptHtml({ contractNo, sellerName, totalRub, rows, phone, date }) {
   const amount = formatMoney(totalRub);
@@ -69,12 +88,7 @@ function buildClientReceiptHtml({ contractNo, sellerName, totalRub, rows, phone,
       <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(20,22,40,0.10);">
 
         <!-- Header -->
-        <tr>
-          <td style="background:linear-gradient(135deg,#f0437a 0%,#e02d5f 55%,#c22052 100%);padding:30px 32px;text-align:center;">
-            <p style="margin:0;font-size:23px;font-weight:800;color:#ffffff;letter-spacing:0.10em;">REAKTIVO <span style="opacity:0.85;">PRO</span></p>
-            <p style="margin:7px 0 0;font-size:13px;color:#ffffff;opacity:0.85;">Оценка и выкуп · ваш чек</p>
-          </td>
-        </tr>
+        ${emailBrandHeader('Оценка и выкуп · ваш чек')}
 
         <!-- Title row -->
         <tr>
@@ -139,7 +153,7 @@ function buildClientReceiptHtml({ contractNo, sellerName, totalRub, rows, phone,
         <!-- Footer -->
         <tr>
           <td style="background:#faf9fa;padding:16px 32px;text-align:center;border-top:1px solid #ecedf1;">
-            <p style="margin:0;font-size:12px;color:#aab0ba;">Автоматическое письмо REAKTIVO PRO. Отвечать на него не нужно.</p>
+            <p style="margin:0;font-size:12px;color:#aab0ba;">Автоматическое письмо Reaktivo. Отвечать на него не нужно.</p>
           </td>
         </tr>
 
@@ -172,12 +186,7 @@ function buildOperatorReceiptHtml({ contractNo, sellerName, totalRub, dealId, da
     <td align="center">
       <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(20,22,40,0.10);">
         <!-- Header -->
-        <tr>
-          <td style="background:linear-gradient(135deg,#f0437a 0%,#e02d5f 55%,#c22052 100%);padding:24px 28px;">
-            <p style="margin:0;font-size:20px;font-weight:800;color:#ffffff;letter-spacing:0.07em;">REAKTIVO <span style="opacity:0.85;">PRO</span></p>
-            <p style="margin:4px 0 0;font-size:12px;color:#ffffff;opacity:0.85;">Новая подтверждённая сделка</p>
-          </td>
-        </tr>
+        ${emailBrandHeader('Новая подтверждённая сделка')}
         <!-- Body -->
         <tr>
           <td style="padding:24px 28px;">
@@ -212,7 +221,7 @@ function buildOperatorReceiptHtml({ contractNo, sellerName, totalRub, dealId, da
         <!-- Footer -->
         <tr>
           <td style="background:#faf9fa;padding:14px 28px;border-top:1px solid #ecedf1;text-align:center;">
-            <p style="margin:0;font-size:11px;color:#aab0ba;">Автоматическое уведомление REAKTIVO PRO. Отвечать не нужно.</p>
+            <p style="margin:0;font-size:11px;color:#aab0ba;">Автоматическое уведомление Reaktivo. Отвечать не нужно.</p>
           </td>
         </tr>
       </table>
@@ -325,10 +334,10 @@ export async function sendFintechDecisionEmailIfConfigured({ toEmail, fullName, 
   const url = String(cabinetUrl || '').trim();
 
   const subject = approved
-    ? 'Ваш счёт Reaktivo Invest открыт — добро пожаловать!'
+    ? 'Ваш счёт Reaktivo открыт — добро пожаловать!'
     : decision === 'blocked'
-      ? 'Доступ к Reaktivo Invest приостановлен'
-      : 'Заявка Reaktivo Invest: требуются уточнения';
+      ? 'Доступ к Reaktivo приостановлен'
+      : 'Заявка Reaktivo: требуются уточнения';
 
   const statusBadge = approved
     ? '<span style="background:rgba(255,255,255,0.22);color:#ffffff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;letter-spacing:0.04em;">ОДОБРЕНО</span>'
@@ -361,11 +370,7 @@ export async function sendFintechDecisionEmailIfConfigured({ toEmail, fullName, 
        </td></tr>`
     : '';
 
-  const ctaHtml = url
-    ? `<tr><td style="padding:4px 32px 26px;" align="center">
-         <a href="${url}" style="display:inline-block;background:linear-gradient(135deg,#f0437a 0%,#e02d5f 55%,#c22052 100%);color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 34px;border-radius:12px;">Открыть кабинет</a>
-       </td></tr>`
-    : '';
+  const ctaHtml = url ? emailCtaButton(url) : '';
 
   const html = `<!DOCTYPE html>
 <html lang="ru">
@@ -374,12 +379,7 @@ export async function sendFintechDecisionEmailIfConfigured({ toEmail, fullName, 
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:32px 0;">
   <tr><td align="center">
     <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(20,22,40,0.10);">
-      <tr>
-        <td style="background:linear-gradient(135deg,#f0437a 0%,#e02d5f 55%,#c22052 100%);padding:30px 32px;text-align:center;">
-          <p style="margin:0;font-size:23px;font-weight:800;color:#ffffff;letter-spacing:0.10em;">REAKTIVO <span style="opacity:0.85;">INVEST</span></p>
-          <p style="margin:7px 0 0;font-size:13px;color:#ffffff;opacity:0.85;">Инвестиции в золото · статус заявки</p>
-        </td>
-      </tr>
+      ${emailBrandHeader('Инвестиции в золото · статус заявки')}
       <tr>
         <td style="padding:24px 32px 12px;">
           <p style="margin:0;font-size:18px;font-weight:700;color:#16181d;">${greeting}</p>
@@ -403,7 +403,7 @@ export async function sendFintechDecisionEmailIfConfigured({ toEmail, fullName, 
       ${ctaHtml}
       <tr>
         <td style="padding:0 32px 28px;">
-          <p style="margin:0;font-size:12px;color:#9aa0aa;line-height:1.6;">Это автоматическое письмо сервиса Reaktivo Invest. Если вы не подавали заявку — просто проигнорируйте его или сообщите нам.</p>
+          <p style="margin:0;font-size:12px;color:#9aa0aa;line-height:1.6;">Это автоматическое письмо сервиса Reaktivo. Если вы не подавали заявку — просто проигнорируйте его или сообщите нам.</p>
         </td>
       </tr>
     </table>
@@ -468,12 +468,7 @@ export async function sendFintechWithdrawalEmailIfConfigured({ toEmail, fullName
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:32px 0;">
   <tr><td align="center">
     <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(20,22,40,0.10);">
-      <tr>
-        <td style="background:linear-gradient(135deg,#f0437a 0%,#e02d5f 55%,#c22052 100%);padding:30px 32px;text-align:center;">
-          <p style="margin:0;font-size:23px;font-weight:800;color:#ffffff;letter-spacing:0.10em;">REAKTIVO <span style="opacity:0.85;">INVEST</span></p>
-          <p style="margin:7px 0 0;font-size:13px;color:#ffffff;opacity:0.85;">Инвестиции в золото · вывод средств</p>
-        </td>
-      </tr>
+      ${emailBrandHeader('Инвестиции в золото · вывод средств')}
       <tr>
         <td style="padding:24px 32px 12px;">
           <p style="margin:0;font-size:18px;font-weight:700;color:#16181d;">${greeting}</p>
@@ -495,7 +490,7 @@ export async function sendFintechWithdrawalEmailIfConfigured({ toEmail, fullName
       ${reasonHtml}
       <tr>
         <td style="padding:0 32px 28px;">
-          <p style="margin:0;font-size:12px;color:#9aa0aa;line-height:1.6;">Это автоматическое письмо сервиса Reaktivo Invest. По вопросам — team@reaktivo.ru.</p>
+          <p style="margin:0;font-size:12px;color:#9aa0aa;line-height:1.6;">Это автоматическое письмо сервиса Reaktivo. По вопросам — team@reaktivo.ru.</p>
         </td>
       </tr>
     </table>
@@ -551,12 +546,7 @@ export async function sendFintechAutomationEmailIfConfigured({ toEmail, fullName
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:32px 0;">
   <tr><td align="center">
     <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(20,22,40,0.10);">
-      <tr>
-        <td style="background:linear-gradient(135deg,#f0437a 0%,#e02d5f 55%,#c22052 100%);padding:30px 32px;text-align:center;">
-          <p style="margin:0;font-size:23px;font-weight:800;color:#ffffff;letter-spacing:0.10em;">REAKTIVO <span style="opacity:0.85;">INVEST</span></p>
-          <p style="margin:7px 0 0;font-size:13px;color:#ffffff;opacity:0.85;">Автоматизация золотого счёта</p>
-        </td>
-      </tr>
+      ${emailBrandHeader('Автоматизация золотого счёта')}
       <tr>
         <td style="padding:24px 32px 12px;">
           <p style="margin:0;font-size:18px;font-weight:700;color:#16181d;">${greeting}</p>
@@ -573,7 +563,7 @@ export async function sendFintechAutomationEmailIfConfigured({ toEmail, fullName
       </tr>
       <tr>
         <td style="padding:0 32px 28px;">
-          <p style="margin:0;font-size:12px;color:#9aa0aa;line-height:1.6;">Это автоматическое письмо сервиса Reaktivo Invest. По вопросам — team@reaktivo.ru.</p>
+          <p style="margin:0;font-size:12px;color:#9aa0aa;line-height:1.6;">Это автоматическое письмо сервиса Reaktivo. По вопросам — team@reaktivo.ru.</p>
         </td>
       </tr>
     </table>

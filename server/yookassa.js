@@ -212,7 +212,7 @@ export async function createTopupPayment(supabase, {
       customer: { email },
       items: [
         {
-          description: savePaymentMethod ? 'Привязка карты / пополнение Reaktivo Invest' : 'Пополнение баланса Reaktivo Invest',
+          description: savePaymentMethod ? 'Привязка карты / пополнение Reaktivo' : 'Пополнение баланса Reaktivo',
           quantity: '1.00',
           amount: { value, currency: 'RUB' },
           vat_code: Number(process.env.YOOKASSA_VAT_CODE || 1),
