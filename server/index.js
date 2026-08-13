@@ -1755,7 +1755,9 @@ app.post(
     const provider = String(req.body?.provider || acquiringProvider()).toLowerCase();
     try {
       if (provider === 'tbank') {
-        const payment = await creditTbankPaymentIfSucceeded(supabase, paymentId);
+        const payment = await creditTbankPaymentIfSucceeded(supabase, paymentId, {
+          fallbackClientId: session.clientId,
+        });
         if (payment.clientId && payment.clientId !== String(session.clientId)) {
           return res.status(403).json({ error: 'Платёж принадлежит другому клиенту' });
         }

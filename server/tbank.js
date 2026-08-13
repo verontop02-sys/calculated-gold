@@ -180,11 +180,9 @@ export async function createTbankTopupPayment(supabase, {
   }
 
   const amountKopecks = Math.round(amount * 100);
-  // OrderId ≤ 50: короткий читаемый id (не «крипто-хеш»). clientId берём из DATA;
-  // старый формат ft+uuid остаётся в extractClientId как fallback.
-  const d = new Date();
-  const yymmdd = `${String(d.getUTCFullYear()).slice(2)}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
-  const orderId = `RKT${yymmdd}${crypto.randomBytes(4).toString('hex')}`;
+  // OrderId ≤ 50: RKT + uuid клиента без дефисов (32) + 6 hex = 41 символ.
+  // Нужно для GetState: Т-Банк часто не возвращает DATA, clientId достаём из OrderId.
+  const orderId = `RKT${String(clientId).replace(/-/g, '')}${crypto.randomBytes(3).toString('hex')}`;
   const successUrl = String(returnUrl);
   const failUrl = String(returnUrl).includes('?')
     ? `${returnUrl}&topup_fail=1`
@@ -247,8 +245,8 @@ function extractClientId(state) {
     } catch { /* ignore */ }
   }
   const orderId = String(state?.OrderId || '');
-  // ft + 32 hex (uuid без дефисов) + 8 hex
-  const m = /^ft([0-9a-f]{32})[0-9a-f]{8}$/i.exec(orderId);
+  // ft|RKT + 32 hex (uuid без дефисов) + хвост
+  const m = /^(?:ft|rkt)([0-9a-f]{32})[0-9a-f]*$/i.exec(orderId);
   if (m) {
     const h = m[1];
     return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
@@ -259,8 +257,9 @@ function extractClientId(state) {
 /**
  * Зачислить при Status CONFIRMED / AUTHORIZED (одностадийный — CONFIRMED).
  * paymentIdOrState: id, ответ GetState, или тело Notification.
+ * fallbackClientId — из сессии на /confirm, если GetState без DATA и OrderId старого короткого формата.
  */
-export async function creditTbankPaymentIfSucceeded(supabase, paymentIdOrState) {
+export async function creditTbankPaymentIfSucceeded(supabase, paymentIdOrState, { fallbackClientId } = {}) {
   let state = paymentIdOrState;
   if (typeof paymentIdOrState === 'string' || typeof paymentIdOrState === 'number') {
     state = await getTbankPaymentState(paymentIdOrState);
@@ -295,7 +294,9 @@ export async function creditTbankPaymentIfSucceeded(supabase, paymentIdOrState) 
     };
   }
 
-  const clientId = extractClientId(verified) || extractClientId(state);
+  const clientId = extractClientId(verified)
+    || extractClientId(state)
+    || String(fallbackClientId || '').trim();
   if (!clientId) {
     const err = new Error('В платеже нет clientId (DATA/OrderId)');
     err.status = 400;
@@ -352,7 +353,7 @@ export async function handleTbankWebhook(supabase, body) {
     return { httpBody: 'OK', ignored: true, badToken: true };
   }
   const status = String(body.Status || '');
-  if (status === 'CONFIRMED') {
+  if (status === 'CONFIRMED' || status === 'AUTHORIZED') {
     try {
       const result = await creditTbankPaymentIfSucceeded(supabase, body);
       return { httpBody: 'OK', ...result };
