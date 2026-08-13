@@ -1032,10 +1032,10 @@ function TopupSuccessModal({
   variant = 'topup', // 'topup' | 'bind'
 }) {
   useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape' && !pending) onClose?.(); }
+    function onKey(e) { if (e.key === 'Escape') onClose?.(); }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, pending]);
+  }, [onClose]);
 
   const isBind = variant === 'bind';
   const title = pending
@@ -1050,11 +1050,9 @@ function TopupSuccessModal({
       : 'Деньги уже на счёте. Можно сразу купить золото по курсу биржи.');
 
   return (
-    <div className="cpx-fin-op-backdrop" onClick={pending ? undefined : onClose} role="dialog" aria-modal="true" aria-label={title}>
+    <div className="cpx-fin-op-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label={title}>
       <div className="cpx-fin-op-modal cpx-fin-success-modal" onClick={(e) => e.stopPropagation()}>
-        {!pending && (
-          <button type="button" className="cpx-fin-op-close" onClick={onClose} aria-label="Закрыть">✕</button>
-        )}
+        <button type="button" className="cpx-fin-op-close" onClick={onClose} aria-label="Закрыть">✕</button>
         <span className={`cpx-fin-success-mark${pending ? ' cpx-fin-success-mark--pending' : ''}`} aria-hidden>
           {pending ? <span className="cpx-spinner" /> : '✓'}
         </span>
@@ -1069,7 +1067,11 @@ function TopupSuccessModal({
           <span>Сейчас на балансе</span>
           <strong>{balanceRub == null ? '…' : formatMoney(balanceRub)}</strong>
         </div>
-        {!pending && (
+        {pending ? (
+          <div className="cpx-fin-success-actions">
+            <button type="button" className="cpx-fin-pdf-btn" onClick={onClose}>Закрыть</button>
+          </div>
+        ) : (
           <div className="cpx-fin-success-actions">
             <button type="button" className="cpx-btn" onClick={onBuy}>Купить золото</button>
             <button type="button" className="cpx-fin-pdf-btn" onClick={onClose}>Отлично</button>
@@ -1898,7 +1900,12 @@ function FintechDashboard({ profile }) {
           balanceRub={topupSuccess.balanceRub}
           pending={!!topupSuccess.pending}
           variant={topupSuccess.variant || 'topup'}
-          onClose={() => setTopupSuccess(null)}
+          onClose={() => {
+            clearTopupPending();
+            topupConfirmStarted.current = false;
+            setTopupSuccess(null);
+            setTopupSyncing(false);
+          }}
           onBuy={openBuy}
         />
       )}
