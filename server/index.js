@@ -1960,7 +1960,7 @@ app.post(
         returnUrl: finalReturn,
         savePaymentMethod: true,
         purpose: 'fintech_bind',
-        description: `Привязка карты Reaktivo ${rubAmount} ₽`,
+        description: `Привязка карты Reaktivo ${rubAmount} руб.`,
       });
       res.json(out);
     } catch (e) {

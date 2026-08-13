@@ -195,9 +195,12 @@ export async function createTopupPayment(supabase, {
     description: String(
       description
         || (savePaymentMethod
-          ? `Привязка карты и пополнение Reaktivo ${value} ₽`
-          : `Пополнение золотого счёта Reaktivo ${value} ₽`),
-    ).slice(0, 128),
+          ? `Привязка карты и пополнение Reaktivo ${value} руб.`
+          : `Пополнение лицевого счета Reaktivo ${value} руб.`),
+    )
+      .replace(/₽/g, 'руб.')
+      .replace(/золотого?\s+сч[её]та/gi, 'лицевого счета')
+      .slice(0, 128),
     metadata: {
       clientId: String(clientId),
       purpose: purposeSafe,
@@ -212,7 +215,7 @@ export async function createTopupPayment(supabase, {
       customer: { email },
       items: [
         {
-          description: savePaymentMethod ? 'Привязка карты / пополнение Reaktivo' : 'Пополнение баланса Reaktivo',
+          description: savePaymentMethod ? 'Привязка карты / пополнение Reaktivo' : 'Пополнение лицевого счета Reaktivo',
           quantity: '1.00',
           amount: { value, currency: 'RUB' },
           vat_code: Number(process.env.YOOKASSA_VAT_CODE || 1),
@@ -270,7 +273,9 @@ export async function chargeSavedMethod({
     amount: { value, currency: 'RUB' },
     capture: true,
     payment_method_id: methodId,
-    description: String(description || `Автопополнение Reaktivo ${value} ₽`).slice(0, 128),
+    description: String(description || `Пополнение лицевого счета Reaktivo ${value} руб.`)
+      .replace(/₽/g, 'руб.')
+      .slice(0, 128),
     metadata: {
       clientId: String(clientId),
       purpose: purposeSafe,

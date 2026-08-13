@@ -180,19 +180,28 @@ export async function createTbankTopupPayment(supabase, {
   }
 
   const amountKopecks = Math.round(amount * 100);
-  // OrderId ≤ 64: ft + uuid без дефисов (32) + 8 hex = 42 символа — надёжный разбор clientId без DATA.
-  const orderId = `ft${String(clientId).replace(/-/g, '')}${crypto.randomBytes(4).toString('hex')}`;
+  // OrderId ≤ 50: короткий читаемый id (не «крипто-хеш»). clientId берём из DATA;
+  // старый формат ft+uuid остаётся в extractClientId как fallback.
+  const d = new Date();
+  const yymmdd = `${String(d.getUTCFullYear()).slice(2)}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+  const orderId = `RKT${yymmdd}${crypto.randomBytes(4).toString('hex')}`;
   const successUrl = String(returnUrl);
   const failUrl = String(returnUrl).includes('?')
     ? `${returnUrl}&topup_fail=1`
     : `${returnUrl}?topup_fail=1`;
 
+  // В чеке Т-Банка «₽» часто превращается в «?» — только ASCII/кириллица, без «золото».
+  const safeDesc = String(
+    description || `Пополнение лицевого счета Reaktivo ${amount.toFixed(2)} руб.`,
+  )
+    .replace(/₽/g, 'руб.')
+    .replace(/золотого?\s+сч[её]та/gi, 'лицевого счета')
+    .slice(0, 250);
+
   const params = {
     Amount: amountKopecks,
     OrderId: orderId,
-    Description: String(
-      description || `Пополнение золотого счёта Reaktivo ${amount.toFixed(2)} ₽`,
-    ).slice(0, 250),
+    Description: safeDesc,
     NotificationURL: notificationUrl(),
     SuccessURL: successUrl,
     FailURL: failUrl,
