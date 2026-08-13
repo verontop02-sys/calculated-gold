@@ -111,6 +111,24 @@ import {
   minTopupRub as yooMinTopupRub,
 } from './yookassa.js';
 import {
+  tbankConfigured,
+  tbankIsDemo,
+  tbankMinTopupRub,
+  createTbankTopupPayment,
+  creditTbankPaymentIfSucceeded,
+  handleTbankWebhook,
+  getTbankPaymentState,
+} from './tbank.js';
+
+/** Активный эквайринг: tbank | yookassa (по умолчанию — что настроено, приоритет TBANK если FINTECH_ACQUIRING_PROVIDER не задан и есть ключи). */
+function acquiringProvider() {
+  const forced = String(process.env.FINTECH_ACQUIRING_PROVIDER || '').trim().toLowerCase();
+  if (forced === 'tbank' || forced === 'yookassa') return forced;
+  if (tbankConfigured()) return 'tbank';
+  if (yookassaConfigured()) return 'yookassa';
+  return 'none';
+}
+import {
   createPriceAlert as createFintechPriceAlert,
   listClientPriceAlerts as listFintechClientPriceAlerts,
   cancelPriceAlert as cancelFintechPriceAlert,
@@ -1662,11 +1680,16 @@ app.get(
   '/api/public/fintech/topup/config',
   asyncHandler(async (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
+    const provider = acquiringProvider();
+    const enabled = provider === 'tbank' ? tbankConfigured() : provider === 'yookassa' ? yookassaConfigured() : false;
     res.json({
-      enabled: yookassaConfigured(),
-      provider: 'yookassa',
-      testMode: String(process.env.YOOKASSA_SECRET_KEY || '').startsWith('test_'),
-      minRub: Number(process.env.YOOKASSA_MIN_TOPUP_RUB || 10) || 10,
+      enabled,
+      provider,
+      testMode: provider === 'tbank'
+        ? tbankIsDemo()
+        : String(process.env.YOOKASSA_SECRET_KEY || '').startsWith('test_'),
+      minRub: provider === 'tbank' ? tbankMinTopupRub() : (Number(process.env.YOOKASSA_MIN_TOPUP_RUB || 10) || 10),
+      label: provider === 'tbank' ? 'Т-Банк' : provider === 'yookassa' ? 'ЮKassa' : null,
     });
   })
 );
@@ -1676,7 +1699,17 @@ app.post(
   asyncHandler(async (req, res) => {
     const session = requireFintechSession(req, res);
     if (!session) return;
+    const provider = acquiringProvider();
     try {
+      if (provider === 'tbank') {
+        const out = await createTbankTopupPayment(supabase, {
+          clientId: session.clientId,
+          rubAmount: req.body?.rubAmount,
+          returnUrl: allowedTopupReturnUrl(req.body?.returnUrl),
+          description: req.body?.description,
+        });
+        return res.json(out);
+      }
       const out = await createYooTopupPayment(supabase, {
         clientId: session.clientId,
         rubAmount: req.body?.rubAmount,
@@ -1684,9 +1717,9 @@ app.post(
         description: req.body?.description,
         customerEmail: req.body?.email,
       });
-      res.json(out);
+      res.json({ ...out, provider: 'yookassa' });
     } catch (e) {
-      console.warn('[yookassa create]', e?.message || e, e?.yookassa || '');
+      console.warn(`[${provider} create]`, e?.message || e, e?.tbank || e?.yookassa || '');
       res.status(e.status || 500).json({ error: e.message || 'Не удалось создать платёж', code: e.code });
     }
   })
@@ -1700,7 +1733,21 @@ app.post(
     if (!session) return;
     const paymentId = String(req.body?.paymentId || '').trim();
     if (!paymentId) return res.status(400).json({ error: 'Укажите paymentId' });
+    const provider = String(req.body?.provider || acquiringProvider()).toLowerCase();
     try {
+      if (provider === 'tbank') {
+        const state = await getTbankPaymentState(paymentId);
+        const data = state?.DATA && typeof state.DATA === 'object' ? state.DATA : {};
+        const owner = String(data.clientId || data.ClientId || '');
+        if (owner && owner !== String(session.clientId)) {
+          return res.status(403).json({ error: 'Платёж принадлежит другому клиенту' });
+        }
+        const payment = await creditTbankPaymentIfSucceeded(supabase, state);
+        if (payment.clientId && payment.clientId !== String(session.clientId)) {
+          return res.status(403).json({ error: 'Платёж принадлежит другому клиенту' });
+        }
+        return res.json(payment);
+      }
       const raw = await getYooPayment(paymentId);
       if (String(raw?.metadata?.clientId || '') !== String(session.clientId)) {
         return res.status(403).json({ error: 'Платёж принадлежит другому клиенту' });
@@ -1708,7 +1755,7 @@ app.post(
       const payment = await creditYooPaymentIfSucceeded(supabase, raw);
       res.json(payment);
     } catch (e) {
-      console.warn('[yookassa confirm]', e?.message || e);
+      console.warn(`[${provider} confirm]`, e?.message || e);
       res.status(e.status || 500).json({ error: e.message || 'Не удалось подтвердить платёж' });
     }
   })
@@ -1737,6 +1784,31 @@ app.post(
       // 500 → ЮKassa ретраит; лучше 200 после логирования только для «своих» ошибок бизнеса.
       // Сетевые/временные — 500.
       res.status(e.status && e.status < 500 ? 200 : 500).json({ error: e.message || 'webhook error' });
+    }
+  })
+);
+
+/** Т-Банк NotificationURL — ответ строго текстом OK. */
+app.get(
+  '/api/public/fintech/topup/webhook-tbank',
+  asyncHandler(async (_req, res) => {
+    res.status(200).json({
+      ok: true,
+      endpoint: 'tbank_webhook',
+      hint: 'Сюда Т-Банк шлёт POST Notification. В ЛК укажите этот URL как NotificationURL.',
+    });
+  })
+);
+
+app.post(
+  '/api/public/fintech/topup/webhook-tbank',
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await handleTbankWebhook(supabase, req.body);
+      res.status(200).type('text/plain').send(out.httpBody || 'OK');
+    } catch (e) {
+      console.error('[tbank webhook]', e?.message || e);
+      res.status(e.status && e.status < 500 ? 200 : 500).type('text/plain').send('OK');
     }
   })
 );

@@ -1086,7 +1086,7 @@ function TopUpPanel({ portfolio, onClose, onCredited }) {
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const [cfg, setCfg] = useState({ enabled: false, testMode: false, minRub: 10 });
+  const [cfg, setCfg] = useState({ enabled: false, testMode: false, minRub: 10, label: null, provider: null });
   const rubBal = Number(portfolio?.rubBalance) || 0;
 
   useEffect(() => {
@@ -1119,6 +1119,7 @@ function TopUpPanel({ portfolio, onClose, onCredited }) {
       writeTopupPending({
         paymentId: out.paymentId,
         amountRub: out.amountRub,
+        provider: out.provider || cfg.provider || null,
         at: Date.now(),
       });
       if (!out.confirmationUrl) throw new Error('Нет ссылки на оплату');
@@ -1129,6 +1130,8 @@ function TopUpPanel({ portfolio, onClose, onCredited }) {
     }
   }
 
+  const payLabel = cfg.label || (cfg.provider === 'tbank' ? 'Т-Банк' : 'ЮKassa');
+
   return (
     <Reveal y={20}>
     <div className="cpx-card cpx-fin-topup-panel" id="fin-topup">
@@ -1136,7 +1139,7 @@ function TopUpPanel({ portfolio, onClose, onCredited }) {
         <div>
           <h2 className="cpx-fin-side-title">Пополнить баланс</h2>
           <p className="cpx-fin-side-sub">
-            Сейчас на счёте {formatMoney(rubBal)}. Оплата картой или <SbpMark className="cpx-sbp--inline" /> через ЮKassa
+            Сейчас на счёте {formatMoney(rubBal)}. Оплата картой или <SbpMark className="cpx-sbp--inline" /> через {payLabel}
             {cfg.testMode ? ' · тестовый режим' : ''}.
           </p>
         </div>
@@ -1146,7 +1149,7 @@ function TopUpPanel({ portfolio, onClose, onCredited }) {
       </div>
       <ol className="cpx-fin-topup-steps">
         <li>Укажите сумму пополнения</li>
-        <li>Оплатите картой или <SbpMark className="cpx-sbp--inline" /> на странице ЮKassa</li>
+        <li>Оплатите картой или <SbpMark className="cpx-sbp--inline" /> на странице {payLabel}</li>
         <li>Деньги зачислятся на баланс — можно сразу купить золото</li>
       </ol>
       <form onSubmit={submit} className="cpx-form cpx-fin-buy-form">
@@ -1183,7 +1186,7 @@ function TopUpPanel({ portfolio, onClose, onCredited }) {
       </form>
       <p className="cpx-fin-topup-foot">
         {cfg.enabled
-          ? withSbp('Оплата через ЮKassa: карта и СБП. После успешного платежа баланс обновится автоматически.')
+          ? withSbp(`Оплата через ${payLabel}: карта и СБП. После успешного платежа баланс обновится автоматически.`)
           : 'Онлайн-оплата временно недоступна — напишите в поддержку.'}
       </p>
     </div>
@@ -1777,8 +1780,8 @@ function FintechDashboard({ profile }) {
       let lastErr = null;
       for (let i = 0; i < 12 && !cancelled; i++) {
         try {
-          out = await fintechApi.confirmTopup(pending.paymentId);
-          if (out?.status === 'succeeded' || out?.status === 'canceled') break;
+          out = await fintechApi.confirmTopup(pending.paymentId, pending.provider);
+          if (out?.status === 'succeeded' || out?.status === 'CONFIRMED' || out?.status === 'canceled' || out?.credited) break;
         } catch (e) {
           lastErr = e;
         }
@@ -1790,7 +1793,7 @@ function FintechDashboard({ profile }) {
       const balanceRub = out?.rubBalance != null ? Number(out.rubBalance) : Number(p?.rubBalance);
       const amountRub = out?.amountRub != null ? Number(out.amountRub) : amountHint;
 
-      if (out?.status === 'succeeded') {
+      if (out?.status === 'succeeded' || out?.status === 'CONFIRMED' || out?.credited) {
         clearTopupPending();
         setTopupSuccess({
           amountRub: Number.isFinite(amountRub) ? amountRub : amountHint,
@@ -1803,6 +1806,7 @@ function FintechDashboard({ profile }) {
           url.searchParams.delete('topup');
           url.searchParams.delete('bind');
           url.searchParams.delete('invest');
+          url.searchParams.delete('topup_fail');
           window.history.replaceState({}, '', url.pathname + url.search + url.hash);
         } catch { /* ignore */ }
       } else {

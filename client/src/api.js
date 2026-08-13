@@ -662,7 +662,10 @@ export const fintechApi = {
   withdrawals: () => fintechFetch('/public/fintech/withdrawals'),
   topupConfig: () => fintechFetch('/public/fintech/topup/config'),
   createTopup: (payload) => fintechFetch('/public/fintech/topup/create', { method: 'POST', body: JSON.stringify(payload) }),
-  confirmTopup: (paymentId) => fintechFetch('/public/fintech/topup/confirm', { method: 'POST', body: JSON.stringify({ paymentId }) }),
+  confirmTopup: (paymentId, provider) => fintechFetch('/public/fintech/topup/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ paymentId, provider: provider || undefined }),
+  }),
   /** Ценовые коридоры: клиент задаёт целевой курс, срабатывает автоматически фоновым тиком. */
   priceAlerts: () => fintechFetch('/public/fintech/price-alerts'),
   createPriceAlert: (payload) => fintechFetch('/public/fintech/price-alerts', { method: 'POST', body: JSON.stringify(payload) }),
