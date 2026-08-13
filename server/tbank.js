@@ -119,7 +119,11 @@ async function tbankFetch(methodPath, params) {
 }
 
 export async function getTbankPaymentState(paymentId) {
-  return tbankFetch('/GetState', { PaymentId: String(paymentId) });
+  // В API PaymentId — Number; в токене всё равно уйдёт строкой значений.
+  const n = Number(paymentId);
+  return tbankFetch('/GetState', {
+    PaymentId: Number.isFinite(n) ? n : String(paymentId),
+  });
 }
 
 function notificationUrl() {
@@ -245,11 +249,13 @@ function extractClientId(state) {
 
 /**
  * Зачислить при Status CONFIRMED / AUTHORIZED (одностадийный — CONFIRMED).
+ * paymentIdOrState: id, ответ GetState, или тело Notification.
  */
 export async function creditTbankPaymentIfSucceeded(supabase, paymentIdOrState) {
-  const state = typeof paymentIdOrState === 'string' || typeof paymentIdOrState === 'number'
-    ? await getTbankPaymentState(paymentIdOrState)
-    : paymentIdOrState;
+  let state = paymentIdOrState;
+  if (typeof paymentIdOrState === 'string' || typeof paymentIdOrState === 'number') {
+    state = await getTbankPaymentState(paymentIdOrState);
+  }
 
   const paymentId = state?.PaymentId != null ? String(state.PaymentId) : '';
   if (!paymentId) {
@@ -258,10 +264,19 @@ export async function creditTbankPaymentIfSucceeded(supabase, paymentIdOrState) 
     throw err;
   }
 
-  // Перепроверяем у банка, если пришло только уведомление
-  const verified = await getTbankPaymentState(paymentId);
+  let verified = state;
+  const incomingStatus = String(state.Status || '');
+  // Если пришло Notification со статусом — всё равно сверяем GetState; при сбое сети доверяем Notification.
+  try {
+    verified = await getTbankPaymentState(paymentId);
+  } catch (e) {
+    if (incomingStatus !== 'CONFIRMED' && incomingStatus !== 'AUTHORIZED') throw e;
+    console.warn('[tbank] GetState failed, using notification body', e?.message || e);
+    verified = state;
+  }
+
   const status = String(verified.Status || '');
-  if (status !== 'CONFIRMED') {
+  if (status !== 'CONFIRMED' && status !== 'AUTHORIZED') {
     return {
       ok: false,
       credited: false,
@@ -273,12 +288,12 @@ export async function creditTbankPaymentIfSucceeded(supabase, paymentIdOrState) 
 
   const clientId = extractClientId(verified) || extractClientId(state);
   if (!clientId) {
-    const err = new Error('В платеже нет clientId (DATA)');
+    const err = new Error('В платеже нет clientId (DATA/OrderId)');
     err.status = 400;
     throw err;
   }
 
-  const kopecks = Number(verified.Amount);
+  const kopecks = Number(verified.Amount ?? state.Amount);
   const paid = Number.isFinite(kopecks) ? Math.round(kopecks) / 100 : NaN;
   if (!Number.isFinite(paid) || paid <= 0) {
     const err = new Error('Некорректная сумма платежа');
@@ -293,7 +308,7 @@ export async function creditTbankPaymentIfSucceeded(supabase, paymentIdOrState) 
     provider: 'tbank',
     detail: {
       tbankPaymentId: paymentId,
-      orderId: verified.OrderId || null,
+      orderId: verified.OrderId || state.OrderId || null,
       status,
       test: tbankIsDemo(),
       purpose: PURPOSE,
