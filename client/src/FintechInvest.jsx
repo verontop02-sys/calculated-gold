@@ -1380,6 +1380,7 @@ const WITHDRAW_STATUS_LABEL = {
   approved: 'Принята в обработку',
   paid: 'Выплачено',
   rejected: 'Отклонена',
+  cancelled: 'Отменена',
 };
 
 // ── Продажа + заявка на вывод ───────────────────────────────────────────────
@@ -1513,6 +1514,7 @@ function WithdrawPanel({ portfolio, onDone }) {
   const [err, setErr] = useState('');
   const [success, setSuccess] = useState(null); // { amount, net, details }
   const [history, setHistory] = useState(null);
+  const [cancelBusyId, setCancelBusyId] = useState('');
 
   const rubBal = Number(portfolio?.rubBalance) || 0;
   const feePct = Number(portfolio?.withdrawFeePercent) || 0;
@@ -1528,6 +1530,20 @@ function WithdrawPanel({ portfolio, onDone }) {
   }, []);
 
   useEffect(() => { loadHistory(); }, [loadHistory]);
+
+  async function cancelRequest(id) {
+    if (!window.confirm('Отменить заявку? Сумма вернётся на рублёвый баланс.')) return;
+    setCancelBusyId(id);
+    setErr('');
+    try {
+      await fintechApi.cancelWithdrawal(id);
+      await Promise.all([loadHistory(), onDone?.()]);
+    } catch (e2) {
+      setErr(e2?.message || 'Не удалось отменить заявку');
+    } finally {
+      setCancelBusyId('');
+    }
+  }
 
   const quote = useMemo(() => {
     const v = parseFloat(String(rub).replace(',', '.'));
@@ -1666,14 +1682,33 @@ function WithdrawPanel({ portfolio, onDone }) {
 
       {history !== null && history.length > 0 && (
         <div className="cpx-fin-doc-status-list" style={{ marginTop: 16 }}>
-          {history.map((h) => (
-            <div key={h.id} className="cpx-fin-doc-status-row">
-              <span>{formatMoney(h.rubAmount)} · {formatDateTime(h.createdAt)}</span>
-              <span className={`cpx-fin-badge cpx-fin-badge--${h.status === 'paid' ? 'approved' : h.status === 'rejected' ? 'rejected' : 'pending'}`}>
-                {WITHDRAW_STATUS_LABEL[h.status] || h.status}
-              </span>
-            </div>
-          ))}
+          {history.map((h) => {
+            const canCancel = h.status === 'pending' || h.status === 'approved';
+            const badgeMod = h.status === 'paid'
+              ? 'approved'
+              : h.status === 'rejected' || h.status === 'cancelled'
+                ? 'rejected'
+                : 'pending';
+            return (
+              <div key={h.id} className="cpx-fin-doc-status-row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                <span style={{ flex: '1 1 auto' }}>{formatMoney(h.rubAmount)} · {formatDateTime(h.createdAt)}</span>
+                <span className={`cpx-fin-badge cpx-fin-badge--${badgeMod}`}>
+                  {WITHDRAW_STATUS_LABEL[h.status] || h.status}
+                </span>
+                {canCancel && (
+                  <button
+                    type="button"
+                    className="cpx-btn cpx-btn--ghost"
+                    style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                    disabled={cancelBusyId === h.id}
+                    onClick={() => cancelRequest(h.id)}
+                  >
+                    {cancelBusyId === h.id ? 'Отмена…' : 'Отменить'}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

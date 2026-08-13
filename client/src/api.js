@@ -660,6 +660,8 @@ export const fintechApi = {
   sell: (payload) => fintechFetch('/public/fintech/sell', { method: 'POST', body: JSON.stringify(payload) }),
   requestWithdrawal: (payload) => fintechFetch('/public/fintech/withdraw', { method: 'POST', body: JSON.stringify(payload) }),
   withdrawals: () => fintechFetch('/public/fintech/withdrawals'),
+  cancelWithdrawal: (id) =>
+    fintechFetch(`/public/fintech/withdrawals/${encodeURIComponent(String(id))}/cancel`, { method: 'POST' }),
   topupConfig: () => fintechFetch('/public/fintech/topup/config'),
   createTopup: (payload) => fintechFetch('/public/fintech/topup/create', { method: 'POST', body: JSON.stringify(payload) }),
   confirmTopup: (paymentId, provider) => fintechFetch('/public/fintech/topup/confirm', {
@@ -973,7 +975,7 @@ export const api = {
   fintechAdminUpdateSettings: (patch) =>
     request('/fintech/admin/settings', { method: 'PUT', body: JSON.stringify(patch) }),
   fintechAdminWithdrawals: (status) =>
-    request(`/fintech/admin/withdrawals${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+    request(`/fintech/admin/withdrawals${status && status !== 'all' ? `?status=${encodeURIComponent(status)}` : status === 'all' ? '?status=all' : ''}`),
   fintechAdminDecideWithdrawal: (id, decision, rejectReason) =>
     request(`/fintech/admin/withdrawals/${encodeURIComponent(String(id))}`, {
       method: 'PATCH',

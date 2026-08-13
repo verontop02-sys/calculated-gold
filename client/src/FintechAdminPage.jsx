@@ -38,7 +38,8 @@ const WITHDRAWAL_STATUS_TABS = [
   { key: 'approved', label: 'В обработке' },
   { key: 'paid', label: 'Выплачены' },
   { key: 'rejected', label: 'Отклонены' },
-  { key: '', label: 'Все' },
+  { key: 'cancelled', label: 'Отменены' },
+  { key: 'all', label: 'Все' },
 ];
 
 const WITHDRAWAL_STATUS_LABEL = {
@@ -46,6 +47,7 @@ const WITHDRAWAL_STATUS_LABEL = {
   approved: 'В обработке',
   paid: 'Выплачено',
   rejected: 'Отклонена',
+  cancelled: 'Отменена клиентом',
 };
 
 const SETTINGS_FIELDS = [
@@ -425,8 +427,15 @@ function WithdrawalsPanel({ toast }) {
                 </span>
                 <span className="fea-muted">{r.payoutDetails}</span>
                 <span className="fea-muted">{formatDateTime(r.createdAt)}</span>
-                {r.status === 'rejected' && r.rejectReason && <span style={{ color: 'var(--crimson)', fontSize: '0.8rem' }}>{r.rejectReason}</span>}
-                <span className={`fea-badge fea-badge--${r.status}`} style={{ marginTop: 4 }}>{WITHDRAWAL_STATUS_LABEL[r.status] || r.status}</span>
+                {r.status === 'rejected' && r.rejectReason && r.rejectReason !== 'Отменено клиентом' && (
+                  <span style={{ color: 'var(--crimson)', fontSize: '0.8rem' }}>{r.rejectReason}</span>
+                )}
+                {r.status === 'cancelled' && (
+                  <span className="fea-muted" style={{ fontSize: '0.8rem' }}>Отменено клиентом, сумма на балансе</span>
+                )}
+                <span className={`fea-badge fea-badge--${r.status === 'paid' || r.status === 'approved' ? 'approved' : r.status === 'rejected' || r.status === 'cancelled' ? 'rejected' : 'pending'}`} style={{ marginTop: 4 }}>
+                  {WITHDRAWAL_STATUS_LABEL[r.status] || r.status}
+                </span>
               </div>
               {(r.status === 'pending' || r.status === 'approved') && (
                 <div className="fea-doc-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>

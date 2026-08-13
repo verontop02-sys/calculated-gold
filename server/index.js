@@ -99,6 +99,7 @@ import {
 import {
   requestWithdrawal as fintechRequestWithdrawal,
   getClientWithdrawals as getFintechClientWithdrawals,
+  cancelWithdrawal as fintechCancelWithdrawal,
   listWithdrawalRequests as listFintechWithdrawalRequests,
   decideWithdrawal as decideFintechWithdrawal,
 } from './fintechWithdrawals.js';
@@ -1647,6 +1648,24 @@ app.get(
   })
 );
 
+/** Клиент отменяет свою заявку на вывод → сумма возвращается на рублёвый баланс. */
+app.post(
+  '/api/public/fintech/withdrawals/:id/cancel',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const out = await fintechCancelWithdrawal(supabase, {
+        requestId: req.params.id,
+        clientId: session.clientId,
+      });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось отменить заявку', code: e.code });
+    }
+  })
+);
+
 // ── ЮKassa: пополнение баланса (тестовый / боевой магазин) ──────────────────
 function allowedTopupReturnUrl(candidate) {
   const fallback = (process.env.PUBLIC_APP_ORIGIN || 'https://reaktivo.pro').replace(/\/$/, '');
@@ -1736,15 +1755,13 @@ app.post(
     const provider = String(req.body?.provider || acquiringProvider()).toLowerCase();
     try {
       if (provider === 'tbank') {
-        const state = await getTbankPaymentState(paymentId);
-        const data = state?.DATA && typeof state.DATA === 'object' ? state.DATA : {};
-        const owner = String(data.clientId || data.ClientId || '');
-        if (owner && owner !== String(session.clientId)) {
-          return res.status(403).json({ error: 'Платёж принадлежит другому клиенту' });
-        }
-        const payment = await creditTbankPaymentIfSucceeded(supabase, state);
+        const payment = await creditTbankPaymentIfSucceeded(supabase, paymentId);
         if (payment.clientId && payment.clientId !== String(session.clientId)) {
           return res.status(403).json({ error: 'Платёж принадлежит другому клиенту' });
+        }
+        // Ещё не CONFIRMED — просто статус, без ошибки
+        if (!payment.ok && payment.status && payment.status !== 'CONFIRMED') {
+          return res.json(payment);
         }
         return res.json(payment);
       }
