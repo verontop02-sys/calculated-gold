@@ -10,7 +10,11 @@
 import crypto from 'crypto';
 import { depositFromAcquiring } from './fintechLedger.js';
 
-const API = (process.env.TBANK_API_URL || 'https://securepay.tinkoff.ru/v2').replace(/\/$/, '');
+const API = (
+  process.env.TBANK_API_URL
+  // По умолчанию через VPS в РФ: Render из-за рубежа часто не достучится до securepay.tinkoff.ru
+  || 'https://api.reaktivo.pro/tbank-v2'
+).replace(/\/$/, '');
 const PURPOSE = 'fintech_topup';
 
 export function tbankConfigured() {
@@ -79,11 +83,18 @@ async function tbankFetch(methodPath, params) {
   const body = { ...params, TerminalKey: terminalKey() };
   body.Token = tbankToken(body);
 
-  const res = await fetch(`${API}${methodPath}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  let res;
+  try {
+    res = await fetch(`${API}${methodPath}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    const err = new Error(`Т-Банк недоступен: ${e?.message || e}`);
+    err.status = 502;
+    throw err;
+  }
   const text = await res.text();
   let data = null;
   try {
