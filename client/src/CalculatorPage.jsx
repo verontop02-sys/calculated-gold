@@ -302,7 +302,7 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, to
       />
 
       <style>{`
-        .cg-calc-page__main { max-width: 600px; }
+        .cg-calc-page__main { max-width: none; }
         @media (max-width: 1100px) { .cg-calc-page__main { max-width: none; } }
 
         /* ── Карточка «Экран клиента» ── */

@@ -105,6 +105,7 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
   }
 
   function handlePurityChange(e) {
+    if (!e.target.value) return;
     applyPurity(e.target.value);
   }
 
@@ -207,13 +208,15 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
                 ))}
               </div>
               <select
-                value={purity}
+                value={PRESETS.includes(purity) ? '' : purity}
                 onChange={handlePurityChange}
                 disabled={settingsLoading}
                 className="purity-select"
-                title="Все пробы"
+                title="Другие пробы"
+                aria-label="Другие пробы"
               >
-                {purityOptions.map((p) => (
+                <option value="" disabled>ещё</option>
+                {purityOptions.filter((p) => !PRESETS.includes(p)).map((p) => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
@@ -341,7 +344,7 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
         .field-err { font-size: 0.78rem; color: var(--danger); padding-left: 2px; }
         .input-err { border-color: var(--danger) !important; box-shadow: 0 0 0 3px rgba(248,113,113,0.18) !important; }
 
-        .purity-row { display: flex; gap: 8px; align-items: center; }
+        .purity-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
         .purity-presets { display: flex; gap: 6px; flex-shrink: 0; }
         .preset-btn {
           padding: 10px 14px;
@@ -359,7 +362,16 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
         /* Активная проба: белый текст на мягком красном — иначе красное на красном рябит (правка Руслана). */
         .preset-btn.active { background: var(--gold-soft); border-color: var(--gold); color: var(--text-strong); }
         .preset-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-        .purity-select { flex: 1; min-width: 0; }
+        .purity-select {
+          flex: 0 0 auto;
+          min-width: 7.2rem;
+          max-width: 9rem;
+          appearance: none;
+          background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='%239099a3' d='M1 1l5 5 5-5'/></svg>");
+          background-repeat: no-repeat;
+          background-position: right 10px center;
+          padding-right: 28px;
+        }
 
         .hint-loading { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 0.82rem; }
         .warn-box { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); font-size: 0.82rem; padding: 10px 12px; border-radius: var(--radius-sm); margin: 0 0 12px; line-height: 1.4; }

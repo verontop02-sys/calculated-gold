@@ -1045,14 +1045,14 @@ export default function App() {
           box-sizing: border-box;
         }
         .cg-section { margin: 0 auto; width: 100%; }
-        .cg-section--dashboard { max-width: 1280px; }
-        .cg-section--calc { max-width: 1100px; }
-        .cg-section--contract { max-width: 1300px; }
-        .cg-section--clients { max-width: 1300px; }
-        .cg-section--analytics { max-width: 1200px; }
-        .cg-section--team { max-width: 1100px; }
-        .cg-section--gold-index { max-width: 1400px; }
-        .cg-section--settings { max-width: 1200px; }
+        .cg-section--dashboard { max-width: 1680px; }
+        .cg-section--calc { max-width: 1680px; }
+        .cg-section--contract { max-width: 1600px; }
+        .cg-section--clients { max-width: 1600px; }
+        .cg-section--analytics { max-width: 1600px; }
+        .cg-section--team { max-width: 1480px; }
+        .cg-section--gold-index { max-width: 1680px; }
+        .cg-section--settings { max-width: 1480px; }
         .cg-section-anim {
           animation: cgSectionIn 580ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
           will-change: transform, opacity;

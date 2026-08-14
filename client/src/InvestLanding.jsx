@@ -1702,12 +1702,14 @@ const CSS = `
 .il-header-inner {
   max-width: 1520px; margin: 0 auto; padding: 16px 28px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  min-width: 0; width: 100%; box-sizing: border-box;
 }
 .il-logo {
   display: inline-flex; align-items: center; gap: 12px;
   font-family: var(--font-brand);
   font-weight: 800; font-size: 1.2rem; letter-spacing: -0.01em;
   color: var(--text-strong); text-decoration: none; white-space: nowrap;
+  flex-shrink: 0; min-width: 0; position: relative; z-index: 2;
 }
 .il-logo-mark {
   width: 40px; height: 40px; border-radius: 11px; object-fit: cover;
@@ -1882,7 +1884,9 @@ const CSS = `
   position: relative; z-index: 2; max-width: 1360px; margin: 0 auto;
   display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
   gap: 64px; align-items: center;
+  min-width: 0; width: 100%;
 }
+.il-hero-copy { min-width: 0; max-width: 100%; }
 .il-badge {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
@@ -1904,6 +1908,8 @@ const CSS = `
   font-weight: 800; line-height: 1.07; letter-spacing: -0.035em;
   margin: 0 0 22px; color: var(--text-strong);
   text-wrap: balance;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 .il-hero-word-clip { display: inline-block; overflow: hidden; vertical-align: bottom; margin-right: 0.26em; padding-bottom: 0.08em; margin-bottom: -0.08em; }
 .il-hero-word { display: inline-block; will-change: transform; }
@@ -2570,7 +2576,7 @@ html.il-lb-open body {
 .il-nav-link--dim { color: var(--text-dim); font-weight: 500; }
 
 /* ── Адаптив ── */
-@media (max-width: 1020px) {
+@media (max-width: 1180px) {
   .il-hero-inner { grid-template-columns: 1fr; gap: 52px; }
   .il-deck-wrap { max-width: 500px; margin: 0 auto; width: 100%; }
   .il-market-grid { grid-template-columns: 1fr; gap: 40px; }
@@ -2613,15 +2619,25 @@ html.il-lb-open body {
   .il-preview-chip--1 { left: 8px; }
   .il-preview-chip--2 { right: 8px; }
 }
-@media (min-width: 1180px) {
+@media (max-width: 1440px) {
+  .il-nav { gap: 10px; }
+  .il-nav-link { font-size: 0.8rem; }
+  .il-header-inner { gap: 12px; padding: 14px 22px; }
+}
+@media (min-width: 1280px) {
   .il-header-phone { display: flex; }
 }
-@media (max-width: 720px) {
+@media (max-width: 1279px) {
   .il-nav { display: none; }
-  .il-btn--header-buy { display: none; }
-  .il-btn--header-login { display: none; }
-  .il-header-phone { display: none !important; }
   .il-menu-btn { display: inline-flex; }
+  .il-header-phone { display: none !important; }
+  .il-hero-word-clip { overflow: visible; }
+}
+@media (max-width: 900px) {
+  .il-btn--header-buy { display: none; }
+}
+@media (max-width: 720px) {
+  .il-btn--header-login { display: none; }
   .il-hero { padding: 118px 20px 64px; }
   .il-hero-title { font-size: clamp(2.1rem, 9.4vw, 2.7rem); }
   .il-hero-stats { gap: 18px; }
