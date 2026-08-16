@@ -8,7 +8,70 @@
  * Optional: TBANK_API_URL (default https://securepay.tinkoff.ru/v2)
  */
 import crypto from 'crypto';
+import https from 'node:https';
+import path from 'node:path';
+import tls from 'node:tls';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { depositFromAcquiring } from './fintechLedger.js';
+
+/**
+ * CA Минцифры (Russian Trusted Root + Sub). Когда T-API уйдёт с GlobalSign,
+ * без них Node даст certificate verify failed. Добавляем к системным CA, не вместо.
+ */
+function tbankHttpsAgent() {
+  let extra = '';
+  try {
+    extra = readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), 'certs', 'russian-trusted-ca-bundle.pem'),
+      'utf8',
+    );
+  } catch {
+    extra = '';
+  }
+  return new https.Agent({
+    keepAlive: true,
+    ca: extra ? [...tls.rootCertificates, extra] : tls.rootCertificates,
+  });
+}
+
+const httpsAgent = tbankHttpsAgent();
+
+function tbankHttpsPost(url, jsonBody) {
+  const payload = Buffer.from(JSON.stringify(jsonBody));
+  const u = new URL(url);
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        protocol: 'https:',
+        hostname: u.hostname,
+        port: u.port || 443,
+        path: `${u.pathname}${u.search}`,
+        method: 'POST',
+        agent: httpsAgent,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': payload.length,
+        },
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          resolve({
+            ok: (res.statusCode || 0) >= 200 && (res.statusCode || 0) < 300,
+            status: res.statusCode || 0,
+            text: Buffer.concat(chunks).toString('utf8'),
+          });
+        });
+      },
+    );
+    req.setTimeout(25_000, () => req.destroy(new Error('Т-Банк timeout')));
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
 
 const API = (
   process.env.TBANK_API_URL
@@ -85,17 +148,13 @@ async function tbankFetch(methodPath, params) {
 
   let res;
   try {
-    res = await fetch(`${API}${methodPath}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    res = await tbankHttpsPost(`${API}${methodPath}`, body);
   } catch (e) {
     const err = new Error(`Т-Банк недоступен: ${e?.message || e}`);
     err.status = 502;
     throw err;
   }
-  const text = await res.text();
+  const text = res.text;
   let data = null;
   try {
     data = text ? JSON.parse(text) : null;
