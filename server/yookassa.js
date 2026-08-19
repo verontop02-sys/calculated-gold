@@ -7,6 +7,7 @@
  */
 import crypto from 'crypto';
 import { depositFromAcquiring } from './fintechLedger.js';
+import { jewelryFromYooMetadata, jewelryMetadataForYoo, recordJewelryOrder } from './jewelryOrders.js';
 
 const API = 'https://api.yookassa.ru/v3';
 
@@ -149,6 +150,7 @@ export async function createTopupPayment(supabase, {
   customerEmail,
   savePaymentMethod = false,
   purpose = 'fintech_topup',
+  jewelry = null,
 }) {
   const amount = Math.round(Number(rubAmount) * 100) / 100;
   const min = minTopupRub();
@@ -211,6 +213,7 @@ export async function createTopupPayment(supabase, {
       purpose: purposeSafe,
       rubAmount: value,
       savePaymentMethod: savePaymentMethod ? '1' : '0',
+      ...jewelryMetadataForYoo(jewelry),
     },
   };
   if (savePaymentMethod) body.save_payment_method = true;
@@ -355,6 +358,26 @@ export async function creditYooPaymentIfSucceeded(supabase, paymentOrId) {
       purpose,
     },
   });
+
+  const jewel = jewelryFromYooMetadata(meta);
+  if (jewel) {
+    try {
+      await recordJewelryOrder(supabase, {
+        clientId,
+        catalogId: jewel.catalogId,
+        title: jewel.title,
+        assay: jewel.assay,
+        weightG: jewel.weightG,
+        form: jewel.form,
+        priceRub: paid,
+        status: 'stored',
+        paymentId: verified.id,
+        paidAt: verified.captured_at || verified.created_at,
+      });
+    } catch (e) {
+      console.warn('[jewelry order]', e?.message || e);
+    }
+  }
 
   const savedMethod = await persistYooPaymentMethod(supabase, clientId, verified);
 

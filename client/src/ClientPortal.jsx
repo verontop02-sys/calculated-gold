@@ -5,14 +5,16 @@ import { ThemeToggle } from './ThemeToggle.jsx';
 import { ClientSidebar } from './ClientSidebar.jsx';
 import { ClientMobileNav } from './ClientMobileNav.jsx';
 import { applyTheme, getStoredTheme } from './theme.js';
+import { listJewelryOrders, mergeJewelryOrders, formatJewelryPrice } from './jewelryCatalog.js';
+import { JewelryOwnedList } from './JewelryOwned.jsx';
 
-const TAB_TITLES = { home: 'Личный кабинет', calc: 'Калькулятор', history: 'Мои сделки', invest: 'Покупка золота', support: 'Поддержка', settings: 'Настройки' };
+const TAB_TITLES = { home: 'Личный кабинет', calc: 'Оценка для скупки', history: 'Скупка', invest: 'Витрина', support: 'Поддержка', settings: 'Настройки' };
 const TAB_SUBTITLES = {
-  home: 'Обзор сделок, золотого счёта и безопасность входа',
-  calc: 'Оценка золота по текущему биржевому курсу',
-  history: 'История ваших сделок с Reaktivo',
-  invest: 'Золотой счёт: покупка, портфель, аналитика',
-  support: 'Чат с командой Reaktivo — как в банке',
+  home: 'Ваши изделия, продажи в скупку и безопасность входа',
+  calc: 'Оценка изделия перед продажей в скупку',
+  history: 'Ваши продажи в режиме скупки',
+  invest: 'Ювелирные изделия с пробой и клеймом',
+  support: 'Чат с командой Reaktivo',
   settings: 'Профиль, тема, уведомления и PIN-код',
 };
 
@@ -63,7 +65,7 @@ export function ClientPortal() {
   const [tab, setTab] = useState(() => {
     try {
       const q = new URLSearchParams(window.location.search);
-      if (q.get('topup') === '1' || q.get('invest') === '1' || q.get('bind') === '1') return 'invest';
+      if (q.get('topup') === '1' || q.get('invest') === '1' || q.get('bind') === '1' || q.get('item')) return 'invest';
     } catch { /* ignore */ }
     return 'home';
   });
@@ -577,7 +579,7 @@ export function ClientPortal() {
         )}
       </main>
 
-      <footer className="cpx-foot">© {new Date().getFullYear()} REAKTIVO · оценка и выкуп золота</footer>
+      <footer className="cpx-foot">© {new Date().getFullYear()} REAKTIVO · скупка и ювелирные изделия</footer>
 
       <style>{CSS}</style>
     </div>
@@ -594,6 +596,7 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
   const [dealsSummary, setDealsSummary] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [fintechStatus, setFintechStatus] = useState(null); // null | 'none' | status string
+  const [jewelryOrders, setJewelryOrders] = useState(() => mergeJewelryOrders([], listJewelryOrders()));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -625,7 +628,8 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
             fintechP = Promise.all([
               fintechApi.profile().catch(() => null),
               fintechApi.portfolio().catch(() => null),
-            ]).then(([me, p]) => ({ me, portfolio: p }));
+              fintechApi.jewelryOrders().catch(() => null),
+            ]).then(([me, p, jewels]) => ({ me, portfolio: p, jewels }));
           }
         } catch {
           fintechP = Promise.resolve(null);
@@ -634,12 +638,24 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
         const [deals, fin] = await Promise.all([dealsP, fintechP]);
         if (cancelled) return;
         setDealsSummary(deals);
+        const localJewels = listJewelryOrders();
         if (fin?.me) {
           setFintechStatus(fin.me.status || 'none');
           setPortfolio(fin.portfolio);
+          const remote = fin.jewels?.orders || [];
+          if (localJewels.length && !remote.length) {
+            fintechApi.syncJewelryOrders(localJewels).then((synced) => {
+              if (!cancelled) setJewelryOrders(mergeJewelryOrders(synced?.orders || [], localJewels));
+            }).catch(() => {
+              if (!cancelled) setJewelryOrders(mergeJewelryOrders([], localJewels));
+            });
+          } else {
+            setJewelryOrders(mergeJewelryOrders(remote, localJewels));
+          }
         } else {
           setFintechStatus('none');
           setPortfolio(null);
+          setJewelryOrders(mergeJewelryOrders([], localJewels));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -649,13 +665,14 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
   }, []);
 
   const recentDeals = (dealsSummary?.deals || []).slice(0, 5);
+  const ordersSum = jewelryOrders.reduce((s, o) => s + (Number(o.priceRub) || 0), 0);
   const investLabel = fintechStatus === 'approved'
-    ? 'Золотой счёт активен'
+    ? 'Витрина открыта'
     : fintechStatus === 'pending_review'
-      ? 'Заявка на проверке'
+      ? 'Документы на проверке'
       : fintechStatus === 'rejected'
         ? 'Нужна повторная отправка'
-        : 'Ещё не подключён';
+        : 'Нужна идентификация';
 
   return (
     <div className="cpx-home">
@@ -670,9 +687,9 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
           </div>
         </div>
         <div className="cpx-home-hero-actions">
-          <button type="button" className="cpx-btn cpx-btn--sm" onClick={() => onNavigate?.('invest')}>Купить золото</button>
-          <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>Пополнить</button>
-          <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('calc')}>Калькулятор</button>
+          <button type="button" className="cpx-btn cpx-btn--sm" onClick={() => onNavigate?.('invest')}>Витрина</button>
+          <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('history')}>Скупка</button>
+          <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('calc')}>Оценка изделия</button>
         </div>
       </div>
 
@@ -681,50 +698,52 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
       ) : (
         <div className="cpx-home-kpis">
           <button type="button" className="cpx-home-kpi" onClick={() => onNavigate?.('history')}>
-            <span className="cpx-home-kpi-label">Сделки скупки</span>
+            <span className="cpx-home-kpi-label">Продажи в скупку</span>
             <span className="cpx-home-kpi-value">{dealsSummary?.dealsCount ?? 0}</span>
-            <span className="cpx-home-kpi-meta">Перейти к истории →</span>
+            <span className="cpx-home-kpi-meta">История в кабинете →</span>
           </button>
           <button type="button" className="cpx-home-kpi" onClick={() => onNavigate?.('history')}>
-            <span className="cpx-home-kpi-label">Сумма сделок</span>
+            <span className="cpx-home-kpi-label">Сумма скупки</span>
             <span className="cpx-home-kpi-value">{formatMoney(dealsSummary?.totalRub)}</span>
             <span className="cpx-home-kpi-meta">По вашему номеру</span>
           </button>
           <button type="button" className="cpx-home-kpi cpx-home-kpi--accent" onClick={() => onNavigate?.('invest')}>
-            <span className="cpx-home-kpi-label">Золото на счёте</span>
-            <span className="cpx-home-kpi-value">{formatGramsHome(portfolio?.goldGrams)}</span>
+            <span className="cpx-home-kpi-label">Ваши изделия</span>
+            <span className="cpx-home-kpi-value">{jewelryOrders.length}</span>
             <span className="cpx-home-kpi-meta">{investLabel}</span>
           </button>
           <button type="button" className="cpx-home-kpi" onClick={() => onNavigate?.('invest')}>
-            <span className="cpx-home-kpi-label">Стоимость портфеля</span>
-            <span className="cpx-home-kpi-value">{formatMoney(portfolio?.marketValueRub)}</span>
-            <span className="cpx-home-kpi-meta">
-              {portfolio?.pnlPercent != null
-                ? `Доход ${portfolio.pnlPercent > 0 ? '+' : ''}${portfolio.pnlPercent}%`
-                : 'Открыть золотой счёт →'}
-            </span>
-          </button>
-          <button type="button" className="cpx-home-kpi" onClick={() => onNavigate?.('invest')}>
-            <span className="cpx-home-kpi-label">Рублёвый баланс</span>
-            <span className="cpx-home-kpi-value">{formatMoney(portfolio?.rubBalance)}</span>
-            <span className="cpx-home-kpi-meta">Доступно к покупке</span>
+            <span className="cpx-home-kpi-label">Сумма заказов</span>
+            <span className="cpx-home-kpi-value">{formatJewelryPrice(jewelryOrders.length ? ordersSum : null)}</span>
+            <span className="cpx-home-kpi-meta">Оплата конкретных изделий</span>
           </button>
         </div>
       )}
 
+      <div className="cpx-card">
+        <div className="cpx-home-section-head">
+          <h3 className="cpx-home-section-title">Ваши изделия</h3>
+          <button type="button" className="cpx-link" onClick={() => onNavigate?.('invest')}>Витрина</button>
+        </div>
+        <JewelryOwnedList
+          orders={jewelryOrders}
+          emptyText="Пока нет оплаченных изделий. Откройте витрину и выберите позицию."
+        />
+      </div>
+
       <div className="cpx-home-grid">
         <div className="cpx-card">
           <div className="cpx-home-section-head">
-            <h3 className="cpx-home-section-title">Последние сделки</h3>
-            <button type="button" className="cpx-link" onClick={() => onNavigate?.('history')}>Все сделки</button>
+            <h3 className="cpx-home-section-title">Последние продажи в скупку</h3>
+            <button type="button" className="cpx-link" onClick={() => onNavigate?.('history')}>Все записи</button>
           </div>
           {!recentDeals.length && (
-            <p className="cpx-muted" style={{ margin: 0 }}>Сделок по номеру пока нет — можно пользоваться калькулятором и золотым счётом.</p>
+            <p className="cpx-muted" style={{ margin: 0 }}>Продаж по номеру пока нет — можно оценить изделие и открыть витрину.</p>
           )}
           {recentDeals.map((d) => (
             <div key={d.id} className="cpx-home-deal-row">
               <div>
-                <div className="cpx-home-deal-title">{d.contractNo ? `Договор ${d.contractNo}` : 'Сделка'}</div>
+                <div className="cpx-home-deal-title">{d.contractNo ? `Договор ${d.contractNo}` : 'Продажа в скупку'}</div>
                 <div className="cpx-home-deal-date">{formatDate(d.createdAt)}</div>
               </div>
               <div className="cpx-home-deal-sum">{formatMoney(d.totalRub)}</div>
@@ -738,16 +757,16 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
           </div>
           <div className="cpx-home-nav">
             <button type="button" className="cpx-home-nav-item" onClick={() => onNavigate?.('invest')}>
-              <span className="cpx-home-nav-title">Покупка золота</span>
+              <span className="cpx-home-nav-title">Витрина</span>
               <span className="cpx-home-nav-desc">{investLabel}</span>
             </button>
             <button type="button" className="cpx-home-nav-item" onClick={() => onNavigate?.('history')}>
-              <span className="cpx-home-nav-title">Мои сделки</span>
-              <span className="cpx-home-nav-desc">{dealsSummary?.dealsCount ? `${dealsSummary.dealsCount} записей` : 'История скупки'}</span>
+              <span className="cpx-home-nav-title">Скупка</span>
+              <span className="cpx-home-nav-desc">{dealsSummary?.dealsCount ? `${dealsSummary.dealsCount} записей` : 'История продаж нам'}</span>
             </button>
             <button type="button" className="cpx-home-nav-item" onClick={() => onNavigate?.('calc')}>
-              <span className="cpx-home-nav-title">Калькулятор</span>
-              <span className="cpx-home-nav-desc">Оценка лома по биржевому курсу</span>
+              <span className="cpx-home-nav-title">Оценка для скупки</span>
+              <span className="cpx-home-nav-desc">Ориентир суммы выкупа изделия</span>
             </button>
             <button type="button" className="cpx-home-nav-item" onClick={() => onNavigate?.('support')}>
               <span className="cpx-home-nav-title">Поддержка</span>
@@ -847,7 +866,7 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
     setProfileErr('');
     setProfileOk('');
     if (!getFintechToken()) {
-      setProfileErr('Сначала откройте раздел «Покупка золота» и пройдите регистрацию — тогда ФИО и почта сохранятся в профиле.');
+      setProfileErr('Сначала откройте раздел «Витрина» и пройдите регистрацию — тогда ФИО и почта сохранятся в профиле.');
       return;
     }
     setProfileBusy(true);
@@ -862,12 +881,12 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
   }
 
   const statusLabel = {
-    approved: 'Покупка золота одобрена',
+    approved: 'Заказ изделий разрешён',
     pending_review: 'Заявка на проверке',
     rejected: 'Заявка отклонена — нужна доработка',
     blocked: 'Аккаунт заблокирован',
     new: 'Регистрация не завершена',
-    none: 'Золотой счёт ещё не подключён',
+    none: 'Идентификация ещё не пройдена',
   }[fintechStatus] || '—';
 
   return (
@@ -875,7 +894,7 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
       <div className="cpx-settings-grid">
         <section className="cpx-card cpx-settings-card">
           <h2 className="cpx-settings-title">Профиль</h2>
-          <p className="cpx-settings-lead">Телефон привязан к кабинету. ФИО и почта используются для золотого счёта и писем о статусе KYC.</p>
+          <p className="cpx-settings-lead">Телефон привязан к кабинету. ФИО и почта нужны для идентификации и писем о статусе документов.</p>
           {profileLoading ? (
             <p className="cpx-muted"><span className="cpx-spinner" /> Загружаем…</p>
           ) : (
@@ -903,7 +922,7 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
                   maxLength={200}
                 />
               </label>
-              <p className="cpx-settings-meta">Статус золотого счёта: <b>{statusLabel}</b></p>
+              <p className="cpx-settings-meta">Статус идентификации: <b>{statusLabel}</b></p>
               {profileErr && <p className="cpx-err">{profileErr}</p>}
               {profileOk && <p className="cpx-fin-ok">{profileOk}</p>}
               <div className="cpx-settings-actions">
@@ -911,7 +930,7 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
                   {profileBusy ? <><span className="cpx-spinner" /> Сохраняем…</> : 'Сохранить профиль'}
                 </button>
                 {fintechStatus !== 'approved' && (
-                  <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>К покупке золота</button>
+                  <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>К витрине</button>
                 )}
               </div>
             </form>
@@ -966,15 +985,15 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
             <label className="cpx-settings-switch">
               <input type="checkbox" checked={notify.investOps} onChange={() => toggleNotify('investOps')} />
               <span>
-                <strong>Операции по золотому счёту</strong>
-                <em>Покупка, пополнение, важные изменения баланса</em>
+                <strong>Статус заказа изделия</strong>
+                <em>Оплата и готовность заказа</em>
               </span>
             </label>
             <label className="cpx-settings-switch">
               <input type="checkbox" checked={notify.dealsSms} onChange={() => toggleNotify('dealsSms')} />
               <span>
-                <strong>SMS о сделках скупки</strong>
-                <em>Когда появится новая сделка по вашему номеру</em>
+                <strong>SMS о продаже в скупку</strong>
+                <em>Когда появится новая запись по вашему номеру</em>
               </span>
             </label>
             <label className="cpx-settings-switch">
@@ -1006,7 +1025,7 @@ function ClientSettings({ hasPin, onPinChanged, phoneMasked, sidebarPinned, onSi
               <strong>Быстрые разделы</strong>
               <div className="cpx-settings-actions">
                 <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('home')}>Обзор кабинета</button>
-                <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>Покупка золота</button>
+                <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('invest')}>Витрина</button>
                 <button type="button" className="cpx-fin-pdf-btn" onClick={() => onNavigate?.('support')}>Написать в поддержку</button>
                 <a className="cpx-fin-pdf-btn" href="/" style={{ textDecoration: 'none' }}>На главную</a>
               </div>
@@ -1211,7 +1230,7 @@ function ClientCalculator() {
 
           {quote?.updatedAt && (
             <p className="cpx-quote-meta">
-              Курс обновлён {formatDate(quote.updatedAt)} · {formatMoney(quote.goldRubPerGram)} / г (биржа)
+              Курс обновлён {formatDate(quote.updatedAt)} · {formatMoney(quote.goldRubPerGram)} / г
             </p>
           )}
         </>
@@ -1235,7 +1254,7 @@ function ClientDeals({ onAuthExpired }) {
       .then(setData)
       .catch((e) => {
         if (e?.status === 401) { onAuthExpired?.(); return; }
-        setErr(e?.message || 'Не удалось загрузить сделки');
+        setErr(e?.message || 'Не удалось загрузить историю скупки');
       })
       .finally(() => setLoading(false));
   }, [onAuthExpired]);
@@ -1256,7 +1275,7 @@ function ClientDeals({ onAuthExpired }) {
     });
   }, [data?.deals, q]);
 
-  if (loading) return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Загружаем сделки…</div>;
+  if (loading) return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Загружаем историю скупки…</div>;
   if (err) return <div className="cpx-card cpx-err">{err}</div>;
 
   const avg = (data?.dealsCount > 0 && data?.totalRub != null)
@@ -1267,7 +1286,7 @@ function ClientDeals({ onAuthExpired }) {
     <div className="cpx-deals">
       <div className="cpx-deals-kpis">
         <div className="cpx-deals-kpi">
-          <span className="cpx-deals-kpi-label">Всего сделок</span>
+          <span className="cpx-deals-kpi-label">Всего продаж</span>
           <span className="cpx-deals-kpi-value">{data?.dealsCount ?? 0}</span>
         </div>
         <div className="cpx-deals-kpi cpx-deals-kpi--accent">
@@ -1287,8 +1306,8 @@ function ClientDeals({ onAuthExpired }) {
       <div className="cpx-card cpx-deals-panel">
         <div className="cpx-deals-toolbar">
           <div>
-            <h2 className="cpx-deals-panel-title">История сделок</h2>
-            <p className="cpx-deals-panel-sub">Скупки по вашему номеру телефона</p>
+            <h2 className="cpx-deals-panel-title">История скупки</h2>
+            <p className="cpx-deals-panel-sub">Продажи изделий нам по вашему номеру телефона</p>
           </div>
           <input
             className="cpx-deals-search"
@@ -1300,7 +1319,7 @@ function ClientDeals({ onAuthExpired }) {
 
         {deals.length === 0 ? (
           <p className="cpx-muted" style={{ margin: '8px 0 0' }}>
-            {q.trim() ? 'Ничего не найдено по запросу.' : 'Сделок по вашему номеру пока нет.'}
+            {q.trim() ? 'Ничего не найдено по запросу.' : 'Продаж по вашему номеру пока нет.'}
           </p>
         ) : (
           <>
@@ -1546,7 +1565,7 @@ function ClientSupportChat({ onUnreadCleared }) {
             </div>
             <div className="cpx-chat-empty__title">Напишите нам</div>
             <p className="cpx-chat-empty__sub">
-              Поможем с документами, сделками и покупкой золота.
+              Поможем с документами, заказом изделия и продажей в скупку.
               Ответ придёт прямо сюда.
             </p>
           </div>
@@ -3088,6 +3107,83 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
 .cpx-fin-neg { color: var(--crimson); font-weight: 600; }
 
 .cpx-btn--sm { width: auto; padding: 11px 18px; flex-shrink: 0; margin-top: 0; }
+
+.cpx-jewel { max-width: 1680px; margin: 0 auto; }
+.cpx-jewel-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 16px; }
+.cpx-jewel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.cpx-jewel-card {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 14px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  min-height: 128px;
+}
+.cpx-jewel-card.is-on { border-color: var(--accent); background: var(--accent-soft); }
+.cpx-jewel-kind {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.cpx-jewel-card strong { font-size: 0.95rem; color: var(--text-strong); }
+.cpx-jewel-card b { margin-top: auto; font-size: 1.02rem; font-variant-numeric: tabular-nums; }
+.cpx-jewel-card--soon {
+  pointer-events: none;
+  cursor: default;
+  opacity: 0.7;
+  border-style: dashed;
+}
+.cpx-jewel-pay { margin-top: 16px; }
+.cpx-jewel-price { font-size: 1.35rem; font-weight: 800; margin: 12px 0; font-variant-numeric: tabular-nums; }
+.cpx-owned-block { margin-bottom: 16px; }
+.cpx-owned-block .cpx-fin-side-sub { margin: 6px 0 14px; }
+.cpx-owned-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.cpx-owned-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 14px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: var(--surface);
+  min-height: 148px;
+}
+.cpx-owned-top { display: flex; justify-content: space-between; align-items: center; }
+.cpx-owned-status {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.cpx-owned-status--issued { color: var(--text-dim); }
+.cpx-owned-title { margin: 0; font-size: 1.02rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-strong); }
+.cpx-owned-meta { margin: 0; font-size: 0.82rem; color: var(--text-muted); }
+.cpx-owned-hint { margin: 0; font-size: 0.78rem; line-height: 1.4; color: var(--text-dim); flex: 1; }
+.cpx-owned-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 8px;
+}
+.cpx-owned-foot strong { font-size: 1.02rem; font-variant-numeric: tabular-nums; color: var(--text-strong); }
+.cpx-owned-foot span { font-size: 0.75rem; color: var(--text-dim); }
 
 @media (max-width: 640px) {
   .cpx-login--fin { margin: 12px auto 0; padding: 22px 18px 20px; border-radius: 18px; }

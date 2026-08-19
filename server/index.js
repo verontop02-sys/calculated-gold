@@ -121,6 +121,10 @@ import {
   handleTbankWebhook,
   getTbankPaymentState,
 } from './tbank.js';
+import {
+  listJewelryOrders as listFintechJewelryOrders,
+  recordJewelryOrder,
+} from './jewelryOrders.js';
 
 /** Активный эквайринг: yookassa | tbank. ЮKassa — основной; Т-Банк только если ЮKassa не настроена. */
 function acquiringProvider() {
@@ -1751,6 +1755,7 @@ app.post(
         returnUrl: allowedTopupReturnUrl(req.body?.returnUrl),
         description: req.body?.description,
         customerEmail: req.body?.email,
+        jewelry: req.body?.jewelry,
       });
       res.json({ ...out, provider: 'yookassa' });
     } catch (e) {
@@ -1793,6 +1798,52 @@ app.post(
       console.warn(`[${provider} confirm]`, e?.message || e);
       res.status(e.status || 500).json({ error: e.message || 'Не удалось подтвердить платёж' });
     }
+  })
+);
+
+app.get(
+  '/api/public/fintech/jewelry-orders',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    try {
+      const orders = await listFintechJewelryOrders(supabase, session.clientId);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ orders });
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось загрузить изделия' });
+    }
+  })
+);
+
+app.post(
+  '/api/public/fintech/jewelry-orders/sync',
+  asyncHandler(async (req, res) => {
+    const session = requireFintechSession(req, res);
+    if (!session) return;
+    const rows = Array.isArray(req.body?.orders) ? req.body.orders : [];
+    const saved = [];
+    for (const raw of rows.slice(0, 40)) {
+      try {
+        const out = await recordJewelryOrder(supabase, {
+          clientId: session.clientId,
+          catalogId: raw.catalogId || raw.id,
+          title: raw.title,
+          assay: raw.assay,
+          weightG: raw.weightG,
+          form: raw.form,
+          priceRub: raw.priceRub,
+          status: raw.status || 'stored',
+          paymentId: raw.paymentId || null,
+          paidAt: raw.at || raw.paid_at || null,
+        });
+        if (out) saved.push(out);
+      } catch (e) {
+        console.warn('[jewelry sync]', e?.message || e);
+      }
+    }
+    const orders = await listFintechJewelryOrders(supabase, session.clientId);
+    res.json({ orders, synced: saved.length });
   })
 );
 

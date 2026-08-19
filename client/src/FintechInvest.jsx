@@ -4,6 +4,8 @@ import { fintechApi, getFintechToken, setFintechToken, onFintechSessionExpired, 
 import { openFintechStatementReport } from './fintechStatementReport.js';
 import { WorldClocksCard } from './WorldClocks.jsx';
 import { MissedBenefitCalc } from './MissedBenefitCalc.jsx';
+import { JewelryShop } from './JewelryShop.jsx';
+import { addJewelryOrder, takePendingJewelryItem } from './jewelryCatalog.js';
 import {
   AnimatePresence,
   FadeIn,
@@ -206,7 +208,7 @@ export function FintechInvest({ clientToken = '', expectedPhone = '' }) {
   if (profile.status === 'blocked') {
     return (
       <div className="cpx-card">
-        <p className="cpx-err">Доступ к покупке золота заблокирован. Обратитесь к менеджеру Reaktivo.</p>
+        <p className="cpx-err">Доступ к заказу изделий ограничен. Обратитесь к менеджеру Reaktivo.</p>
       </div>
     );
   }
@@ -274,9 +276,9 @@ function FintechLogin({ onDone }) {
     <FadeIn>
     <div className="cpx-card cpx-login cpx-login--fin">
       <p className="cpx-login-eyebrow">REAKTIVO · PRO</p>
-      <h1 className="cpx-title">Покупка золота</h1>
+      <h1 className="cpx-title">Заказ ювелирных изделий</h1>
       <p className="cpx-sub">
-        Отдельный вход — свой код защищает доступ к деньгам, даже если сессия кабинета скупки уже открыта на этом телефоне.
+        Подтвердите номер телефона, чтобы оформить изделие с витрины. Для покупки по закону нужна идентификация по паспорту.
       </p>
 
       {step === 'phone' && (
@@ -1039,15 +1041,15 @@ function TopupSuccessModal({
 
   const isBind = variant === 'bind';
   const title = pending
-    ? (isBind ? 'Привязываем карту…' : 'Зачисляем оплату…')
-    : (isBind ? 'Карта привязана' : 'Круто, баланс пополнен');
+    ? (isBind ? 'Сохраняем карту…' : 'Проверяем оплату изделия…')
+    : (isBind ? 'Карта сохранена' : 'Оплата изделия принята');
   const lead = pending
     ? (isBind
-      ? 'Оплата прошла — сохраняем карту для автопополнения и зачисляем сумму на баланс.'
-      : 'Проверяем статус платежа у банка. Если оплата ещё не завершена — вернитесь и дожмите «Оплатить» тестовой картой.')
+      ? 'Оплата прошла — сохраняем карту.'
+      : 'Проверяем статус платежа у банка. Если оплата ещё не завершена — вернитесь и подтвердите платёж.')
     : (isBind
-      ? 'Карта сохранена для автопополнения. Сумма уже на балансе — можно купить золото или настроить регулярку.'
-      : 'Деньги уже на счёте. Можно сразу купить золото по курсу биржи.');
+      ? 'Карта сохранена.'
+      : 'Заказ появится в кабинете. Это оплата конкретного ювелирного изделия.');
 
   return (
     <div className="cpx-fin-op-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label={title}>
@@ -1056,16 +1058,12 @@ function TopupSuccessModal({
         <span className={`cpx-fin-success-mark${pending ? ' cpx-fin-success-mark--pending' : ''}`} aria-hidden>
           {pending ? <span className="cpx-spinner" /> : '✓'}
         </span>
-        <p className="cpx-fin-success-eyebrow">REAKTIVO · ЗОЛОТОЙ СЧЁТ</p>
+        <p className="cpx-fin-success-eyebrow">REAKTIVO · ЗАКАЗ ИЗДЕЛИЯ</p>
         <h3 className="cpx-fin-op-title">{title}</h3>
         <p className="cpx-fin-success-lead">{lead}</p>
         <div className="cpx-fin-success-sum">
-          <span>{pending ? 'Сумма платежа' : 'Зачислено'}</span>
-          <strong className="cpx-fin-pos">+{formatMoney(amountRub)}</strong>
-        </div>
-        <div className="cpx-fin-success-sum cpx-fin-success-sum--muted">
-          <span>Сейчас на балансе</span>
-          <strong>{balanceRub == null ? '…' : formatMoney(balanceRub)}</strong>
+          <span>{pending ? 'Сумма оплаты' : 'Оплачено'}</span>
+          <strong className="cpx-fin-pos">{formatMoney(amountRub)}</strong>
         </div>
         {pending ? (
           <div className="cpx-fin-success-actions">
@@ -1073,7 +1071,7 @@ function TopupSuccessModal({
           </div>
         ) : (
           <div className="cpx-fin-success-actions">
-            <button type="button" className="cpx-btn" onClick={onBuy}>Купить золото</button>
+            <button type="button" className="cpx-btn" onClick={onBuy}>К витрине</button>
             <button type="button" className="cpx-fin-pdf-btn" onClick={onClose}>Отлично</button>
           </div>
         )}
@@ -1736,6 +1734,7 @@ function FintechDashboard({ profile }) {
   const [showTopup, setShowTopup] = useState(false);
   const [topupSuccess, setTopupSuccess] = useState(null); // { amountRub, balanceRub, variant? } | null
   const [topupSyncing, setTopupSyncing] = useState(false);
+  const [shopTick, setShopTick] = useState(0);
   const loadGenRef = useRef(0);
   const topupConfirmStarted = useRef(false);
 
@@ -1772,7 +1771,7 @@ function FintechDashboard({ profile }) {
       return p;
     } catch (e) {
       if (gen !== loadGenRef.current) return null;
-      setErr(e?.message || 'Не удалось загрузить портфель');
+      setErr(e?.message || 'Не удалось открыть витрину');
       return null;
     } finally {
       if (gen === loadGenRef.current) setLoading(false);
@@ -1832,6 +1831,21 @@ function FintechDashboard({ profile }) {
 
       if (out?.status === 'succeeded' || out?.status === 'CONFIRMED' || out?.credited) {
         clearTopupPending();
+        const item = takePendingJewelryItem();
+        if (item) {
+          addJewelryOrder({
+            catalogId: item.id,
+            title: item.title,
+            assay: item.assay,
+            weightG: item.weightG,
+            form: item.form,
+            priceRub: Number.isFinite(amountRub) ? amountRub : item.priceRub,
+            status: 'stored',
+            paymentId: pending?.paymentId || null,
+            at: new Date().toISOString(),
+          });
+        }
+        setShopTick((n) => n + 1);
         setTopupSuccess({
           amountRub: Number.isFinite(amountRub) ? amountRub : amountHint,
           balanceRub: Number.isFinite(balanceRub) ? balanceRub : 0,
@@ -1872,15 +1886,15 @@ function FintechDashboard({ profile }) {
     }
   }
 
-  // Только первая загрузка — полный спиннер. Повторные обновления не размонтируют дашборд.
+  // Только первая загрузка — полный спиннер. Повторные обновления не размонтируют витрину.
   if (loading && !portfolio) {
-    return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Загружаем портфель…</div>;
+    return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Открываем витрину…</div>;
   }
   if (err && !portfolio) {
     return <div className="cpx-card"><p className="cpx-err">{err}</p><button type="button" className="cpx-btn cpx-btn--sm" onClick={() => void load()}>Повторить</button></div>;
   }
   if (!portfolio) {
-    return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Загружаем портфель…</div>;
+    return <div className="cpx-card cpx-muted"><span className="cpx-spinner" /> Открываем витрину…</div>;
   }
 
   const firstName = String(profile?.fullName || '').trim().split(/\s+/)[1]
@@ -1891,7 +1905,7 @@ function FintechDashboard({ profile }) {
     <div className="cpx-finx">
       {topupSyncing && (
         <div className="cpx-fin-topup-sync" role="status">
-          <span className="cpx-spinner" /> Зачисляем оплату на баланс…
+          <span className="cpx-spinner" /> Проверяем оплату изделия…
         </div>
       )}
       {topupSuccess && (
@@ -1899,162 +1913,37 @@ function FintechDashboard({ profile }) {
           amountRub={topupSuccess.amountRub}
           balanceRub={topupSuccess.balanceRub}
           pending={!!topupSuccess.pending}
-          variant={topupSuccess.variant || 'topup'}
+          variant="topup"
           onClose={() => {
             clearTopupPending();
             topupConfirmStarted.current = false;
             setTopupSuccess(null);
             setTopupSyncing(false);
           }}
-          onBuy={openBuy}
+          onBuy={() => {
+            clearTopupPending();
+            topupConfirmStarted.current = false;
+            setTopupSuccess(null);
+            setTopupSyncing(false);
+          }}
         />
       )}
       <Reveal y={16}>
-      <div className={`cpx-fin-hero ${(portfolio?.pnlRub ?? 0) >= 0 ? 'cpx-fin-hero--pos' : 'cpx-fin-hero--neg'}`}>
-        <div className="cpx-fin-hero-main">
-          <p className="cpx-fin-greeting-sub">Reaktivo · золотой счёт</p>
-          <h2 className="cpx-fin-hero-title">{firstName ? `${firstName}, ваш портфель` : 'Ваш портфель'}</h2>
-          <div className="cpx-fin-hero-value">
-            <span className="cpx-fin-hero-value-num">{formatMoney(portfolio?.marketValueRub)}</span>
-            <span className={`cpx-fin-hero-pnl ${(portfolio?.pnlRub ?? 0) >= 0 ? 'cpx-fin-pos' : 'cpx-fin-neg'}`}>
-              {portfolio?.pnlRub != null ? `${portfolio.pnlRub >= 0 ? '+' : ''}${formatMoney(portfolio.pnlRub)}` : '—'}
-              {portfolio?.pnlPercent != null && ` (${portfolio.pnlPercent > 0 ? '+' : ''}${portfolio.pnlPercent}%)`}
-            </span>
+        <div className="cpx-fin-hero cpx-fin-hero--pos">
+          <div className="cpx-fin-hero-main">
+            <p className="cpx-fin-greeting-sub">Reaktivo · витрина изделий</p>
+            <h2 className="cpx-fin-hero-title">{firstName ? `${firstName}, выберите изделие` : 'Витрина ювелирных изделий'}</h2>
+            <p className="cpx-fin-hero-meta">
+              Украшения из сети скупки: кольца, цепи, серьги, браслеты, подвески. Оплата только выбранной позиции.
+            </p>
           </div>
-          <p className="cpx-fin-hero-meta">
-            {formatGrams(portfolio?.goldGrams)} · вложено {formatMoney(portfolio?.investedRub)} · кэш {formatMoney(portfolio?.rubBalance)}
-          </p>
         </div>
-        <div className="cpx-fin-hero-actions">
-          <button type="button" className="cpx-btn cpx-btn--sm" onClick={openBuy}>Купить</button>
-          <button type="button" className="cpx-fin-pdf-btn" onClick={openTopup}>Пополнить</button>
-          <button type="button" className="cpx-fin-pdf-btn" onClick={() => setView('sell')}>Продать</button>
-          <button type="button" className="cpx-fin-pdf-btn" disabled={pdfBusy} onClick={downloadStatement}>
-            {pdfBusy ? <><span className="cpx-spinner" /> …</> : 'Выписка PDF'}
-          </button>
-        </div>
-      </div>
       </Reveal>
-
-      <motion.div
-        className="cpx-fin-kpis"
-        variants={staggerParent}
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true, margin: '-5% 0px' }}
-      >
-        <motion.div className="cpx-fin-kpi cpx-fin-kpi--hero" variants={staggerChild}>
-          <span className="cpx-fin-kpi-label">Золото на счёте</span>
-          <span className="cpx-fin-kpi-value">{formatGrams(portfolio?.goldGrams)}</span>
-        </motion.div>
-        <motion.div className="cpx-fin-kpi" variants={staggerChild}>
-          <span className="cpx-fin-kpi-label">Стоимость</span>
-          <span className="cpx-fin-kpi-value">{formatMoney(portfolio?.marketValueRub)}</span>
-        </motion.div>
-        <motion.div className="cpx-fin-kpi" variants={staggerChild}>
-          <span className="cpx-fin-kpi-label">Вложено</span>
-          <span className="cpx-fin-kpi-value">{formatMoney(portfolio?.investedRub)}</span>
-        </motion.div>
-        <motion.div className={`cpx-fin-kpi ${(portfolio?.pnlRub ?? 0) >= 0 ? 'cpx-fin-kpi--pos' : 'cpx-fin-kpi--neg'}`} variants={staggerChild}>
-          <span className="cpx-fin-kpi-label">Доход</span>
-          <span className="cpx-fin-kpi-value">
-            {formatMoney(portfolio?.pnlRub)}
-            {portfolio?.pnlPercent != null && <span className="cpx-fin-kpi-pct"> ({portfolio.pnlPercent > 0 ? '+' : ''}{portfolio.pnlPercent}%)</span>}
-          </span>
-        </motion.div>
-        <motion.div className="cpx-fin-kpi" variants={staggerChild}>
-          <span className="cpx-fin-kpi-label">Рублёвый баланс</span>
-          <span className="cpx-fin-kpi-value">{formatMoney(portfolio?.rubBalance)}</span>
-        </motion.div>
-      </motion.div>
-
-      <nav className="cpx-fin-tabs" aria-label="Разделы золотого счёта">
-        {DASH_TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            className={`cpx-fin-tab${view === t.key ? ' cpx-fin-tab--on' : ''}`}
-            onClick={() => {
-              if (t.key === 'buy') openBuy();
-              else {
-                setShowTopup(false);
-                setView(t.key);
-              }
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
-
-      {view === 'overview' && (
-        <div className="cpx-fin-overview">
-          <Reveal y={12} className="cpx-fin-overview-clocks">
-            <WorldClocksCard delay="0ms" className="cpx-fin-clocks" />
-          </Reveal>
-          <div className="cpx-fin-overview-main">
-            <Reveal delay={0.05} y={16}>
-              <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
-            </Reveal>
-            <TradeCtaBar
-              active={null}
-              rubBalance={portfolio?.rubBalance}
-              onBuy={openBuy}
-              onTopup={openTopup}
-            />
-            <Reveal delay={0.1} y={16}><AssistantCard /></Reveal>
-          </div>
-          <aside className="cpx-fin-overview-side">
-            <Reveal delay={0.08} y={16}>
-              <MissedBenefitCalc compact onOpenFull={() => setView('benefit')} />
-            </Reveal>
-            <Reveal delay={0.12} y={16}>
-              <div className="cpx-card cpx-fin-history-card">
-                <h2 className="cpx-fin-side-title">Последние операции</h2>
-                <LedgerList ledger={ledger} limit={8} />
-              </div>
-            </Reveal>
-          </aside>
-        </div>
-      )}
-
-      {view === 'buy' && (
-        <div className="cpx-fin-trade cpx-fin-trade--buy">
-          <div className="cpx-fin-trade-main">
-            <Reveal y={14}>
-              <GoldChartCard currentRate={portfolio?.currentRatePerGram} rateUpdatedAt={portfolio?.rateUpdatedAt} />
-            </Reveal>
-            <TradeCtaBar
-              active={showTopup ? 'topup' : 'buy'}
-              rubBalance={portfolio?.rubBalance}
-              onBuy={openBuy}
-              onTopup={openTopup}
-            />
-            {showTopup && (
-              <TopUpPanel
-                portfolio={portfolio}
-                onClose={() => setShowTopup(false)}
-                onCredited={() => { void load({ soft: true }); }}
-              />
-            )}
-          </div>
-          <div className="cpx-fin-trade-side">
-            <BuyPanel portfolio={portfolio} onDone={() => load({ soft: true })} onTopup={openTopup} />
-            <Reveal delay={0.1} y={14}>
-              <div className="cpx-card cpx-fin-history-card">
-                <h2 className="cpx-fin-side-title">Последние операции</h2>
-                <LedgerList ledger={ledger} limit={6} />
-              </div>
-            </Reveal>
-          </div>
-        </div>
-      )}
-
-      {view === 'sell' && <SellPanel portfolio={portfolio} onDone={() => load({ soft: true })} />}
-
-      {view === 'auto' && <AutomationPanel portfolio={portfolio} onDone={() => load({ soft: true })} />}
-
-      {view === 'benefit' && <MissedBenefitCalc />}
+      <JewelryShop
+        quote={{ goldRubPerGram: portfolio?.currentRatePerGram }}
+        refreshKey={shopTick}
+        onPayStart={() => {}}
+      />
     </div>
   );
 }

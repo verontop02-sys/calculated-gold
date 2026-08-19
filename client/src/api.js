@@ -664,6 +664,11 @@ export const fintechApi = {
     fintechFetch(`/public/fintech/withdrawals/${encodeURIComponent(String(id))}/cancel`, { method: 'POST' }),
   topupConfig: () => fintechFetch('/public/fintech/topup/config'),
   createTopup: (payload) => fintechFetch('/public/fintech/topup/create', { method: 'POST', body: JSON.stringify(payload) }),
+  jewelryOrders: () => fintechFetch('/public/fintech/jewelry-orders'),
+  syncJewelryOrders: (orders) => fintechFetch('/public/fintech/jewelry-orders/sync', {
+    method: 'POST',
+    body: JSON.stringify({ orders: orders || [] }),
+  }),
   confirmTopup: (paymentId, provider) => fintechFetch('/public/fintech/topup/confirm', {
     method: 'POST',
     body: JSON.stringify({ paymentId, provider: provider || undefined }),
