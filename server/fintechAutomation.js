@@ -522,7 +522,7 @@ async function ensureFundsForRecurring(supabase, sub, runDate) {
     clientId: sub.client_id,
     paymentMethodId: methodId,
     rubAmount: amount,
-    description: `Пополнение лицевого счета Reaktivo ${amount} руб.`,
+    description: `Оплата ювелирного изделия Reaktivo ${amount} руб.`,
     idempotenceKey: `recurring-charge:${sub.id}:${runDate}`,
     purpose: 'fintech_recurring_charge',
   });

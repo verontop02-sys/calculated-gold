@@ -122,12 +122,12 @@ import {
   getTbankPaymentState,
 } from './tbank.js';
 
-/** Активный эквайринг: tbank | yookassa (по умолчанию — что настроено, приоритет TBANK если FINTECH_ACQUIRING_PROVIDER не задан и есть ключи). */
+/** Активный эквайринг: yookassa | tbank. ЮKassa — основной; Т-Банк только если ЮKassa не настроена. */
 function acquiringProvider() {
-  const forced = String(process.env.FINTECH_ACQUIRING_PROVIDER || '').trim().toLowerCase();
-  if (forced === 'tbank' || forced === 'yookassa') return forced;
-  if (tbankConfigured()) return 'tbank';
+  const forced = String(process.env.FINTECH_ACQUIRING_PROVIDER || 'yookassa').trim().toLowerCase();
+  if (forced === 'tbank' && tbankConfigured() && !yookassaConfigured()) return 'tbank';
   if (yookassaConfigured()) return 'yookassa';
+  if (tbankConfigured()) return 'tbank';
   return 'none';
 }
 import {

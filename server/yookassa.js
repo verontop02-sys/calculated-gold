@@ -1,7 +1,6 @@
 /**
- * ЮKassa (тестовый / боевой магазин): создание платежа на пополнение
- * fintech-баланса, привязка карты (save_payment_method), безакцептное списание
- * и зачисление по webhook / явному confirm.
+ * ЮKassa: оплата конкретного ювелирного изделия (карта / СБП),
+ * привязка карты и webhook / confirm.
  *
  * Auth: Basic shopId:secretKey → https://api.yookassa.ru/v3
  * Идемпотентность зачисления: ledger key `yookassa:<paymentId>`.
@@ -33,6 +32,14 @@ export function minTopupRub() {
 function maxTopupRub() {
   const n = Number(process.env.YOOKASSA_MAX_TOPUP_RUB || 5_000_000);
   return Number.isFinite(n) && n > 0 ? n : 5_000_000;
+}
+
+function sanitizeYooDescription(text, fallback) {
+  return String(text || fallback || 'Оплата ювелирного изделия Reaktivo')
+    .replace(/₽/g, 'руб.')
+    .replace(/пополнение лицевого сч[её]та/gi, 'Оплата ювелирного изделия')
+    .replace(/золотого?\s+сч[её]та/gi, 'изделия')
+    .slice(0, 128);
 }
 
 function authHeader() {
@@ -147,12 +154,12 @@ export async function createTopupPayment(supabase, {
   const min = minTopupRub();
   const max = maxTopupRub();
   if (!Number.isFinite(amount) || amount < min) {
-    const err = new Error(`Минимальная сумма пополнения — ${min} ₽`);
+    const err = new Error(`Минимальная сумма оплаты — ${min} ₽`);
     err.status = 400;
     throw err;
   }
   if (amount > max) {
-    const err = new Error(`Максимальная сумма пополнения — ${max.toLocaleString('ru-RU')} ₽`);
+    const err = new Error(`Максимальная сумма оплаты — ${max.toLocaleString('ru-RU')} ₽`);
     err.status = 400;
     throw err;
   }
@@ -175,7 +182,7 @@ export async function createTopupPayment(supabase, {
     throw err;
   }
   if (client.status !== 'approved') {
-    const err = new Error('Пополнение доступно после подтверждения документов');
+    const err = new Error('Оплата доступна после подтверждения документов');
     err.status = 403;
     err.code = 'fintech_not_approved';
     throw err;
@@ -184,6 +191,12 @@ export async function createTopupPayment(supabase, {
   const value = amount.toFixed(2);
   const idempotenceKey = crypto.randomUUID();
   const email = String(customerEmail || client.email || '').trim();
+  const payDescription = sanitizeYooDescription(
+    description,
+    savePaymentMethod
+      ? `Привязка карты Reaktivo ${value} руб.`
+      : `Оплата ювелирного изделия Reaktivo ${value} руб.`,
+  );
 
   const body = {
     amount: { value, currency: 'RUB' },
@@ -192,15 +205,7 @@ export async function createTopupPayment(supabase, {
       type: 'redirect',
       return_url: String(returnUrl),
     },
-    description: String(
-      description
-        || (savePaymentMethod
-          ? `Привязка карты и пополнение Reaktivo ${value} руб.`
-          : `Пополнение лицевого счета Reaktivo ${value} руб.`),
-    )
-      .replace(/₽/g, 'руб.')
-      .replace(/золотого?\s+сч[её]та/gi, 'лицевого счета')
-      .slice(0, 128),
+    description: payDescription,
     metadata: {
       clientId: String(clientId),
       purpose: purposeSafe,
@@ -215,12 +220,12 @@ export async function createTopupPayment(supabase, {
       customer: { email },
       items: [
         {
-          description: savePaymentMethod ? 'Привязка карты / пополнение Reaktivo' : 'Пополнение лицевого счета Reaktivo',
+          description: payDescription,
           quantity: '1.00',
           amount: { value, currency: 'RUB' },
           vat_code: Number(process.env.YOOKASSA_VAT_CODE || 1),
           payment_mode: 'full_payment',
-          payment_subject: 'service',
+          payment_subject: savePaymentMethod ? 'service' : 'commodity',
         },
       ],
     };
@@ -273,9 +278,7 @@ export async function chargeSavedMethod({
     amount: { value, currency: 'RUB' },
     capture: true,
     payment_method_id: methodId,
-    description: String(description || `Пополнение лицевого счета Reaktivo ${value} руб.`)
-      .replace(/₽/g, 'руб.')
-      .slice(0, 128),
+    description: sanitizeYooDescription(description, `Оплата ювелирного изделия Reaktivo ${value} руб.`),
     metadata: {
       clientId: String(clientId),
       purpose: purposeSafe,
