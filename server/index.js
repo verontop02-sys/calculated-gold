@@ -27,6 +27,7 @@ import {
 } from './fieldDealSession.js';
 import { sendConsultLeadEmailIfConfigured } from './emailDealReceipt.js';
 import { sendTelegramMessage } from './telegramNotify.js';
+import { mountSupabaseBrowserProxy } from './supabaseBrowserProxy.js';
 import {
   buildGoldIndexOverview,
   buildGoldIndexPublicSummary,
@@ -319,11 +320,26 @@ app.use(
       callback(null, false);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Device-Token'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Device-Token',
+      'apikey',
+      'X-Client-Info',
+      'X-Supabase-Api-Version',
+      'Prefer',
+      'Accept-Profile',
+      'Content-Profile',
+      'Range',
+    ],
     // Чтобы фронт на другом домене мог прочитать id созданной сделки и догрузить фото.
     exposedHeaders: ['X-Deal-Id'],
   })
 );
+
+// Браузер → /sb/* → Supabase (обход блокировок *.supabase.co в РФ без VPN).
+// Важно: до express.json, иначе тело auth-запросов уже съедено парсером.
+mountSupabaseBrowserProxy(app, { targetOrigin: supabaseUrl });
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
 // Общий потолок на /api: щедрый, чтобы не мешать работе панели (SSE не считаем).
@@ -3951,7 +3967,7 @@ if (!isDev) {
   if (existsSync(path.join(clientDist, 'index.html'))) {
     app.use(express.static(clientDist, { index: false }));
     app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api')) {
+      if (req.path.startsWith('/api') || req.path.startsWith('/sb')) {
         return res.status(404).json({ error: 'Не найдено' });
       }
       if (req.method !== 'GET' && req.method !== 'HEAD') return next();
