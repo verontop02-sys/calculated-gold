@@ -813,13 +813,13 @@ export default function App() {
                 />
               </div>
             )}
-            {tab === 'clients' && <ClientsPage formatMoney={formatMoney} toast={toast} />}
+            {tab === 'clients' && <ClientsPage formatMoney={formatMoney} toast={toast} user={user} />}
             {tab === 'analytics' && <Analytics formatMoney={formatMoney} toast={toast} />}
             {tab === 'team' && user && isUserManagerRole(user.role) && (
               <TeamPerformance formatMoney={formatMoney} toast={toast} user={user} />
             )}
             {tab === 'employees' && user && isUserManagerRole(user.role) && (
-              <EmployeeDeals formatMoney={formatMoney} toast={toast} />
+              <EmployeeDeals formatMoney={formatMoney} toast={toast} user={user} />
             )}
             {tab === 'gold-index' && isSuperAdminRole(user.role) && (
               <GoldIndex formatMoney={formatMoney} toast={toast} />

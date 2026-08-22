@@ -4,6 +4,7 @@ import { SkeletonRow, SkeletonCard } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
 import { PageHint } from './PageHint.jsx';
 import { DealDrawer } from './DealDrawer.jsx';
+import { isSuperAdminRole } from './roles.js';
 
 const PAGE = 80;
 
@@ -55,7 +56,10 @@ function collectDealPhotos(deals) {
   return photos;
 }
 
-export function Clients({ formatMoney, toast }) {
+export function Clients({ formatMoney, toast, user }) {
+  // Договор-квитанция — финансовый документ, от суммы зависят бонусы: правит только супер-админ
+  // (проверка есть и на сервере, здесь просто не показываем недоступное).
+  const canManageDeals = isSuperAdminRole(user?.role);
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('newest');
   const [list, setList] = useState([]);
@@ -186,7 +190,10 @@ export function Clients({ formatMoney, toast }) {
   return (
     <div className="cl-root">
       <PageHint id="clients" title="База клиентов">
-        Клиенты добавляются автоматически при скачивании PDF договора. Ищите по ФИО или телефону. В карточке — история сделок: можно <b>исправить</b> ошибочную запись или удалить; PDF пересоберётся после сохранения.
+        Клиенты добавляются автоматически при скачивании PDF договора. Ищите по ФИО или телефону. В карточке — история сделок и PDF по каждой.
+        {canManageDeals
+          ? <> Ошибочную запись можно <b>исправить</b> или удалить; PDF пересоберётся после сохранения.</>
+          : <> Исправление и удаление сделок — только у супер-администратора: о неточности сообщите руководству.</>}
       </PageHint>
       {/* ── Поиск + сортировки ── */}
       <div className="cl-toolbar">
@@ -365,11 +372,13 @@ export function Clients({ formatMoney, toast }) {
                                 </>
                               )}
                             </button>
-                            <button type="button" className="cl-deal-btn cl-deal-btn--del" onClick={() => onDeleteDeal(d)} disabled={deletingDealId === d.id} title="Удалить сделку">
-                              {deletingDealId === d.id ? '…' : (
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-                              )}
-                            </button>
+                            {canManageDeals && (
+                              <button type="button" className="cl-deal-btn cl-deal-btn--del" onClick={() => onDeleteDeal(d)} disabled={deletingDealId === d.id} title="Удалить сделку">
+                                {deletingDealId === d.id ? '…' : (
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                                )}
+                              </button>
+                            )}
                           </div>
                         </div>
                         <div className="cl-deal-bottom">
@@ -401,6 +410,7 @@ export function Clients({ formatMoney, toast }) {
           onClose={() => setOpenDeal(null)}
           formatMoney={formatMoney}
           toast={toast}
+          canEdit={canManageDeals}
           onUpdated={(next) => {
             if (!next?.id) return;
             setDeals((prev) => (prev || []).map((x) => (x.id === next.id ? { ...x, ...next } : x)));

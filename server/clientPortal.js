@@ -84,6 +84,10 @@ export function verifyClientToken(token) {
     return null;
   }
   if (!payload?.ph || !payload?.exp || Date.now() > Number(payload.exp)) return null;
+  // Токен fintech-кабинета подписан тем же секретом, но это другая область доступа —
+  // не даём использовать его вместо токена кабинета скупки. Старые токены выпускались
+  // без typ, поэтому отсутствие поля считаем своим (иначе разлогинит всех клиентов).
+  if (payload.typ != null && payload.typ !== 'client') return null;
   return { phoneNormalized: String(payload.ph) };
 }
 

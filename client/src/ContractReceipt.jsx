@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { api } from './api.js';
 import { mergeSettings, calculateBuybackRange } from './calc.js';
 import { ScrapCustomerDirectory } from './ScrapCustomerDirectory.jsx';
-import { isUserManagerRole } from './roles.js';
+import { isSuperAdminRole, isUserManagerRole } from './roles.js';
 import { PageHint } from './PageHint.jsx';
 
 function emptyRow() {
@@ -595,6 +595,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           if (id && id === customerId) setCustomerId(null);
         }}
         toast={toast}
+        canManageDeals={isSuperAdminRole(user?.role)}
       />
       <div className="contract-hero">
         <h2 className="contract-title">Договор-квитанция</h2>

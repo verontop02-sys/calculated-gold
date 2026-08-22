@@ -103,6 +103,62 @@ export async function recordJewelryOrder(supabase, {
   return mapRow(data);
 }
 
+/**
+ * Импорт изделий из localStorage кабинета (наследие: раньше покупки хранились только
+ * в браузере). Список присылает сам клиент, поэтому на слово не верим ничему: изделие
+ * принимаем только если по его paymentId в ledger этого же клиента есть подтверждённое
+ * зачисление от эквайринга, и цену берём оттуда же. Иначе можно было заявить владение
+ * изделием, за которое не платили.
+ *
+ * Статус всегда 'stored' — «готово к выдаче» и «выдано» ставит только сотрудник.
+ */
+export async function syncClientJewelryOrders(supabase, { clientId, rows }) {
+  const incoming = Array.isArray(rows) ? rows.slice(0, 40) : [];
+  const byPaymentId = new Map();
+  for (const raw of incoming) {
+    const pid = String(raw?.paymentId || '').trim();
+    if (pid && !byPaymentId.has(pid)) byPaymentId.set(pid, raw);
+  }
+  if (!byPaymentId.size) return { saved: 0, skipped: incoming.length };
+
+  const keys = [];
+  for (const pid of byPaymentId.keys()) keys.push(`yookassa:${pid}`, `tbank:${pid}`);
+
+  const { data: entries, error } = await supabase
+    .from('fintech_ledger_entries')
+    .select('idempotency_key, rub_delta, created_at')
+    .eq('client_id', clientId)
+    .eq('entry_type', 'deposit_rub')
+    .in('idempotency_key', keys);
+  if (error) throw error;
+
+  const paidByPaymentId = new Map();
+  for (const e of entries || []) {
+    const pid = String(e.idempotency_key).split(':').slice(1).join(':');
+    if (pid) paidByPaymentId.set(pid, e);
+  }
+
+  let saved = 0;
+  for (const [pid, raw] of byPaymentId) {
+    const entry = paidByPaymentId.get(pid);
+    if (!entry) continue;
+    const out = await recordJewelryOrder(supabase, {
+      clientId,
+      catalogId: raw.catalogId || raw.id,
+      title: raw.title,
+      assay: raw.assay,
+      weightG: raw.weightG,
+      form: raw.form,
+      priceRub: Number(entry.rub_delta),
+      status: 'stored',
+      paymentId: pid,
+      paidAt: entry.created_at,
+    });
+    if (out) saved += 1;
+  }
+  return { saved, skipped: incoming.length - saved };
+}
+
 export function jewelryFromYooMetadata(meta = {}) {
   const title = String(meta.jewelryTitle || '').trim();
   if (!title) return null;

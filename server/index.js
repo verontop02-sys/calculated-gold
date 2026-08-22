@@ -123,7 +123,7 @@ import {
 } from './tbank.js';
 import {
   listJewelryOrders as listFintechJewelryOrders,
-  recordJewelryOrder,
+  syncClientJewelryOrders,
 } from './jewelryOrders.js';
 
 /** Активный эквайринг: yookassa | tbank. ЮKassa — основной; Т-Банк только если ЮKassa не настроена. */
@@ -188,6 +188,29 @@ if (!serviceKey.startsWith('eyJ')) {
       '  Ключ sb_secret_… сюда не подходит — из-за него вход не работает.'
   );
   process.exit(1);
+}
+
+/**
+ * Отладочные флаги возвращают одноразовый код прямо в ответе API — это удобно на локальной
+ * приёмке и означает полный захват любого аккаунта в бою (код можно узнать, не имея доступа
+ * к телефону или почте). Одна случайно выставленная переменная на Render не должна этого
+ * стоить, поэтому в проде глушим их принудительно, а не надеемся на аккуратность.
+ */
+if (!isDev) {
+  for (const flag of ['FINTECH_OTP_RETURN_CODE', 'DEVICE_TRUST_RETURN_CODE', 'FIELD_DEAL_RETURN_CODE']) {
+    if (process.env[flag] === '1') {
+      console.error(`[SECURITY] ${flag}=1 в production — принудительно выключено, коды в ответах API отдаваться не будут.`);
+      process.env[flag] = '0';
+    }
+  }
+  // Тем же секретом подписываются токены сессий кабинета и хэшируются OTP/PIN.
+  // Пустой SUPABASE_SERVICE_ROLE_KEY уже отсекли выше, так что 'dev-only' здесь невозможен,
+  // но проверка нужна на случай, если источник секрета когда-нибудь поменяется.
+  const pepper = (process.env.FIELD_DEAL_CODE_PEPPER || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  if (!pepper || pepper === 'dev-only' || pepper.length < 24) {
+    console.error('[FATAL] Слабый секрет подписи сессий: задайте FIELD_DEAL_CODE_PEPPER (не короче 24 символов).');
+    process.exit(1);
+  }
 }
 
 const supabase = createClient(supabaseUrl, serviceKey, {
@@ -340,6 +363,31 @@ app.use(
     exposedHeaders: ['X-Deal-Id'],
   })
 );
+
+// Прокси /sb — единственная дорога браузера к Supabase Auth, и она идёт мимо apiLimiter
+// ниже. Без своего лимита это открытая дверь для перебора пароля сотрудника, поэтому
+// ограничиваем именно вход по паролю: обновление токена и остальные вызовы Auth не трогаем,
+// иначе разлогинит работающих людей.
+const sbPasswordLoginLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => String(req.query?.grant_type || '') !== 'password',
+  message: { error: 'Слишком много попыток входа. Подождите 15 минут.' },
+});
+
+// Общий потолок на прокси — чтобы через него не долбили Supabase нашими же руками.
+const sbProxyLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много запросов. Подождите минуту.' },
+});
+
+app.use('/sb/auth/v1/token', sbPasswordLoginLimiter);
+app.use('/sb', sbProxyLimiter);
 
 // Браузер → /sb/* → Supabase (обход блокировок *.supabase.co в РФ без VPN).
 // Важно: до express.json, иначе тело auth-запросов уже съедено парсером.
@@ -1821,29 +1869,18 @@ app.post(
   asyncHandler(async (req, res) => {
     const session = requireFintechSession(req, res);
     if (!session) return;
-    const rows = Array.isArray(req.body?.orders) ? req.body.orders : [];
-    const saved = [];
-    for (const raw of rows.slice(0, 40)) {
-      try {
-        const out = await recordJewelryOrder(supabase, {
-          clientId: session.clientId,
-          catalogId: raw.catalogId || raw.id,
-          title: raw.title,
-          assay: raw.assay,
-          weightG: raw.weightG,
-          form: raw.form,
-          priceRub: raw.priceRub,
-          status: raw.status || 'stored',
-          paymentId: raw.paymentId || null,
-          paidAt: raw.at || raw.paid_at || null,
-        });
-        if (out) saved.push(out);
-      } catch (e) {
-        console.warn('[jewelry sync]', e?.message || e);
-      }
+    let synced = 0;
+    try {
+      const out = await syncClientJewelryOrders(supabase, {
+        clientId: session.clientId,
+        rows: req.body?.orders,
+      });
+      synced = out.saved;
+    } catch (e) {
+      console.warn('[jewelry sync]', e?.message || e);
     }
     const orders = await listFintechJewelryOrders(supabase, session.clientId);
-    res.json({ orders, synced: saved.length });
+    res.json({ orders, synced });
   })
 );
 
@@ -3276,9 +3313,14 @@ app.get(
   })
 );
 
-/** Исправить сохранённую сделку (ФИО, телефон, позиции, сумма). PDF пересоберётся при скачивании. */
+/**
+ * Исправить сохранённую сделку (ФИО, телефон, позиции, сумма). PDF пересоберётся при скачивании.
+ * Только супер-админ: договор-квитанция — финансовый документ, от суммы зависят бонусы
+ * сотрудника. Ошибку при вводе сотрудник обязан сообщить руководству, а не править сам.
+ */
 app.patch(
   '/api/scrap-deals/:id',
+  asyncHandler(requireSuperAdmin),
   asyncHandler(async (req, res) => {
     const id = String(req.params.id || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
@@ -3302,8 +3344,10 @@ app.patch(
   })
 );
 
+/** Удаление сделки — только супер-админ: иначе сотрудник стирает свою же выручку из отчётности. */
 app.delete(
   '/api/scrap-deals/:id',
+  asyncHandler(requireSuperAdmin),
   asyncHandler(async (req, res) => {
     const id = String(req.params.id || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(id)) {

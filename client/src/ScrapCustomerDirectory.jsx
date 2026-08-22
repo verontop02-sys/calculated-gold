@@ -15,7 +15,7 @@ function emptyEdit() {
   return { full_name: '', phone: '', passport_line: '', address: '' };
 }
 
-export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onCustomerDeleted, toast }) {
+export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onCustomerDeleted, toast, canManageDeals = false }) {
   const [q, setQ] = useState('');
   const [list, setList] = useState([]);
   const [total, setTotal] = useState(0);
@@ -360,15 +360,17 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
                           >
                             ✎
                           </button>
-                          <button
-                            type="button"
-                            className="btn-ghost small sc-dir-deal-x"
-                            title="Удалить сделку"
-                            onClick={() => removeDeal(c, d)}
-                            disabled={deletingDealId === d.id}
-                          >
-                            {deletingDealId === d.id ? '…' : '×'}
-                          </button>
+                          {canManageDeals && (
+                            <button
+                              type="button"
+                              className="btn-ghost small sc-dir-deal-x"
+                              title="Удалить сделку"
+                              onClick={() => removeDeal(c, d)}
+                              disabled={deletingDealId === d.id}
+                            >
+                              {deletingDealId === d.id ? '…' : '×'}
+                            </button>
+                          )}
                           {d.contract_no && <span className="sc-dir-deal-no">дог. №{d.contract_no}</span>}
                         </div>
                       ))}
@@ -392,6 +394,7 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
           onClose={() => setOpenDeal(null)}
           formatMoney={formatMoney}
           toast={toast}
+          canEdit={canManageDeals}
           onUpdated={(next) => {
             if (!next?.id) return;
             setDealsById((prev) => {

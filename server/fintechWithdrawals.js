@@ -196,6 +196,29 @@ export async function requestWithdrawal(supabase, {
   }
   const row = Array.isArray(data) ? data[0] : data;
 
+  // Ключ уже использован: списания второй раз не было. Значит и заявку заводить нельзя —
+  // иначе на одно списание повиснет несколько заявок к выплате и оператор заплатит дважды.
+  if (row.is_duplicate) {
+    const { data: existing, error: exErr } = await supabase
+      .from('fintech_withdrawal_requests')
+      .select('id, rub_amount, fee_rub, net_rub, status, payout_details, reject_reason, decided_at, created_at')
+      .eq('client_id', clientId)
+      .eq('ledger_entry_id', row.entry_id)
+      .maybeSingle();
+    if (exErr) throw exErr;
+    if (existing) {
+      return {
+        ok: true,
+        request: mapRequest(existing),
+        rubBalance: Number(row.rub_balance),
+        goldGrams: Number(row.gold_grams),
+        duplicate: true,
+      };
+    }
+    // Списание есть, а заявки нет — обрыв между двумя запросами при первой попытке.
+    // Заявку доводим до конца ниже, повторного списания при этом не происходит.
+  }
+
   const { data: request, error: reqErr } = await supabase
     .from('fintech_withdrawal_requests')
     .insert({

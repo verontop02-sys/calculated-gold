@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
-import { roleLabel } from './roles.js';
+import { isSuperAdminRole, roleLabel } from './roles.js';
 import { SkeletonRow, SkeletonCard } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
 import { PageHint } from './PageHint.jsx';
@@ -18,7 +18,7 @@ function dealRowPhotos(d) {
   return d.rows.filter((r) => r?.photoUrl).map((r) => ({ url: r.photoUrl, name: r.itemName || 'Изделие' }));
 }
 
-export function EmployeeDeals({ formatMoney, toast }) {
+export function EmployeeDeals({ formatMoney, toast, user }) {
   const [staff, setStaff] = useState([]);
   const [staffBusy, setStaffBusy] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -233,6 +233,7 @@ export function EmployeeDeals({ formatMoney, toast }) {
           onClose={() => setOpenDeal(null)}
           formatMoney={formatMoney}
           toast={toast}
+          canEdit={isSuperAdminRole(user?.role)}
           onUpdated={(next) => {
             if (!next?.id) return;
             setData((prev) => {

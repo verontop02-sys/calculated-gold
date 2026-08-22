@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Clients } from './Clients.jsx';
+import { isSuperAdminRole } from './roles.js';
 
-export function ClientsPage({ formatMoney, toast }) {
+export function ClientsPage({ formatMoney, toast, user }) {
   const [sel, setSel] = useState({ customer: null, deals: null, total: 0 });
 
   useEffect(() => {
@@ -36,7 +37,7 @@ export function ClientsPage({ formatMoney, toast }) {
   return (
     <div className="cg-page">
       <div className="cg-page__main">
-        <Clients formatMoney={formatMoney} toast={toast} />
+        <Clients formatMoney={formatMoney} toast={toast} user={user} />
       </div>
 
       <aside className="cg-page__side cg-stagger">
@@ -95,7 +96,11 @@ export function ClientsPage({ formatMoney, toast }) {
               </svg>
               <div>
                 <div className="csp-card__title">Подсказка</div>
-                <p className="csp-hint-text">«Исправить» правит сумму и позиции на месте (PDF обновится). «Удалить» убирает запись из учёта — восстановить нельзя.</p>
+                <p className="csp-hint-text">
+                  {isSuperAdminRole(user?.role)
+                    ? '«Исправить» правит сумму и позиции на месте (PDF обновится). «Удалить» убирает запись из учёта — восстановить нельзя.'
+                    : 'Договор можно открыть и скачать PDF. Исправить или удалить сделку может только супер-администратор — о неточности сообщите руководству сразу.'}
+                </p>
               </div>
             </div>
           </>

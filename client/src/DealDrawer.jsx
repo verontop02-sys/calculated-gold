@@ -43,7 +43,7 @@ function emptyEditRow() {
  * Дравер деталей сделки. Открывается по preview (минимум id), подгружает полные данные.
  * Режим «Исправить» — правка на месте; PDF при следующем скачивании уже с новыми данными.
  */
-export function DealDrawer({ deal, onClose, formatMoney, toast, onUpdated }) {
+export function DealDrawer({ deal, onClose, formatMoney, toast, onUpdated, canEdit = false }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -344,9 +344,11 @@ export function DealDrawer({ deal, onClose, formatMoney, toast, onUpdated }) {
             )}
 
             <div className="ddw-edit-actions">
-              <button type="button" className="ddw-pdf ddw-pdf--primary" onClick={startEdit} disabled={loading}>
-                Исправить
-              </button>
+              {canEdit && (
+                <button type="button" className="ddw-pdf ddw-pdf--primary" onClick={startEdit} disabled={loading}>
+                  Исправить
+                </button>
+              )}
               <button type="button" className="ddw-pdf" onClick={downloadPdf} disabled={pdfBusy}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5 5-5"/><path d="M12 16V4"/></svg>
                 {pdfBusy ? 'Формируем PDF…' : 'Скачать договор (PDF)'}
