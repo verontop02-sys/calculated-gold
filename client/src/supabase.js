@@ -1,6 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-const url = import.meta.env.VITE_SUPABASE_URL;
+function resolveSupabaseUrl() {
+  const raw = String(import.meta.env.VITE_SUPABASE_URL || '/sb').trim();
+  if (/^https?:\/\//i.test(raw)) return raw.replace(/\/$/, '');
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://reaktivo.pro';
+  const path = raw.startsWith('/') ? raw : `/${raw}`;
+  return `${origin}${path}`.replace(/\/$/, '');
+}
+
+const url = resolveSupabaseUrl();
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!url || !anon) {

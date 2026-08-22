@@ -20,6 +20,20 @@
         }
       },
       {
+        "source": "/sb",
+        "function": {
+          "functionId": "apiProxy",
+          "region": "europe-west1"
+        }
+      },
+      {
+        "source": "/sb/**",
+        "function": {
+          "functionId": "apiProxy",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

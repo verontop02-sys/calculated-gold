@@ -24,6 +24,31 @@ export function jewelryItemPrice(item, goldRubPerGram) {
   return Math.round(raw / 10) * 10;
 }
 
+export function jewelryBuybackNow(order, quote) {
+  const w = Number(order?.weightG);
+  const assay = Number(order?.assay);
+  if (!Number.isFinite(w) || w <= 0 || !Number.isFinite(assay) || assay <= 0) return null;
+  const pg = quote?.perGram || {};
+  const perGram = Number(pg[assay] ?? pg[String(Math.round(assay))] ?? pg[Math.round(assay)]);
+  let mid = null;
+  if (Number.isFinite(perGram) && perGram > 0) {
+    mid = perGram * w;
+  } else {
+    const gold = Number(quote?.goldRubPerGram);
+    const pct = Number(quote?.buybackPercentOfScrap);
+    if (Number.isFinite(gold) && gold > 0 && Number.isFinite(pct) && pct > 0) {
+      mid = gold * (assay / 1000) * w * (pct / 100);
+    }
+  }
+  if (!Number.isFinite(mid) || mid <= 0) return null;
+  const half = Number(quote?.rangeHalfWidthPercent) || 0;
+  return {
+    mid: Math.round(mid),
+    low: Math.round(mid * (1 - half / 100)),
+    high: Math.round(mid * (1 + half / 100)),
+  };
+}
+
 export function formatJewelryPrice(n) {
   if (n == null || !Number.isFinite(Number(n))) return '—';
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(Number(n));

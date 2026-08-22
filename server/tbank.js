@@ -249,7 +249,7 @@ export async function createTbankTopupPayment(supabase, {
 
   // В чеке Т-Банка «₽» часто превращается в «?» — только ASCII/кириллица, без «золото».
   const safeDesc = String(
-    description || `Пополнение лицевого счета Reaktivo ${amount.toFixed(2)} руб.`,
+    description || `Оплата ювелирного изделия Reaktivo ${amount.toFixed(2)} руб.`,
   )
     .replace(/₽/g, 'руб.')
     .replace(/золотого?\s+сч[её]та/gi, 'лицевого счета')

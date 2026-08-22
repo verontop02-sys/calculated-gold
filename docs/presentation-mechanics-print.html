@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<title>Reaktivo.pro — ювелирные слитки: изделие, проба, кабинет</title>
+<style>
+  :root {
+    --bg: #f4f5f6; --card: #ffffff; --ink: #14151a; --muted: #5c636b; --line: #e2e4e6;
+    --accent: #fe0000; --accent-soft: #ffeaea; --gold: #9a7412; --gold-soft: #fdf3de;
+    --ok: #0e7c48; --ok-soft: #e6f5ee; --blue: #1a4a8a; --blue-soft: #e8f0fa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .page { width: 297mm; min-height: 167mm; margin: 0 auto 22px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 14mm 16mm 12mm; position: relative; display: flex; flex-direction: column; }
+  .pagenum { position: absolute; bottom: 7mm; right: 16mm; font-size: 9px; color: var(--muted); letter-spacing: 0.04em; }
+  .brandmini { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .brandmini .mark-icon { width: 30px; height: 30px; border-radius: 9px; box-shadow: 0 6px 16px -6px rgba(254,0,0,0.55); flex-shrink: 0; display: block; }
+  .brandmini .word { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; color: var(--ink); white-space: nowrap; }
+  .brandmini .word span { color: var(--accent); }
+  .kicker { display: inline-flex; align-items: center; gap: 7px; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
+  .kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .part-gold .kicker { color: var(--gold); }
+  h1.slide-title { font-size: 1.68rem; line-height: 1.16; letter-spacing: -0.01em; margin: 0 0 8px; font-weight: 800; }
+  p.slide-sub { font-size: 0.88rem; color: var(--muted); line-height: 1.48; margin: 0 0 14px; max-width: 720px; }
+  .grid { display: grid; gap: 10px; }
+  .grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .grid.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .card { background: #fafbfc; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .card h3 { margin: 0 0 4px; font-size: 0.88rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .card p { margin: 0; font-size: 0.76rem; color: var(--muted); line-height: 1.42; }
+  .badge { width: 26px; height: 26px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; flex: none; }
+  .badge.red { background: var(--accent-soft); color: var(--accent); }
+  .badge.gold { background: var(--gold-soft); color: var(--gold); }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.blue { background: var(--blue-soft); color: var(--blue); }
+  .title-page { align-items: flex-start; justify-content: center; }
+  .title-page .brandmini { margin-bottom: 30px; }
+  .title-page .brandmini .mark-icon { width: 46px; height: 46px; border-radius: 13px; }
+  .title-page .brandmini .word { font-size: 1.5rem; }
+  .title-page h1 { font-size: 2.35rem; margin: 0 0 14px; max-width: 780px; line-height: 1.12; letter-spacing: -0.02em; font-weight: 800; }
+  .title-page .lede { font-size: 1.02rem; color: var(--muted); max-width: 680px; margin-bottom: 24px; line-height: 1.5; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill { border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font-size: 0.76rem; color: var(--muted); background: #fafbfc; }
+  .pill b { color: var(--ink); }
+  .flow-row { display: flex; align-items: stretch; gap: 8px; margin-bottom: 10px; }
+  .flow-box { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 11px 12px; background: #fafbfc; }
+  .flow-box .tag { font-size: 0.6rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: #9099a3; margin-bottom: 4px; display: block; }
+  .flow-box strong { display: block; font-size: 0.86rem; margin-bottom: 3px; }
+  .flow-box span.d { font-size: 0.72rem; color: var(--muted); line-height: 1.38; }
+  .flow-arrow { display: flex; align-items: center; justify-content: center; color: #9099a3; font-size: 1.05rem; flex: 0 0 18px; }
+  .mock-frame { background: linear-gradient(160deg, #eef0f2, #e3e6ea); border-radius: 18px; padding: 14px; }
+  .mock { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 18px 40px -18px rgba(20,21,26,0.28); }
+  .mock-head { display: flex; align-items: center; gap: 7px; padding: 9px 12px; border-bottom: 1px solid var(--line); font-size: 0.64rem; color: #9099a3; font-weight: 700; letter-spacing: 0.05em; background: #fbfbfc; }
+  .mock-head .traffic { display: flex; gap: 5px; margin-right: 4px; }
+  .mock-head .traffic i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+  .mock-head .traffic i:nth-child(1) { background: #ff6159; }
+  .mock-head .traffic i:nth-child(2) { background: #ffbd2e; }
+  .mock-head .traffic i:nth-child(3) { background: #28c941; }
+  .mock-body { padding: 14px; }
+  .kpi-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .kpi { flex: 1; min-width: 0; background: linear-gradient(160deg, #f6f7f8, #eef0f2); border: 1px solid #eceef0; border-radius: 10px; padding: 8px 10px; }
+  .kpi .n { font-size: 1rem; font-weight: 800; }
+  .kpi .l { font-size: 0.6rem; color: #9099a3; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+  .bars { display: flex; align-items: flex-end; gap: 5px; height: 48px; }
+  .bars i { flex: 1; background: linear-gradient(180deg, #e8c874, #f8ecc9); border-radius: 4px 4px 1px 1px; }
+  .row { display: flex; justify-content: space-between; gap: 10px; font-size: 0.76rem; color: var(--muted); padding: 5px 0; border-bottom: 1px dashed #eceef0; }
+  .row:last-child { border-bottom: none; }
+  .row b { color: var(--ink); font-weight: 700; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 0.66rem; color: var(--muted); background: #fff; }
+  .chip.on { background: var(--gold-soft); border-color: #f0dfa8; color: var(--gold); font-weight: 700; }
+  ul.check-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
+  ul.check-list li { display: flex; gap: 8px; font-size: 0.8rem; color: var(--muted); line-height: 1.42; }
+  ul.check-list li::before { content: '✓'; color: var(--ok); font-weight: 800; flex: none; }
+  ul.x-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
+  ul.x-list li { display: flex; gap: 8px; font-size: 0.8rem; color: var(--muted); line-height: 1.42; }
+  ul.x-list li::before { content: '✕'; color: var(--accent); font-weight: 800; flex: none; }
+  .two-col { display: grid; grid-template-columns: 1.08fr 0.92fr; gap: 24px; align-items: center; flex: 1; }
+  .two-col.eq { grid-template-columns: 1fr 1fr; align-items: stretch; }
+  .steps { display: grid; gap: 8px; }
+  .step { display: flex; gap: 11px; align-items: flex-start; }
+  .step .num { flex: none; width: 26px; height: 26px; border-radius: 8px; background: var(--gold-soft); color: var(--gold); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.74rem; }
+  .step .num.red { background: var(--accent-soft); color: var(--accent); }
+  .step .txt strong { display: block; font-size: 0.86rem; margin-bottom: 1px; }
+  .step .txt span { font-size: 0.74rem; color: var(--muted); line-height: 1.38; }
+  .mbox { border-radius: 12px; padding: 10px 12px; border: 1.5px solid var(--line); min-height: 78px; }
+  .mbox .tag { font-size: 0.58rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 3px; display: block; }
+  .mbox strong { display: block; font-size: 0.82rem; margin-bottom: 2px; }
+  .mbox p { margin: 0; font-size: 0.7rem; color: var(--muted); line-height: 1.35; }
+  .mbox.client { background: #fafbfc; border-color: #c9ced4; }
+  .mbox.pay { background: var(--blue-soft); border-color: #b8cce8; }
+  .mbox.us { background: var(--accent-soft); border-color: #ffb3b3; }
+  .mbox.gold { background: var(--gold-soft); border-color: #f0d27a; }
+  .mbox.out { background: var(--ok-soft); border-color: #9dceb5; }
+  .mbox.ctrl { background: #f7f8f9; border-color: #d0d4d8; }
+  .mbox.client .tag { color: #5c636b; }
+  .mbox.pay .tag { color: var(--blue); }
+  .mbox.us .tag { color: var(--accent); }
+  .mbox.gold .tag { color: #9a6b00; }
+  .mbox.out .tag { color: var(--ok); }
+  .mbox.ctrl .tag { color: #5c636b; }
+  .stage { text-align: center; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #9099a3; margin: 2px 0 8px; }
+  .vs { border-radius: 12px; padding: 14px 16px; }
+  .vs.no { background: #fff6f6; border: 1px solid #ffd0d0; }
+  .vs.yes { background: var(--ok-soft); border: 1px solid #bfe4cf; }
+  .vs h3 { margin: 0 0 10px; font-size: 0.92rem; }
+  .vs.no h3 { color: var(--accent); }
+  .vs.yes h3 { color: var(--ok); }
+  .callout { background: var(--gold-soft); border: 1px solid #f0dfa8; border-radius: 12px; padding: 12px 14px; font-size: 0.8rem; color: var(--ink); line-height: 1.45; }
+  .callout b { font-weight: 800; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  .tbl th { text-align: left; font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; color: #9099a3; font-weight: 800; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+  .tbl td { padding: 8px 10px; border-bottom: 1px solid #f0f1f2; color: var(--muted); vertical-align: top; }
+  .tbl td:first-child { color: var(--ink); font-weight: 700; width: 28%; }
+  .tbl tr:last-child td { border-bottom: none; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+  .meta-row b { color: var(--ink); }
+  #deck-scale { transform-origin: top center; }
+  @media print {
+    body { background: #fff; }
+    #deck-scale { zoom: 1 !important; }
+    .page { box-shadow: none; border: none; border-radius: 0; margin: 0; page-break-after: always; width: auto; min-height: auto; height: 167mm; }
+    .page:last-child { page-break-after: auto; }
+    @page { size: 297mm 167mm; margin: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="deck-scale">
+
+  <section class="page title-page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Документ для комплаенса и риск-подразделения</div>
+    <h1>Дистанционная продажа ювелирных изделий <span style="font-weight:700; color:var(--muted); font-size:0.62em; letter-spacing:0;">в виде слитков 585 / 750 / 900</span></h1>
+    <p class="lede">Для эквайринга предмет понятен: ювелирное изделие с пробирным клеймом, именником, биркой и учётом в ГИИС ДМДК. Форма изделия — мерный слиток. Это не банковский слиток 999 и не самородок. ООО «СЭТ» ведёт именной кабинет: накопление, хранение, выдача или обратный выкуп.</p>
+    <div class="pill-row">
+      <div class="pill">Оператор — <b>ООО «СЭТ»</b></div>
+      <div class="pill">Витрина + <b>кабинет</b></div>
+      <div class="pill">Клеймо, именник, <b>бирка</b></div>
+      <div class="pill">Спецучёт <b>ГИИС ДМДК</b></div>
+    </div>
+    <div class="pagenum">1 / 18</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Предмет сделки</div>
+    <h1 class="slide-title">Ювелирные слитки: изделие, не банковский 999</h1>
+    <p class="slide-sub">Для банка на витрине один ответ: продаём ювелирные изделия. Эти изделия имеют форму мерного слитка проб 585, 750 и 900. На каждом — государственное пробирное клеймо, именник, бирка и маркировка ГИИС ДМДК.</p>
+    <div class="grid cols-2" style="margin-bottom:10px;">
+      <div class="vs no">
+        <h3>Не продаём</h3>
+        <ul class="x-list">
+          <li>Банковские инвестиционные слитки 999</li>
+          <li>Самородки</li>
+          <li>Металл без статуса ювелирного изделия</li>
+          <li>Изделие без клейма, именника и бирки</li>
+        </ul>
+      </div>
+      <div class="vs yes">
+        <h3>Что на витрине</h3>
+        <ul class="check-list">
+          <li>Ювелирные изделия в виде слитков</li>
+          <li>Пробы 585, 750 и 900</li>
+          <li>Клеймо, именник, бирка, ГИИС ДМДК</li>
+          <li>Кабинет: копилка, хранение, выдача, выкуп</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout"><b>Для эквайринга:</b> вопрос «что продаёте» закрывает витрина. Предмет — ювелирное изделие. Форма — слиток с физической пробой. Это не продажа банковского мерного слитка и не обезличенный металл.</div>
+    <div class="pagenum">2 / 18</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Правовой статус</div>
+    <h1 class="slide-title">Чистый агент. Деньги — на счёт компании</h1>
+    <p class="slide-sub">Агентский договор фиксирует сроки, которые оператор исполняет. У компании есть расчётный счёт, действующий директор и юридический адрес. Правило одно: не нарушать сроки договора.</p>
+    <div class="grid cols-3">
+      <div class="card"><span class="badge red">1</span><h3>Агент, не продавец «от себя»</h3><p>ООО «СЭТ» приобретает изделия в интересах клиента. Не банк и не биржа. Банковской лицензии нет и не требуется.</p></div>
+      <div class="card"><span class="badge blue">2</span><h3>Идентифицируемый оператор</h3><p>Живой директор, адрес, ИНН, р/с юридического лица. Средства клиента не уходят в анонимный контур.</p></div>
+      <div class="card"><span class="badge ok">3</span><h3>Сроки по договору</h3><p>Выдача, хранение и выплата исполняются в сроки агентского договора. Нарушение сроков — зона ответственности оператора.</p></div>
+    </div>
+    <div class="callout" style="margin-top:12px;"><b>Для банка:</b> эквайринг принимает оплату на р/с ООО «СЭТ» за ювелирное изделие (слиток с пробой). Сделка в кабинете — после идентификации. Это не продажа банковского слитка 999 картой.</div>
+    <div class="pagenum">3 / 18</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Инфраструктура</div>
+    <h1 class="slide-title">Кабинет опирается на скупку и витрину изделий</h1>
+    <p class="slide-sub">На сайте витрина: проба и вес ювелирного слитка. В кабинете тот же продукт копится граммами. Ликвидность — живой оборот изделий, не запись в приложении.</p>
+    <div class="flow-row" style="margin-bottom:12px;">
+      <div class="flow-box">
+        <span class="tag">Контур 1 · офлайн</span>
+        <strong>Пункты приёма изделий</strong>
+        <span class="d">Касса, договор, выкуп у физлиц. Ежедневное поступление изделий из драгоценных металлов.</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background: var(--accent-soft); border-color:#ffc7c7;">
+        <span class="tag" style="color:#c23b3b;">Оператор</span>
+        <strong>ООО «СЭТ»</strong>
+        <span class="d">Одна компания, одна лицензия, один расчётный счёт. Онлайн и офлайн не разделены.</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background: var(--gold-soft); border-color:#f0dfa8;">
+        <span class="tag" style="color:#9a7412;">Контур 2 · кабинет</span>
+        <strong>Reaktivo.pro</strong>
+        <span class="d">Именной учёт, копилка, поручение на выплату или доставку слитка клиенту.</span>
+      </div>
+    </div>
+    <div class="grid cols-3">
+      <div class="card"><span class="badge gold">Au</span><h3>Физический оборот</h3><p>Остаток клиента обеспечен действующей операцией с изделиями, а не «цифровым граммом» без контура.</p></div>
+      <div class="card"><span class="badge red">⚖</span><h3>Один оператор</h3><p>Касса и кабинет — от имени ООО «СЭТ». Отдельного финтех-контура без лицензии на ДМ нет.</p></div>
+      <div class="card"><span class="badge ok">⇄</span><h3>Обратная сделка</h3><p>Клиент может дать поручение на продажу учётного остатка. Выплата — после проверки платёжного поручения.</p></div>
+    </div>
+    <div class="pagenum">4 / 18</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Разделение операций</div>
+        <h1 class="slide-title">Эквайринг не приобретает изделие</h1>
+        <p class="slide-sub">Платёж по карте или СБП — только пополнение именного рублёвого баланса. Агентская сделка с изделием проходит отдельно, после идентификации.</p>
+        <ul class="check-list">
+          <li>Эквайринг: предоплата на р/с ООО «СЭТ»</li>
+          <li>Сделка с изделием не идёт «через эквайринг напрямую»</li>
+          <li>Агент приобретает изделие в интересах клиента после зачисления</li>
+          <li>Рамка — агентский договор, учёт сделки в ГИИС ДМДК</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+        <div class="mock">
+          <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ДВЕ РАЗНЫЕ ОПЕРАЦИИ</div>
+          <div class="mock-body">
+            <div class="flow-box" style="margin-bottom:8px; background: var(--blue-soft); border-color:#b8cce8;">
+              <span class="tag" style="color:#1a4a8a;">Эквайер / СБП</span>
+              <strong>Пополнение баланса</strong>
+              <span class="d">Назначение: предоплата на р/с юрлица под последующую агентскую сделку</span>
+            </div>
+            <div style="text-align:center; color:#9099a3; font-size:0.72rem; font-weight:800; margin:4px 0 8px;">≠ не одно и то же</div>
+            <div class="flow-box" style="background: var(--gold-soft); border-color:#f0dfa8;">
+              <span class="tag" style="color:#9a7412;">Агентская сделка</span>
+              <strong>Приобретение изделия</strong>
+              <span class="d">Только после KYC. Курс и комиссия до подтверждения. Выгрузка в ГИИС</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pagenum">5 / 18</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Для эквайера</div>
+    <h1 class="slide-title">Именной баланс — предоплата, не электронные деньги</h1>
+    <p class="slide-sub">В интерфейсе клиент видит рублёвый остаток. Для банка это именной ledger оператора: предоплата под агентскую сделку, не выпуск ЭДС и не криптоконтур.</p>
+    <div class="grid cols-2" style="margin-bottom:12px;">
+      <div class="card">
+        <h3><span class="badge red">✕</span> Чем модель не является</h3>
+        <ul class="x-list" style="margin-top:8px;">
+          <li>Не выпуск электронных денежных средств</li>
+          <li>Не анонимные платежи: KYC до сделки с изделием</li>
+          <li>Не P2P: деньги на расчётный счёт юрлица</li>
+          <li>Не сделка «с улицы» без идентификации</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3><span class="badge ok">✓</span> На чём держится модель</h3>
+        <ul class="check-list" style="margin-top:8px;">
+          <li>Лицензия Пробирной палаты на операции с ДМ</li>
+          <li>Спецучёт сделок в ГИИС ДМДК</li>
+          <li>Именной учёт рублей и граммов по клиенту</li>
+          <li>Эквайринг — пополнение баланса / оплата услуг агента</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout"><b>Формулировка назначения платежа:</b> пополнение именного баланса идентифицированного клиента. Изделие появляется следующей операцией — агентской, с курсом, комиссией и постановкой на учёт в ГИИС.</div>
+    <div class="pagenum">6 / 18</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Движение средств</div>
+    <h1 class="slide-title">Как движутся деньги и учёт изделия</h1>
+    <div class="stage">1. Вход</div>
+    <div class="flow-row">
+      <div class="mbox client" style="flex:1;"><span class="tag">Клиент</span><strong>Физлицо, паспорт РФ</strong><p>Регистрация по телефону + SMS. Сделки с изделиями закрыты до статуса approved.</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="mbox ctrl" style="flex:1;"><span class="tag">Контроль</span><strong>Идентификация</strong><p>Паспорт и проверка. Клиент привязан к телефону и профилю.</p></div>
+    </div>
+    <div class="stage">2. Пополнение — контур эквайера</div>
+    <div class="flow-row">
+      <div class="mbox client"><span class="tag">Клиент</span><strong>Карта / СБП</strong><p>Назначение: пополнение рублёвого баланса в кабинете.</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="mbox pay"><span class="tag">Эквайер</span><strong>СБП / банк</strong><p>Приём платежа, чек 54-ФЗ. Деньги — на р/с ООО «СЭТ».</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="mbox us"><span class="tag">ООО «СЭТ»</span><strong>Именной баланс ₽</strong><p>Зачисление в ledger. Предоплата, не выпуск ЭДС.</p></div>
+    </div>
+    <div class="stage">3. Агентская сделка → 4. Поручение на выплату</div>
+    <div class="flow-row" style="margin-bottom:0;">
+      <div class="mbox us"><span class="tag">Баланс ₽</span><strong>Поручение купить</strong><p>Списание рублей. Курс и комиссия видны до сделки.</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="mbox gold"><span class="tag">Учёт</span><strong>Граммы на клиенте</strong><p>Именной остаток изделия, не общий пул.</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="mbox us"><span class="tag">Поручение продать</span><strong>Снова рубли</strong><p>Остаток ↓, рубли на тот же баланс.</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="mbox out"><span class="tag">Выплата</span><strong>Платёжное поручение</strong><p>Если реквизиты верны — перевод в срок договора.</p></div>
+    </div>
+    <div class="pagenum">7 / 18</div>
+  </section>
+
+  <section class="page part-gold">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Идентификация</div>
+        <h1 class="slide-title">Без паспорта сделка с изделием недоступна</h1>
+        <p class="slide-sub">Полная идентификация обязательна. Пополнение баланса само по себе не открывает операции с изделиями.</p>
+        <div class="steps">
+          <div class="step"><div class="num">1</div><div class="txt"><strong>Телефон + SMS</strong><span>Профиль привязан к номеру</span></div></div>
+          <div class="step"><div class="num">2</div><div class="txt"><strong>Паспорт РФ и селфи</strong><span>Проверка личности онлайн</span></div></div>
+          <div class="step"><div class="num">3</div><div class="txt"><strong>Статус approved</strong><span>Открываются поручения на приобретение, продажу, выплату и выдачу</span></div></div>
+        </div>
+      </div>
+      <div class="mock-frame">
+        <div class="mock">
+          <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ДОПУСК К СДЕЛКЕ</div>
+          <div class="mock-body">
+            <div class="flow-box" style="margin-bottom:8px;"><span class="tag">Профиль</span><strong>+7 999 •• •• •••</strong><span class="d">Кабинет создан, операции с изделиями закрыты</span></div>
+            <div class="flow-box" style="margin-bottom:8px; background: var(--accent-soft); border-color:#ffc7c7;"><span class="tag" style="color:#c23b3b;">Ограничение</span><strong>Сделка недоступна</strong><span class="d">Нет approved — нет агентской операции</span></div>
+            <div class="flow-box" style="background: var(--ok-soft); border-color:#bfe4cf;"><span class="tag" style="color:#0e7c48;">После проверки</span><strong>Документы приняты</strong><span class="d">Поручения на покупку, продажу, выплату, выдачу открыты</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pagenum">8 / 18</div>
+  </section>
+
+  <section class="page part-gold">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Расчёт цены</div>
+        <h1 class="slide-title">Котировка двух бирж, комиссия — до поручения</h1>
+        <p class="slide-sub">Стоимость изделия считается от биржевого курса драгоценного металла. Клиент видит цену, спред и комиссию до подтверждения поручения.</p>
+        <ul class="check-list">
+          <li>Площадки: LBMA / London и Мосбиржа</li>
+          <li>Комиссия агента при приобретении — до 7%</li>
+          <li>Учёт по пробе изделия: 585, 750, 900 · до 0,0001 г</li>
+          <li>Курс фиксируется в момент подтверждения поручения</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+        <div class="mock">
+          <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>КОТИРОВКА ДО ПОРУЧЕНИЯ</div>
+          <div class="mock-body">
+            <div class="kpi-row">
+              <div class="kpi"><div class="n">Мосбиржа</div><div class="l">живой курс</div></div>
+              <div class="kpi"><div class="n">London</div><div class="l">контроль цены</div></div>
+            </div>
+            <div class="row"><span>Проба изделия</span><b>585 · 750 · 900</b></div>
+            <div class="row"><span>Курс металла</span><b>7 240 ₽/г</b></div>
+            <div class="row"><span>Сумма поручения</span><b>50 000 ₽</b></div>
+            <div class="row"><span>Комиссия агента до 7%</span><b>видна заранее</b></div>
+            <div class="flow-box" style="margin-top:10px; background: var(--gold-soft); border-color:#f0dfa8;">
+              <span class="tag" style="color:#9a7412;">К зачислению в учёт</span>
+              <strong style="font-size:1.2rem;">≈ 6,45 г · 585</strong>
+              <span class="d">Ювелирный слиток с клеймом, именником и биркой. Фиксация после KYC</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pagenum">9 / 18</div>
+  </section>
+
+  <section class="page part-gold">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Агентская сделка</div>
+    <h1 class="slide-title">Приобретение изделия в интересах клиента</h1>
+        <p class="slide-sub">Оператор не рисует граммы. Приобретает ювелирное изделие в форме слитка, ставит на спецучёт и ведёт именной остаток. Копилка: остаток растёт докупками.</p>
+    <div class="flow-row">
+      <div class="flow-box">
+        <span class="tag">Шаг 1</span>
+        <strong>Рубли с именного баланса</strong>
+        <span class="d">Списание только со счёта этого клиента. Остатки не смешиваются</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background: var(--gold-soft); border-color:#f0dfa8;">
+        <span class="tag" style="color:#9a7412;">Шаг 2</span>
+        <strong>Агентское приобретение</strong>
+        <span class="d">Комиссия до 7%. Агентский договор, не банковская операция</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background: var(--ok-soft); border-color:#bfe4cf;">
+        <span class="tag" style="color:#0e7c48;">Шаг 3</span>
+        <strong>ГИИС ДМДК</strong>
+        <span class="d">Сделка уходит на государственный спецучёт</span>
+      </div>
+    </div>
+    <div class="grid cols-3" style="margin-top:12px;">
+      <div class="card"><span class="badge gold">1:1</span><h3>Именной учёт</h3><p>Граммы числятся на клиенте. Поручение на продажу возвращает рубли тому же профилю.</p></div>
+      <div class="card"><span class="badge blue">Г</span><h3>Спецучёт</h3><p>ГИИС ДМДК — обязательный контур рынка драгоценных металлов.</p></div>
+      <div class="card"><span class="badge red">📄</span><h3>Агентский договор</h3><p>Компания действует в интересах клиента. Сроки выдачи и выплат зафиксированы.</p></div>
+    </div>
+    <div class="pagenum">10 / 18</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Проверяемые данные</div>
+    <h1 class="slide-title">Оператор, лицензия, спецучёт</h1>
+    <p class="slide-sub">Публичные реквизиты юридического лица. Это не приложение без адреса и директора.</p>
+    <div class="grid cols-2" style="margin-bottom:12px;">
+      <div class="card">
+        <span class="badge red">Л</span>
+        <h3>Лицензия Пробирной палаты</h3>
+        <p style="margin-top:6px;">№ <b style="color:var(--ink)">Л023-00119-77/04343605</b> · выдана 11.02.2026<br/>Межрегиональное управление ФПП по ЦФО<br/>Скупка изделий из драгоценных металлов у физлиц, лом и заготовка.</p>
+      </div>
+      <div class="card">
+        <span class="badge blue">Г</span>
+        <h3>ГИИС ДМДК · спецучёт</h3>
+        <p style="margin-top:6px;">Учётный номер <b style="color:var(--ink)">ЮЛ7701041176</b> · постановка 05.02.2026<br/>ООО «СЭТ» в реестре участников рынка ДМДК.<br/>Сделки кабинета уходят в ту же систему.</p>
+      </div>
+    </div>
+    <div class="mock" style="box-shadow:none;">
+      <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ОПЕРАТОР</div>
+      <div class="mock-body" style="padding:12px 16px;">
+        <div class="kpi-row" style="margin-bottom:0;">
+          <div class="kpi"><div class="n" style="font-size:0.92rem;">ООО «СЭТ»</div><div class="l">юридическое лицо</div></div>
+          <div class="kpi"><div class="n" style="font-size:0.92rem;">9710095927</div><div class="l">ИНН</div></div>
+          <div class="kpi"><div class="n" style="font-size:0.92rem;">1227700089627</div><div class="l">ОГРН</div></div>
+          <div class="kpi"><div class="n" style="font-size:0.92rem;">knd.gov.ru</div><div class="l">реестр лицензии</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="pagenum">11 / 18</div>
+  </section>
+
+  <section class="page part-gold">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Сценарий 1 · хранение</div>
+        <h1 class="slide-title">Копилка: учёт и хранение без выдачи</h1>
+        <p class="slide-sub">Базовый путь: изделие остаётся в хранении. Клиент докупает граммами, остаток растёт. Забрать слитки или продать по внутренней цене — отдельное поручение.</p>
+        <ul class="check-list">
+          <li>Именной остаток в граммах и рублях</li>
+          <li>История операций и PDF-выписка</li>
+          <li>Хранение до поручения клиента на вывоз или продажу</li>
+          <li>Условия хранения выгоднее, чем выдача на руки</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+        <div class="mock">
+          <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ИМЕННОЙ ОСТАТОК</div>
+          <div class="mock-body">
+            <div class="kpi-row">
+              <div class="kpi"><div class="n">14,32 г</div><div class="l">учёт изделия</div></div>
+              <div class="kpi"><div class="n">103 680 ₽</div><div class="l">по текущему курсу</div></div>
+              <div class="kpi"><div class="n" style="color:#0e7c48;">хранение</div><div class="l">без выдачи</div></div>
+            </div>
+            <div class="bars">
+              <i style="height:30%"></i><i style="height:40%"></i><i style="height:38%"></i><i style="height:55%"></i><i style="height:50%"></i><i style="height:68%"></i><i style="height:72%"></i><i style="height:80%"></i><i style="height:90%"></i><i style="height:100%"></i>
+            </div>
+            <div class="chip-row">
+              <span class="chip on">Копилка</span>
+              <span class="chip">Проба · клеймо</span>
+              <span class="chip">Выплата ₽</span>
+              <span class="chip">Выдача</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pagenum">12 / 18</div>
+  </section>
+
+  <section class="page part-gold">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Сценарий 2 · выплата</div>
+        <h1 class="slide-title">Платёжное поручение в кабинете</h1>
+        <p class="slide-sub">Клиент создаёт поручение на продажу остатка и выплату рублей. Если реквизиты и идентификация в порядке, оператор исполняет перевод в срок агентского договора.</p>
+        <ul class="check-list">
+          <li>Поручение формируется внутри кабинета</li>
+          <li>Выплата — только рубли с именного баланса</li>
+          <li>Проверка реквизитов до исполнения</li>
+          <li>Комиссия выплаты при хранении без выдачи — 1%</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+        <div class="mock">
+          <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ПЛАТЁЖНОЕ ПОРУЧЕНИЕ</div>
+          <div class="mock-body">
+            <div class="flow-box" style="margin-bottom:8px;"><span class="tag">Поручение</span><strong>Продать учёт 3,50 г → 25 000 ₽</strong><span class="d">Курс зафиксирован · комиссия видна</span></div>
+            <div class="flow-box" style="margin-bottom:8px;"><span class="tag">Проверка</span><strong>Реквизиты совпадают с профилем</strong><span class="d">Остаток зарезервирован, повторно не расходуется</span></div>
+            <div class="flow-box" style="background: var(--ok-soft); border-color:#bfe4cf;"><span class="tag" style="color:#0e7c48;">Исполнение</span><strong>Выплачено в срок договора</strong><span class="d">Перевод на карту / СБП клиента</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pagenum">13 / 18</div>
+  </section>
+
+  <section class="page part-gold">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Сценарий 3 · выдача</div>
+        <h1 class="slide-title">Заказать доставку слитков: 5 рабочих дней, до 10%</h1>
+        <p class="slide-sub">Если клиент хочет забрать изделия, оформляет доставку. До поручения слитки остаются в хранении. Условия строже, чем у копилки.</p>
+        <ul class="check-list">
+          <li>Поручение из кабинета, после идентификации</li>
+          <li>Передача в течение 5 рабочих дней по договору</li>
+          <li>Комиссия выдачи — до 10%</li>
+          <li>До поручения изделие остаётся в хранении</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+        <div class="mock">
+          <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>ПОРУЧЕНИЕ НА ВЫДАЧУ</div>
+          <div class="mock-body">
+            <div class="kpi-row">
+              <div class="kpi"><div class="n">10 г</div><div class="l">к выдаче</div></div>
+              <div class="kpi"><div class="n">5 раб. дней</div><div class="l">срок договора</div></div>
+              <div class="kpi"><div class="n">до 10%</div><div class="l">комиссия</div></div>
+            </div>
+            <div class="flow-box" style="margin-bottom:8px;"><span class="tag">Статус</span><strong>Поручение принято</strong><span class="d">Остаток резервируется под выдачу изделия</span></div>
+            <div class="flow-box" style="background: var(--ok-soft); border-color:#bfe4cf;"><span class="tag" style="color:#0e7c48;">Результат</span><strong>Изделие передано клиенту</strong><span class="d">Учётный остаток уменьшается на выданный вес</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pagenum">14 / 18</div>
+  </section>
+
+  <section class="page part-gold">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="two-col">
+      <div>
+        <div class="kicker">Сценарий 4 · регулярное поручение</div>
+        <h1 class="slide-title">Систематическое приобретение, спред 5%</h1>
+        <p class="slide-sub">Клиент задаёт сумму и расписание. Докупка ювелирных слитков граммами, остаток в копилке растёт. Спред такого пополнения — 5%.</p>
+        <ul class="check-list">
+          <li>Сумма и день месяца задаются один раз</li>
+          <li>Исполнение — если на балансе достаточно средств</li>
+          <li>Пауза или отмена поручения в любой момент</li>
+          <li>Те же KYC, именной учёт и ГИИС</li>
+        </ul>
+      </div>
+      <div class="mock-frame">
+        <div class="mock">
+          <div class="mock-head"><span class="traffic"><i></i><i></i><i></i></span>РЕГУЛЯРНОЕ ПОРУЧЕНИЕ</div>
+          <div class="mock-body">
+            <div class="kpi-row">
+              <div class="kpi"><div class="n">10 000 ₽</div><div class="l">в месяц</div></div>
+              <div class="kpi"><div class="n">5%</div><div class="l">спред пополнения</div></div>
+              <div class="kpi"><div class="n" style="color:#0e7c48;">активно</div><div class="l">статус</div></div>
+            </div>
+            <div class="flow-box" style="margin-bottom:8px;"><span class="tag">Последнее исполнение</span><strong>05.08 · 1,38 г в учёт</strong><span class="d">Списание с именного баланса</span></div>
+            <div class="flow-box"><span class="tag">Следующее поручение</span><strong>05.09</strong><span class="d">Далее — хранение, выплата или выдача по отдельному поручению</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pagenum">15 / 18</div>
+  </section>
+
+  <section class="page part-gold">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Условия</div>
+    <h1 class="slide-title">Поручения клиента и тарифы агента</h1>
+    <p class="slide-sub">Хранение без выдачи дешевле физической передачи: так закрываются логистика и риск сторон. Сроки — по агентскому договору.</p>
+    <table class="tbl">
+      <thead>
+        <tr><th>Поручение</th><th>Действие агента</th><th>Срок</th><th>Тариф</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Хранить</td>
+          <td>Именной остаток, котировка двух бирж, PDF-история</td>
+          <td>До следующего поручения</td>
+          <td>Приобретение до 7%</td>
+        </tr>
+        <tr>
+          <td>Продать и выплатить ₽</td>
+          <td>Платёжное поручение в кабинете → проверка → перевод</td>
+          <td>В срок договора после проверки</td>
+          <td>Выплата 1% при хранении</td>
+        </tr>
+        <tr>
+          <td>Целевая продажа</td>
+          <td>Поручение срабатывает при заданном курсе / сумме</td>
+          <td>В момент достижения условия</td>
+          <td>Те же правила продажи и выплаты</td>
+        </tr>
+        <tr>
+          <td>Выдать / доставка</td>
+          <td>Физическая передача ювелирных слитков, остаток уменьшается</td>
+          <td>5 рабочих дней</td>
+          <td>До 10%</td>
+        </tr>
+        <tr>
+          <td>Регулярное приобретение</td>
+          <td>Поручения по графику небольшими суммами</td>
+          <td>По расписанию клиента</td>
+          <td>Спред пополнения 5%</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="pagenum">16 / 18</div>
+  </section>
+
+  <section class="page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Риски</div>
+    <h1 class="slide-title">Распределение рисков трёх сторон</h1>
+    <p class="slide-sub">Это не вклад и не страхование АСВ. Оператор отвечает за сроки договора. Банк принимает только платёж с понятным назначением.</p>
+    <div class="grid cols-3">
+      <div class="card">
+        <span class="badge gold">1</span>
+        <h3>Клиент</h3>
+        <p>Биржевая стоимость металла в составе изделия может снизиться. Это не депозит. Выдача — отдельная комиссия и 5 рабочих дней. Прошлый рост цены не обещает результата.</p>
+      </div>
+      <div class="card">
+        <span class="badge red">2</span>
+        <h3>Оператор</h3>
+        <p>Ликвидность — действующая скупка изделий. KYC, ГИИС и агентский учёт обязательны. Сроки выдачи и выплат — зона исполнения договора.</p>
+      </div>
+      <div class="card">
+        <span class="badge blue">3</span>
+        <h3>Банк / эквайер</h3>
+        <p>Предмет платежа — оплата ювелирного изделия на р/с юрлица. Не банковский слиток 999. Сделка в кабинете после KYC.</p>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:12px;"><b>Справедливый баланс:</b> клиент понимает, что это ювелирное изделие в виде слитка, а не вклад и не банковский 999. Банк видит витрину изделия, не металл без статуса. ЭДС нет: предоплата и сделка после идентификации.</div>
+    <div class="pagenum">17 / 18</div>
+  </section>
+
+  <section class="page title-page">
+    <div class="brandmini"><img class="mark-icon" src="../client/public/logo-reaktivo-mark.svg" alt="" /><span class="word">REAKTIVO<span>.PRO</span></span></div>
+    <div class="kicker">Итог</div>
+    <h1 style="font-size:2.05rem; max-width:780px;">Витрина для банка, кабинет для клиента</h1>
+    <p class="lede" style="margin-bottom:18px;">Эквайрингу показываем, что продаём: ювелирные изделия в виде слитков 585, 750 и 900. Клиенту оставляем кабинет: копилка, хранение, доставка или продажа нам по внутренней цене.</p>
+    <div class="grid cols-2" style="width:100%; max-width:820px;">
+      <div class="card"><span class="badge ok">✓</span><h3>Клиент</h3><p>KYC, котировка до поручения, именной учёт, копилка, платёжное поручение на выплату, доставка за 5 рабочих дней.</p></div>
+      <div class="card"><span class="badge blue">✓</span><h3>Банк</h3><p>Эквайринг = оплата ювелирного изделия. Не банковский слиток 999. Деньги на р/с ООО «СЭТ». ГИИС, клеймо, именник, бирка.</p></div>
+    </div>
+    <div class="pill-row" style="margin-top:18px;">
+      <div class="pill">Не банк · <b>оператор</b></div>
+      <div class="pill">Не ЭДС · <b>именной баланс</b></div>
+      <div class="pill">Не слиток 999 · <b>ювелирное изделие</b></div>
+      <div class="pill">Сроки · <b>договор</b></div>
+    </div>
+    <div class="pagenum">18 / 18</div>
+  </section>
+
+</div>
+<script>
+  (function () {
+    var wrap = document.getElementById('deck-scale');
+    function fit() {
+      if (window.matchMedia('print').matches) { wrap.style.zoom = 1; return; }
+      wrap.style.zoom = 1;
+      var page = wrap.querySelector('.page');
+      if (!page) return;
+      wrap.style.zoom = Math.min(1, (window.innerWidth - 32) / page.getBoundingClientRect().width);
+    }
+    window.addEventListener('resize', fit);
+    window.addEventListener('beforeprint', function () { wrap.style.zoom = 1; });
+    fit();
+  })();
+</script>
+</body>
+</html>

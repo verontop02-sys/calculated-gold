@@ -120,7 +120,7 @@ export function JewelryShop({ quote: quoteProp, refreshKey = 0, onPayStart }) {
     <div className="cpx-jewel">
       <div className="cpx-card cpx-owned-block">
         <h2 className="cpx-fin-side-title">Ваши изделия</h2>
-        <p className="cpx-fin-side-sub">Оплаченные позиции с витрины. Можно забрать в отделении по запросу.</p>
+        <p className="cpx-fin-side-sub">Оплаченные позиции с витрины. Ниже — за сколько можно продать это изделие в скупку прямо сейчас.</p>
         <JewelryOwnedList
           orders={orders}
           emptyText="Пока нет оплаченных изделий. Выберите позицию на витрине ниже."

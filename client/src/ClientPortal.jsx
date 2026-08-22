@@ -725,6 +725,7 @@ function ClientHome({ hasPin, onPinChanged, phoneMasked, onNavigate }) {
           <h3 className="cpx-home-section-title">Ваши изделия</h3>
           <button type="button" className="cpx-link" onClick={() => onNavigate?.('invest')}>Витрина</button>
         </div>
+        <p className="cpx-muted" style={{ margin: '0 0 14px' }}>За сколько можно продать купленное изделие в скупку по текущему курсу.</p>
         <JewelryOwnedList
           orders={jewelryOrders}
           emptyText="Пока нет оплаченных изделий. Откройте витрину и выберите позицию."
@@ -3184,6 +3185,26 @@ html:not([data-theme="dark"]) .cpx-fin-benefit-today {
 }
 .cpx-owned-foot strong { font-size: 1.02rem; font-variant-numeric: tabular-nums; color: var(--text-strong); }
 .cpx-owned-foot span { font-size: 0.75rem; color: var(--text-dim); }
+.cpx-owned-buyback {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--stroke-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cpx-owned-buyback-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.82rem;
+}
+.cpx-owned-buyback-row span { color: var(--text-muted); }
+.cpx-owned-buyback-row b { font-variant-numeric: tabular-nums; color: var(--text-strong); }
+.cpx-owned-buyback-row strong { font-variant-numeric: tabular-nums; color: var(--text-strong); font-size: 0.98rem; }
+.cpx-owned-buyback-range { margin: 2px 0 0; font-size: 0.75rem; color: var(--text-dim); }
+.cpx-owned-buyback-note { margin: 4px 0 0; font-size: 0.72rem; line-height: 1.35; color: var(--text-dim); }
 
 @media (max-width: 640px) {
   .cpx-login--fin { margin: 12px auto 0; padding: 22px 18px 20px; border-radius: 18px; }

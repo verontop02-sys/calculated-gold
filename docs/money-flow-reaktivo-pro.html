@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reaktivo.pro — схема движения денег</title>
+  <style>
+    :root {
+      --bg: #f4f5f6;
+      --card: #ffffff;
+      --ink: #141516;
+      --muted: #5c636b;
+      --line: #e2e4e6;
+      --accent: #fe0000;
+      --soft: #ffe8e8;
+      --ok: #12824f;
+      --ok-soft: #e6f5ee;
+      --blue: #1a4a8a;
+      --blue-soft: #e8f0fa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      padding: 28px 20px 48px;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; }
+    .head {
+      background: var(--card);
+      border: 1px solid #e2e4e6;
+      border-radius: 16px;
+      padding: 22px 24px;
+      margin-bottom: 18px;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 12px;
+      font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em;
+    }
+    .mark {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: var(--accent); color: #fff;
+      display: grid; place-items: center; font-weight: 800;
+    }
+    .brand span { color: var(--accent); }
+    h1 {
+      margin: 14px 0 8px;
+      font-size: 1.45rem; letter-spacing: -0.02em; line-height: 1.25;
+    }
+    .sub { margin: 0; color: var(--muted); font-size: 0.95rem; line-height: 1.5; }
+    .meta {
+      margin-top: 12px; font-size: 0.82rem; color: var(--muted);
+      display: flex; flex-wrap: wrap; gap: 8px 16px;
+    }
+    .meta b { color: var(--ink); font-weight: 700; }
+
+    .flow {
+      background: var(--card);
+      border: 1px solid #e2e4e6;
+      border-radius: 16px;
+      padding: 22px 18px 10px;
+      margin-bottom: 18px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 40px 1fr 40px 1fr;
+      gap: 8px;
+      align-items: stretch;
+      margin-bottom: 10px;
+    }
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 40px 1fr;
+      gap: 8px;
+      align-items: stretch;
+      max-width: 620px;
+      margin: 0 auto 10px;
+    }
+    .box {
+      border: 1.5px solid #e2e4e6;
+      border-radius: 14px;
+      padding: 14px 14px 12px;
+      background: #fff;
+      min-height: 92px;
+    }
+    .box.client { border-color: #c9ced4; background: #fafbfc; }
+    .box.pay { border-color: #b8cce8; background: var(--blue-soft); }
+    .box.us { border-color: #ffb3b3; background: var(--soft); }
+    .box.gold { border-color: #f0d27a; background: #fff8e6; }
+    .box.out { border-color: #9dceb5; background: var(--ok-soft); }
+    .box.ctrl { border-color: #d0d4d8; background: #f7f8f9; }
+    .tag {
+      display: inline-block;
+      font-size: 0.68rem; font-weight: 800; letter-spacing: 0.06em;
+      text-transform: uppercase; margin-bottom: 6px;
+    }
+    .tag.t-client { color: #5c636b; }
+    .tag.t-pay { color: var(--blue); }
+    .tag.t-us { color: var(--accent); }
+    .tag.t-gold { color: #9a6b00; }
+    .tag.t-out { color: var(--ok); }
+    .tag.t-ctrl { color: #5c636b; }
+    .box h3 {
+      margin: 0 0 6px; font-size: 0.98rem; font-weight: 800; line-height: 1.25;
+    }
+    .box p {
+      margin: 0; font-size: 0.8rem; color: var(--muted); line-height: 1.4;
+    }
+    .arrow {
+      display: flex; align-items: center; justify-content: center;
+      color: var(--accent); font-size: 1.4rem; font-weight: 700;
+    }
+    .arrow.down {
+      grid-column: 1 / -1;
+      height: 28px;
+      color: var(--muted);
+      font-size: 1.2rem;
+    }
+    .section-label {
+      text-align: center;
+      font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted);
+      margin: 8px 0 12px;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .note {
+      background: var(--card);
+      border: 1px solid #e2e4e6;
+      border-radius: 14px;
+      padding: 16px 16px 14px;
+    }
+    .note h2 {
+      margin: 0 0 8px; font-size: 0.92rem; font-weight: 800;
+    }
+    .note ul {
+      margin: 0; padding-left: 1.1em;
+      font-size: 0.84rem; color: var(--muted); line-height: 1.5;
+    }
+    .note li { margin-bottom: 4px; }
+    .note strong { color: var(--ink); }
+
+    .foot {
+      margin-top: 16px;
+      font-size: 0.78rem; color: var(--muted); line-height: 1.45;
+      text-align: center;
+    }
+
+    @media (max-width: 720px) {
+      .row, .row-2 { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); height: 24px; }
+      .notes { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      body { background: #fff; padding: 12px; }
+      .head, .flow, .note { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="head">
+      <div class="brand">
+        <div class="mark">R</div>
+        REAKTIVO<span>.PRO</span>
+      </div>
+      <h1>Схема движения денег и золота</h1>
+      <p class="sub">
+        Как устроена модель для физлица: идентификация, пополнение рублёвого баланса,
+        покупка/продажа учётного золота, вывод средств. Для обсуждения с эквайером / банком.
+      </p>
+      <div class="meta">
+        <span>Оператор: <b>ООО «СЭТ»</b></span>
+        <span>ИНН <b>9710095927</b></span>
+        <span>Лицензия Пробирной палаты <b>Л023-00119-77/04343605</b></span>
+        <span>ГИИС ДМДК <b>ЮЛ7701041176</b></span>
+      </div>
+    </header>
+
+    <section class="flow">
+      <div class="section-label">1. Вход клиента</div>
+      <div class="row-2">
+        <div class="box client">
+          <div class="tag t-client">Клиент</div>
+          <h3>Физлицо, паспорт РФ</h3>
+          <p>Регистрация по телефону + SMS. Покупка золота только после KYC (паспорт, селфи) и статуса approved.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="box ctrl">
+          <div class="tag t-ctrl">Контроль</div>
+          <h3>Идентификация</h3>
+          <p>Без проверки документов сделки по золоту недоступны. Клиент привязан к конкретному телефону и профилю.</p>
+        </div>
+      </div>
+
+      <div class="arrow down">↓</div>
+      <div class="section-label">2. Пополнение (то, что нужно эквайеру)</div>
+
+      <div class="row">
+        <div class="box client">
+          <div class="tag t-client">Клиент</div>
+          <h3>Оплата</h3>
+          <p>Карта / СБП. Цель платежа: пополнение рублёвого баланса в кабинете Reaktivo.pro для покупки золота.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="box pay">
+          <div class="tag t-pay">Эквайер</div>
+          <h3>Cloud / банк / СБП</h3>
+          <p>Приём платежа, чек (54-ФЗ). Деньги идут на расчётный счёт ООО «СЭТ», не в «анонимный кошелёк».</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="box us">
+          <div class="tag t-us">ООО «СЭТ»</div>
+          <h3>Рублёвый баланс клиента</h3>
+          <p>Зачисление на именной баланс в ledger. Это предоплата под сделку, не выпуск электронных денег.</p>
+        </div>
+      </div>
+
+      <div class="arrow down">↓</div>
+      <div class="section-label">3. Операции с золотом (внутренний учёт)</div>
+
+      <div class="row">
+        <div class="box us">
+          <div class="tag t-us">Баланс ₽</div>
+          <h3>Покупка</h3>
+          <p>Списание рублей с баланса клиента. Курс и комиссия видны до сделки.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="box gold">
+          <div class="tag t-gold">Учёт</div>
+          <h3>Граммы на клиенте</h3>
+          <p>Увеличение золотого остатка в кабинете. Учёт по клиенту, не обезличенный пул «на всех».</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="box us">
+          <div class="tag t-us">Баланс ₽</div>
+          <h3>Продажа</h3>
+          <p>Уменьшение граммов → зачисление рублей обратно на баланс того же клиента.</p>
+        </div>
+      </div>
+
+      <div class="arrow down">↓</div>
+      <div class="section-label">4. Вывод</div>
+
+      <div class="row-2">
+        <div class="box us">
+          <div class="tag t-us">Баланс ₽</div>
+          <h3>Заявка на вывод</h3>
+          <p>Только рубли с баланса клиента. Не вывод «золота на карту» напрямую.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="box out">
+          <div class="tag t-out">Клиент</div>
+          <h3>Карта / СБП</h3>
+          <p>Перевод на реквизиты клиента после проверки. Цель: возврат/выплата денежных средств клиенту.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="notes">
+      <div class="note">
+        <h2>Что это НЕ является</h2>
+        <ul>
+          <li><strong>Не</strong> криптокошелёк и не выпуск электронных денег</li>
+          <li><strong>Не</strong> анонимные платежи: KYC до покупки золота</li>
+          <li><strong>Не</strong> бесконтрольный P2P: деньги на р/с юрлица</li>
+          <li><strong>Не</strong> продажа физлицу «с улицы» без идентификации</li>
+        </ul>
+      </div>
+      <div class="note">
+        <h2>На чём держится модель</h2>
+        <ul>
+          <li>Лицензия на скупку драгметаллов (Пробирная палата)</li>
+          <li>Постановка на учёт в ГИИС ДМДК</li>
+          <li>Именной рублёвый и граммовый учёт по клиенту</li>
+          <li>Эквайринг нужен для <strong>пополнения баланса / оплаты услуг</strong>, а не для «торговли золотом картой в один клик без KYC»</li>
+        </ul>
+      </div>
+    </section>
+
+    <p class="foot">
+      Reaktivo.pro · схема для переговоров с эквайером · черновик под обсуждение юридической формулировки назначения платежа
+    </p>
+  </div>
+</body>
+</html>

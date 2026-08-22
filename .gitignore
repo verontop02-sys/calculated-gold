@@ -11,6 +11,15 @@ functions/.env
 secrets/
 .firebase/
 supabase/.temp/
+scripts/_ssh_tmp/
+
+# Черновики и разовые выгрузки: превью вёрстки, QA-скриншоты, логи прогонов, исходники фото.
+.tmp_*
+docs/_*
+scripts/_vps_out.txt
+images/
+*.HEIC
+*.MOV
 
 # Исходники купленных шрифтов (лицензия) — в репо не коммитим,
 # в проде используются только сконвертированные client/public/fonts/geometria/*.woff2

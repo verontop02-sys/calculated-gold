@@ -169,7 +169,7 @@ export function Login() {
                     </div>
                     <span className="lg-warm__label">
                       {serverStatus === 'checking' && 'Подключение к серверу…'}
-                      {serverStatus === 'warming' && 'Сервер просыпается после паузы (~30–60 сек)…'}
+                      {serverStatus === 'warming' && 'Нет ответа от API. Часто из РФ без VPN режется адрес сервера. Подождите или включите VPN.'}
                     </span>
                   </div>
                 )}
@@ -180,9 +180,9 @@ export function Login() {
           {/* ── Продажа золота → сайт ── */}
           <aside className="lg-card lg-card--sell lg-anim" style={{ '--d': '160ms' }}>
             <span className="lg-badge lg-badge--solid">Для клиентов</span>
-            <h2 className="lg-card-title">Хотите выгодно продать золото?</h2>
+            <h2 className="lg-card-title">Хотите продать изделие?</h2>
             <p className="lg-card-sub">
-              Оценка по биржевому курсу, прозрачный расчёт и деньги сразу — на сайте{' '}
+              Оценка в отделении и выплата сразу — на сайте{' '}
               <a className="lg-inline-link" href={CLIENT_SITE_URL} target="_blank" rel="noopener noreferrer">
                 Reaktivo.ru
               </a>
@@ -191,7 +191,7 @@ export function Login() {
             <ul className="lg-perks">
               <li>
                 <span className="lg-perk-ico" aria-hidden>✓</span>
-                Цена привязана к биржевой котировке
+                Оценка в отделении скупки
               </li>
               <li>
                 <span className="lg-perk-ico" aria-hidden>✓</span>
@@ -214,21 +214,21 @@ export function Login() {
             <span className="lg-badge lg-badge--solid">Кабинет</span>
             <h2 className="lg-card-title">Вход для клиентов</h2>
             <p className="lg-card-sub">
-              Выпустить карту Reaktivo, Ваш золотой счёт, покупка золота
+              Заказы ювелирных изделий и история продаж в скупку
             </p>
 
             <ul className="lg-perks lg-perks--compact">
               <li>
                 <span className="lg-perk-ico" aria-hidden>✓</span>
-                Выпуск карты Reaktivo
+                Витрина ювелирных изделий
               </li>
               <li>
                 <span className="lg-perk-ico" aria-hidden>✓</span>
-                Золотой счёт
+                Заказы с оплатой изделия
               </li>
               <li>
                 <span className="lg-perk-ico" aria-hidden>✓</span>
-                Покупка золота
+                История продаж в скупку
               </li>
             </ul>
 

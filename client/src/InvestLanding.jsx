@@ -1,7 +1,6 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import {
   AnimatePresence,
-  animate,
   motion,
   useInView,
   useMotionValue,
@@ -11,10 +10,9 @@ import {
   useTransform,
 } from 'motion/react';
 import Lenis from 'lenis';
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { clientApi, fintechApi, getClientToken, getFintechToken } from './api.js';
 import { ThemeToggle } from './ThemeToggle.jsx';
-import { MissedBenefitCalc } from './MissedBenefitCalc.jsx';
+import { JewelryShowcase } from './JewelryShowcase.jsx';
 import officeHall from './assets/office/hall.jpg';
 
 const EASE = [0.22, 1, 0.36, 1];
@@ -33,24 +31,6 @@ function formatSurnameInitials(fullName) {
 function formatMoney(n) {
   if (n == null || !Number.isFinite(Number(n))) return '—';
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(Number(n));
-}
-
-/** ×43,5 → «×43,5» */
-function formatGrowthMultiple(m) {
-  if (m == null || !Number.isFinite(Number(m))) return '—';
-  return `×${Number(m).toFixed(1).replace('.', ',')}`;
-}
-
-/** ×43,5 → «+4 250%» (рост в процентах: (multiple − 1) × 100) */
-function formatGrowthPct(m) {
-  if (m == null || !Number.isFinite(Number(m))) return '—';
-  return `+${Math.round((Number(m) - 1) * 100).toLocaleString('ru-RU')}%`;
-}
-
-/** ×43,5 → «в 43,5 раза» */
-function formatGrowthTimesRu(m) {
-  if (m == null || !Number.isFinite(Number(m))) return '';
-  return `в ${Number(m).toFixed(1).replace('.', ',')} раза`;
 }
 
 const isFinePointer = () => typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
@@ -96,44 +76,43 @@ const Ico = {
 };
 
 const STEPS = [
-  { n: '01', title: 'Вход по телефону', text: 'Номер + код из SMS. Без анкет, сканов и визитов в офис — кабинет открывается за две минуты.' },
-  { n: '02', title: 'Купить золото от 1 г', text: 'Фиксируете биржевой курс в моменте. Комиссия видна до подтверждения — никаких сюрпризов после.' },
-  { n: '03', title: 'Портфель растёт онлайн', text: 'Курс обновляется в реальном времени. Баланс в граммах и рублях — всегда перед глазами.' },
-  { n: '04', title: 'Продажа и вывод', text: 'Продаёте часть или всё по текущему курсу — деньги выводятся на карту любого банка.' },
+  { n: '01', title: 'Выберите изделие', text: 'На витрине конкретные ювелирные изделия из сети скупки. У каждого — проба, вес, клеймо и цена.' },
+  { n: '02', title: 'Оплатите выбранное', text: 'Карта или СБП. Оплата всегда за конкретное изделие — без счёта «на потом» и без свободного ввода-вывода денег.' },
+  { n: '03', title: 'Заказ в кабинете', text: 'После оплаты заказ появляется в личном кабинете. Там же — ваши продажи в режиме скупки.' },
+  { n: '04', title: 'Получение', text: 'Самовывоз, доставка или хранение изделия. Когда решите забрать — оформляете выдачу отдельным запросом.' },
 ];
 
 const ADVANTAGES = [
-  { icon: Ico.scale, title: 'Учёт до 0,0001 грамма', text: 'Никаких «удобных» округлений: каждая доля миллиграмма учитывается, когда вы покупаете золото или продаёте.' },
-  { icon: Ico.eye, title: 'Комиссия видна заранее', text: 'Точная сумма комиссии показывается до подтверждения сделки. Скрытых удержаний нет.' },
-  { icon: Ico.shield, title: 'Официальные котировки', text: 'Биржевой курс и данные ЦБ РФ — цены берутся из официальных источников, а не «с потолка».' },
-  { icon: Ico.bolt, title: 'Моментальные пополнение и вывод', text: 'Кошелёк пополняется через СБП за секунды. Вывод — на карту любого банка сразу после продажи.' },
-  { icon: Ico.doc, title: 'PDF-выписка в один клик', text: 'Полная история операций выгружается мгновенно — для отчётности и личного контроля.' },
-  { icon: Ico.bot, title: 'AI-ассистент портфеля', text: 'Отвечает на вопросы о балансе и строит прогнозы на исторических данных ЦБ.' },
+  { icon: Ico.scale, title: 'Конкретное изделие', text: 'Вы покупаете ювелирное изделие с пробой, клеймом, именником и биркой — не абстрактный металл.' },
+  { icon: Ico.eye, title: 'Цена до оплаты', text: 'Стоимость изделия видна на витрине. Наценка уже внутри цены, скрытых удержаний нет.' },
+  { icon: Ico.shield, title: 'Проба и ГИИС', text: 'На изделиях государственное пробирное клеймо, именник, бирка и учёт в ГИИС ДМДК.' },
+  { icon: Ico.bolt, title: 'Оплата за заказ', text: 'Карта или СБП только за выбранное изделие. Отдельного счёта и вывода «свободных» денег нет.' },
+  { icon: Ico.doc, title: 'Кабинет заказов', text: 'В кабинете два раздела: ваши продажи в скупку и заказы ювелирных изделий.' },
+  { icon: Ico.bot, title: 'Украшения из скупки', text: 'Кольца, цепи, серьги, браслеты и подвески, выкупленные в отделениях Reaktivo. У каждого изделия — проба и цена.' },
 ];
 
 const FAQ = [
-  { q: 'Сколько стоит купить золото в Reaktivo?', a: 'Расчёт стоимости золота максимально прозрачен: перед покупкой вы видите итоговую стоимость. Все комиссии уже включены и не превышают 7% от стоимости золота.' },
-  { q: 'Что значит золото на счету?', a: 'Reaktivo выступает вашим агентом: покупает золото для вас и ведёт его учёт. В личном кабинете вы можете следить за портфелем и в любой момент вывести любую сумму на карту или забрать золото — в соответствии с выбранным пакетом управления.' },
-  { q: 'Как пополнить баланс?', a: 'Вы можете пополнить баланс банковской картой через СБП — по номеру телефона, без ввода реквизитов. Деньги зачисляются мгновенно и сразу становятся доступны для покупки золота.' },
-  { q: 'Как продать золото и получить деньги?', a: 'В разделе «Продать» вы указываете количество граммов или сумму — сделка фиксируется по актуальному курсу, а средства выводятся на карту любого банка.' },
-  { q: 'По какому курсу считается доходность?', a: 'Исторические расчёты в калькуляторе основаны на официальных данных Банка России; текущие сделки — на биржевом курсе Московской и мировой бирж золота, который отображается в личном кабинете в реальном времени.' },
-  { q: 'Нужно ли приходить в офис?', a: 'Нет, это необязательно. Вся работа — от входа до продажи и вывода средств — происходит онлайн в личном кабинете. Обращаем ваше внимание: для регистрации в системе необходим паспорт РФ. Сделки по приобретению золота невозможны без прохождения проверки документов.' },
-  { q: 'Это инвестиционная рекомендация?', a: 'Нет. Материалы на сайте и в калькуляторе носят иллюстративный характер и не являются индивидуальной инвестиционной рекомендацией. Прошлый рост цены не гарантирует будущих результатов. Reaktivo выступает вашим агентом по покупке золота.' },
+  { q: 'Что продаёт Reaktivo на этом сайте?', a: 'Конкретные ювелирные изделия с пробой, клеймом, именником и биркой, в учёте ГИИС ДМДК. На витрине кольца, цепи, серьги, браслеты и подвески, выкупленные в отделениях скупки.' },
+  { q: 'Это магазин изделий или продажа металла «на вес»?', a: 'Это интернет-магазин конкретных ювелирных изделий. Вы выбираете позицию на витрине и оплачиваете именно её.' },
+  { q: 'Можно ли внести деньги заранее и купить позже?', a: 'Нет. Отдельного счёта для свободных денег нет. Оплата проходит только за выбранное изделие — картой или СБП.' },
+  { q: 'Что видно в личном кабинете?', a: 'Заказы ювелирных изделий и ваши продажи в режиме скупки. Других разделов нет: ни свободного пополнения, ни вывода денег мимо покупки изделия.' },
+  { q: 'Это банковский металл 999?', a: 'Нет. Мы продаём ювелирные изделия с пробой, клеймом и биркой. Банковский металл 999 на этом сайте не продаётся.' },
+  { q: 'Нужно ли приходить в офис?', a: 'Для заказа на сайте — нет. Для получения изделия можно оформить доставку или забрать в сети. Для покупки по закону нужна идентификация по паспорту РФ.' },
+  { q: 'Как продать изделие Reaktivo?', a: 'Через сеть скупки: оценка в отделении, договор, выплата. История этих продаж остаётся в кабинете отдельно от заказов на витрине.' },
 ];
 
 const MARQUEE = [
-  'Купить золото онлайн',
-  'Купить золото от 1 г',
-  'Курс ЦБ РФ',
-  'Биржевые котировки',
-  'Пополнение через СБП',
-  'Вывод на карту',
-  'Комиссия до сделки',
-  'PDF-выписки',
-  'AI-ассистент',
+  'Ювелирные изделия',
+  'Пробы 585 / 750 / 900',
+  'Клеймо и именник',
+  'ГИИС ДМДК',
+  'Витрина онлайн',
+  'Оплата изделия',
+  'Украшения из скупки',
+  'Кабинет заказов',
 ];
 
-const STATEMENT_WORDS = 'Золото пережило войны, кризисы и дефолты. Сбережения в золоте — спокойствие, проверенное веками.'.split(' ');
+const STATEMENT_WORDS = 'Интернет-магазин ювелирных изделий. Украшения с пробой, клеймом и биркой.'.split(' ');
 
 const OFFICE_GALLERY = [
   { src: officeHall, alt: 'Зал обслуживания Reaktivo' },
@@ -245,18 +224,6 @@ const staggerChild = {
   hidden: { opacity: 0, y: 36, scale: 0.985 },
   show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.75, ease: EASE } },
 };
-
-function AnimatedNumber({ to, format, duration = 1.9, className = '' }) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: '-6% 0px' });
-  const [val, setVal] = useState(0);
-  useEffect(() => {
-    if (!inView || to == null) return;
-    const controls = animate(0, to, { duration, ease: [0.16, 1, 0.3, 1], onUpdate: (v) => setVal(v) });
-    return () => controls.stop();
-  }, [inView, to, duration]);
-  return <span ref={ref} className={className}>{to == null ? '—' : format(val)}</span>;
-}
 
 /* Магнитная кнопка (desktop) */
 function Magnetic({ children, strength = 0.28 }) {
@@ -420,20 +387,19 @@ function deckSlot(pos) {
   return { x: 96, y: 78, scale: 0.86, rotate: 9, opacity: 0 };
 }
 
-function DeckPortfolioCard({ quote, growth }) {
-  const grams = 128.35;
-  const valueRub = quote?.goldRubPerGram ? grams * quote.goldRubPerGram : null;
+function DeckPortfolioCard({ quote }) {
+  const price = quote?.goldRubPerGram ? Math.round(quote.goldRubPerGram * 0.585 * 4.2) : null;
   return (
     <>
       <div className="il-card-top">
         <span className="il-card-brand">REAKTIVO<i>·</i>PRO</span>
         <span className="il-card-live"><i />live</span>
       </div>
-      <span className="il-card-label">Портфель</span>
-      <div className="il-card-big">{grams.toFixed(4).replace('.', ',')} г</div>
+      <span className="il-card-label">Заказ изделия</span>
+      <div className="il-card-big">Кольцо · 585</div>
       <div className="il-card-row">
-        <span className="il-card-val">{valueRub ? formatMoney(valueRub) : '· · ·'}</span>
-        {growth && <span className="il-card-badge">+{Math.round((growth.multiple - 1) * 100).toLocaleString('ru-RU')}% за {growth.years} лет</span>}
+        <span className="il-card-val">{price ? formatMoney(price) : '· · ·'}</span>
+        <span className="il-card-badge">украшение</span>
       </div>
       <svg className="il-card-spark" viewBox="0 0 220 64" fill="none" preserveAspectRatio="none" aria-hidden>
         <defs>
@@ -446,8 +412,8 @@ function DeckPortfolioCard({ quote, growth }) {
         <path d="M2 56 C24 54 40 48 58 47 S92 40 108 36 S140 30 158 22 S196 10 218 6 L218 64 L2 64 Z" fill="url(#ilSparkFill)" opacity="0.7" />
       </svg>
       <div className="il-card-foot">
-        <span>Золото · 999,9</span>
-        <span>{quote?.goldRubPerGram ? `${Math.round(quote.goldRubPerGram).toLocaleString('ru-RU')} ₽/г` : ''}</span>
+        <span>Клеймо · именник · бирка</span>
+        <span>ГИИС ДМДК</span>
       </div>
     </>
   );
@@ -459,13 +425,13 @@ function DeckPriceCard({ quote }) {
   return (
     <>
       <div className="il-card-top">
-        <span className="il-card-brand">Курс золота</span>
-        <span className="il-card-live"><i />MOEX</span>
+        <span className="il-card-brand">Витрина</span>
+        <span className="il-card-live"><i />585</span>
       </div>
-      <span className="il-card-label">Сейчас за грамм</span>
-      <div className="il-card-big">{quote?.goldRubPerGram ? `${Math.round(quote.goldRubPerGram).toLocaleString('ru-RU')} ₽` : '· · ·'}</div>
+      <span className="il-card-label">Кольцо обручальное</span>
+      <div className="il-card-big">{quote?.goldRubPerGram ? formatMoney(Math.round(quote.goldRubPerGram * 0.585 * 4.2)) : '· · ·'}</div>
       <div className="il-card-row">
-        <span className="il-card-badge">обновляется в реальном времени</span>
+        <span className="il-card-badge">4,2 г · проба 585</span>
       </div>
       <div className="il-card-bars" aria-hidden>
         {PRICE_BARS.map((h, i) => (
@@ -473,8 +439,8 @@ function DeckPriceCard({ quote }) {
         ))}
       </div>
       <div className="il-card-foot">
-        <span>Биржевые котировки</span>
-        <span>без наценок «с потолка»</span>
+        <span>Цена изделия</span>
+        <span>оплата за выбранное</span>
       </div>
     </>
   );
@@ -484,45 +450,44 @@ function DeckTopupCard() {
   return (
     <>
       <div className="il-card-top">
-        <span className="il-card-brand">Кошелёк</span>
-        <span className="il-card-live il-card-live--ok"><i />зачислено</span>
+        <span className="il-card-brand">Украшение</span>
+        <span className="il-card-live il-card-live--ok"><i />в наличии</span>
       </div>
-      <span className="il-card-label">{withSbp('Пополнение через СБП')}</span>
-      <div className="il-card-big">+ 100 000 ₽</div>
+      <span className="il-card-label">Цепь якорная 585</span>
+      <div className="il-card-big">8,6 г</div>
       <div className="il-card-row">
-        <SbpBadge />
-        <span className="il-card-badge">за секунды</span>
+        <span className="il-card-badge">из сети скупки</span>
       </div>
       <ul className="il-card-checks">
-        <li><span className="il-card-check">{Ico.check}</span> По номеру телефона, без реквизитов</li>
-        <li><span className="il-card-check">{Ico.check}</span> Сразу доступно для покупки золота</li>
+        <li><span className="il-card-check">{Ico.check}</span> Выкуплено в отделении Reaktivo</li>
+        <li><span className="il-card-check">{Ico.check}</span> Проба, клеймо и бирка</li>
       </ul>
       <div className="il-card-foot">
-        <SbpBadge className="il-sbp--compact" />
-        <span>моментальное зачисление</span>
+        <span>Конкретное изделие</span>
+        <span>с пробой и биркой</span>
       </div>
     </>
   );
 }
 
 function DeckDealCard({ quote }) {
-  const total = quote?.goldRubPerGram ? quote.goldRubPerGram * 10 : null;
+  const total = quote?.goldRubPerGram ? Math.round(quote.goldRubPerGram * 0.585 * 4.2) : null;
   return (
     <>
       <div className="il-card-top">
-        <span className="il-card-brand">Сделка</span>
-        <span className="il-card-live il-card-live--ok"><i />исполнена</span>
+        <span className="il-card-brand">Оплата</span>
+        <span className="il-card-live il-card-live--ok"><i />за изделие</span>
       </div>
-      <span className="il-card-label">Покупка 10 г</span>
+      <span className="il-card-label">Кольцо 585 · 4,2 г</span>
       <div className="il-card-big">{total ? formatMoney(total) : '· · ·'}</div>
       <ul className="il-card-checks">
-        <li><span className="il-card-check">{Ico.check}</span> Курс зафиксирован в моменте</li>
-        <li><span className="il-card-check">{Ico.check}</span> Комиссия показана до сделки</li>
-        <li><span className="il-card-check">{Ico.check}</span> Граммы зачислены на счёт</li>
+        <li><span className="il-card-check">{Ico.check}</span> Цена изделия до оплаты</li>
+        <li><span className="il-card-check">{Ico.check}</span> Карта или СБП</li>
+        <li><span className="il-card-check">{Ico.check}</span> Оплата только изделия</li>
       </ul>
       <div className="il-card-foot">
-        <span>Время сделки</span>
-        <span>меньше минуты</span>
+        <span>Заказ</span>
+        <span>в кабинете</span>
       </div>
     </>
   );
@@ -532,27 +497,27 @@ function DeckWithdrawCard() {
   return (
     <>
       <div className="il-card-top">
-        <span className="il-card-brand">Вывод средств</span>
-        <span className="il-card-live il-card-live--ok"><i />исполнен</span>
+        <span className="il-card-brand">Скупка</span>
+        <span className="il-card-live il-card-live--ok"><i />выплата</span>
       </div>
-      <span className="il-card-label">На карту любого банка</span>
-      <div className="il-card-big">150 000 ₽</div>
+      <span className="il-card-label">Продажа изделия нам</span>
+      <div className="il-card-big">наличные / карта</div>
       <ul className="il-card-checks">
-        <li><span className="il-card-check">{Ico.check}</span> Заявка в один клик</li>
-        <li><span className="il-card-check">{Ico.check}</span> После продажи золота по курсу</li>
-        <li><span className="il-card-check">{Ico.check}</span> Без скрытых удержаний</li>
+        <li><span className="il-card-check">{Ico.check}</span> Оценка в отделении</li>
+        <li><span className="il-card-check">{Ico.check}</span> Договор скупки</li>
+        <li><span className="il-card-check">{Ico.check}</span> История в кабинете</li>
       </ul>
       <div className="il-card-foot">
-        <span>Вывод</span>
-        <span>на вашу карту</span>
+        <span>Reaktivo.ru</span>
+        <span>сеть скупки</span>
       </div>
     </>
   );
 }
 
-function HeroDeck({ quote, growth }) {
+function HeroDeck({ quote }) {
   const cards = [
-    <DeckPortfolioCard quote={quote} growth={growth} key="p" />,
+    <DeckPortfolioCard quote={quote} key="p" />,
     <DeckPriceCard quote={quote} key="q" />,
     <DeckTopupCard key="t" />,
     <DeckDealCard quote={quote} key="d" />,
@@ -636,8 +601,8 @@ function HeroDeck({ quote, growth }) {
 /* ═══════════════ Hero-заголовок ═══════════════ */
 
 const TITLE_WORDS = [
-  { t: 'Настоящее' }, { t: 'золото', gold: true }, { t: 'в' }, { t: 'вашем' }, { t: 'портфеле' },
-  { t: '—' }, { t: 'от' }, { t: '1' }, { t: 'грамма' },
+  { t: 'Ювелирные' }, { t: 'изделия', gold: true }, { t: 'с' }, { t: 'пробой' },
+  { t: 'и' }, { t: 'клеймом' },
 ];
 
 function HeroTitle() {
@@ -718,9 +683,10 @@ function PreviewClocks() {
   );
 }
 
-function DashboardPreview({ chartData, quote }) {
+function DashboardPreview() {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-8% 0px' });
+  void inView;
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.98', 'start 0.4'] });
   const rotateX = useTransform(scrollYProgress, [0, 1], [16, 0]);
   const y = useTransform(scrollYProgress, [0, 1], [70, 0]);
@@ -746,38 +712,23 @@ function DashboardPreview({ chartData, quote }) {
           <div className="il-preview-main">
             <div className="il-preview-kpis">
               <div className="il-preview-kpi">
-                <span className="il-preview-kpi-label">Портфель</span>
-                <span className="il-preview-kpi-val">128,3500 г</span>
+                <span className="il-preview-kpi-label">Заказы</span>
+                <span className="il-preview-kpi-val">2 изделия</span>
               </div>
               <div className="il-preview-kpi">
-                <span className="il-preview-kpi-label">Объём средств</span>
-                <span className="il-preview-kpi-val">{quote?.goldRubPerGram ? formatMoney(128.35 * quote.goldRubPerGram) : '—'}</span>
+                <span className="il-preview-kpi-label">Скупка</span>
+                <span className="il-preview-kpi-val">3 продажи</span>
               </div>
               <div className="il-preview-kpi il-preview-kpi--pos">
-                <span className="il-preview-kpi-label">Доход</span>
-                <span className="il-preview-kpi-val">+18,4%</span>
+                <span className="il-preview-kpi-label">Статус</span>
+                <span className="il-preview-kpi-val">оплачено</span>
               </div>
             </div>
             <PreviewClocks />
-            <div className="il-preview-chart">
-              {inView && chartData.length > 1 && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 6, right: 4, left: 4, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="ilPrevFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <Area type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2} fill="url(#ilPrevFill)" dot={false} animationDuration={1600} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
-            </div>
             <div className="il-preview-rows" aria-hidden>
-              <div className="il-preview-row"><span className="is-buy">{withSbp('Пополнение · СБП')}</span><span>зачислено моментально</span></div>
-              <div className="il-preview-row"><span className="is-buy">Покупка · 5 г</span><span>курс зафиксирован</span></div>
-              <div className="il-preview-row"><span className="is-sell">Вывод · на карту</span><span>после продажи золота</span></div>
+              <div className="il-preview-row"><span className="is-buy">Заказ · кольцо 585</span><span>оплачено</span></div>
+              <div className="il-preview-row"><span className="is-buy">Заказ · цепь 585</span><span>ожидает выдачи</span></div>
+              <div className="il-preview-row"><span className="is-sell">Скупка · кольцо</span><span>выплата в отделении</span></div>
             </div>
           </div>
         </div>
@@ -788,7 +739,7 @@ function DashboardPreview({ chartData, quote }) {
         animate={{ y: [0, -14, 0] }}
         transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
       >
-        +5,0000 г
+        Кольцо 585
       </motion.span>
       <motion.span
         className="il-preview-chip il-preview-chip--2"
@@ -802,7 +753,7 @@ function DashboardPreview({ chartData, quote }) {
         animate={{ y: [0, -10, 0] }}
         transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
       >
-        Вывод на карту
+        Оплата изделия
       </motion.span>
     </div>
   );
@@ -838,7 +789,6 @@ function FaqItem({ item, open, onToggle }) {
 
 export function InvestLanding() {
   const [quote, setQuote] = useState(null);
-  const [history, setHistory] = useState(null);
   const [openFaq, setOpenFaq] = useState(-1);
   const [scrolled, setScrolled] = useState(false);
   // Если пользователь уже в кабинете — в шапке фамилия с инициалами вместо «Войти»
@@ -846,8 +796,6 @@ export function InvestLanding() {
   const [menuOpen, setMenuOpen] = useState(false);
   const lenisRef = useRef(null);
   const heroRef = useRef(null);
-  const chartBoxRef = useRef(null);
-  const chartInView = useInView(chartBoxRef, { once: true, margin: '-12% 0px' });
 
   const { scrollY, scrollYProgress } = useScroll();
   useMotionValueEvent(scrollY, 'change', (v) => setScrolled(v > 16));
@@ -930,7 +878,7 @@ export function InvestLanding() {
   }, [menuOpen]);
 
   useEffect(() => {
-    document.title = 'REAKTIVO.PRO — покупка золота онлайн от 1 грамма';
+    document.title = 'REAKTIVO.PRO — ювелирные изделия с пробой и клеймом';
     let meta = document.querySelector('meta[name="description"]');
     if (!meta) {
       meta = document.createElement('meta');
@@ -939,37 +887,15 @@ export function InvestLanding() {
     }
     meta.setAttribute(
       'content',
-      'Reaktivo — покупка золота онлайн от 1 грамма по биржевому курсу: пополнение через СБП, вывод на карту, комиссия видна до сделки, калькулятор выгоды по курсу ЦБ РФ.'
+      'Reaktivo — интернет-магазин ювелирных изделий из сети скупки. Клеймо, именник, бирка, ГИИС ДМДК. Оплата конкретного изделия.'
     );
   }, []);
 
   useEffect(() => {
     let alive = true;
     clientApi.buybackQuote('moex').then((q) => { if (alive) setQuote(q); }).catch(() => {});
-    fintechApi.cbrGoldHistory().then((out) => { if (alive) setHistory(out.points || []); }).catch(() => { if (alive) setHistory([]); });
     return () => { alive = false; };
   }, []);
-
-  const growth = useMemo(() => {
-    if (!history?.length) return null;
-    const first = history[0];
-    const last = history[history.length - 1];
-    if (!first?.price || !last?.price) return null;
-    return { first, last, multiple: last.price / first.price, years: last.year - first.year };
-  }, [history]);
-
-  const growth5y = useMemo(() => {
-    if (!history?.length) return null;
-    const last = history[history.length - 1];
-    const base = [...history].reverse().find((p) => p.year <= last.year - 5);
-    if (!base?.price || !last?.price) return null;
-    return ((last.price / base.price) - 1) * 100;
-  }, [history]);
-
-  const chartData = useMemo(() => {
-    if (!history?.length) return [];
-    return history.map((p) => ({ year: String(p.year), price: p.price }));
-  }, [history]);
 
   return (
     <div className="il-root">
@@ -983,12 +909,11 @@ export function InvestLanding() {
             <span className="il-logo-text">REAKTIVO<span>.PRO</span></span>
           </a>
           <nav className="il-nav" aria-label="Основная навигация">
+            <a href="#shop" className="il-nav-link" onClick={(e) => goTo(e, '#shop')}>Витрина</a>
             <a href="#how" className="il-nav-link" onClick={(e) => goTo(e, '#how')}>Как это работает</a>
             <a href="#about" className="il-nav-link" onClick={(e) => goTo(e, '#about')}>О компании</a>
             <a href="#partners" className="il-nav-link" onClick={(e) => goTo(e, '#partners')}>Партнёрам</a>
-            <a href="#calc" className="il-nav-link" onClick={(e) => goTo(e, '#calc')}>Калькулятор</a>
-            <a href="#market" className="il-nav-link" onClick={(e) => goTo(e, '#market')}>Динамика</a>
-            <a href="#faq" className="il-nav-link" onClick={(e) => goTo(e, '#faq')}>FAQ</a>
+            <a href="#faq" className="il-nav-link" onClick={(e) => goTo(e, '#faq')}>Отвечаем честно</a>
             <a href="#contacts" className="il-nav-link" onClick={(e) => goTo(e, '#contacts')}>Контакты</a>
           </nav>
           <div className="il-header-actions">
@@ -1013,7 +938,7 @@ export function InvestLanding() {
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.97 }}
             >
-              Купить золото
+              Купить изделие
             </motion.a>
             <button
               type="button"
@@ -1056,12 +981,11 @@ export function InvestLanding() {
                 <button type="button" className="il-menu-close" aria-label="Закрыть" onClick={() => setMenuOpen(false)}>×</button>
               </div>
               <nav className="il-menu-nav">
+                <a href="#shop" onClick={(e) => goTo(e, '#shop')}>Витрина</a>
                 <a href="#how" onClick={(e) => goTo(e, '#how')}>Как это работает</a>
                 <a href="#about" onClick={(e) => goTo(e, '#about')}>О компании</a>
                 <a href="#partners" onClick={(e) => goTo(e, '#partners')}>Партнёрам</a>
-                <a href="#calc" onClick={(e) => goTo(e, '#calc')}>Калькулятор</a>
-                <a href="#market" onClick={(e) => goTo(e, '#market')}>Динамика</a>
-                <a href="#faq" onClick={(e) => goTo(e, '#faq')}>FAQ</a>
+                <a href="#faq" onClick={(e) => goTo(e, '#faq')}>Отвечаем честно</a>
                 <a href="#contacts" onClick={(e) => goTo(e, '#contacts')}>Контакты</a>
               </nav>
               <div className="il-menu-actions">
@@ -1069,7 +993,7 @@ export function InvestLanding() {
                   {headerUser || 'Войти'}
                 </a>
                 <a href="/kabinet" className="il-btn il-btn--primary" onClick={() => setMenuOpen(false)}>
-                  Купить золото
+                  Купить изделие
                 </a>
               </div>
               <div className="il-menu-contacts">
@@ -1092,54 +1016,48 @@ export function InvestLanding() {
           <motion.div className="il-hero-inner" style={{ opacity: heroFade }}>
             <div className="il-hero-copy">
               <motion.span className="il-badge" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}>
-                <i className="il-badge-dot" /> Купить золото онлайн · Reaktivo
+                <i className="il-badge-dot" /> Интернет-магазин ювелирных изделий
               </motion.span>
 
               <HeroTitle />
 
               <motion.p className="il-hero-sub" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.5, ease: EASE }}>
-                Купить золото онлайн с Reaktivo — ваш агент по покупке: биржевой курс в реальном времени,
-                комиссия видна до сделки, {withSbp('пополнение через СБП')} и вывод на карту. Без визитов в офис.
+                Витрина конкретных изделий: кольца, цепи, серьги, браслеты и подвески из сети скупки.
+                Проба, клеймо, именник, бирка. Оплата только выбранного изделия — без свободного пополнения и вывода денег.
               </motion.p>
 
               <motion.div className="il-hero-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.64, ease: EASE }}>
                 <Magnetic>
                   <motion.a href="/kabinet" className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.96 }}>
-                    Купить золото
+                    Купить изделие
                     <span className="il-btn-arrow" aria-hidden>→</span>
                   </motion.a>
                 </Magnetic>
-                <motion.a href="#calc" className="il-btn il-btn--outline il-btn--lg" onClick={(e) => goTo(e, '#calc')} whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }}>
-                  Рассчитать выгоду
+                <motion.a href="#shop" className="il-btn il-btn--outline il-btn--lg" onClick={(e) => goTo(e, '#shop')} whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }}>
+                  Открыть витрину
                 </motion.a>
               </motion.div>
 
               <motion.div className="il-hero-stats" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.78, ease: EASE }}>
                 <div className="il-hero-stat">
-                  <AnimatedNumber to={growth ? growth.multiple : null} format={formatGrowthMultiple} className="il-hero-stat-val" />
-                  <span className="il-hero-stat-label">
-                    {growth ? formatGrowthTimesRu(growth.multiple) : 'в ··· раза'}
-                    {' · '}
-                    {growth ? formatGrowthPct(growth.multiple) : '+···%'}
-                    {' с '}
-                    {growth ? growth.first.year : '2000'}
-                  </span>
+                  <span className="il-hero-stat-val">585 · 750 · 900</span>
+                  <span className="il-hero-stat-label">пробы изделий</span>
                 </div>
                 <div className="il-hero-stat-sep" aria-hidden />
                 <div className="il-hero-stat">
-                  <AnimatedNumber to={quote?.goldRubPerGram ?? null} format={(v) => `${Math.round(v).toLocaleString('ru-RU')} ₽`} className="il-hero-stat-val" />
-                  <span className="il-hero-stat-label"><i className="il-live-dot" /> за грамм сейчас</span>
+                  <span className="il-hero-stat-val">ГИИС</span>
+                  <span className="il-hero-stat-label">клеймо, именник, бирка</span>
                 </div>
                 <div className="il-hero-stat-sep" aria-hidden />
                 <div className="il-hero-stat">
-                  <span className="il-hero-stat-val">1 г</span>
-                  <span className="il-hero-stat-label">минимальная покупка</span>
+                  <span className="il-hero-stat-val">витрина</span>
+                  <span className="il-hero-stat-label">украшения с пробой</span>
                 </div>
               </motion.div>
             </div>
 
             <motion.div style={{ y: deckY }}>
-              <HeroDeck quote={quote} growth={growth} />
+              <HeroDeck quote={quote} />
             </motion.div>
           </motion.div>
         </section>
@@ -1158,110 +1076,26 @@ export function InvestLanding() {
           <div className="il-section-inner">
             <div className="il-section-head">
               <Reveal><span className="il-pill">Личный кабинет</span></Reveal>
-              <Reveal delay={0.08}><h2 className="il-h2">Весь портфель — <span className="il-accent-text">на одном экране</span></h2></Reveal>
-              <Reveal delay={0.16}><p className="il-p">Портфель, объём средств и доход, мировые часы, живой график и история операций — без лишних кликов.</p></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Кабинет: <span className="il-accent-text">заказы и скупка</span></h2></Reveal>
+              <Reveal delay={0.16}><p className="il-p">В кабинете только заказы ювелирных изделий и ваши продажи в режиме скупки.</p></Reveal>
             </div>
-            <DashboardPreview chartData={chartData} quote={quote} />
+            <DashboardPreview />
           </div>
         </section>
 
         {/* ── Заявление ── */}
         <Statement />
 
-        {/* ── Динамика рынка ── */}
-        <section className="il-section" id="market">
+        {/* ── Витрина ── */}
+        <section className="il-section il-section--shop" id="shop">
           <div className="il-section-inner">
-            <div className="il-market-grid">
-              <div className="il-market-copy">
-                <Reveal><span className="il-pill">Динамика рынка</span></Reveal>
-                <Reveal delay={0.08}>
-                  <h2 className="il-h2 il-h2--market">
-                    <AnimatedNumber to={growth ? growth.multiple : null} format={formatGrowthMultiple} className="il-market-mult-big" />
-                    <span className="il-market-mult-cap">
-                      {growth ? formatGrowthTimesRu(growth.multiple) : 'в ··· раза'} с {growth ? growth.first.year : 2000} года
-                    </span>
-                    <span className="il-market-mult-pct">
-                      это {growth ? formatGrowthPct(growth.multiple) : '+···%'} роста цены
-                    </span>
-                  </h2>
-                </Reveal>
-                <Reveal delay={0.14}>
-                  <p className="il-market-slogan">Золото дорожает — <span className="il-accent-text">даже когда всё падает.</span></p>
-                </Reveal>
-                <Reveal delay={0.2}>
-                  <p className="il-p">
-                    По официальным данным Банка России золото показывает устойчивый рост на длинном горизонте —
-                    опережая инфляцию и большинство привычных способов сбережений. Поэтому всё больше людей решают купить золото как защиту капитала.
-                  </p>
-                </Reveal>
-                {growth && (
-                  <Reveal delay={0.26}>
-                    <div className="il-market-stats">
-                      <div className="il-market-stat">
-                        <span className="il-stat-label">{growth.first.year} год</span>
-                        <span className="il-stat-val">{Math.round(growth.first.price).toLocaleString('ru-RU')} ₽/г</span>
-                      </div>
-                      <span className="il-market-arrow" aria-hidden>→</span>
-                      <div className="il-market-stat">
-                        <span className="il-stat-label">{growth.last.year} год</span>
-                        <AnimatedNumber to={growth.last.price} format={(v) => `${Math.round(v).toLocaleString('ru-RU')} ₽/г`} className="il-stat-val il-accent-text" />
-                      </div>
-                    </div>
-                  </Reveal>
-                )}
-                <Reveal delay={0.32}>
-                  <div className="il-market-chips">
-                    {growth5y != null && (
-                      <span className="il-market-chip">+{Math.round(growth5y).toLocaleString('ru-RU')}% за 5 лет</span>
-                    )}
-                    <span className="il-market-chip">источник — ЦБ РФ</span>
-                    <a href="/kabinet" className="il-market-chip il-market-chip--cta">Купить золото →</a>
-                  </div>
-                </Reveal>
-              </div>
-              <motion.div
-                className="il-market-chart"
-                ref={chartBoxRef}
-                initial={{ opacity: 0, y: 48, scale: 0.96 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                viewport={{ once: true, margin: '-12% 0px' }}
-                transition={{ duration: 1, ease: EASE }}
-              >
-                {chartInView && chartData.length > 1 ? (
-                  <ResponsiveContainer width="100%" height={290}>
-                    <AreaChart data={chartData} margin={{ top: 12, right: 6, left: 6, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="ilMarketFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} />
-                          <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="year" tick={{ fill: 'var(--text-dim)', fontSize: 12 }} axisLine={false} tickLine={false} minTickGap={32} />
-                      <Tooltip
-                        contentStyle={{ background: 'var(--bg-panel-solid)', border: '1px solid var(--stroke)', borderRadius: 12, fontSize: 12, color: 'var(--text)' }}
-                        formatter={(v) => [`${Number(v).toLocaleString('ru-RU')} ₽/г`, 'ЦБ РФ']}
-                      />
-                      <Area type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2.5} fill="url(#ilMarketFill)" dot={false} animationDuration={1800} animationEasing="ease-out" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="il-market-loading">Загружаем историю ЦБ…</div>
-                )}
-              </motion.div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Калькулятор ── */}
-        <section className="il-section il-section--calc" id="calc">
-          <div className="il-section-inner il-section-inner--narrow">
             <div className="il-section-head">
-              <Reveal><span className="il-pill">Бесплатный инструмент</span></Reveal>
-              <Reveal delay={0.08}><h2 className="il-h2">Сколько бы вы <span className="il-accent-text">заработали?</span></h2></Reveal>
-              <Reveal delay={0.16}><p className="il-p">Купить золото онлайн от 1 грамма. Задайте сумму и год — калькулятор посчитает результат по официальному курсу ЦБ РФ. Без регистрации.</p></Reveal>
+              <Reveal><span className="il-pill">Витрина</span></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Ювелирные изделия, <span className="il-accent-text">доступные к покупке</span></h2></Reveal>
+              <Reveal delay={0.16}><p className="il-p">Кольца, цепи, серьги, браслеты и подвески, выкупленные в отделениях скупки Reaktivo. У каждой позиции — проба, вес, клеймо и цена. Оплата только выбранного изделия. Часть позиций появится позже.</p></Reveal>
             </div>
-            <Reveal delay={0.1} y={48}>
-              <MissedBenefitCalc />
+            <Reveal delay={0.08} y={28}>
+              <JewelryShowcase quote={quote} />
             </Reveal>
           </div>
         </section>
@@ -1271,7 +1105,7 @@ export function InvestLanding() {
           <div className="il-section-inner">
             <div className="il-section-head">
               <Reveal><span className="il-pill">Как это работает</span></Reveal>
-              <Reveal delay={0.08}><h2 className="il-h2">Четыре шага — купить золото онлайн</h2></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Четыре шага — от витрины до изделия</h2></Reveal>
             </div>
             <motion.div className="il-steps" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-10% 0px' }}>
               {STEPS.map((s, i) => (
@@ -1288,26 +1122,26 @@ export function InvestLanding() {
           </div>
         </section>
 
-        {/* ── СБП: пополнение и вывод ── */}
+        {/* ── Оплата изделия ── */}
         <section className="il-section il-section--sbp">
           <div className="il-section-inner">
             <div className="il-sbp-grid">
               <div className="il-sbp-copy">
-                <Reveal><span className="il-pill">Деньги — реактивно быстро</span></Reveal>
+                <Reveal><span className="il-pill">Оплата</span></Reveal>
                 <Reveal delay={0.08}>
-                  <h2 className="il-h2">Пополнение через <SbpBadge className="il-sbp--heading" /><br />Вывод — на карту.</h2>
+                  <h2 className="il-h2">Карта или <SbpBadge className="il-sbp--heading" /><br />только за выбранное изделие.</h2>
                 </Reveal>
                 <Reveal delay={0.16}>
                   <ul className="il-sbp-list">
-                    <li><span className="il-card-check">{Ico.check}</span> Пополнение по номеру телефона — без реквизитов</li>
-                    <li><span className="il-card-check">{Ico.check}</span> Деньги зачисляются моментально и сразу доступны</li>
-                    <li><span className="il-card-check">{Ico.check}</span> Вывод — на карту любого банка</li>
-                    <li><span className="il-card-check">{Ico.check}</span> Комиссии видны заранее, до подтверждения</li>
+                    <li><span className="il-card-check">{Ico.check}</span> Цена изделия видна до оплаты</li>
+                    <li><span className="il-card-check">{Ico.check}</span> Карта или СБП — без реквизитов вручную</li>
+                    <li><span className="il-card-check">{Ico.check}</span> Заказ появляется в кабинете после оплаты</li>
+                    <li><span className="il-card-check">{Ico.check}</span> Свободного пополнения и вывода денег нет</li>
                   </ul>
                 </Reveal>
                 <Reveal delay={0.24}>
-                  <motion.a href="/kabinet" className="il-btn il-btn--primary" whileTap={{ scale: 0.96 }}>
-                    Пополнить кошелёк
+                  <motion.a href="#shop" className="il-btn il-btn--primary" onClick={(e) => goTo(e, '#shop')} whileTap={{ scale: 0.96 }}>
+                    Выбрать изделие
                     <span className="il-btn-arrow" aria-hidden>→</span>
                   </motion.a>
                 </Reveal>
@@ -1315,28 +1149,20 @@ export function InvestLanding() {
               <Reveal delay={0.12} y={48} className="il-sbp-visual-wrap">
                 <div className="il-sbp-sheet">
                   <div className="il-sbp-sheet-head">
-                    <span>Пополнение кошелька</span>
+                    <span>Оплата изделия</span>
                     <SbpBadge />
                   </div>
-                  <div className="il-sbp-sheet-amount">100 000 ₽</div>
+                  <div className="il-sbp-sheet-amount">Кольцо обручальное · 585</div>
                   <div className="il-sbp-sheet-row">
                     <span>Способ</span>
-                    <b className="il-sbp-method">{withSbp('СБП')} по номеру телефона</b>
+                    <b className="il-sbp-method">{withSbp('СБП')} или карта</b>
                   </div>
                   <div className="il-sbp-sheet-row">
-                    <span>Зачисление</span>
-                    <b className="il-sbp-ok">моментально</b>
+                    <span>Назначение</span>
+                    <b className="il-sbp-ok">конкретное изделие</b>
                   </div>
-                  <div className="il-sbp-sheet-btn" aria-hidden>Подтвердить</div>
+                  <div className="il-sbp-sheet-btn" aria-hidden>Оплатить</div>
                 </div>
-                <motion.div
-                  className="il-sbp-mini"
-                  animate={{ y: [0, -12, 0] }}
-                  transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
-                >
-                  <span>Вывод на карту</span>
-                  <b>150 000 ₽ ✓</b>
-                </motion.div>
               </Reveal>
             </div>
           </div>
@@ -1347,7 +1173,7 @@ export function InvestLanding() {
           <div className="il-section-inner">
             <div className="il-section-head">
               <Reveal><span className="il-pill">Почему Reaktivo</span></Reveal>
-              <Reveal delay={0.08}><h2 className="il-h2">Сделано так, как должен<br />работать финтех</h2></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Сделано так, как должен<br />работать ювелирный магазин</h2></Reveal>
             </div>
             <motion.div className="il-cards" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
               {ADVANTAGES.map((a) => (
@@ -1371,31 +1197,29 @@ export function InvestLanding() {
             <div className="il-about-grid">
               <Reveal delay={0.1} className="il-about-text">
                 <p>
-                  Reaktivo развивает формат неклассической скупки золота. Мы создаём условия, при которых клиенты
-                  свободно управляют своими активами в золоте: не только продают их, чтобы быстро получить ликвидность,
-                  но и покупают — чтобы формировать доход, используя потенциал золота.
+                  Reaktivo — сеть скупки и интернет-магазин ювелирных изделий. Клиенты продают нам изделия в отделениях
+                  и заказывают на сайте конкретные позиции с витрины: кольца, цепи, серьги, браслеты и подвески, выкупленные в скупке.
                 </p>
                 <p>
-                  Клиенты Reaktivo могут быстро получить деньги за ненужное золото — и при этом накапливать золото онлайн:
-                  видеть портфель в реальном времени, докупать и продавать по необходимости.
+                  Каждое изделие — с пробой, клеймом, именником и биркой, в учёте ГИИС ДМДК. Оплата на сайте идёт только
+                  за выбранную позицию. В кабинете видны заказы и история продаж в режиме скупки.
                 </p>
                 <p>
-                  Мы строим не просто сеть пунктов покупки, а экосистему, в которой золото — быстрый, прозрачный
-                  и удобный финансовый инструмент.
+                  Мы строим удобную сеть пунктов покупки и витрину изделий, которые можно выбрать и оплатить дистанционно.
                 </p>
               </Reveal>
               <motion.div className="il-products" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
                 <motion.a className="il-product" href="https://reaktivo.ru" target="_blank" rel="noopener noreferrer" variants={staggerChild} whileHover={{ y: -3 }}>
                   <span className="il-product-tag">Reaktivo.ru</span>
-                  <h3 className="il-product-title">Продать золото</h3>
+                  <h3 className="il-product-title">Продать изделие</h3>
                   <p className="il-product-text">Скупка золота в офисах и с доставкой — деньги сразу.</p>
                   <span className="il-product-link">Перейти на Reaktivo.ru →</span>
                 </motion.a>
                 <motion.a className="il-product il-product--main" href="/kabinet" variants={staggerChild} whileHover={{ y: -3 }}>
                   <span className="il-product-tag">Reaktivo.pro — вы здесь</span>
-                  <h3 className="il-product-title">Купить золото</h3>
-                  <p className="il-product-text">От 1 грамма онлайн. Reaktivo — ваш агент и покупает золото по выгодному курсу.</p>
-                  <span className="il-product-link">Купить золото →</span>
+                  <h3 className="il-product-title">Ювелирные изделия</h3>
+                  <p className="il-product-text">Витрина украшений из сети скупки. Оплата конкретного изделия.</p>
+                  <span className="il-product-link">Открыть витрину →</span>
                 </motion.a>
                 <motion.a className="il-product" href="https://t.me/Reaktivoai" target="_blank" rel="noopener noreferrer" variants={staggerChild} whileHover={{ y: -3 }}>
                   <span className="il-product-tag">Telegram</span>
@@ -1450,26 +1274,20 @@ export function InvestLanding() {
           <div className="il-section-inner">
             <motion.div className="il-kpis" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-10% 0px' }}>
               <motion.div className="il-kpi" variants={staggerChild}>
-                <AnimatedNumber to={growth ? growth.multiple : null} format={formatGrowthMultiple} className="il-kpi-val" />
-                <span className="il-kpi-label">
-                  {growth ? formatGrowthTimesRu(growth.multiple) : 'в ··· раза'}
-                  {' · '}
-                  {growth ? formatGrowthPct(growth.multiple) : '+···%'}
-                  {' с '}
-                  {growth ? growth.first.year : '2000'}
-                </span>
+                <span className="il-kpi-val">585 · 750 · 900</span>
+                <span className="il-kpi-label">пробы ювелирных изделий</span>
               </motion.div>
               <motion.div className="il-kpi" variants={staggerChild}>
-                <span className="il-kpi-val">0,0001 г</span>
-                <span className="il-kpi-label">точность учёта портфеля</span>
+                <span className="il-kpi-val">ГИИС</span>
+                <span className="il-kpi-label">клеймо, именник и бирка</span>
               </motion.div>
               <motion.div className="il-kpi" variants={staggerChild}>
                 <span className="il-kpi-val">2 мин</span>
-                <span className="il-kpi-label">от входа до первой покупки</span>
+                <span className="il-kpi-label">от входа до заказа изделия</span>
               </motion.div>
               <motion.div className="il-kpi" variants={staggerChild}>
                 <span className="il-kpi-val">24/7</span>
-                <span className="il-kpi-label">кабинет и котировки онлайн</span>
+                <span className="il-kpi-label">витрина и кабинет заказов</span>
               </motion.div>
             </motion.div>
           </div>
@@ -1553,7 +1371,7 @@ export function InvestLanding() {
         <section className="il-section" id="faq">
           <div className="il-section-inner il-section-inner--narrow">
             <div className="il-section-head">
-              <Reveal><span className="il-pill">Частые вопросы</span></Reveal>
+              <Reveal><span className="il-pill">Всё о продаже ювелирных изделий</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Отвечаем честно</h2></Reveal>
             </div>
             <motion.div className="il-faq" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-6% 0px' }}>
@@ -1587,18 +1405,18 @@ export function InvestLanding() {
           <div className="il-section-inner">
             <Reveal y={56}>
               <div className="il-cta-panel">
-                <h2 className="il-cta-title">Купить золото сегодня —<br />это займёт две минуты</h2>
-                <p className="il-cta-sub">Вход по номеру телефона. Без анкет и визитов в офис.</p>
+                <h2 className="il-cta-title">Выберите изделие сегодня —<br />это займёт две минуты</h2>
+                <p className="il-cta-sub">Вход по номеру телефона. Оплата конкретного изделия с витрины.</p>
                 <Magnetic>
                   <motion.a href="/kabinet" className="il-btn il-btn--inverse il-btn--lg" whileTap={{ scale: 0.96 }}>
-                    Купить золото
+                    Купить изделие
                     <span className="il-btn-arrow" aria-hidden>→</span>
                   </motion.a>
                 </Magnetic>
               </div>
             </Reveal>
             <p className="il-disclaimer">
-              Материалы носят иллюстративный характер и не являются индивидуальной инвестиционной рекомендацией или предложением по покупке ценных бумаг. Прошлый рост цены не гарантирует будущий результат.
+              Reaktivo продаёт конкретные ювелирные изделия с пробой, клеймом и биркой. Это не предложение банковского металла и не рекомендация по ценным бумагам.
             </p>
           </div>
         </section>
@@ -1612,23 +1430,22 @@ export function InvestLanding() {
                 <img className="il-logo-mark" src="/logo-reaktivo-mark.svg" alt="" width="44" height="44" />
                 <span className="il-logo-text">REAKTIVO<span>.PRO</span></span>
               </span>
-              <p>Покупка золота онлайн от 1 грамма.<br />Официальные котировки, прозрачные комиссии.</p>
+              <p>Интернет-магазин ювелирных изделий.<br />Украшения из сети скупки с пробой, клеймом и биркой.</p>
             </div>
             <div className="il-footer-col">
               <span className="il-footer-col-title">Разделы</span>
+              <a href="#shop" className="il-nav-link" onClick={(e) => goTo(e, '#shop')}>Витрина</a>
               <a href="#how" className="il-nav-link" onClick={(e) => goTo(e, '#how')}>Как это работает</a>
               <a href="#about" className="il-nav-link" onClick={(e) => goTo(e, '#about')}>О компании</a>
               <a href="#partners" className="il-nav-link" onClick={(e) => goTo(e, '#partners')}>Партнёрам</a>
-              <a href="#calc" className="il-nav-link" onClick={(e) => goTo(e, '#calc')}>Калькулятор выгоды</a>
-              <a href="#market" className="il-nav-link" onClick={(e) => goTo(e, '#market')}>Динамика рынка</a>
               <a href="#license" className="il-nav-link" onClick={(e) => goTo(e, '#license')}>Документы и лицензии</a>
-              <a href="#faq" className="il-nav-link" onClick={(e) => goTo(e, '#faq')}>FAQ</a>
+              <a href="#faq" className="il-nav-link" onClick={(e) => goTo(e, '#faq')}>Отвечаем честно</a>
               <a href="#contacts" className="il-nav-link" onClick={(e) => goTo(e, '#contacts')}>Контакты</a>
             </div>
             <div className="il-footer-col">
               <span className="il-footer-col-title">Продукты</span>
-              <a href="https://reaktivo.ru" className="il-nav-link" target="_blank" rel="noopener noreferrer">Продать золото — Reaktivo.ru</a>
-              <a href="/kabinet" className="il-nav-link">Купить золото — кабинет</a>
+              <a href="https://reaktivo.ru" className="il-nav-link" target="_blank" rel="noopener noreferrer">Скупка изделий — Reaktivo.ru</a>
+              <a href="/kabinet" className="il-nav-link">Витрина — кабинет</a>
               <a href="https://t.me/Reaktivoai" className="il-nav-link" target="_blank" rel="noopener noreferrer">Reaktivo Resale — Telegram</a>
             </div>
             <div className="il-footer-col" id="contacts">
@@ -1642,7 +1459,7 @@ export function InvestLanding() {
           <div className="il-footer-bottom">
             <span>© {new Date().getFullYear()} REAKTIVO.PRO</span>
             <a href="/privacy" className="il-footer-privacy">Политика персональных данных</a>
-            <span>Не является индивидуальной инвестиционной рекомендацией</span>
+            <span>ООО «СЭТ» · продажа ювелирных изделий</span>
           </div>
         </div>
       </footer>
@@ -2184,6 +2001,59 @@ const CSS = `
 .il-card-title { font-size: 1.04rem; font-weight: 800; margin: 0 0 9px; color: var(--text-strong); letter-spacing: -0.01em; }
 .il-card-text { font-size: 0.89rem; line-height: 1.6; color: var(--text-muted); margin: 0; }
 
+/* ── Витрина ── */
+.il-vitrine-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.il-vitrine-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 16px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--stroke);
+  background: var(--bg-panel-solid);
+  color: inherit;
+  text-decoration: none;
+  min-height: 220px;
+  transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+}
+.il-vitrine-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--stroke));
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -28px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.il-vitrine-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.il-vitrine-kind {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.il-vitrine-assay {
+  font-size: 0.78rem; font-weight: 800; color: var(--accent);
+}
+.il-vitrine-title { margin: 4px 0 0; font-size: 1.02rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-strong); }
+.il-vitrine-meta { margin: 0; font-size: 0.82rem; color: var(--text-muted); }
+.il-vitrine-origin { margin: 0; font-size: 0.78rem; line-height: 1.45; color: var(--text-dim); flex: 1; }
+.il-vitrine-foot {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 8px;
+}
+.il-vitrine-foot strong { font-size: 1.05rem; font-weight: 800; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.il-vitrine-foot span { font-size: 0.78rem; font-weight: 700; color: var(--accent); }
+.il-vitrine-card--soon {
+  pointer-events: none;
+  cursor: default;
+  opacity: 0.7;
+  border-style: dashed;
+  background: color-mix(in srgb, var(--bg-panel-solid) 82%, transparent);
+}
+.il-vitrine-card--soon:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--stroke);
+}
+
 /* ── О компании ── */
 .il-about-grid {
   display: grid;
@@ -2609,6 +2479,7 @@ html.il-lb-open body {
   .il-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .il-step-line { display: none; }
   .il-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .il-vitrine-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .il-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .il-license-grid { grid-template-columns: 1fr 1fr; }
   .il-license-qr-card { grid-column: 1 / -1; flex-direction: row; text-align: left; align-items: center; gap: 22px; }
@@ -2654,6 +2525,7 @@ html.il-lb-open body {
   .il-statement { padding: 84px 0 70px; }
   .il-steps { grid-template-columns: 1fr; }
   .il-cards { grid-template-columns: 1fr; }
+  .il-vitrine-grid { grid-template-columns: 1fr; }
   .il-sbp-mini { right: 0; bottom: -20px; }
   .il-preview-body { grid-template-columns: 1fr; }
   .il-preview-side { display: none; }

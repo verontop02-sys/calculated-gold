@@ -114,7 +114,10 @@ exports.apiProxy = onRequest(
     if (req.method === 'OPTIONS') {
       res.set('Access-Control-Allow-Origin', req.headers.origin || '*');
       res.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-      res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Device-Token');
+      res.set(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, X-Device-Token, apikey, X-Client-Info, X-Supabase-Api-Version, Prefer, Accept-Profile, Content-Profile'
+      );
       res.set('Access-Control-Max-Age', '86400');
       return res.status(204).send('');
     }
