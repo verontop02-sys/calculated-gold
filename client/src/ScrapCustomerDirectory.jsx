@@ -274,14 +274,16 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
                         Изм.
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className="btn-row-tool sc-dir-btn-del"
-                      disabled={deletingId != null}
-                      onClick={() => remove(c)}
-                    >
-                      {deletingId === c.id ? '…' : 'Уд.'}
-                    </button>
+                    {canManageDeals && (
+                      <button
+                        type="button"
+                        className="btn-row-tool sc-dir-btn-del"
+                        disabled={deletingId != null}
+                        onClick={() => remove(c)}
+                      >
+                        {deletingId === c.id ? '…' : 'Уд.'}
+                      </button>
+                    )}
                   </div>
                 </div>
                 {showDetail && !isEdit && (

@@ -867,7 +867,7 @@ async function authMiddleware(req, res, next) {
 
     await ensureProfileAndBootstrap(user.id);
     const rawRole = await loadProfileRole(user.id);
-    const metaRole = user.app_metadata?.role ?? user.user_metadata?.role ?? null;
+    const metaRole = metadataRoleFromUser(user);
     const emailBypass = hasPanelFullAccessByEmail(user);
 
     req.profileRoleRaw = rawRole;
@@ -885,6 +885,20 @@ async function authMiddleware(req, res, next) {
     if (isDev) console.warn('[auth]', e?.message || e);
     res.status(401).json({ error: 'Сессия недействительна' });
   }
+}
+
+/**
+ * Роль из метаданных токена — только app_metadata.
+ *
+ * user_metadata пользователь пишет сам своим же токеном (PUT /auth/v1/user), поэтому
+ * доверять ему нельзя: любой курьер или продавец мог одним вызовом updateUser({data:{role}})
+ * стать супер-админом и получить ручное пополнение баланса и модерацию выводов.
+ * app_metadata меняется только service_role, то есть нашим сервером.
+ *
+ * Основной источник роли — profiles.role; это лишь запасной путь, если профиль не подтянулся.
+ */
+function metadataRoleFromUser(user) {
+  return user?.app_metadata?.role ?? null;
 }
 
 /** Единый разбор роли из БД (пробелы, регистр, невидимые символы, типичные опечатки). */
@@ -940,7 +954,7 @@ async function requireUserManager(req, res, next) {
   if (req.isUserManager) return next();
   try {
     const raw = await loadProfileRole(req.user.id);
-    const meta = req.user?.app_metadata?.role ?? req.user?.user_metadata?.role ?? null;
+    const meta = metadataRoleFromUser(req.user);
     if (isUserManagerRole(raw) || isUserManagerRole(meta) || isSuperAdminRole(meta)) return next();
     return res.status(403).json({ error: 'Недостаточно прав' });
   } catch (e) {
@@ -953,7 +967,7 @@ async function requireSuperAdmin(req, res, next) {
   if (req.isSuperAdmin) return next();
   try {
     const raw = await loadProfileRole(req.user.id);
-    const meta = req.user?.app_metadata?.role ?? req.user?.user_metadata?.role ?? null;
+    const meta = metadataRoleFromUser(req.user);
     if (isSuperAdminRole(raw) || isSuperAdminRole(meta)) return next();
     return res.status(403).json({ error: 'Недостаточно прав' });
   } catch (e) {
@@ -965,7 +979,7 @@ async function requireSuperAdmin(req, res, next) {
 function resolveRequesterRoleFromReq(req) {
   if (req.isSuperAdmin) return 'super_admin';
   const raw = req.profileRoleRaw;
-  const meta = req.user?.app_metadata?.role ?? req.user?.user_metadata?.role ?? null;
+  const meta = metadataRoleFromUser(req.user);
   const rProf = normalizeRole(raw);
   const rMeta = normalizeRole(meta);
   if (isSuperAdminRole(raw) || isSuperAdminRole(meta)) return 'super_admin';
@@ -3209,6 +3223,11 @@ app.get(
   })
 );
 
+// Срок жизни ссылки на фото сделки. Ссылка лежит в rows сделки и должна открываться
+// столько же, сколько хранится сама сделка, поэтому срок длинный. В отличие от публичной
+// ссылки её нельзя угадать и по ней нельзя получить список остальных файлов.
+const DEAL_PHOTO_URL_TTL_SEC = 10 * 365 * 24 * 60 * 60;
+
 // Загрузить фото изделия для позиции сделки и сохранить URL в rows JSON
 app.post(
   '/api/deal-photos/upload',
@@ -3237,12 +3256,18 @@ app.post(
       .upload(fileName, buf, { contentType: mimeType || 'image/jpeg', upsert: true });
     if (upErr) throw new Error(`Ошибка загрузки фото: ${upErr.message}`);
 
-    const { data: urlData } = supabase.storage.from('deal-photos').getPublicUrl(fileName);
-    const photoUrl = urlData?.publicUrl || '';
+    // Бакет закрытый (миграция 20260822143000): вместо публичной ссылки подписанная.
+    // Публичная открывала фото любому и позволяла перечислить бакет целиком.
+    // Путь храним рядом со ссылкой, чтобы позже можно было перевыпустить её без загрузки заново.
+    const { data: urlData, error: signErr } = await supabase.storage
+      .from('deal-photos')
+      .createSignedUrl(fileName, DEAL_PHOTO_URL_TTL_SEC);
+    if (signErr) throw new Error(`Ошибка ссылки на фото: ${signErr.message}`);
+    const photoUrl = urlData?.signedUrl || '';
 
     const rows = Array.isArray(deal.rows) ? deal.rows : [];
     const updatedRows = rows.map((r, i) =>
-      i === (rowIdx ?? 0) ? { ...r, photoUrl } : r,
+      i === (rowIdx ?? 0) ? { ...r, photoUrl, photoPath: fileName } : r,
     );
     const { error: patchErr } = await supabase
       .from('scrap_deals')
@@ -3261,13 +3286,17 @@ app.get(
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
       return res.status(400).json({ error: 'Некорректный id' });
     }
-    const { data: deal, error: dErr } = await supabase
+    // Тот же скоуп, что у /detail: в PDF попадают паспорт и адрес клиента, поэтому
+    // курьер и продавец качают только свои сделки, а не любую по угаданному id.
+    const scope = await analyticsScopeFromRequest(req);
+    let dealQuery = supabase
       .from('scrap_deals')
       .select(
         'id, customer_id, contract_no, total_rub, seller_name, phone, "rows", appraiser_name, created_at'
       )
-      .eq('id', id)
-      .maybeSingle();
+      .eq('id', id);
+    if (!scope.viewerIsManager) dealQuery = dealQuery.eq('operator_id', scope.viewerUserId);
+    const { data: deal, error: dErr } = await dealQuery.maybeSingle();
     if (dErr) throw dErr;
     if (!deal) return res.status(404).json({ error: 'Сделка не найдена' });
 
@@ -3527,6 +3556,7 @@ app.get(
 
 app.delete(
   '/api/scrap-customers/:id',
+  requireSuperAdmin,
   asyncHandler(async (req, res) => {
     const id = String(req.params.id || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
