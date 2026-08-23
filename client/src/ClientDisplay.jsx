@@ -15,12 +15,26 @@ const ShrinkIcon = () => (
   </svg>
 );
 
+/** Метка Яндекс Карт — как на стойке «оставьте отзыв». */
+function YandexPin({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 64 86" aria-hidden="true">
+      <path
+        fill="#FC3F1D"
+        d="M32 0C15.4 0 2 13.8 2 30.8 2 54.2 32 86 32 86s30-31.8 30-55.2C62 13.8 48.6 0 32 0z"
+      />
+      <circle fill="#fff" cx="32" cy="30" r="13.5" />
+    </svg>
+  );
+}
+
 /**
  * Экран клиента (покупательский дисплей) — отдельная страница `/display`.
  *
  * Стоит на втором мониторе оператора или на отдельном планшете. По умолчанию —
- * заставка с логотипом REAKTIVO. Когда оператор нажимает «Показать клиенту»,
- * сюда прилетает готовый расчёт и крупно загорается зелёный экран с суммой выкупа.
+ * белая заставка «оставьте отзыв» с QR на Яндекс Карты. Когда оператор нажимает
+ * «Показать клиенту», сюда прилетает расчёт с суммой выкупа. «Очистить» снова
+ * возвращает заставку с отзывом.
  *
  * Привязка к рабочему месту — по короткому коду (из URL `?code=` или вводится вручную).
  */
@@ -170,8 +184,12 @@ export function ClientDisplay() {
   const showing = state.mode === 'show' && state.view;
 
   return (
-    <div className="cg-disp" onDoubleClick={toggleFullscreen} title="Двойной клик — полный экран">
-      {/* Заставка / результат */}
+    <div
+      className={`cg-disp${showing ? '' : ' cg-disp--review'}`}
+      onDoubleClick={toggleFullscreen}
+      title="Двойной клик — полный экран"
+    >
+      {/* Заставка с отзывом / результат расчёта */}
       {showing ? (
         <div className="cg-disp__result">
           <header className="cg-disp__bar">
@@ -186,9 +204,30 @@ export function ClientDisplay() {
         </div>
       ) : (
         <div className="cg-disp__idle">
-          <span className="cg-disp__idle-mark"><img src="/logo-reaktivo-mark.svg" alt="REAKTIVO PRO" /></span>
-          <span className="cg-disp__idle-name">REAKTIVO <b>PRO</b></span>
-          <span className="cg-disp__idle-sub">Оценка драгоценных металлов</span>
+          <div className="cg-disp__idle-copy">
+            <div className="cg-disp__idle-ym">
+              <div className="cg-disp__idle-ym-title">Яндекс Карты</div>
+              <div className="cg-disp__idle-ym-sub">Приложение к городу</div>
+            </div>
+            <YandexPin className="cg-disp__idle-pin" />
+            <div className="cg-disp__idle-cta">
+              <div className="cg-disp__idle-cta-lead">Оставьте</div>
+              <div className="cg-disp__idle-cta-word">ОТЗЫВ</div>
+            </div>
+            <p className="cg-disp__idle-text">
+              <b>Reaktivo</b> благодарит вас за посещение. Если вы хотите поделиться отзывом
+              и поставить оценку, перейдите по ссылке в QR-коде.
+            </p>
+          </div>
+          <div className="cg-disp__idle-qr">
+            <img
+              src="/yandex-review-qr.png"
+              alt="QR-код отзыва о Reaktivo на Яндекс Картах"
+              width="656"
+              height="656"
+              draggable="false"
+            />
+          </div>
         </div>
       )}
 
@@ -232,31 +271,98 @@ ${CLIENT_RESULT_CSS}
   justify-content: center;
 }
 
-/* ── Заставка ── */
+/* ── Заставка: отзыв на Яндекс Картах ── */
+.cg-disp--review {
+  background: #fff;
+  color: #111;
+  color-scheme: light;
+  align-items: stretch;
+  justify-content: stretch;
+}
 .cg-disp__idle {
-  display: flex; flex-direction: column; align-items: center; gap: 18px;
+  width: 100%; height: 100%;
+  box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between;
   text-align: center;
-  padding: 24px;
-  animation: cgDispIdleIn 0.6s ease;
+  padding: max(18px, env(safe-area-inset-top)) 28px max(18px, env(safe-area-inset-bottom));
+  animation: cgDispIdleIn 0.45s ease;
 }
-@keyframes cgDispIdleIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
-.cg-disp__idle-mark {
-  width: clamp(100px, 18vw, 200px); height: clamp(100px, 18vw, 200px);
-  border-radius: 28px;
-  background: transparent;
-  display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
-  box-shadow: 0 30px 90px rgba(0,0,0,0.5), 0 0 80px rgba(254, 0, 0, 0.28);
-  animation: cgDispPulse 4s ease-in-out infinite;
+@keyframes cgDispIdleIn { from { opacity: 0; } to { opacity: 1; } }
+.cg-disp__idle-copy {
+  display: flex; flex-direction: column; align-items: center;
+  gap: clamp(10px, 2.2vh, 22px);
+  width: 100%; max-width: 640px;
+  flex: 1 1 auto;
+  justify-content: center;
 }
-.cg-disp__idle-mark img { width: 100%; height: 100%; object-fit: cover; }
-@keyframes cgDispPulse { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-.cg-disp__idle-name {
-  font-size: clamp(1.4rem, 5vw, 2.6rem); font-weight: 700; letter-spacing: 0.14em;
-  text-transform: uppercase; color: #fff;
+.cg-disp__idle-ym-title {
+  font-size: clamp(1.55rem, 4.6vw, 2.35rem);
+  font-weight: 800; letter-spacing: -0.03em; color: #111; line-height: 1.1;
 }
-.cg-disp__idle-name b { color: #fe0000; font-weight: 800; }
-.cg-disp__idle-sub { font-size: clamp(0.85rem, 2vw, 1.15rem); color: rgba(244,245,247,0.55); letter-spacing: 0.04em; }
+.cg-disp__idle-ym-sub {
+  margin-top: 4px;
+  font-size: clamp(0.85rem, 2.2vw, 1.05rem);
+  color: #9aa0a6; font-weight: 500;
+}
+.cg-disp__idle-pin {
+  width: clamp(64px, 14vw, 112px);
+  height: auto;
+  flex-shrink: 0;
+}
+.cg-disp__idle-cta-lead {
+  font-size: clamp(1.35rem, 4vw, 2rem);
+  font-weight: 800; color: #111; letter-spacing: -0.03em; line-height: 1.1;
+}
+.cg-disp__idle-cta-word {
+  font-size: clamp(2.1rem, 7vw, 3.4rem);
+  font-weight: 800; color: #111; letter-spacing: 0.04em; line-height: 1;
+  text-transform: uppercase;
+}
+.cg-disp__idle-text {
+  margin: 0;
+  max-width: 36em;
+  font-size: clamp(0.92rem, 2.4vw, 1.18rem);
+  line-height: 1.45; color: #1a1a1a; font-weight: 500;
+}
+.cg-disp__idle-text b { font-weight: 800; }
+.cg-disp__idle-qr {
+  flex: 0 0 auto;
+  width: min(78vw, 48vh, 400px);
+  padding: 8px;
+  background: #fff;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.cg-disp__idle-qr img {
+  display: block; width: 100%; height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  -ms-interpolation-mode: nearest-neighbor;
+}
+.cg-disp--review .cg-disp__fs-btn {
+  background: rgba(0,0,0,0.06);
+  border-color: rgba(0,0,0,0.10);
+  color: rgba(0,0,0,0.38);
+}
+.cg-disp--review .cg-disp__fs-btn:hover { background: rgba(0,0,0,0.12); color: rgba(0,0,0,0.75); }
+.cg-disp--review .cg-disp__dot { opacity: 0.7; }
+
+/* Планшет лёжа: текст слева, QR крупно справа — чтобы код не сжимался */
+@media (orientation: landscape) and (min-width: 700px) {
+  .cg-disp__idle {
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: clamp(24px, 6vw, 72px);
+    padding: 28px 40px;
+  }
+  .cg-disp__idle-copy {
+    flex: 1 1 0; max-width: 520px;
+    align-items: flex-start; text-align: left;
+    justify-content: center;
+  }
+  .cg-disp__idle-qr { width: min(42vw, 72vh, 420px); }
+}
 
 /* ── Результат ── */
 .cg-disp__result {

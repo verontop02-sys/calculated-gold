@@ -164,7 +164,8 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, to
             </span>
           </div>
           <p className="cg-cd-card__hint">
-            Нажмите «Показать клиенту» в калькуляторе — расчёт загорится на отдельном экране для клиента.
+            Нажмите «Показать клиенту» в калькуляторе — расчёт загорится на планшете.
+            «Очистить» возвращает экран с отзывом и QR на Яндекс Карты.
           </p>
 
           {summary?.cities?.length > 0 && (
