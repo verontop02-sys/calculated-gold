@@ -518,6 +518,17 @@ export const clientApi = {
     if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
     return j;
   },
+  /** Заявка с публичного лендинга reaktivo.ru: { source, name, phone, fields, website }. */
+  landingLead: async (payload) => {
+    const r = await fetch(withBase('/public/landing-lead'), {
+      method: 'POST',
+      headers: { ...apiGatewayHeaders(null), 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    return j;
+  },
   /** Чат поддержки: история сообщений (открытие обнуляет непрочитанное у клиента). */
   supportChat: async () => {
     const r = await fetch(withBase('/public/client/support'), {
@@ -1000,6 +1011,16 @@ export const api = {
     }),
   supportSetStatus: (id, status) =>
     request(`/support/threads/${encodeURIComponent(String(id))}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+
+  // ── Заявки с лендингов (сторона сотрудников) ──
+  landingLeads: (status) =>
+    request(`/landing-leads${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  landingLeadsUnread: () => request('/landing-leads/unread'),
+  landingLeadSetStatus: (id, status) =>
+    request(`/landing-leads/${encodeURIComponent(String(id))}`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),

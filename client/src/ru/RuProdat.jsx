@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuMarquee, RuSbpBadge, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuLeadForm, RuMarquee, RuSbpBadge, RuTiltCard,
   GramsSlider, formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
@@ -69,26 +69,15 @@ function BigCalcCard({ quote }) {
 }
 
 function LeadForm() {
-  const [sent, setSent] = useState(false);
-  return sent ? (
-    <div className="rl-form">
-      <div className="rl-form-full" style={{ textAlign: 'center', padding: '20px 0' }}>
-        <h3>Заявка принята</h3>
-        <p className="rl-form-note">Мы позвоним в течение 5 минут и согласуем время курьера.</p>
-      </div>
-    </div>
-  ) : (
-    <form className="rl-form" onSubmit={(e) => { e.preventDefault(); setSent(true); }}>
-      <div className="rl-form-full">
-        <h3>Вызвать курьера или записаться в отделение</h3>
-        <p className="rl-form-note">Оставьте телефон — согласуем время в течение 5 минут.</p>
-      </div>
-      <input className="rl-input" placeholder="Ваше имя" required />
-      <input className="rl-input" placeholder="+7 (900) 000-00-00" inputMode="tel" required />
-      <div className="rl-form-full">
-        <button type="submit" className="il-btn il-btn--primary il-btn--lg" style={{ width: '100%' }}>Отправить заявку</button>
-      </div>
-    </form>
+  return (
+    <RuLeadForm
+      source="prodat"
+      title="Вызвать курьера или записаться в отделение"
+      note="Оставьте телефон — согласуем время в течение 5 минут."
+      phonePlaceholder="+7 (900) 000-00-00"
+      phoneTel
+      successNote="Мы позвоним в течение 5 минут и согласуем время."
+    />
   );
 }
 

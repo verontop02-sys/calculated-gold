@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuMarquee, RuPhotoCard, RuStatement,
+  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuPhotoCard, RuStatement,
   setDraftMeta, useRuLenis,
 } from './RuShared.jsx';
 
@@ -28,26 +28,14 @@ const FAQ = [
 ];
 
 function ResaleForm() {
-  const [sent, setSent] = useState(false);
-  return sent ? (
-    <div className="rl-form">
-      <div className="rl-form-full" style={{ textAlign: 'center', padding: '20px 0' }}>
-        <h3>Заявка принята</h3>
-        <p className="rl-form-note">Пришлём ссылку на канал и будем на связи по лотам.</p>
-      </div>
-    </div>
-  ) : (
-    <form className="rl-form" onSubmit={(e) => { e.preventDefault(); setSent(true); }}>
-      <div className="rl-form-full">
-        <h3>Получить доступ в канал</h3>
-        <p className="rl-form-note">Оставьте контакт — пришлём ссылку на Telegram-канал Resale с новыми лотами.</p>
-      </div>
-      <input className="rl-input" placeholder="Ваше имя" required />
-      <input className="rl-input" placeholder="Телефон или Telegram" required />
-      <div className="rl-form-full">
-        <button type="submit" className="il-btn il-btn--primary il-btn--lg" style={{ width: '100%' }}>Хочу в канал</button>
-      </div>
-    </form>
+  return (
+    <RuLeadForm
+      source="resale"
+      title="Получить доступ в канал"
+      note="Оставьте контакт — пришлём ссылку на Telegram-канал Resale с новыми лотами."
+      cta="Хочу в канал"
+      successNote="Пришлём ссылку на канал и будем на связи по лотам."
+    />
   );
 }
 

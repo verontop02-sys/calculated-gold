@@ -15,6 +15,7 @@ import { SettingsPage } from './SettingsPage.jsx';
 import { GoldIndex } from './GoldIndex.jsx';
 import { FintechAdminPage } from './FintechAdminPage.jsx';
 import { SupportAdminPage } from './SupportAdminPage.jsx';
+import { LeadsPage } from './LeadsPage.jsx';
 import { Dashboard } from './Dashboard.jsx';
 import { EmployeeDeals } from './EmployeeDeals.jsx';
 import { Sidebar } from './Sidebar.jsx';
@@ -33,6 +34,7 @@ const TAB_TITLES = {
   employees: 'Сделки сотрудников',
   'gold-index': 'Индекс золота',
   settings: 'Настройки',
+  'site-leads': 'Заявки с сайта',
 };
 
 const TAB_SUBTITLES = {
@@ -45,6 +47,7 @@ const TAB_SUBTITLES = {
   employees: 'Сделки сотрудников: суммы, фото и документы',
   'gold-index': 'Цены конкурентов по городам, карта',
   settings: 'Политика выкупа, пользователи и доступы',
+  'site-leads': 'Заявки с лендингов: продать, слитки, франшиза, партнёры',
 };
 
 function tabSubtitle(tab) { return TAB_SUBTITLES[tab] || ''; }
@@ -511,7 +514,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const role = user.role;
-    if ((tab === 'team' || tab === 'settings' || tab === 'fintech-clients' || tab === 'support-chat') && !isUserManagerRole(role)) {
+    if ((tab === 'team' || tab === 'settings' || tab === 'fintech-clients' || tab === 'support-chat' || tab === 'site-leads') && !isUserManagerRole(role)) {
       setTab('dashboard');
     } else if (tab === 'gold-index' && !isSuperAdminRole(role)) {
       setTab('dashboard');
@@ -520,6 +523,8 @@ export default function App() {
 
   // Бейдж «непрочитанное в поддержке» для сайдбара (только у admin/super_admin).
   const [supportUnread, setSupportUnread] = useState(0);
+  // Бейдж новых заявок с лендингов.
+  const [leadsNew, setLeadsNew] = useState(0);
   // Бейдж KYC «на проверке»: висит, пока админ не откроет «Клиенты биржи».
   const [fintechPendingRaw, setFintechPendingRaw] = useState(0);
   const [fintechPendingBadge, setFintechPendingBadge] = useState(0);
@@ -533,6 +538,9 @@ export default function App() {
     const poll = () => {
       api.supportUnread()
         .then((out) => { if (!cancelled) setSupportUnread(out?.total || 0); })
+        .catch(() => { /* бейдж не критичен */ });
+      api.landingLeadsUnread()
+        .then((out) => { if (!cancelled) setLeadsNew(out?.total || 0); })
         .catch(() => { /* бейдж не критичен */ });
     };
     poll();
@@ -678,6 +686,7 @@ export default function App() {
         onOpenProfile={() => setProfileOpen(true)}
         supportUnread={supportUnread}
         fintechPending={fintechPendingBadge}
+        leadsNew={leadsNew}
       />
 
       <div className="cg-shell__main">
@@ -837,6 +846,9 @@ export default function App() {
             {tab === 'support-chat' && isUserManagerRole(user.role) && (
               <SupportAdminPage toast={toast} />
             )}
+            {tab === 'site-leads' && isUserManagerRole(user.role) && (
+              <LeadsPage toast={toast} />
+            )}
           </div>
         </main>
 
@@ -848,6 +860,7 @@ export default function App() {
           onOpenProfile={() => setProfileOpen(true)}
           supportUnread={supportUnread}
           fintechPending={fintechPendingBadge}
+          leadsNew={leadsNew}
         />
       </div>
 

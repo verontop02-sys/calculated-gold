@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuMarquee, RuPhotoCard, RuStatement,
+  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuPhotoCard, RuStatement,
   setDraftMeta, useRuLenis,
 } from './RuShared.jsx';
 
@@ -35,28 +35,19 @@ const FAQ = [
 ];
 
 function PartnerForm() {
-  const [sent, setSent] = useState(false);
-  return sent ? (
-    <div className="rl-form">
-      <div className="rl-form-full" style={{ textAlign: 'center', padding: '20px 0' }}>
-        <h3>Заявка принята</h3>
-        <p className="rl-form-note">Персональный менеджер свяжется с вами и покажет партнёрские условия.</p>
-      </div>
-    </div>
-  ) : (
-    <form className="rl-form" onSubmit={(e) => { e.preventDefault(); setSent(true); }}>
-      <div className="rl-form-full">
-        <h3>Заявка на партнёрство</h3>
-        <p className="rl-form-note">Расскажите о компании — покажем партнёрскую сетку курса и предложим тестовую партию.</p>
-      </div>
-      <input className="rl-input" placeholder="Компания или имя" required />
-      <input className="rl-input" placeholder="Телефон или Telegram" required />
-      <input className="rl-input" placeholder="Профиль (ювелир / ломбард / дилер)" />
-      <input className="rl-input" placeholder="Примерный объём в месяц" />
-      <div className="rl-form-full">
-        <button type="submit" className="il-btn il-btn--primary il-btn--lg" style={{ width: '100%' }}>Стать партнёром</button>
-      </div>
-    </form>
+  return (
+    <RuLeadForm
+      source="partneram"
+      title="Заявка на партнёрство"
+      note="Расскажите о компании — покажем партнёрскую сетку курса и предложим тестовую партию."
+      namePlaceholder="Компания или имя"
+      cta="Стать партнёром"
+      successNote="Персональный менеджер свяжется с вами и покажет партнёрские условия."
+      fields={[
+        { key: 'profile', label: 'Профиль', placeholder: 'Профиль (ювелир / ломбард / дилер)' },
+        { key: 'volume', label: 'Объём в месяц', placeholder: 'Примерный объём в месяц' },
+      ]}
+    />
   );
 }
 

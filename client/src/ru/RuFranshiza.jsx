@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuMarquee, RuPhotoCard, RuStatement,
+  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuPhotoCard, RuStatement,
   officeHallPhoto, officeWorkPhoto, setDraftMeta, useRuLenis,
 } from './RuShared.jsx';
 
@@ -37,28 +37,19 @@ const FAQ = [
 ];
 
 function FranshizaForm() {
-  const [sent, setSent] = useState(false);
-  return sent ? (
-    <div className="rl-form">
-      <div className="rl-form-full" style={{ textAlign: 'center', padding: '20px 0' }}>
-        <h3>Заявка принята</h3>
-        <p className="rl-form-note">Свяжемся, обсудим ваш город и посчитаем финансовую модель.</p>
-      </div>
-    </div>
-  ) : (
-    <form className="rl-form" onSubmit={(e) => { e.preventDefault(); setSent(true); }}>
-      <div className="rl-form-full">
-        <h3>Заявка на франшизу</h3>
-        <p className="rl-form-note">Расскажите о себе и городе — посчитаем финансовую модель под ваш случай.</p>
-      </div>
-      <input className="rl-input" placeholder="Имя" required />
-      <input className="rl-input" placeholder="Телефон или Telegram" required />
-      <input className="rl-input" placeholder="Город" required />
-      <input className="rl-input" placeholder="Есть действующая точка? (скупка / ломбард / нет)" />
-      <div className="rl-form-full">
-        <button type="submit" className="il-btn il-btn--primary il-btn--lg" style={{ width: '100%' }}>Обсудить открытие</button>
-      </div>
-    </form>
+  return (
+    <RuLeadForm
+      source="franshiza"
+      title="Заявка на франшизу"
+      note="Расскажите о себе и городе — посчитаем финансовую модель под ваш случай."
+      namePlaceholder="Имя"
+      cta="Обсудить открытие"
+      successNote="Свяжемся, обсудим ваш город и посчитаем финансовую модель."
+      fields={[
+        { key: 'city', label: 'Город', placeholder: 'Город', required: true },
+        { key: 'point', label: 'Действующая точка', placeholder: 'Есть действующая точка? (скупка / ломбард / нет)' },
+      ]}
+    />
   );
 }
 

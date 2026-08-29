@@ -11,7 +11,7 @@ import { isSuperAdminRole, isUserManagerRole, roleLabel } from './roles.js';
  * Состояние «свёрнут/развёрнут» сохраняется в localStorage,
  * плюс автоматически расширяется при наведении (CSS-only).
  */
-export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpenProfile, supportUnread = 0, fintechPending = 0 }) {
+export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpenProfile, supportUnread = 0, fintechPending = 0, leadsNew = 0 }) {
   const [pinned, setPinned] = useState(() => {
     try {
       const v = localStorage.getItem('cg_sidebar_pinned');
@@ -42,6 +42,7 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpen
     ...(isSuper ? [{ key: 'gold-index', label: 'Индекс золота', icon: <IconMap /> }] : []),
     ...(isAdmin ? [{ key: 'fintech-clients', label: 'Клиенты биржи', icon: <IconInvest />, badge: fintechPending }] : []),
     ...(isAdmin ? [{ key: 'support-chat', label: 'Поддержка', icon: <IconChatBubble />, badge: supportUnread }] : []),
+    ...(isAdmin ? [{ key: 'site-leads', label: 'Заявки с сайта', icon: <IconInbox />, badge: leadsNew }] : []),
   ];
 
   const groups = [
@@ -247,6 +248,14 @@ function IconInvest() {
       <path d="M9 9h4.5a2.25 2.25 0 0 1 0 4.5H9z" />
       <path d="M9 9v8" />
       <path d="M7.5 15.5H12" />
+    </svg>
+  );
+}
+function IconInbox() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+      <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
     </svg>
   );
 }

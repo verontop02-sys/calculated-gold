@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuMarquee, RuStatement, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuLeadForm, RuMarquee, RuStatement, RuTiltCard,
   formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
@@ -113,31 +113,19 @@ function AgentCalc({ quote }) {
 }
 
 function AgentForm() {
-  const [sent, setSent] = useState(false);
-  return sent ? (
-    <div className="rl-form">
-      <div className="rl-form-full" style={{ textAlign: 'center', padding: '20px 0' }}>
-        <h3>Заявка принята</h3>
-        <p className="rl-form-note">Мы свяжемся, ответим на вопросы и отправим программу обучения.</p>
-      </div>
-    </div>
-  ) : (
-    <form className="rl-form" onSubmit={(e) => { e.preventDefault(); setSent(true); }}>
-      <div className="rl-form-full">
-        <h3>Заявка на статус агента</h3>
-        <p className="rl-form-note">Расскажите о себе и своём городе. Мы свяжемся, ответим на вопросы и отправим программу обучения.</p>
-      </div>
-      <input className="rl-input" placeholder="Имя" required />
-      <input className="rl-input" placeholder="Телефон или Telegram" required />
-      <input className="rl-input" placeholder="Город" required />
-      <input className="rl-input" placeholder="Опыт работы с золотом (если есть)" />
-      <div className="rl-form-full">
-        <textarea className="rl-input" rows={2} placeholder="Сколько времени готовы уделять и почему вам это интересно" />
-      </div>
-      <div className="rl-form-full">
-        <button type="submit" className="il-btn il-btn--primary il-btn--lg" style={{ width: '100%' }}>Отправить заявку</button>
-      </div>
-    </form>
+  return (
+    <RuLeadForm
+      source="agenty"
+      title="Заявка на статус агента"
+      note="Расскажите о себе и своём городе. Мы свяжемся, ответим на вопросы и отправим программу обучения."
+      namePlaceholder="Имя"
+      successNote="Мы свяжемся, ответим на вопросы и отправим программу обучения."
+      fields={[
+        { key: 'city', label: 'Город', placeholder: 'Город', required: true },
+        { key: 'exp', label: 'Опыт', placeholder: 'Опыт работы с золотом (если есть)' },
+        { key: 'about', label: 'О себе', placeholder: 'Сколько времени готовы уделять и почему вам это интересно', textarea: true },
+      ]}
+    />
   );
 }
 

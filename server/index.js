@@ -430,6 +430,7 @@ app.use(
     '/api/auth/device',
     '/api/public/fintech-auth',
     '/api/public/consult-lead',
+    '/api/public/landing-lead',
   ],
   authBurstLimiter
 );
@@ -1226,6 +1227,104 @@ app.post(
 );
 
 /**
+ * Заявки с лендингов (reaktivo.ru + reaktivo.pro): пишем в landing_leads,
+ * дальше их видно в панели в разделе «Заявки с сайта».
+ */
+const LANDING_LEAD_SOURCES = {
+  prodat: 'Продать золото',
+  agenty: 'Агентская программа',
+  slitki: 'Ювелирные слитки',
+  resale: 'Reaktivo Resale',
+  franshiza: 'Франшиза',
+  partneram: 'Партнёрам (B2B)',
+  pro: 'Консультация (reaktivo.pro)',
+};
+
+/** Доп. поля формы: оставляем только непустые строки, режем длину и количество. */
+function sanitizeLeadFields(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  let n = 0;
+  for (const [k, v] of Object.entries(raw)) {
+    if (n >= 8) break;
+    const key = String(k).trim().slice(0, 60);
+    const val = String(v ?? '').trim().slice(0, 500);
+    if (!key || !val) continue;
+    out[key] = val;
+    n += 1;
+  }
+  return out;
+}
+
+async function insertLandingLead({ source, name, phone, fields = {} }) {
+  const { data, error } = await supabase
+    .from('landing_leads')
+    .insert({ source, name, phone, fields })
+    .select('id, created_at')
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function notifyLandingLeadTelegram({ source, name, phone, fields = {} }) {
+  const chatId = process.env.TELEGRAM_LEADS_CHAT_ID || process.env.TELEGRAM_SUPPORT_CHAT_ID;
+  if (!chatId) {
+    console.warn('[landing-lead tg] skip: TELEGRAM_SUPPORT_CHAT_ID not set');
+    return { sent: false, reason: 'not_configured' };
+  }
+  const lines = [
+    `📝 Заявка: ${LANDING_LEAD_SOURCES[source] || source}`,
+    `Имя: ${name}`,
+    `Контакт: ${phone}`,
+  ];
+  for (const [k, v] of Object.entries(fields)) lines.push(`${k}: ${v}`);
+  lines.push('', 'Панель → «Заявки с сайта»');
+  return sendTelegramMessage(chatId, lines.join('\n'));
+}
+
+/**
+ * Публичная заявка с лендингов reaktivo.ru: база + Telegram.
+ * Контакт свободной формы: телефон или Telegram-ник.
+ */
+app.post(
+  '/api/public/landing-lead',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    // Ловушка для ботов: скрытое поле, живой человек его не заполняет.
+    if (String(req.body?.website || '').trim()) return res.json({ ok: true });
+
+    const source = String(req.body?.source || '').trim();
+    if (!LANDING_LEAD_SOURCES[source] || source === 'pro') {
+      return res.status(400).json({ error: 'Неизвестный источник заявки' });
+    }
+    const name = String(req.body?.name || '').trim().slice(0, 120);
+    if (name.length < 2) return res.status(400).json({ error: 'Укажите имя' });
+    const phone = String(req.body?.phone || '').trim().slice(0, 120);
+    if (phone.length < 5) return res.status(400).json({ error: 'Укажите телефон или Telegram' });
+    const fields = sanitizeLeadFields(req.body?.fields);
+
+    let saved = null;
+    try {
+      saved = await insertLandingLead({ source, name, phone, fields });
+    } catch (e) {
+      console.error('[landing-lead insert]', e?.message || e);
+    }
+
+    // Ждём TG до ответа — на free-инстансе fire-and-forget может оборваться.
+    const tg = await notifyLandingLeadTelegram({ source, name, phone, fields }).catch((e) => {
+      console.warn('[landing-lead tg]', e?.message || e);
+      return { sent: false, reason: 'error' };
+    });
+
+    if (!saved && !tg?.sent) {
+      return res.status(502).json({ error: 'Не удалось отправить заявку. Напишите на team@reaktivo.ru' });
+    }
+    res.json({ ok: true });
+  })
+);
+
+/**
  * Заявка на консультацию с публичного лендинга → push в Telegram (best-effort).
  * Использует тот же бот, что и чат поддержки; чат можно задать отдельным
  * TELEGRAM_LEADS_CHAT_ID, иначе уходит в TELEGRAM_SUPPORT_CHAT_ID.
@@ -1261,6 +1360,13 @@ app.post(
       return res.status(400).json({ error: 'Укажите имя' });
     }
     const phonePretty = phone.startsWith('7') ? `+${phone}` : phone;
+
+    // Заявка с pro тоже попадает в раздел «Заявки с сайта» (best-effort).
+    try {
+      await insertLandingLead({ source: 'pro', name, phone: phonePretty });
+    } catch (e) {
+      console.warn('[consult-lead insert]', e?.message || e);
+    }
 
     // Ждём TG до ответа — иначе на free Render fire-and-forget может оборваться.
     const tg = await notifyConsultLeadTelegram({ name, phone: phonePretty }).catch((e) => {
@@ -4083,6 +4189,72 @@ app.patch(
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message || 'Ошибка' });
     }
+  })
+);
+
+// ── Заявки с лендингов (сторона сотрудников, admin/super_admin) ─────────────
+app.get(
+  '/api/landing-leads',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    const status = String(req.query.status || '').trim();
+    let q = supabase
+      .from('landing_leads')
+      .select('id, source, name, phone, fields, status, processed_by_name, processed_at, created_at')
+      .order('created_at', { ascending: false })
+      .limit(300);
+    if (status && status !== 'all') q = q.eq('status', status);
+    const { data, error } = await q;
+    if (error) return res.status(500).json({ error: 'Не удалось загрузить заявки' });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ leads: data || [], sources: LANDING_LEAD_SOURCES });
+  })
+);
+
+app.get(
+  '/api/landing-leads/unread',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (_req, res) => {
+    const { count, error } = await supabase
+      .from('landing_leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'new');
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ total: error ? 0 : (count || 0) });
+  })
+);
+
+app.patch(
+  '/api/landing-leads/:id',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    const status = String(req.body?.status || '').trim();
+    if (!['new', 'in_progress', 'done'].includes(status)) {
+      return res.status(400).json({ error: 'Недопустимый статус' });
+    }
+    const patch = { status };
+    if (status === 'new') {
+      patch.processed_by = null;
+      patch.processed_by_name = null;
+      patch.processed_at = null;
+    } else {
+      let staffName = null;
+      try {
+        const { data: prof } = await supabase.from('profiles').select('display_name').eq('id', req.user.id).maybeSingle();
+        staffName = prof?.display_name || req.user?.email?.split('@')[0] || null;
+      } catch { /* имя — best-effort */ }
+      patch.processed_by = req.user.id;
+      patch.processed_by_name = staffName;
+      patch.processed_at = new Date().toISOString();
+    }
+    const { data, error } = await supabase
+      .from('landing_leads')
+      .update(patch)
+      .eq('id', req.params.id)
+      .select('id, source, name, phone, fields, status, processed_by_name, processed_at, created_at')
+      .single();
+    if (error) return res.status(500).json({ error: 'Не удалось обновить заявку' });
+    res.json({ lead: data });
   })
 );
 

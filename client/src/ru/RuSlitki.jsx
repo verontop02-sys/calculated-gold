@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuMarquee, RuStatement, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuStatement, RuTiltCard,
   formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
@@ -72,29 +72,18 @@ function SlitokPriceCard({ quote }) {
 }
 
 function SlitokForm() {
-  const [sent, setSent] = useState(false);
-  return sent ? (
-    <div className="rl-form">
-      <div className="rl-form-full" style={{ textAlign: 'center', padding: '20px 0' }}>
-        <h3>Заявка принята</h3>
-        <p className="rl-form-note">Менеджер свяжется с вами и предложит варианты под ваш бюджет.</p>
-      </div>
-    </div>
-  ) : (
-    <form className="rl-form" onSubmit={(e) => { e.preventDefault(); setSent(true); }}>
-      <div className="rl-form-full">
-        <h3>Подобрать слиток</h3>
-        <p className="rl-form-note">Оставьте телефон — предложим форму и вес под ваш бюджет, с точной ценой от биржи.</p>
-      </div>
-      <input className="rl-input" placeholder="Ваше имя" required />
-      <input className="rl-input" placeholder="+7 (900) 000-00-00" inputMode="tel" required />
-      <div className="rl-form-full">
-        <input className="rl-input" placeholder="Бюджет или желаемый вес (не обязательно)" />
-      </div>
-      <div className="rl-form-full">
-        <button type="submit" className="il-btn il-btn--primary il-btn--lg" style={{ width: '100%' }}>Отправить заявку</button>
-      </div>
-    </form>
+  return (
+    <RuLeadForm
+      source="slitki"
+      title="Подобрать слиток"
+      note="Оставьте телефон — предложим форму и вес под ваш бюджет, с точной ценой от биржи."
+      phonePlaceholder="+7 (900) 000-00-00"
+      phoneTel
+      successNote="Менеджер свяжется с вами и предложит варианты под ваш бюджет."
+      fields={[
+        { key: 'budget', label: 'Бюджет или вес', placeholder: 'Бюджет или желаемый вес (не обязательно)', full: true },
+      ]}
+    />
   );
 }
 

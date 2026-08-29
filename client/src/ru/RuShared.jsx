@@ -464,6 +464,129 @@ export function RuFaq({ items }) {
   );
 }
 
+/**
+ * Единая форма заявки для лендингов: POST /api/public/landing-lead →
+ * запись в базе (панель, раздел «Заявки с сайта») + push в Telegram.
+ *
+ * name и phone — системные поля, остальные описываются через fields:
+ * [{ key, label, placeholder, required, textarea, full }] — label уходит
+ * подписью поля в Telegram и в панель.
+ */
+export function RuLeadForm({
+  source,
+  title,
+  note,
+  cta = 'Отправить заявку',
+  successNote = 'Мы свяжемся с вами в ближайшее время.',
+  namePlaceholder = 'Ваше имя',
+  phonePlaceholder = 'Телефон или Telegram',
+  phoneTel = false,
+  fields = [],
+}) {
+  const [phase, setPhase] = useState('idle'); // idle | sending | sent
+  const [error, setError] = useState('');
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    if (phase === 'sending') return;
+    const fd = new FormData(e.currentTarget);
+    const payload = {
+      source,
+      name: String(fd.get('name') || '').trim(),
+      phone: String(fd.get('phone') || '').trim(),
+      website: String(fd.get('website') || ''),
+      fields: {},
+    };
+    for (const f of fields) {
+      const v = String(fd.get(f.key) || '').trim();
+      if (v) payload.fields[f.label] = v;
+    }
+    setPhase('sending');
+    setError('');
+    try {
+      await clientApi.landingLead(payload);
+      setPhase('sent');
+    } catch (err) {
+      setPhase('idle');
+      setError(err?.message || 'Не получилось отправить. Попробуйте ещё раз или позвоните: 8 800 555-18-48');
+    }
+  }
+
+  if (phase === 'sent') {
+    return (
+      <motion.div className="rl-form" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, ease: EASE }}>
+        <div className="rl-form-full rl-sent" role="status">
+          <motion.span
+            className="rl-sent-icon"
+            initial={{ scale: 0, rotate: -28 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 240, damping: 15, delay: 0.08 }}
+            aria-hidden
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <motion.path
+                d="M4.5 12.5l5 5L19.5 7"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 0.45, delay: 0.35, ease: 'easeOut' }}
+              />
+            </svg>
+          </motion.span>
+          <h3>Заявка принята</h3>
+          <p className="rl-form-note">{successNote}</p>
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <form className="rl-form" onSubmit={onSubmit}>
+      <div className="rl-form-full">
+        <h3>{title}</h3>
+        {note && <p className="rl-form-note">{note}</p>}
+      </div>
+      <input className="rl-input" name="name" placeholder={namePlaceholder} required maxLength={120} autoComplete="name" />
+      <input
+        className="rl-input"
+        name="phone"
+        placeholder={phonePlaceholder}
+        required
+        maxLength={120}
+        inputMode={phoneTel ? 'tel' : undefined}
+        autoComplete={phoneTel ? 'tel' : undefined}
+      />
+      {fields.map((f) => {
+        const input = f.textarea ? (
+          <textarea key={f.key} className="rl-input" name={f.key} rows={2} placeholder={f.placeholder} required={f.required} maxLength={500} />
+        ) : (
+          <input key={f.key} className="rl-input" name={f.key} placeholder={f.placeholder} required={f.required} maxLength={300} />
+        );
+        return f.full || f.textarea ? <div key={f.key} className="rl-form-full">{input}</div> : input;
+      })}
+      {/* Ловушка для ботов: люди это поле не видят */}
+      <input className="rl-hp" type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+      <div className="rl-form-full">
+        <motion.button
+          type="submit"
+          className="il-btn il-btn--primary il-btn--lg"
+          style={{ width: '100%' }}
+          disabled={phase === 'sending'}
+          whileTap={{ scale: 0.97 }}
+        >
+          {phase === 'sending' ? (<><span className="rl-btn-spin" aria-hidden /> Отправляем…</>) : cta}
+        </motion.button>
+        <AnimatePresence>
+          {error && (
+            <motion.p className="rl-form-error" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              {error}
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </div>
+    </form>
+  );
+}
+
 export const RL_CSS = `
 .rl-preview-flag {
   position: fixed; bottom: 16px; left: 16px; z-index: 90;
@@ -808,8 +931,19 @@ export const RL_CSS = `
 .rl-form-full { grid-column: 1 / -1; }
 .rl-form h3 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.02em; margin: 0; color: var(--text-strong); }
 .rl-form-note { font-size: 0.86rem; color: var(--text-muted); margin: 8px 0 0; }
-.rl-input { width: 100%; background: var(--bg-panel-solid); border: 1px solid var(--stroke); border-radius: 12px; padding: 13px 16px; font: inherit; font-size: 0.9rem; color: var(--text-strong); box-sizing: border-box; }
+.rl-input { width: 100%; background: var(--bg-panel-solid); border: 1px solid var(--stroke); border-radius: 12px; padding: 13px 16px; font: inherit; font-size: 0.9rem; color: var(--text-strong); box-sizing: border-box; transition: border-color 0.2s, box-shadow 0.2s; }
 .rl-input::placeholder { color: var(--text-dim); }
+.rl-input:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 55%, var(--stroke)); box-shadow: 0 0 0 3px var(--accent-soft); }
+textarea.rl-input { resize: vertical; min-height: 52px; }
+.rl-form { position: relative; }
+.rl-hp { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.rl-form-error { margin: 10px 0 0; font-size: 0.85rem; color: var(--accent-strong); text-align: center; }
+.rl-sent { text-align: center; padding: 26px 0; display: grid; justify-items: center; gap: 6px; }
+.rl-sent-icon { width: 58px; height: 58px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; background: var(--accent-grad, var(--accent)); box-shadow: 0 12px 32px var(--accent-glow); margin-bottom: 10px; }
+.rl-sent-icon svg { width: 30px; height: 30px; }
+.rl-btn-spin { width: 15px; height: 15px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff; animation: rlSpin 0.7s linear infinite; display: inline-block; vertical-align: -2px; margin-right: 8px; }
+@keyframes rlSpin { to { transform: rotate(360deg); } }
+.il-btn:disabled { opacity: 0.75; cursor: default; }
 
 .rl-crumbs { padding: 108px 28px 0; max-width: 1360px; margin: 0 auto; font-size: 0.86rem; color: var(--text-dim); }
 .rl-crumbs a { color: var(--accent); text-decoration: none; }
