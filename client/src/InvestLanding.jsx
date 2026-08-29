@@ -15,8 +15,8 @@ import { ThemeToggle } from './ThemeToggle.jsx';
 import { JewelryShowcase } from './JewelryShowcase.jsx';
 import officeHall from './assets/office/hall.jpg';
 
-const EASE = [0.22, 1, 0.36, 1];
-const SPRING = { type: 'spring', stiffness: 230, damping: 28, mass: 0.9 };
+export const EASE = [0.22, 1, 0.36, 1];
+export const SPRING = { type: 'spring', stiffness: 230, damping: 28, mass: 0.9 };
 
 /** «Топычканов Никита Сергеевич» → «Топычканов Н.С.» */
 function formatSurnameInitials(fullName) {
@@ -204,7 +204,7 @@ function OfficeGallery() {
 
 /* ═══════════════ Анимационные примитивы ═══════════════ */
 
-function Reveal({ children, className = '', delay = 0, y = 34, ...rest }) {
+export function Reveal({ children, className = '', delay = 0, y = 34, ...rest }) {
   return (
     <motion.div
       className={className}
@@ -219,14 +219,14 @@ function Reveal({ children, className = '', delay = 0, y = 34, ...rest }) {
   );
 }
 
-const staggerParent = { hidden: {}, show: { transition: { staggerChildren: 0.08, delayChildren: 0.04 } } };
-const staggerChild = {
+export const staggerParent = { hidden: {}, show: { transition: { staggerChildren: 0.08, delayChildren: 0.04 } } };
+export const staggerChild = {
   hidden: { opacity: 0, y: 36, scale: 0.985 },
   show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.75, ease: EASE } },
 };
 
 /* Магнитная кнопка (desktop) */
-function Magnetic({ children, strength = 0.28 }) {
+export function Magnetic({ children, strength = 0.28 }) {
   const ref = useRef(null);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -1469,7 +1469,7 @@ export function InvestLanding() {
   );
 }
 
-const CSS = `
+export const CSS = `
 .il-root {
   min-height: 100dvh;
   background: var(--bg-deep);
@@ -1628,14 +1628,14 @@ const CSS = `
 .il-btn:hover .il-btn-arrow { transform: translateX(4px); }
 .il-btn--primary {
   background: var(--accent); color: #fff;
-  box-shadow: 0 10px 32px -10px color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow: 0 10px 28px -12px color-mix(in srgb, var(--accent) 42%, transparent);
 }
 .il-btn--primary::after {
   content: ''; position: absolute; top: 0; left: -70%; width: 42%; height: 100%;
-  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.35), transparent);
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.28), transparent);
   transform: skewX(-18deg); transition: left 0.7s cubic-bezier(0.22,1,0.36,1);
 }
-.il-btn--primary:hover { box-shadow: 0 18px 48px -12px color-mix(in srgb, var(--accent) 85%, transparent); }
+.il-btn--primary:hover { box-shadow: 0 16px 40px -14px color-mix(in srgb, var(--accent) 52%, transparent); }
 .il-btn--primary:hover::after { left: 130%; }
 .il-btn--ghost { background: transparent; border-color: var(--stroke); color: var(--text); }
 .il-btn--ghost:hover { border-color: var(--accent); color: var(--accent); }
@@ -1685,8 +1685,8 @@ const CSS = `
   position: absolute; border-radius: 50%;
   background: radial-gradient(circle, color-mix(in srgb, var(--accent) 36%, transparent), transparent 66%);
 }
-.il-hero-orb--1 { width: 560px; height: 560px; top: -220px; right: -150px; opacity: 0.32; }
-.il-hero-orb--2 { width: 420px; height: 420px; bottom: -200px; left: -130px; opacity: 0.2; }
+.il-hero-orb--1 { width: 560px; height: 560px; top: -220px; right: -150px; opacity: 0.18; }
+.il-hero-orb--2 { width: 420px; height: 420px; bottom: -200px; left: -130px; opacity: 0.12; }
 .il-hero-grid {
   position: absolute; inset: 0;
   background-image:
@@ -2227,21 +2227,21 @@ html.il-lb-open body {
   border: none; border-radius: 22px; padding: 22px 24px;
   color: #fff;
   background:
-    radial-gradient(circle at 12% -20%, rgba(255,255,255,0.28), transparent 42%),
-    radial-gradient(circle at 100% 120%, rgba(255,255,255,0.12), transparent 48%),
-    linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 52%, #000));
-  box-shadow: 0 22px 48px -26px color-mix(in srgb, var(--accent) 65%, transparent);
+    radial-gradient(circle at 12% -20%, rgba(255,255,255,0.16), transparent 42%),
+    radial-gradient(circle at 100% 120%, rgba(255,255,255,0.08), transparent 48%),
+    linear-gradient(140deg, color-mix(in srgb, var(--accent) 88%, #1a0505), color-mix(in srgb, var(--accent) 46%, #000));
+  box-shadow: 0 22px 48px -28px color-mix(in srgb, var(--accent) 38%, transparent);
   transition: transform 0.3s cubic-bezier(0.22,1,0.36,1), box-shadow 0.3s ease, filter 0.3s ease;
   min-height: 0;
 }
 .il-product:hover {
-  filter: brightness(1.06);
-  box-shadow: 0 28px 56px -22px color-mix(in srgb, var(--accent) 75%, transparent);
+  filter: brightness(1.04);
+  box-shadow: 0 26px 52px -24px color-mix(in srgb, var(--accent) 48%, transparent);
 }
 .il-product--main {
-  outline: 2px solid rgba(255,255,255,0.28);
+  outline: 2px solid rgba(255,255,255,0.22);
   outline-offset: 0;
-  box-shadow: 0 28px 60px -22px color-mix(in srgb, var(--accent) 80%, transparent);
+  box-shadow: 0 26px 56px -24px color-mix(in srgb, var(--accent) 46%, transparent);
 }
 .il-product-tag {
   font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;

@@ -18,25 +18,25 @@
   --stroke: rgba(255, 255, 255, 0.10);
   --stroke-soft: rgba(255, 255, 255, 0.06);
   --stroke-strong: rgba(255, 255, 255, 0.20);
-  --gold: #fe0000;
-  --gold-soft-bg: rgba(254, 0, 0, 0.12);
-  --gold-dim: #c40000;
-  --gold-glow: rgba(254, 0, 0, 0.28);
-  --gold-soft: rgba(254, 0, 0, 0.12);
-  --accent: #fe0000;
-  --accent-strong: #ff2a2a;
-  --accent-dim: #c40000;
-  --accent-soft: rgba(254, 0, 0, 0.12);
-  --accent-glow: rgba(254, 0, 0, 0.28);
-  --accent-grad: linear-gradient(135deg, #ff2a2a 0%, #fe0000 48%, #c40000 100%);
+  --gold: #c81e22;
+  --gold-soft-bg: rgba(200, 30, 34, 0.14);
+  --gold-dim: #9a181c;
+  --gold-glow: rgba(200, 30, 34, 0.14);
+  --gold-soft: rgba(200, 30, 34, 0.14);
+  --accent: #c81e22;
+  --accent-strong: #dc2a2e;
+  --accent-dim: #9a181c;
+  --accent-soft: rgba(200, 30, 34, 0.14);
+  --accent-glow: rgba(200, 30, 34, 0.14);
+  --accent-grad: linear-gradient(135deg, #dc2a2e 0%, #c41e22 52%, #9a181c 100%);
   --indigo: #8e949c;
   --indigo-soft: rgba(142, 148, 156, 0.12);
   --emerald: #4ade80;
   --emerald-soft: rgba(74, 222, 128, 0.12);
   --emerald-strong: #22c55e;
-  --crimson: #ff5a63;
-  --crimson-soft: rgba(254, 0, 0, 0.12);
-  --crimson-strong: #fe0000;
+  --crimson: #e24a52;
+  --crimson-soft: rgba(200, 30, 34, 0.14);
+  --crimson-strong: #c81e22;
   --text: #eef0f2;
   --text-strong: #ffffff;
   --text-muted: rgba(238, 240, 242, 0.66);
@@ -69,17 +69,17 @@
   --stroke: rgba(30, 34, 38, 0.10);
   --stroke-soft: rgba(30, 34, 38, 0.06);
   --stroke-strong: rgba(30, 34, 38, 0.22);
-  --gold: #e60000;
-  --gold-soft-bg: rgba(230, 0, 0, 0.07);
-  --gold-dim: #b30000;
-  --gold-glow: rgba(230, 0, 0, 0.18);
-  --gold-soft: rgba(230, 0, 0, 0.09);
-  --accent: #e60000;
-  --accent-strong: #fe0000;
-  --accent-dim: #b30000;
-  --accent-soft: rgba(230, 0, 0, 0.09);
-  --accent-glow: rgba(230, 0, 0, 0.18);
-  --accent-grad: linear-gradient(135deg, #fe0000 0%, #e60000 50%, #b30000 100%);
+  --gold: #c41e22;
+  --gold-soft-bg: rgba(196, 30, 34, 0.07);
+  --gold-dim: #9a181c;
+  --gold-glow: rgba(196, 30, 34, 0.12);
+  --gold-soft: rgba(196, 30, 34, 0.08);
+  --accent: #c41e22;
+  --accent-strong: #d42428;
+  --accent-dim: #9a181c;
+  --accent-soft: rgba(196, 30, 34, 0.08);
+  --accent-glow: rgba(196, 30, 34, 0.12);
+  --accent-grad: linear-gradient(135deg, #d42428 0%, #c41e22 50%, #9a181c 100%);
   --indigo: #5c636b;
   --indigo-soft: rgba(92, 99, 107, 0.10);
   --emerald: #12824f;
@@ -103,7 +103,7 @@
   --shadow-card: 0 10px 40px rgba(20, 24, 28, 0.07), 0 0 0 1px rgba(30, 34, 38, 0.06);
   --shadow-pop: 0 20px 60px rgba(20, 24, 28, 0.14);
   --bg-gradient:
-    radial-gradient(ellipse 130% 80% at 50% -10%, rgba(254, 0, 0, 0.03), transparent 50%),
+    radial-gradient(ellipse 130% 80% at 50% -10%, rgba(196, 30, 34, 0.025), transparent 50%),
     radial-gradient(ellipse 80% 50% at 100% 0%, rgba(80, 88, 96, 0.06), transparent),
     linear-gradient(180deg, #f7f8f9 0%, #eceeef 50%, #e4e6e8 100%);
 }

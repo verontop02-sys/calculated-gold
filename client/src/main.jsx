@@ -6,6 +6,13 @@ import { FieldDealConfirm } from './FieldDealConfirm.jsx';
 import { ClientPortal } from './ClientPortal.jsx';
 import { ClientDisplay } from './ClientDisplay.jsx';
 import { InvestLanding } from './InvestLanding.jsx';
+import { RuHome } from './ru/RuHome.jsx';
+import { RuProdat } from './ru/RuProdat.jsx';
+import { RuAgenty } from './ru/RuAgenty.jsx';
+import { RuSlitki } from './ru/RuSlitki.jsx';
+import { RuResale } from './ru/RuResale.jsx';
+import { RuFranshiza } from './ru/RuFranshiza.jsx';
+import { RuPartneram } from './ru/RuPartneram.jsx';
 import { PrivacyPolicy } from './PrivacyPolicy.jsx';
 import { ToastProvider } from './ToastContext.jsx';
 import { initThemeFromStorage } from './theme.js';
@@ -36,6 +43,14 @@ const isClientDisplay = /^\/display\/?$/.test(path);
 const isPrivacy = /^\/privacy\/?$/.test(path);
 // Публичный лендинг Invest: корень домена + /invest (оба ведут на одну страницу).
 const isInvestLanding = /^\/(?:invest\/?)?$/.test(path);
+// Черновик нового сайта reaktivo.ru — временно живёт на /ru, пока не переедет на свой домен.
+const isRuHome = /^\/ru\/?$/.test(path);
+const isRuProdat = /^\/ru\/prodat\/?$/.test(path);
+const isRuAgenty = /^\/ru\/agenty\/?$/.test(path);
+const isRuSlitki = /^\/ru\/slitki\/?$/.test(path);
+const isRuResale = /^\/ru\/resale\/?$/.test(path);
+const isRuFranshiza = /^\/ru\/franshiza\/?$/.test(path);
+const isRuPartneram = /^\/ru\/partneram\/?$/.test(path);
 // Панель сотрудников (оценка/выкуп) — отдельный путь, чтобы корень был маркетинговым.
 const isStaffApp = /^\/pro\/?$/.test(path);
 
@@ -50,6 +65,20 @@ if (token) {
   inner = <ClientDisplay />;
 } else if (isStaffApp) {
   inner = <App />;
+} else if (isRuProdat) {
+  inner = <RuProdat />;
+} else if (isRuAgenty) {
+  inner = <RuAgenty />;
+} else if (isRuSlitki) {
+  inner = <RuSlitki />;
+} else if (isRuResale) {
+  inner = <RuResale />;
+} else if (isRuFranshiza) {
+  inner = <RuFranshiza />;
+} else if (isRuPartneram) {
+  inner = <RuPartneram />;
+} else if (isRuHome) {
+  inner = <RuHome />;
 } else if (isInvestLanding) {
   inner = <InvestLanding />;
 } else {
