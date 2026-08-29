@@ -597,6 +597,25 @@ export const RL_CSS = `
 .il-nav-link.is-active { color: var(--text-strong); }
 .il-nav-link.is-active::after { transform: scaleX(1); transform-origin: left; }
 
+/* ── Шапка: на ПК горизонтальное меню, бургер только на планшете и мобиле ──
+   Базовый IL_CSS прячет меню уже ниже 1280px — для .ru порог опускаем до 1024px,
+   в узкой зоне 1025–1279px меню уплотняется, чтобы все 7 пунктов помещались. */
+@media (min-width: 1025px) {
+  .rl-root .il-nav { display: flex; }
+  .rl-root .il-menu-btn { display: none; }
+}
+@media (min-width: 1025px) and (max-width: 1279px) {
+  .rl-root .il-header-inner { gap: 10px; padding: 14px 18px; }
+  .rl-root .il-nav { gap: 9px; }
+  .rl-root .il-nav-link { font-size: 0.78rem; }
+  .rl-root .il-header-actions { gap: 8px; }
+  .rl-root .il-btn--header-buy { padding: 10px 14px; font-size: 0.8rem; }
+}
+@media (max-width: 1024px) {
+  .rl-root .il-nav { display: none; }
+  .rl-root .il-menu-btn { display: inline-flex; }
+}
+
 /* ── Атмосфера страницы: глубина, не пустой графит ── */
 .rl-root.il-root {
   isolation: isolate;
