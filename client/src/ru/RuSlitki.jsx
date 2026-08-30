@@ -165,10 +165,10 @@ export function RuSlitki() {
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
             <RuKpis items={[
-              { val: 'до 3×', label: 'меньше теряете при продаже, чем на украшении' },
-              { val: '585–900', label: 'ювелирные пробы слитка' },
-              { val: 'слабировано', label: 'капсула, проба, вес, серийный номер' },
-              { val: 'выкуп', label: 'гарантирован в сети Reaktivo' },
+              { val: 'до 3×', label: 'меньше теряете при продаже, чем на украшении', icon: 'coins' },
+              { val: '585–900', label: 'ювелирные пробы слитка', icon: 'gem' },
+              { val: 'слабировано', label: 'капсула, проба, вес, серийный номер', icon: 'shield' },
+              { val: 'выкуп', label: 'гарантирован в сети Reaktivo', icon: 'check' },
             ]} />
           </div>
         </section>

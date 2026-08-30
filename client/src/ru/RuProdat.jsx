@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuLeadForm, RuMarquee, RuSbpBadge, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuSbpBadge, RuTiltCard,
   GramsSlider, formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
@@ -137,6 +137,17 @@ export function RuProdat() {
           'Курс каждые 3 секунды', 'До 90% от биржи', 'Курьер бесплатно', 'Деньги сразу',
           'Договор в приложении', 'Проверка при вас', 'Без комиссий', 'Без записи в отделение',
         ]} />
+
+        <section className="il-section rl-kpis-section">
+          <div className="il-section-inner">
+            <RuKpis items={[
+              { val: '3 сек', label: 'обновление курса с двух бирж', icon: 'bolt' },
+              { val: 'до 90%', label: 'от биржевой стоимости — без вычетов', icon: 'percent' },
+              { val: '45 мин', label: 'курьер приезжает бесплатно', icon: 'clock' },
+              { val: '0 ₽', label: 'комиссий за оценку и приём', icon: 'shield' },
+            ]} />
+          </div>
+        </section>
 
         <section className="il-section il-section--alt">
           <div className="il-section-inner">

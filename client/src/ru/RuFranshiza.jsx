@@ -112,10 +112,10 @@ export function RuFranshiza() {
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
             <RuKpis items={[
-              { val: '3 города', label: 'уже работают по системе' },
-              { val: '15 мин', label: 'средняя сделка в отделении' },
-              { val: 'до 90%', label: 'клиенту — поток рекомендует сам себя' },
-              { val: '2 формата', label: 'с нуля или переход действующей точки' },
+              { val: '3 города', label: 'уже работают по системе', icon: 'pin' },
+              { val: '15 мин', label: 'средняя сделка в отделении', icon: 'clock' },
+              { val: 'до 90%', label: 'клиенту — поток рекомендует сам себя', icon: 'percent' },
+              { val: '2 формата', label: 'с нуля или переход действующей точки', icon: 'building' },
             ]} />
           </div>
         </section>

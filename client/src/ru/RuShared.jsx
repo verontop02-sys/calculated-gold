@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, useMotionValue, useScroll, useSpring, useTransform } from 'motion/react';
+import { AnimatePresence, motion, useInView, useMotionValue, useScroll, useSpring, useTransform } from 'motion/react';
 import Lenis from 'lenis';
 import { clientApi } from '../api.js';
 import { ThemeToggle } from '../ThemeToggle.jsx';
@@ -186,16 +186,104 @@ const kpiParent = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } 
 const kpiChild = { hidden: { opacity: 0, y: 18 }, show: { opacity: 1, y: 0 } };
 
 /** Полоса крупных цифр-фактов. */
+/** Мини-иконки для цифр-фактов — только inline SVG, без внешних ассетов. */
+const KPI_ICONS = {
+  percent: (
+    <svg viewBox="0 0 24 24" fill="none"><circle cx="7" cy="7" r="2.6" stroke="currentColor" strokeWidth="1.8" /><circle cx="17" cy="17" r="2.6" stroke="currentColor" strokeWidth="1.8" /><path d="M18 6 6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+  ),
+  clock: (
+    <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.4" stroke="currentColor" strokeWidth="1.8" /><path d="M12 7.6V12l3.2 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+  ),
+  bolt: (
+    <svg viewBox="0 0 24 24" fill="none"><path d="M13 3 5 13h5l-1 8 8-10h-5l1-8Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.14" /></svg>
+  ),
+  pin: (
+    <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21Z" stroke="currentColor" strokeWidth="1.7" /><circle cx="12" cy="9.5" r="2.4" stroke="currentColor" strokeWidth="1.7" /></svg>
+  ),
+  shield: (
+    <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 19 6v6c0 5-3.5 7.8-7 9-3.5-1.2-7-4-7-9V6l7-3Z" stroke="currentColor" strokeWidth="1.7" /><path d="M9 12l2.2 2.2L15.5 9.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+  ),
+  check: (
+    <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.4" stroke="currentColor" strokeWidth="1.7" /><path d="M8.4 12.4l2.4 2.4 5-5.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+  ),
+  users: (
+    <svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8.6" r="2.7" stroke="currentColor" strokeWidth="1.7" /><path d="M4 19c0-2.8 2.3-4.6 5-4.6s5 1.8 5 4.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /><circle cx="17" cy="9.4" r="2.2" stroke="currentColor" strokeWidth="1.6" /><path d="M15.4 14.8c1.9.3 3.6 1.6 3.6 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+  ),
+  star: (
+    <svg viewBox="0 0 24 24" fill="none"><path d="M12 3.6l2.4 5 5.4.6-4 3.8 1 5.4-4.8-2.7-4.8 2.7 1-5.4-4-3.8 5.4-.6L12 3.6Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" fill="currentColor" fillOpacity="0.12" /></svg>
+  ),
+  send: (
+    <svg viewBox="0 0 24 24" fill="none"><path d="M20 4 3 11l6 2.4M20 4l-6.4 16-4.6-6.6M20 4 9.4 13.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+  ),
+  coins: (
+    <svg viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="7" rx="6.4" ry="3" stroke="currentColor" strokeWidth="1.6" /><path d="M5.6 7v4.4c0 1.65 2.87 3 6.4 3s6.4-1.35 6.4-3V7" stroke="currentColor" strokeWidth="1.6" /><path d="M5.6 11.4v4.4c0 1.65 2.87 3 6.4 3s6.4-1.35 6.4-3v-4.4" stroke="currentColor" strokeWidth="1.6" /></svg>
+  ),
+  building: (
+    <svg viewBox="0 0 24 24" fill="none"><rect x="5" y="4" width="9" height="16" rx="1" stroke="currentColor" strokeWidth="1.6" /><path d="M14 9h5v11h-5" stroke="currentColor" strokeWidth="1.6" /><path d="M8 8h1M11 8h1M8 12h1M11 12h1M8 16h1M11 16h1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
+  ),
+  gem: (
+    <svg viewBox="0 0 24 24" fill="none"><path d="M4 9l3.2-5h9.6L20 9l-8 11L4 9Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /><path d="M4 9h16M8.8 4l3.2 5 3.2-5M12 20V9" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>
+  ),
+  gift: (
+    <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="9.4" width="16" height="10.6" rx="1" stroke="currentColor" strokeWidth="1.6" /><path d="M4 12.6h16M12 9.4v10.6" stroke="currentColor" strokeWidth="1.6" /><path d="M12 9.4C12 6.8 9.8 5 8 5.6c-1.4.5-1.6 2.6.3 3.1.9.2 2.4.5 3.7.7ZM12 9.4c0-2.6 2.2-4.4 4-3.8 1.4.5 1.6 2.6-.3 3.1-.9.2-2.4.5-3.7.7Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>
+  ),
+};
+
+/** Число, которое «докручивается» от нуля при появлении в зоне видимости; нечисловые
+ *  значения (например «слабировано», «Telegram») отображаются как есть, без анимации. */
+function KpiValue({ val }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: '-10% 0px' });
+  const m = /^(\D*)(\d+)(\D*)$/.exec(String(val));
+  const spring = useSpring(0, { stiffness: 120, damping: 20, mass: 0.7 });
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const unsub = spring.on('change', setN);
+    return unsub;
+  }, [spring]);
+  useEffect(() => {
+    if (inView && m) spring.set(Number(m[2]));
+  }, [inView, m, spring]);
+  if (!m) return <span ref={ref}>{val}</span>;
+  return (
+    <span ref={ref}>
+      {m[1]}
+      {Math.round(n)}
+      {m[3]}
+    </span>
+  );
+}
+
+/**
+ * Цифры-факты: тёмная «витрина» со свечением и сеткой на фоне, стеклянные карточки
+ * с иконкой и цифрой, которая докручивается при скролле. Используется на каждом
+ * лендинге — единый узнаваемый блок вместо простого ряда чисел.
+ */
 export function RuKpis({ items }) {
   return (
-    <motion.div className="rl-kpis" variants={kpiParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-10% 0px' }}>
-      {items.map((k) => (
-        <motion.div className="rl-kpi" key={k.label} variants={kpiChild} transition={{ duration: 0.6, ease: EASE }}>
-          <span className="rl-kpi-val">{k.val}</span>
-          <span className="rl-kpi-label">{k.label}</span>
-        </motion.div>
-      ))}
-    </motion.div>
+    <div className="rl-kpis-wrap">
+      <div className="rl-kpis-glow" aria-hidden>
+        <span className="rl-kpis-orb rl-kpis-orb--a" />
+        <span className="rl-kpis-orb rl-kpis-orb--b" />
+        <span className="rl-kpis-grid" />
+        <span className="rl-kpis-sheen" />
+      </div>
+      <motion.div className="rl-kpis" variants={kpiParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-10% 0px' }}>
+        {items.map((k) => (
+          <motion.div
+            className="rl-kpi"
+            key={k.label}
+            variants={kpiChild}
+            transition={{ duration: 0.6, ease: EASE }}
+            whileHover={{ y: -6 }}
+          >
+            <span className="rl-kpi-icon">{KPI_ICONS[k.icon] || KPI_ICONS.star}</span>
+            <span className="rl-kpi-val"><KpiValue val={k.val} /></span>
+            <span className="rl-kpi-label">{k.label}</span>
+          </motion.div>
+        ))}
+      </motion.div>
+    </div>
   );
 }
 
@@ -778,11 +866,6 @@ export const RL_CSS = `
     linear-gradient(165deg, color-mix(in srgb, #fff 5%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 46%);
   box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.05);
 }
-.rl-root .rl-kpi {
-  background:
-    linear-gradient(165deg, color-mix(in srgb, #fff 4%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 55%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-}
 /* ── Красный финальный CTA: форма или заголовок + кнопка, без тёмной карточки ── */
 .rl-cta-panel { padding: clamp(36px, 5vw, 56px) clamp(20px, 5vw, 44px); text-align: left; }
 .rl-cta-panel:not(:has(.rl-form)) { text-align: center; }
@@ -1082,19 +1165,75 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .rl-crumbs a { color: var(--accent); text-decoration: none; }
 .il-section-lead { margin: 14px auto 0; max-width: 640px; font-size: 0.98rem; line-height: 1.55; color: var(--text-dim); }
 
-/* ── Цифры-факты ── */
+/* ── Цифры-факты: тёмная витрина со свечением, стеклянные карточки, иконка + счётчик ── */
 .rl-kpis-section { padding: 64px 0 32px; }
-.rl-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.rl-kpis-wrap {
+  position: relative; overflow: hidden; isolation: isolate; border-radius: 28px;
+  padding: clamp(30px, 4vw, 48px) clamp(18px, 3.4vw, 32px);
+  background:
+    radial-gradient(120% 140% at 12% -10%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 55%),
+    linear-gradient(165deg, color-mix(in srgb, #fff 5%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 60%);
+  border: 1px solid var(--stroke-soft);
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+:root[data-theme='dark'] .rl-kpis-wrap {
+  background:
+    radial-gradient(120% 140% at 12% -10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 55%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.05) 0%, var(--bg-panel-solid) 55%);
+}
+.rl-kpis-glow { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.rl-kpis-orb {
+  position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.5;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 60%, transparent), transparent 70%);
+}
+.rl-kpis-orb--a { width: 320px; height: 320px; top: -140px; left: -80px; }
+.rl-kpis-orb--b {
+  width: 260px; height: 260px; bottom: -120px; right: -60px; opacity: 0.32;
+  background: radial-gradient(circle, color-mix(in srgb, #7fb7ff 55%, transparent), transparent 70%);
+}
+.rl-kpis-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--text-strong) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--text-strong) 6%, transparent) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(120% 100% at 50% 0%, rgba(0, 0, 0, 0.7), transparent 78%);
+  opacity: 0.5;
+}
+.rl-kpis-sheen {
+  position: absolute; top: 0; left: -30%; width: 26%; height: 100%;
+  background: linear-gradient(100deg, transparent, color-mix(in srgb, #fff 22%, transparent) 50%, transparent);
+  animation: rlKpiSheen 7s ease-in-out infinite;
+  opacity: 0.5;
+}
+@keyframes rlKpiSheen { 0%, 12% { left: -30%; } 55%, 100% { left: 118%; } }
+.rl-kpis { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .rl-kpi {
-  display: flex; flex-direction: column; gap: 8px; padding: 30px 16px 26px; border-radius: 22px;
-  border: 1px solid var(--stroke-soft); text-align: center; position: relative; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 14px 24px; border-radius: 20px;
+  text-align: center; position: relative; overflow: hidden;
+  background: color-mix(in srgb, var(--bg-panel-solid) 60%, transparent);
+  border: 1px solid var(--stroke-soft);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: border-color 260ms ease, box-shadow 260ms ease;
 }
 .rl-kpi::before {
   content: ''; position: absolute; top: 0; left: 14%; right: 14%; height: 2px; border-radius: 0 0 4px 4px;
   background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0.75;
 }
-.rl-kpi-val { font-size: clamp(2.1rem, 4vw, 2.9rem); font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong); font-variant-numeric: tabular-nums; }
-.rl-kpi-label { font-size: 0.84rem; color: var(--text-strong); font-weight: 600; opacity: 0.82; }
+.rl-kpi:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke-soft));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 16px 34px -18px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.rl-kpi-icon {
+  display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.rl-kpi-icon svg { width: 20px; height: 20px; }
+.rl-kpi-val { font-size: clamp(2rem, 3.8vw, 2.7rem); font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rl-kpi-label { font-size: 0.82rem; color: var(--text-strong); font-weight: 600; opacity: 0.82; line-height: 1.35; }
 
 /* ── Фраза, проявляющаяся при скролле ── */
 .rl-statement { padding: 108px 0 90px; }
@@ -1212,7 +1351,8 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   .rl-vs { grid-template-columns: 1fr; }
   .rl-lvls { grid-template-columns: 1fr 1fr; }
   .rl-form { grid-template-columns: 1fr; }
-  .rl-kpis { grid-template-columns: 1fr 1fr; }
+  .rl-kpis { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .rl-kpis-wrap { padding: 26px 16px; border-radius: 22px; }
   .rl-aurora-a { width: min(90vw, 520px); height: min(90vw, 520px); }
   .rl-aurora-b { width: min(80vw, 420px); height: min(80vw, 420px); }
   .rl-hero-ring { width: min(92vw, 420px); height: min(92vw, 420px); right: -28%; opacity: 0.55; }
@@ -1241,7 +1381,13 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   .rl-root .il-faq-q { padding: 16px 12px 14px 18px; }
   .rl-root .il-faq-a { padding: 0 18px 16px; }
   .rl-kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .rl-kpi { padding: 18px 10px; }
+  .rl-kpis-wrap { padding: 22px 12px; border-radius: 20px; }
+  .rl-kpi { padding: 16px 8px 14px; }
+  .rl-kpi-icon { width: 34px; height: 34px; }
+  .rl-kpi-icon svg { width: 16px; height: 16px; }
+  .rl-kpi-val { font-size: clamp(1.4rem, 6.2vw, 2rem); }
+  .rl-kpi-label { font-size: 0.76rem; }
+  .rl-kpis-orb--a, .rl-kpis-orb--b { filter: blur(40px); }
   .rl-statement { padding: 76px 0 60px; }
   .rl-tilt-cards { grid-template-columns: 1fr; }
   .rl-perks-grid { grid-template-columns: 1fr !important; }

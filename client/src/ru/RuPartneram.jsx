@@ -110,10 +110,10 @@ export function RuPartneram() {
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
             <RuKpis items={[
-              { val: 'биржа', label: 'сетка курса с привязкой к бирже' },
-              { val: '2 стороны', label: 'покупка и продажа металла' },
-              { val: 'выезд', label: 'логистика за партией к вам' },
-              { val: 'день в день', label: 'расчёт после проверки партии' },
+              { val: 'биржа', label: 'сетка курса с привязкой к бирже', icon: 'percent' },
+              { val: '2 стороны', label: 'покупка и продажа металла', icon: 'users' },
+              { val: 'выезд', label: 'логистика за партией к вам', icon: 'send' },
+              { val: 'день в день', label: 'расчёт после проверки партии', icon: 'clock' },
             ]} />
           </div>
         </section>

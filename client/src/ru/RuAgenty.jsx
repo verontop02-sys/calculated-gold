@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuLeadForm, RuMarquee, RuStatement, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuStatement, RuTiltCard,
   formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
@@ -187,6 +187,17 @@ export function RuAgenty() {
         <RuMarquee items={[
           'Обучение', 'Инструменты', 'Приложение', 'SOS', 'Рейтинг', 'Оборотный капитал',
         ]} />
+
+        <section className="il-section rl-kpis-section">
+          <div className="il-section-inner">
+            <RuKpis items={[
+              { val: '4 уровня', label: 'рейтинга — от стажёра до представителя', icon: 'star' },
+              { val: 'бесплатно', label: 'набор, обучение и приложение агента', icon: 'gift' },
+              { val: 'SOS', label: 'кнопка безопасности с геолокацией', icon: 'shield' },
+              { val: '48 ч', label: 'на сдачу купленного золота в пункт приёма', icon: 'clock' },
+            ]} />
+          </div>
+        </section>
 
         <section className="il-section il-section--alt">
           <div className="il-section-inner">

@@ -98,10 +98,10 @@ export function RuResale() {
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
             <RuKpis items={[
-              { val: '100%', label: 'лотов проходят экспертизу' },
-              { val: 'бренды', label: 'мировые дома и ювелирные марки' },
-              { val: 'договор', label: 'происхождение каждой вещи известно' },
-              { val: 'Telegram', label: 'новые лоты первыми видят подписчики' },
+              { val: '100%', label: 'лотов проходят экспертизу', icon: 'check' },
+              { val: 'бренды', label: 'мировые дома и ювелирные марки', icon: 'star' },
+              { val: 'договор', label: 'происхождение каждой вещи известно', icon: 'shield' },
+              { val: 'Telegram', label: 'новые лоты первыми видят подписчики', icon: 'send' },
             ]} />
           </div>
         </section>
