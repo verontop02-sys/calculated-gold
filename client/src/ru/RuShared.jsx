@@ -1296,10 +1296,6 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 @keyframes kpiPulseRing { 0% { transform: scale(0.82); opacity: 0.9; } 70% { transform: scale(1.55); opacity: 0; } 100% { opacity: 0; } }
 @keyframes kpiLineSweep { 0% { background-position: 0% 0; } 100% { background-position: -220% 0; } }
 
-@media (prefers-reduced-motion: reduce) {
-  .rl-kpi-photo, .rl-kpi-photo-overlay, .rl-kpi-shine, .rl-kpi-icon-ring, .rl-kpi::before { animation: none !important; }
-}
-
 /* ── Фраза, проявляющаяся при скролле ── */
 .rl-statement { padding: 108px 0 90px; }
 .rl-statement-text {
