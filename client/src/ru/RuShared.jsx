@@ -269,19 +269,25 @@ export function RuKpis({ items }) {
         <span className="rl-kpis-sheen" />
       </div>
       <motion.div className="rl-kpis" variants={kpiParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-10% 0px' }}>
-        {items.map((k) => (
-          <motion.div
-            className="rl-kpi"
-            key={k.label}
-            variants={kpiChild}
-            transition={{ duration: 0.6, ease: EASE }}
-            whileHover={{ y: -6 }}
-          >
-            <span className="rl-kpi-icon">{KPI_ICONS[k.icon] || KPI_ICONS.star}</span>
-            <span className="rl-kpi-val"><KpiValue val={k.val} /></span>
-            <span className="rl-kpi-label">{k.label}</span>
-          </motion.div>
-        ))}
+        {items.map((k) => {
+          // Длинные значения («слабировано», «бесплатно») не переносятся — вместо этого
+          // уменьшаем кегль, чтобы слово всегда оставалось в одну строку.
+          const len = String(k.val).replace(/\s+/g, ' ').trim().length;
+          const sizeClass = len > 10 ? 'rl-kpi-val--xs' : len > 6 ? 'rl-kpi-val--sm' : '';
+          return (
+            <motion.div
+              className="rl-kpi"
+              key={k.label}
+              variants={kpiChild}
+              transition={{ duration: 0.6, ease: EASE }}
+              whileHover={{ y: -6 }}
+            >
+              <span className="rl-kpi-icon">{KPI_ICONS[k.icon] || KPI_ICONS.star}</span>
+              <span className={`rl-kpi-val ${sizeClass}`.trim()}><KpiValue val={k.val} /></span>
+              <span className="rl-kpi-label">{k.label}</span>
+            </motion.div>
+          );
+        })}
       </motion.div>
     </div>
   );
@@ -1209,8 +1215,8 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 @keyframes rlKpiSheen { 0%, 12% { left: -30%; } 55%, 100% { left: 118%; } }
 .rl-kpis { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .rl-kpi {
-  display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 14px 24px; border-radius: 20px;
-  text-align: center; position: relative; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 10px 24px; border-radius: 20px;
+  text-align: center; position: relative; overflow: hidden; min-width: 0;
   background: color-mix(in srgb, var(--bg-panel-solid) 60%, transparent);
   border: 1px solid var(--stroke-soft);
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
@@ -1232,7 +1238,12 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
 }
 .rl-kpi-icon svg { width: 20px; height: 20px; }
-.rl-kpi-val { font-size: clamp(2rem, 3.8vw, 2.7rem); font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rl-kpi-val {
+  font-size: clamp(2rem, 3.8vw, 2.7rem); font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong);
+  font-variant-numeric: tabular-nums; white-space: nowrap; max-width: 100%;
+}
+.rl-kpi-val--sm { font-size: clamp(1.4rem, 2.6vw, 2rem); }
+.rl-kpi-val--xs { font-size: clamp(1.1rem, 2vw, 1.5rem); }
 .rl-kpi-label { font-size: 0.82rem; color: var(--text-strong); font-weight: 600; opacity: 0.82; line-height: 1.35; }
 
 /* ── Фраза, проявляющаяся при скролле ── */
@@ -1386,6 +1397,8 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   .rl-kpi-icon { width: 34px; height: 34px; }
   .rl-kpi-icon svg { width: 16px; height: 16px; }
   .rl-kpi-val { font-size: clamp(1.4rem, 6.2vw, 2rem); }
+  .rl-kpi-val--sm { font-size: clamp(1.05rem, 4.6vw, 1.5rem); }
+  .rl-kpi-val--xs { font-size: clamp(0.86rem, 3.6vw, 1.15rem); }
   .rl-kpi-label { font-size: 0.76rem; }
   .rl-kpis-orb--a, .rl-kpis-orb--b { filter: blur(40px); }
   .rl-statement { padding: 76px 0 60px; }
