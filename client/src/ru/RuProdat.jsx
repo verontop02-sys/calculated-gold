@@ -141,10 +141,10 @@ export function RuProdat() {
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
             <RuKpis items={[
-              { val: '3 сек', label: 'обновление курса с двух бирж', icon: 'bolt' },
-              { val: 'до 90%', label: 'от биржевой стоимости — без вычетов', icon: 'percent' },
-              { val: '45 мин', label: 'курьер приезжает бесплатно', icon: 'clock' },
-              { val: '0 ₽', label: 'комиссий за оценку и приём', icon: 'shield' },
+              { val: '3 сек', label: 'обновление курса с двух бирж', icon: 'bolt', imgDark: '/ru/kpi-ticker-dark.jpg', imgLight: '/ru/kpi-ticker-light.jpg' },
+              { val: 'до 90%', label: 'от биржевой стоимости — без вычетов', icon: 'percent', imgDark: '/ru/kpi-percent-dark.jpg', imgLight: '/ru/kpi-percent-light.jpg' },
+              { val: '45 мин', label: 'курьер приезжает бесплатно', icon: 'clock', imgDark: '/ru/kpi-courier-dark.jpg', imgLight: '/ru/kpi-courier-light.jpg' },
+              { val: '0 ₽', label: 'комиссий за оценку и приём', icon: 'shield', imgDark: '/ru/kpi-coins-dark.jpg', imgLight: '/ru/kpi-coins-light.jpg' },
             ]} />
           </div>
         </section>

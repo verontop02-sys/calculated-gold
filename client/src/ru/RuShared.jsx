@@ -255,45 +255,40 @@ function KpiValue({ val }) {
 }
 
 /**
- * Цифры-факты: тёмная «витрина» со свечением и сеткой на фоне, стеклянные карточки
- * с иконкой и цифрой, которая докручивается при скролле. Используется на каждом
- * лендинге — единый узнаваемый блок вместо простого ряда чисел.
+ * Цифры-факты: карточки с фирменным фото под смысл каждой цифры. Фото — отдельная пара
+ * под светлую/тёмную тему (imgDark/imgLight) в единой тональности (чёрный+красный / кремовый+золото),
+ * поэтому переключение темы не «ломает» карточку. Без общей подложки — карточки сами по себе
+ * достаточно насыщены, лишний фон только спорил бы с фото.
  */
 export function RuKpis({ items }) {
+  const theme = useRlTheme();
   return (
-    <div className="rl-kpis-wrap">
-      <div className="rl-kpis-glow" aria-hidden>
-        <span className="rl-kpis-orb rl-kpis-orb--a" />
-        <span className="rl-kpis-orb rl-kpis-orb--b" />
-        <span className="rl-kpis-grid" />
-        <span className="rl-kpis-sheen" />
-      </div>
-      <motion.div className="rl-kpis" variants={kpiParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-10% 0px' }}>
-        {items.map((k) => {
-          // Длинные значения («слабировано», «бесплатно») не переносятся — вместо этого
-          // уменьшаем кегль, чтобы слово всегда оставалось в одну строку.
-          const len = String(k.val).replace(/\s+/g, ' ').trim().length;
-          const sizeClass = len > 10 ? 'rl-kpi-val--xs' : len > 6 ? 'rl-kpi-val--sm' : '';
-          return (
-            <motion.div
-              className={`rl-kpi${k.img ? ' rl-kpi--photo' : ''}`}
-              key={k.label}
-              variants={kpiChild}
-              transition={{ duration: 0.6, ease: EASE }}
-              whileHover={{ y: -6 }}
-            >
-              {k.img && <img className="rl-kpi-photo" src={k.img} alt="" aria-hidden loading="lazy" decoding="async" />}
-              {k.img && <span className="rl-kpi-photo-overlay" aria-hidden />}
-              <span className="rl-kpi-content">
-                <span className="rl-kpi-icon">{KPI_ICONS[k.icon] || KPI_ICONS.star}</span>
-                <span className={`rl-kpi-val ${sizeClass}`.trim()}><KpiValue val={k.val} /></span>
-                <span className="rl-kpi-label">{k.label}</span>
-              </span>
-            </motion.div>
-          );
-        })}
-      </motion.div>
-    </div>
+    <motion.div className="rl-kpis" variants={kpiParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-10% 0px' }}>
+      {items.map((k) => {
+        // Длинные значения («слабировано», «бесплатно») не переносятся — вместо этого
+        // уменьшаем кегль, чтобы слово всегда оставалось в одну строку.
+        const len = String(k.val).replace(/\s+/g, ' ').trim().length;
+        const sizeClass = len > 10 ? 'rl-kpi-val--xs' : len > 6 ? 'rl-kpi-val--sm' : '';
+        const img = theme === 'light' ? (k.imgLight || k.imgDark || k.img) : (k.imgDark || k.imgLight || k.img);
+        return (
+          <motion.div
+            className={`rl-kpi${img ? ' rl-kpi--photo' : ''}`}
+            key={k.label}
+            variants={kpiChild}
+            transition={{ duration: 0.6, ease: EASE }}
+            whileHover={{ y: -6 }}
+          >
+            {img && <img className="rl-kpi-photo" src={img} alt="" aria-hidden loading="lazy" decoding="async" />}
+            {img && <span className="rl-kpi-photo-overlay" aria-hidden />}
+            <span className="rl-kpi-content">
+              <span className="rl-kpi-icon">{KPI_ICONS[k.icon] || KPI_ICONS.star}</span>
+              <span className={`rl-kpi-val ${sizeClass}`.trim()}><KpiValue val={k.val} /></span>
+              <span className="rl-kpi-label">{k.label}</span>
+            </span>
+          </motion.div>
+        );
+      })}
+    </motion.div>
   );
 }
 
@@ -1175,48 +1170,8 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .rl-crumbs a { color: var(--accent); text-decoration: none; }
 .il-section-lead { margin: 14px auto 0; max-width: 640px; font-size: 0.98rem; line-height: 1.55; color: var(--text-dim); }
 
-/* ── Цифры-факты: тёмная витрина со свечением, стеклянные карточки, иконка + счётчик ── */
+/* ── Цифры-факты: карточки с фирменным фото (без общей подложки) ── */
 .rl-kpis-section { padding: 64px 0 32px; }
-.rl-kpis-wrap {
-  position: relative; overflow: hidden; isolation: isolate; border-radius: 28px;
-  padding: clamp(30px, 4vw, 48px) clamp(18px, 3.4vw, 32px);
-  background:
-    radial-gradient(120% 140% at 12% -10%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 55%),
-    linear-gradient(165deg, color-mix(in srgb, #fff 5%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 60%);
-  border: 1px solid var(--stroke-soft);
-  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-:root[data-theme='dark'] .rl-kpis-wrap {
-  background:
-    radial-gradient(120% 140% at 12% -10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 55%),
-    linear-gradient(165deg, rgba(255, 255, 255, 0.05) 0%, var(--bg-panel-solid) 55%);
-}
-.rl-kpis-glow { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-.rl-kpis-orb {
-  position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.5;
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 60%, transparent), transparent 70%);
-}
-.rl-kpis-orb--a { width: 320px; height: 320px; top: -140px; left: -80px; }
-.rl-kpis-orb--b {
-  width: 260px; height: 260px; bottom: -120px; right: -60px; opacity: 0.32;
-  background: radial-gradient(circle, color-mix(in srgb, #7fb7ff 55%, transparent), transparent 70%);
-}
-.rl-kpis-grid {
-  position: absolute; inset: 0;
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--text-strong) 6%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--text-strong) 6%, transparent) 1px, transparent 1px);
-  background-size: 42px 42px;
-  mask-image: radial-gradient(120% 100% at 50% 0%, rgba(0, 0, 0, 0.7), transparent 78%);
-  opacity: 0.5;
-}
-.rl-kpis-sheen {
-  position: absolute; top: 0; left: -30%; width: 26%; height: 100%;
-  background: linear-gradient(100deg, transparent, color-mix(in srgb, #fff 22%, transparent) 50%, transparent);
-  animation: rlKpiSheen 7s ease-in-out infinite;
-  opacity: 0.5;
-}
-@keyframes rlKpiSheen { 0%, 12% { left: -30%; } 55%, 100% { left: 118%; } }
 .rl-kpis { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .rl-kpi {
   display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 10px 24px; border-radius: 20px;
@@ -1390,7 +1345,6 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   .rl-lvls { grid-template-columns: 1fr 1fr; }
   .rl-form { grid-template-columns: 1fr; }
   .rl-kpis { grid-template-columns: 1fr 1fr; gap: 12px; }
-  .rl-kpis-wrap { padding: 26px 16px; border-radius: 22px; }
   .rl-aurora-a { width: min(90vw, 520px); height: min(90vw, 520px); }
   .rl-aurora-b { width: min(80vw, 420px); height: min(80vw, 420px); }
   .rl-hero-ring { width: min(92vw, 420px); height: min(92vw, 420px); right: -28%; opacity: 0.55; }
@@ -1419,7 +1373,6 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   .rl-root .il-faq-q { padding: 16px 12px 14px 18px; }
   .rl-root .il-faq-a { padding: 0 18px 16px; }
   .rl-kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .rl-kpis-wrap { padding: 22px 12px; border-radius: 20px; }
   .rl-kpi { padding: 16px 8px 14px; }
   .rl-kpi-icon { width: 34px; height: 34px; }
   .rl-kpi-icon svg { width: 16px; height: 16px; }
@@ -1427,7 +1380,6 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   .rl-kpi-val--sm { font-size: clamp(1.05rem, 4.6vw, 1.5rem); }
   .rl-kpi-val--xs { font-size: clamp(0.86rem, 3.6vw, 1.15rem); }
   .rl-kpi-label { font-size: 0.76rem; }
-  .rl-kpis-orb--a, .rl-kpis-orb--b { filter: blur(40px); }
   .rl-kpi--photo { min-height: 168px; }
   .rl-statement { padding: 76px 0 60px; }
   .rl-tilt-cards { grid-template-columns: 1fr; }

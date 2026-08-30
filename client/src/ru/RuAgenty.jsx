@@ -191,10 +191,10 @@ export function RuAgenty() {
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
             <RuKpis items={[
-              { val: '4 уровня', label: 'рейтинга — от стажёра до представителя', icon: 'star' },
-              { val: 'бесплатно', label: 'набор, обучение и приложение агента', icon: 'gift' },
-              { val: 'SOS', label: 'кнопка безопасности с геолокацией', icon: 'shield' },
-              { val: '48 ч', label: 'на сдачу купленного золота в пункт приёма', icon: 'clock' },
+              { val: '4 уровня', label: 'рейтинга — от стажёра до представителя', icon: 'star', imgDark: '/ru/kpi-star-dark.jpg', imgLight: '/ru/kpi-star-light.jpg' },
+              { val: 'бесплатно', label: 'набор, обучение и приложение агента', icon: 'gift', imgDark: '/ru/kpi-gift-dark.jpg', imgLight: '/ru/kpi-gift-light.jpg' },
+              { val: 'SOS', label: 'кнопка безопасности с геолокацией', icon: 'shield', imgDark: '/ru/kpi-shield-dark.jpg', imgLight: '/ru/kpi-shield-light.jpg' },
+              { val: '48 ч', label: 'на сдачу купленного золота в пункт приёма', icon: 'clock', imgDark: '/ru/kpi-time-dark.jpg', imgLight: '/ru/kpi-time-light.jpg' },
             ]} />
           </div>
         </section>

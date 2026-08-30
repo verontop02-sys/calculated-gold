@@ -158,10 +158,10 @@ export function RuHome() {
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
             <RuKpis items={[
-              { val: 'до 90%', label: 'от биржевой стоимости', icon: 'percent', img: '/ru/gold-bars.jpg' },
-              { val: '45 мин', label: 'курьер приезжает', icon: 'clock', img: '/ru/courier.jpg' },
-              { val: '5 мин', label: 'время сделки', icon: 'bolt', img: '/ru/partner.jpg' },
-              { val: '3 города', label: 'Москва · Калининград · СПб', icon: 'pin', img: '/ru/kpi-cities-map.jpg' },
+              { val: 'до 90%', label: 'от биржевой стоимости', icon: 'percent', imgDark: '/ru/kpi-percent-dark.jpg', imgLight: '/ru/kpi-percent-light.jpg' },
+              { val: '45 мин', label: 'курьер приезжает', icon: 'clock', imgDark: '/ru/kpi-courier-dark.jpg', imgLight: '/ru/kpi-courier-light.jpg' },
+              { val: '5 мин', label: 'время сделки', icon: 'bolt', imgDark: '/ru/kpi-scale-dark.jpg', imgLight: '/ru/kpi-scale-light.jpg' },
+              { val: '3 города', label: 'Москва · Калининград · СПб', icon: 'pin', imgDark: '/ru/kpi-cities-dark.jpg', imgLight: '/ru/kpi-cities-light.jpg' },
             ]} />
           </div>
         </section>

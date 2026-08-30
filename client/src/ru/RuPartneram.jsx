@@ -110,10 +110,10 @@ export function RuPartneram() {
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
             <RuKpis items={[
-              { val: 'биржа', label: 'сетка курса с привязкой к бирже', icon: 'percent' },
-              { val: '2 стороны', label: 'покупка и продажа металла', icon: 'users' },
-              { val: 'выезд', label: 'логистика за партией к вам', icon: 'send' },
-              { val: 'день в день', label: 'расчёт после проверки партии', icon: 'clock' },
+              { val: 'биржа', label: 'сетка курса с привязкой к бирже', icon: 'percent', imgDark: '/ru/kpi-ticker-dark.jpg', imgLight: '/ru/kpi-ticker-light.jpg' },
+              { val: '2 стороны', label: 'покупка и продажа металла', icon: 'users', imgDark: '/ru/kpi-handshake-dark.jpg', imgLight: '/ru/kpi-handshake-light.jpg' },
+              { val: 'выезд', label: 'логистика за партией к вам', icon: 'send', imgDark: '/ru/kpi-courier-dark.jpg', imgLight: '/ru/kpi-courier-light.jpg' },
+              { val: 'день в день', label: 'расчёт после проверки партии', icon: 'clock', imgDark: '/ru/kpi-time-dark.jpg', imgLight: '/ru/kpi-time-light.jpg' },
             ]} />
           </div>
         </section>
