@@ -183,7 +183,7 @@ export function RuStatement({ text }) {
 }
 
 const kpiParent = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
-const kpiChild = { hidden: { opacity: 0, y: 18 }, show: { opacity: 1, y: 0 } };
+const kpiChild = { hidden: { opacity: 0, y: 18, scale: 0.94 }, show: { opacity: 1, y: 0, scale: 1 } };
 
 /** Полоса крупных цифр-фактов. */
 /** Мини-иконки для цифр-фактов — только inline SVG, без внешних ассетов. */
@@ -260,33 +260,69 @@ function KpiValue({ val }) {
  * поэтому переключение темы не «ломает» карточку. Без общей подложки — карточки сами по себе
  * достаточно насыщены, лишний фон только спорил бы с фото.
  */
+/** Карточка цифры-факта с лёгким 3D-наклоном и бликом, следующим за курсором (только на
+ *  устройствах с мышью — на тач-экранах эти эффекты просто не включаются). Плюс постоянные
+ *  декоративные анимации (дыхание фото, пробегающий блеск, пульс у иконки), которые делают
+ *  карточку «живой» даже без взаимодействия — это и было нужно, чтобы блоки цепляли взгляд. */
+function KpiCard({ k, img, sizeClass, index }) {
+  const cardRef = useRef(null);
+  const rotX = useSpring(0, { stiffness: 220, damping: 22, mass: 0.6 });
+  const rotY = useSpring(0, { stiffness: 220, damping: 22, mass: 0.6 });
+
+  function handleMove(e) {
+    const el = cardRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width;
+    const py = (e.clientY - rect.top) / rect.height;
+    rotY.set((px - 0.5) * 12);
+    rotX.set((0.5 - py) * 9);
+    el.style.setProperty('--mx', `${px * 100}%`);
+    el.style.setProperty('--my', `${py * 100}%`);
+  }
+  function handleLeave() {
+    rotX.set(0);
+    rotY.set(0);
+  }
+
+  return (
+    <motion.div
+      ref={cardRef}
+      className={`rl-kpi${img ? ' rl-kpi--photo' : ''}`}
+      variants={kpiChild}
+      transition={{ duration: 0.6, ease: EASE }}
+      whileHover={{ y: -6 }}
+      onMouseMove={handleMove}
+      onMouseLeave={handleLeave}
+      style={{ rotateX: rotX, rotateY: rotY, '--kpi-delay': `${index * 0.85}s` }}
+    >
+      {img && <img className="rl-kpi-photo" src={img} alt="" aria-hidden loading="lazy" decoding="async" />}
+      {img && <span className="rl-kpi-photo-overlay" aria-hidden />}
+      <span className="rl-kpi-shine" aria-hidden />
+      <span className="rl-kpi-glare" aria-hidden />
+      <span className="rl-kpi-content">
+        <span className="rl-kpi-icon">
+          <span className="rl-kpi-icon-ring" aria-hidden />
+          {KPI_ICONS[k.icon] || KPI_ICONS.star}
+        </span>
+        <span className={`rl-kpi-val ${sizeClass}`.trim()}><KpiValue val={k.val} /></span>
+        <span className="rl-kpi-label">{k.label}</span>
+      </span>
+    </motion.div>
+  );
+}
+
 export function RuKpis({ items }) {
   const theme = useRlTheme();
   return (
     <motion.div className="rl-kpis" variants={kpiParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-10% 0px' }}>
-      {items.map((k) => {
+      {items.map((k, index) => {
         // Длинные значения («слабировано», «бесплатно») не переносятся — вместо этого
         // уменьшаем кегль, чтобы слово всегда оставалось в одну строку.
         const len = String(k.val).replace(/\s+/g, ' ').trim().length;
         const sizeClass = len > 10 ? 'rl-kpi-val--xs' : len > 6 ? 'rl-kpi-val--sm' : '';
         const img = theme === 'light' ? (k.imgLight || k.imgDark || k.img) : (k.imgDark || k.imgLight || k.img);
-        return (
-          <motion.div
-            className={`rl-kpi${img ? ' rl-kpi--photo' : ''}`}
-            key={k.label}
-            variants={kpiChild}
-            transition={{ duration: 0.6, ease: EASE }}
-            whileHover={{ y: -6 }}
-          >
-            {img && <img className="rl-kpi-photo" src={img} alt="" aria-hidden loading="lazy" decoding="async" />}
-            {img && <span className="rl-kpi-photo-overlay" aria-hidden />}
-            <span className="rl-kpi-content">
-              <span className="rl-kpi-icon">{KPI_ICONS[k.icon] || KPI_ICONS.star}</span>
-              <span className={`rl-kpi-val ${sizeClass}`.trim()}><KpiValue val={k.val} /></span>
-              <span className="rl-kpi-label">{k.label}</span>
-            </span>
-          </motion.div>
-        );
+        return <KpiCard key={k.label} k={k} img={img} sizeClass={sizeClass} index={index} />;
       })}
     </motion.div>
   );
@@ -1172,7 +1208,7 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 
 /* ── Цифры-факты: карточки с фирменным фото (без общей подложки) ── */
 .rl-kpis-section { padding: 64px 0 32px; }
-.rl-kpis { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.rl-kpis { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; perspective: 1400px; }
 .rl-kpi {
   display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 10px 24px; border-radius: 20px;
   text-align: center; position: relative; overflow: hidden; min-width: 0;
@@ -1181,10 +1217,12 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   transition: border-color 260ms ease, box-shadow 260ms ease;
+  transform-style: preserve-3d; will-change: transform; cursor: default;
 }
 .rl-kpi::before {
   content: ''; position: absolute; top: 0; left: 14%; right: 14%; height: 2px; border-radius: 0 0 4px 4px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0.75;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 220% 100%;
+  opacity: 0.75; animation: kpiLineSweep 5.5s linear infinite; animation-delay: var(--kpi-delay, 0s); z-index: 3;
 }
 .rl-kpi:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke-soft));
@@ -1201,32 +1239,66 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .rl-kpi--photo .rl-kpi-content { padding: 0 12px 20px; }
 .rl-kpi-photo {
   position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover;
-  transition: transform 600ms ease;
+  animation: kpiBreathe 10s ease-in-out infinite; animation-delay: var(--kpi-delay, 0s);
+  transition: transform 500ms ease;
 }
-.rl-kpi--photo:hover .rl-kpi-photo { transform: scale(1.07); }
+.rl-kpi--photo:hover .rl-kpi-photo { animation-play-state: paused; transform: scale(1.1) !important; }
 .rl-kpi-photo-overlay {
   position: absolute; inset: 0; z-index: 1;
   background:
     linear-gradient(180deg, rgba(8, 4, 4, 0.1) 0%, rgba(8, 4, 4, 0.5) 55%, rgba(6, 3, 3, 0.92) 100%),
     radial-gradient(120% 90% at 15% 0%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 60%);
+  animation: kpiGlowPulse 4.5s ease-in-out infinite; animation-delay: var(--kpi-delay, 0s);
+}
+/* Диагональный блик света, периодически пробегающий по карточке — делает блок «живым» даже без наведения. */
+.rl-kpi-shine {
+  position: absolute; inset: -60% -30%; z-index: 1; pointer-events: none;
+  background: linear-gradient(112deg, transparent 42%, rgba(255, 255, 255, 0.16) 48%, rgba(255, 255, 255, 0.32) 50%, rgba(255, 255, 255, 0.16) 52%, transparent 58%);
+  transform: translateX(-140%); animation: kpiShine 6.5s ease-in-out infinite; animation-delay: var(--kpi-delay, 0s);
+}
+/* Блик, следующий за курсором — только там, где есть мышь. */
+.rl-kpi-glare {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity 300ms ease;
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.32), transparent 62%);
+}
+@media (hover: hover) {
+  .rl-kpi:hover .rl-kpi-glare { opacity: 1; }
 }
 .rl-kpi--photo .rl-kpi-icon { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.35); color: #fff; }
 .rl-kpi--photo .rl-kpi-val, .rl-kpi--photo .rl-kpi-label { color: #fff; }
 .rl-kpi--photo .rl-kpi-label { opacity: 0.88; }
 .rl-kpi-icon {
   display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%;
-  color: var(--accent);
+  color: var(--accent); position: relative;
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
 }
-.rl-kpi-icon svg { width: 20px; height: 20px; }
+.rl-kpi-icon svg { width: 20px; height: 20px; position: relative; z-index: 1; }
+/* Пульсирующее кольцо-«радар» вокруг иконки — тонкий, но заметный акцент внимания. */
+.rl-kpi-icon-ring {
+  position: absolute; inset: -7px; border-radius: 50%; pointer-events: none;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  animation: kpiPulseRing 2.8s ease-out infinite; animation-delay: var(--kpi-delay, 0s);
+}
+.rl-kpi--photo .rl-kpi-icon-ring { border-color: rgba(255, 255, 255, 0.7); }
 .rl-kpi-val {
   font-size: clamp(2rem, 3.8vw, 2.7rem); font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong);
   font-variant-numeric: tabular-nums; white-space: nowrap; max-width: 100%;
 }
+.rl-kpi--photo .rl-kpi-val { text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55), 0 0 26px color-mix(in srgb, var(--accent) 45%, transparent); }
 .rl-kpi-val--sm { font-size: clamp(1.4rem, 2.6vw, 2rem); }
 .rl-kpi-val--xs { font-size: clamp(1.1rem, 2vw, 1.5rem); }
 .rl-kpi-label { font-size: 0.82rem; color: var(--text-strong); font-weight: 600; opacity: 0.82; line-height: 1.35; }
+
+@keyframes kpiBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.045); } }
+@keyframes kpiShine { 0%, 55% { transform: translateX(-140%); } 78% { transform: translateX(140%); } 100% { transform: translateX(140%); } }
+@keyframes kpiGlowPulse { 0%, 100% { opacity: 0.88; } 50% { opacity: 1; } }
+@keyframes kpiPulseRing { 0% { transform: scale(0.82); opacity: 0.9; } 70% { transform: scale(1.55); opacity: 0; } 100% { opacity: 0; } }
+@keyframes kpiLineSweep { 0% { background-position: 0% 0; } 100% { background-position: -220% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-kpi-photo, .rl-kpi-photo-overlay, .rl-kpi-shine, .rl-kpi-icon-ring, .rl-kpi::before { animation: none !important; }
+}
 
 /* ── Фраза, проявляющаяся при скролле ── */
 .rl-statement { padding: 108px 0 90px; }
