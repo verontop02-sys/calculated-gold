@@ -42,7 +42,6 @@ function sumRows(rows) {
 }
 
 function buildContractPayloadForSession({
-  contractNo,
   customerId,
   sellerName,
   passportLine,
@@ -54,7 +53,6 @@ function buildContractPayloadForSession({
   courierId,
 }) {
   const base = {
-    contractNo: String(contractNo || '').trim(),
     customerId: customerId || undefined,
     sellerName: String(sellerName || '').trim(),
     passportLine: String(passportLine || '').trim(),
@@ -95,7 +93,7 @@ function parseGrossG(v) {
 }
 
 export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast, price, user }) {
-  const [contractNo, setContractNo] = useState('');
+  const [lastContractNo, setLastContractNo] = useState('');
   const [sellerName, setSellerName] = useState('');
   const [phone, setPhone] = useState('');
   const [passportLine, setPassportLine] = useState('');
@@ -103,6 +101,9 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   const [appraiserName, setAppraiserName] = useState('');
   const [rows, setRows] = useState(() => [emptyRow()]);
   const [customerId, setCustomerId] = useState(null);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [validityBusy, setValidityBusy] = useState(false);
+  const [validityResult, setValidityResult] = useState(null); // { normalized, rawStatus } | null
 
   const [searchQ, setSearchQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -249,6 +250,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     setPhone(phoneValue);
     setPassportLine(c?.passport_line || '');
     setAddress(c?.address || '');
+    setValidityResult(null);
   }
 
   useEffect(() => {
@@ -346,7 +348,6 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       for (const r of prev) if (r?.photoUrl) URL.revokeObjectURL(r.photoUrl);
       return [emptyRow()];
     });
-    setContractNo('');
     setSellerName('');
     setPhone('');
     setPassportLine('');
@@ -356,6 +357,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     setSearchQ('');
     setSearchHits([]);
     setFieldCourierUid('');
+    setValidityResult(null);
     firstCalcRef.current = false;
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -418,6 +420,77 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     toast?.('Строка скопирована', 'success');
   }
 
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(reader.error || new Error('Не удалось прочитать файл'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /** Сканирование главной страницы паспорта: подставляет ФИО и строку паспорта, экономит время оператора. */
+  async function handleScanPassport(file) {
+    if (!file) return;
+    setScanBusy(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const out = await api.passportOcr(dataUrl);
+      let filled = 0;
+      if (out.fullName) {
+        setSellerName(out.fullName);
+        filled += 1;
+      }
+      if (out.passportLine) {
+        setPassportLine(out.passportLine);
+        filled += 1;
+      }
+      if (filled > 0) {
+        toast?.('Данные распознаны — проверьте перед сохранением', 'success');
+      } else {
+        toast?.('Не удалось разобрать поля, введите вручную', 'error');
+      }
+    } catch (e) {
+      toast?.(e?.message || 'Не удалось распознать паспорт', 'error');
+    } finally {
+      setScanBusy(false);
+    }
+  }
+
+  /** Проверка действительности паспорта по базе МВД (посредник NewDB) — платный запрос, до ~40 сек. */
+  async function handleCheckPassportValidity() {
+    const nameParts = sellerName.trim().split(/\s+/).filter(Boolean);
+    const [lastname, firstname, secondname] = nameParts;
+    if (!lastname || !firstname) {
+      toast?.('Укажите ФИО продавца полностью (Фамилия Имя Отчество)', 'error');
+      return;
+    }
+    const seriesMatch = passportLine.match(/\b(\d{2}\s?\d{2})\s?(\d{6})\b/);
+    if (!seriesMatch) {
+      toast?.('Не нашёл серию и номер в строке паспорта — укажите в формате «1234 567890»', 'error');
+      return;
+    }
+    setValidityBusy(true);
+    setValidityResult(null);
+    try {
+      const out = await api.passportValidityCheck({
+        seria: seriesMatch[1].replace(/\s/g, ''),
+        number: seriesMatch[2],
+        firstname,
+        lastname,
+        secondname,
+      });
+      setValidityResult(out);
+      if (out.normalized === 'invalid') toast?.('Паспорт недействителен по базе МВД!', 'error');
+      else if (out.normalized === 'valid') toast?.('Паспорт действителен', 'success');
+      else toast?.(`Ответ МВД: ${out.rawStatus}`, 'error');
+    } catch (e) {
+      toast?.(e?.message || 'Не удалось проверить паспорт', 'error');
+    } finally {
+      setValidityBusy(false);
+    }
+  }
+
   async function handleSaveCustomer() {
     const fn = sellerName.trim();
     if (!fn) {
@@ -470,8 +543,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           return new Date().toLocaleDateString('ru-RU');
         }
       })();
-      const { blob, dealId } = await api.scrapContractPdf({
-        contractNo: contractNo.trim(),
+      const { blob, dealId, contractNo } = await api.scrapContractPdf({
         customerId: customerId || undefined,
         sellerName: fn,
         passportLine: passportLine.trim(),
@@ -492,14 +564,15 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const safeNo = (contractNo.trim() || 'bez-nomera').replace(/[^\w\u0400-\u04FF-]+/g, '_');
+      const safeNo = (contractNo || 'bez-nomera').replace(/[^\w\u0400-\u04FF-]+/g, '_');
       a.download = `dogovor-kvitanciya-${safeNo}.pdf`;
       a.rel = 'noopener';
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast?.('PDF сформирован', 'success');
+      setLastContractNo(contractNo || '');
+      toast?.(contractNo ? `PDF сформирован, договор № ${contractNo}` : 'PDF сформирован', 'success');
 
       // Асинхронно загружаем фотографии изделий (не блокируем PDF-скачивание)
       if (dealId) {
@@ -561,7 +634,6 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     setSmsBusy(true);
     try {
       const body = buildContractPayloadForSession({
-        contractNo,
         customerId,
         sellerName,
         passportLine,
@@ -643,24 +715,12 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
 
       <div className="contract-card">
         <h3 className="contract-h3">Реквизиты договора</h3>
-        <p className="muted small" style={{ margin: '0 0 10px' }}>
-          Дата в печатной форме вручную. Номер — только цифры.
+        <p className="muted small" style={{ margin: 0 }}>
+          Номер договора присваивается автоматически при формировании PDF — по общей сквозной нумерации, без ручного ввода.
+          {lastContractNo && (
+            <> Последний выданный номер в этой сессии: <b className="mono-nums">№ {lastContractNo}</b>.</>
+          )}
         </p>
-        <div className="contract-grid contract-grid-one">
-          <label className="field">
-            <span className="field-label">Номер договора (только цифры)</span>
-            <input
-              inputMode="numeric"
-              pattern="[0-9]*"
-              className="mono-nums"
-              value={contractNo}
-              onChange={(e) => {
-                setContractNo(String(e.target.value).replace(/\D/g, ''));
-              }}
-              placeholder="например 142"
-            />
-          </label>
-        </div>
       </div>
 
       <div className="contract-card">
@@ -679,10 +739,50 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
               placeholder="+7…"
             />
           </label>
-          <label className="field contract-span-2">
+          <div className="field contract-span-2">
             <span className="field-label">Паспорт (серия, номер, кем и когда выдан)</span>
-            <input value={passportLine} onChange={(e) => setPassportLine(e.target.value)} />
-          </label>
+            <div className="contract-passport-row">
+              <input
+                value={passportLine}
+                onChange={(e) => {
+                  setPassportLine(e.target.value);
+                  setValidityResult(null);
+                }}
+              />
+              <label className="btn-secondary contract-scan-btn" title="Сфотографировать паспорт и распознать поля">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="crp-file-input"
+                  disabled={scanBusy}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    handleScanPassport(f);
+                  }}
+                />
+                {scanBusy ? 'Распознаём…' : 'Сканировать паспорт'}
+              </label>
+              <button
+                type="button"
+                className="btn-secondary contract-scan-btn"
+                disabled={validityBusy}
+                onClick={handleCheckPassportValidity}
+                title="Проверить действительность по базе МВД"
+              >
+                {validityBusy ? 'Проверяем…' : 'Проверить в МВД'}
+              </button>
+            </div>
+            {validityResult && (
+              <p className={`contract-validity-badge contract-validity-badge--${validityResult.normalized}`}>
+                {validityResult.normalized === 'valid' && 'Действителен по базе МВД'}
+                {validityResult.normalized === 'invalid' && 'Недействителен по базе МВД — не принимайте документ'}
+                {validityResult.normalized === 'not_found' && 'МВД: данные не найдены'}
+                {validityResult.normalized === 'unknown' && `МВД: ${validityResult.rawStatus}`}
+              </p>
+            )}
+          </div>
           <label className="field contract-span-2">
             <span className="field-label">Адрес регистрации</span>
             <textarea
@@ -1018,6 +1118,22 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         }
         .contract-address-text { font-size: 0.9rem; }
         .contract-save-btn { margin-top: 14px; width: 100%; }
+
+        /* Passport scan + validity check */
+        .contract-passport-row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+        .contract-passport-row input { flex: 1 1 160px; min-width: 0; }
+        .contract-scan-btn {
+          flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+          white-space: nowrap; cursor: pointer; font-size: 0.82rem; padding: 0 14px;
+        }
+        .contract-validity-badge {
+          margin: 8px 0 0; padding: 8px 12px; border-radius: 10px;
+          font-size: 0.82rem; font-weight: 600;
+        }
+        .contract-validity-badge--valid { background: var(--emerald-soft); color: var(--emerald); }
+        .contract-validity-badge--invalid { background: var(--crimson-soft); color: var(--crimson); }
+        .contract-validity-badge--not_found,
+        .contract-validity-badge--unknown { background: var(--stroke-soft); color: var(--text-muted); }
 
         /* Positions */
         .contract-table-head { margin-bottom: 16px; }

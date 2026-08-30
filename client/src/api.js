@@ -773,10 +773,31 @@ export const api = {
     request(`/scrap-customers/search?q=${encodeURIComponent(q)}`),
   saveScrapCustomer: (body) => request('/scrap-customers', { method: 'POST', body: JSON.stringify(body) }),
   deleteScrapCustomer: (id) => request(`/scrap-customers/${id}`, { method: 'DELETE' }),
-  /** PDF договора: возвращает { blob, dealId } */
+  /**
+   * Скан главной страницы паспорта → подсказка полей формы (ФИО, серия/номер, дата
+   * и орган выдачи). imageBase64 — data URL или чистый base64 JPEG/PNG.
+   */
+  passportOcr: (imageBase64) =>
+    request('/passport-ocr', {
+      method: 'POST',
+      body: JSON.stringify({ imageBase64 }),
+      timeout: 30_000,
+    }),
+  /**
+   * Проверка действительности паспорта РФ по базе МВД (посредник NewDB).
+   * { seria, number, firstname, lastname, secondname?, dob? } → { normalized, rawStatus, state }.
+   * Запрос может занимать до ~40 секунд — МВД отвечает не мгновенно.
+   */
+  passportValidityCheck: (body) =>
+    request('/passport-validity-check', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      timeout: 45_000,
+    }),
+  /** PDF договора: возвращает { blob, dealId, contractNo } — номер назначает сервер. */
   scrapContractPdf: async (body) => {
     const { blob, headers } = await requestBlob('/scrap-contract/pdf', { method: 'POST', body, returnHeaders: true });
-    return { blob, dealId: headers.get('x-deal-id') || null };
+    return { blob, dealId: headers.get('x-deal-id') || null, contractNo: headers.get('x-contract-no') || '' };
   },
   /** Полный список клиентов (панель «База»). q — поиск, limit/offset — пагинация. */
   scrapCustomersList: (params = {}) => {

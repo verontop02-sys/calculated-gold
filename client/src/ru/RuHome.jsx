@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, useScroll, useSpring, useTransform } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuMarquee, RuPhotoCard, RuSbpBadge, RuStatement, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuMarketTiles, RuMarquee, RuPhotoCard, RuSbpBadge, RuStatement, RuTiltCard,
   GramsSlider, formatMoney, officeHallPhoto, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
@@ -17,11 +17,11 @@ const DIRECTIONS = [
   },
   {
     tag: 'Интернет-магазин', title: 'Ювелирные слитки', href: '/ru/slitki/', live: true,
-    text: 'Слиток-украшение: цепочка, подвеска, кулон. Официально ювелирное изделие, доставка по всей стране.',
+    text: 'Слиток-украшение: кулон, подвеска, цепочка. Ювелирное украшение, сохраняющее ценность.',
   },
   {
     tag: 'Reaktivo Resale', title: 'Проверенные украшения', href: '/ru/resale/', live: true,
-    text: 'Брендовые изделия из выкупа после экспертизы и чистки — мировые бренды по выгодной цене в Telegram.',
+    text: 'Брендовые изделия из выкупа — сразу после экспертизы и ювелирного SPA. Мировые бренды по выгодной цене.',
   },
   {
     tag: 'Франшиза', title: 'Открыть отделение', href: '/ru/franshiza/', live: true,
@@ -42,7 +42,7 @@ const STEPS = [
 
 const ADVANTAGES = [
   { title: 'Курс с двух бирж', text: 'Собственная программа берёт котировки Москвы и Лондона и пересчитывает цену грамма каждые три секунды.' },
-  { title: 'Наценка видна', text: 'Клиент получает до 90% биржевой стоимости. Мы показываем, из чего складывается остаток, а не прячем его.' },
+  { title: 'Наценка видна', text: 'Клиент получает до 90% биржевой стоимости. Мы показываем, из чего складывается цена, а не прячем её.' },
   { title: 'Одна цена для всех', text: 'Единственное, что влияет на курс выкупа, — это биржа. Один и тот же курс на сайте, в отделениях и у курьера.' },
 ];
 
@@ -102,8 +102,6 @@ export function RuHome() {
     else document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const rate = quote?.goldRubPerGram ? Math.round(quote.goldRubPerGram * 0.585) : null;
-
   return (
     <div className="il-root rl-root">
       <motion.div className="il-progress" style={{ scaleX: progressX }} aria-hidden />
@@ -160,10 +158,10 @@ export function RuHome() {
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
             <RuKpis items={[
-              { val: rate ? formatMoney(rate) : '· · ·', label: 'курс за грамм 585 сейчас' },
               { val: 'до 90%', label: 'от биржевой стоимости' },
-              { val: '15 мин', label: 'время сделки' },
-              { val: '3 города', label: 'Калининград · Москва · СПб' },
+              { val: '45 мин', label: 'курьер приезжает' },
+              { val: '5 мин', label: 'время сделки' },
+              { val: '3 города', label: 'Москва · Калининград · СПб' },
             ]} />
           </div>
         </section>
@@ -235,7 +233,7 @@ export function RuHome() {
                 ))}
               </motion.div>
               <RuTiltCard className="rl-media-split-visual">
-                <img src="/ru/gold-bars.jpg" alt="Золотые украшения и слитки" loading="lazy" decoding="async" />
+                <RuMarketTiles />
               </RuTiltCard>
             </div>
           </div>
@@ -245,11 +243,11 @@ export function RuHome() {
           <div className="il-section-inner">
             <div className="il-section-head">
               <Reveal><span className="il-pill">Настоящий сервис</span></Reveal>
-              <Reveal delay={0.08}><h2 className="il-h2">Отделение, а не окно в стене</h2></Reveal>
-              <Reveal delay={0.14}><p className="il-section-lead">Светлый зал, отдельная зона проверки и оплаты. Никакой ломбардной атмосферы — только вы, эксперт и весы.</p></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Высокий стандарт. Наш формат</h2></Reveal>
+              <Reveal delay={0.14}><p className="il-section-lead">Во всём. Светлый зал, отдельная зона проверки и оплаты. Никакой ломбардной атмосферы, только вы и комфорт.</p></Reveal>
             </div>
             <Reveal delay={0.1} className="rl-photo-frame">
-              <RuPhotoCard src={officeHallPhoto} alt="Зал отделения Reaktivo" caption="Отделение в Калининграде" />
+              <RuPhotoCard src={officeHallPhoto} alt="Зал отделения Reaktivo" caption="Наше отделение" />
             </Reveal>
           </div>
         </section>
@@ -266,10 +264,12 @@ export function RuHome() {
 
         <section className="il-section il-section--cta">
           <div className="il-section-inner il-section-inner--narrow">
-            <Reveal className="rl-cta-box">
-              <h2 className="il-h2">Готовы посчитать точно?</h2>
-              <p>Откройте калькулятор выкупа — сумма считается по текущему курсу, до визита курьера.</p>
-              <a href="/ru/prodat/" className="il-btn il-btn--primary il-btn--lg">Рассчитать стоимость</a>
+            <Reveal>
+              <RuCtaPanel>
+                <h2 className="il-h2">Готовы посчитать точно?</h2>
+                <p>Откройте калькулятор выкупа — сумма считается по текущему курсу, до визита курьера.</p>
+                <a href="/ru/prodat/" className="il-btn il-btn--primary il-btn--lg">Рассчитать стоимость</a>
+              </RuCtaPanel>
             </Reveal>
           </div>
         </section>

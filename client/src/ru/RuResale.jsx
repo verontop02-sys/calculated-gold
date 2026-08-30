@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuPhotoCard, RuStatement,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuPhotoCard, RuStatement,
   setDraftMeta, useRuLenis,
 } from './RuShared.jsx';
 
@@ -144,10 +144,12 @@ export function RuResale() {
 
         <section className="il-section il-section--alt">
           <div className="il-section-inner">
-            <Reveal className="rl-cta-box">
-              <h2 className="il-h2">Первыми видят подписчики</h2>
-              <p>Новые лоты, бренды и цены публикуются в Telegram-канале Resale. Оставьте контакт — пришлём ссылку.</p>
-              <a href="#zayavka" className="il-btn il-btn--primary il-btn--lg">Получить ссылку на канал</a>
+            <Reveal>
+              <RuCtaPanel>
+                <h2 className="il-h2">Первыми видят подписчики</h2>
+                <p>Новые лоты, бренды и цены публикуются в Telegram-канале Resale. Оставьте контакт — пришлём ссылку.</p>
+                <a href="#zayavka" className="il-btn il-btn--primary il-btn--lg">Получить ссылку на канал</a>
+              </RuCtaPanel>
             </Reveal>
           </div>
         </section>
@@ -164,7 +166,11 @@ export function RuResale() {
 
         <section className="il-section il-section--cta" id="zayavka">
           <div className="il-section-inner il-section-inner--narrow">
-            <Reveal><ResaleForm /></Reveal>
+            <Reveal>
+              <RuCtaPanel>
+                <ResaleForm />
+              </RuCtaPanel>
+            </Reveal>
           </div>
         </section>
       </main>

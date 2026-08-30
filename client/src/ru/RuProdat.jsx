@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuLeadForm, RuMarquee, RuSbpBadge, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuLeadForm, RuMarquee, RuSbpBadge, RuTiltCard,
   GramsSlider, formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
 const PRINCIPLES = [
-  { title: 'Курс с двух бирж', text: 'Программа берёт котировки с Московской и Лондонской бирж и пересчитывает цену за грамм каждые три секунды — курс на сайте, у курьера и в отделении всегда одинаковый.' },
+  { title: 'Курс с двух бирж', text: 'Программа берёт котировки с Московской и Лондонской бирж и пересчитывает цену за грамм каждые три секунды — курс на сайте, у курьера и в отделениях всегда одинаковый.' },
   { title: 'Проба определяется при вас', text: 'Пробирным реактивом и, при необходимости, спектральным анализом. Вы видите тот же результат, что и эксперт — никаких сюрпризов.' },
   { title: 'Деньги сразу', text: 'Наличные на месте или перевод в течение минуты после подписания договора. Договор — в приложении, без бумажной волокиты.' },
 ];
@@ -186,6 +186,13 @@ export function RuProdat() {
             <div className="il-cards rl-tilt-cards">
               {REVIEWS.map((r) => (
                 <RuTiltCard key={r.name} className="il-card rl-tilt-card">
+                  <span className="rl-stars" aria-label="Оценка 5 из 5">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <svg key={i} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                        <path d="M10 1.4l2.6 5.6 6 0.7-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6-4.4-4.2 6-0.7z" />
+                      </svg>
+                    ))}
+                  </span>
                   <p className="il-card-text" style={{ marginBottom: 14 }}>«{r.text}»</p>
                   <h3 className="il-card-title" style={{ fontSize: '0.95rem' }}>{r.name}</h3>
                 </RuTiltCard>
@@ -206,7 +213,11 @@ export function RuProdat() {
 
         <section className="il-section il-section--cta" id="zayavka">
           <div className="il-section-inner il-section-inner--narrow">
-            <Reveal><LeadForm /></Reveal>
+            <Reveal>
+              <RuCtaPanel>
+                <LeadForm />
+              </RuCtaPanel>
+            </Reveal>
           </div>
         </section>
       </main>

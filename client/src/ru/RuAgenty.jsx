@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuLeadForm, RuMarquee, RuStatement, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuLeadForm, RuMarquee, RuStatement, RuTiltCard,
   formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
@@ -303,10 +303,12 @@ export function RuAgenty() {
 
         <section className="il-section il-section--alt">
           <div className="il-section-inner">
-            <Reveal className="rl-cta-box">
-              <h2 className="il-h2">Начните зарабатывать без офиса</h2>
-              <p>Обучение, аппаратуру и приложение даёт вам Reaktivo. Ваш вклад — время и знание своего города.</p>
-              <a href="#zayavka" className="il-btn il-btn--primary il-btn--lg">Оставить заявку</a>
+            <Reveal>
+              <RuCtaPanel>
+                <h2 className="il-h2">Начните зарабатывать без офиса</h2>
+                <p>Обучение, аппаратуру и приложение даёт вам Reaktivo. Ваш вклад — время и знание своего города.</p>
+                <a href="#zayavka" className="il-btn il-btn--primary il-btn--lg">Оставить заявку</a>
+              </RuCtaPanel>
             </Reveal>
           </div>
         </section>
@@ -340,7 +342,11 @@ export function RuAgenty() {
 
         <section className="il-section il-section--cta" id="zayavka">
           <div className="il-section-inner il-section-inner--narrow">
-            <Reveal><AgentForm /></Reveal>
+            <Reveal>
+              <RuCtaPanel>
+                <AgentForm />
+              </RuCtaPanel>
+            </Reveal>
           </div>
         </section>
       </main>

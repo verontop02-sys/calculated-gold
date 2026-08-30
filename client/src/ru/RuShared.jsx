@@ -4,6 +4,7 @@ import Lenis from 'lenis';
 import { clientApi } from '../api.js';
 import { ThemeToggle } from '../ThemeToggle.jsx';
 import { EASE } from '../InvestLanding.jsx';
+import { WORLD_CITIES, tzDateLabel, tzOffsetLabel, tzParts } from '../WorldClocks.jsx';
 import officeHallPhoto from '../assets/office/hall.jpg';
 import officeWaitingPhoto from '../assets/office/waiting.jpg';
 import officeWorkPhoto from '../assets/office/work.jpg';
@@ -215,6 +216,53 @@ export function RuTiltCard({ children, className = '' }) {
   );
 }
 
+function useRlTheme() {
+  const [theme, setTheme] = useState(() => document.documentElement.getAttribute('data-theme') || 'dark');
+  useEffect(() => {
+    const el = document.documentElement;
+    const obs = new MutationObserver(() => setTheme(el.getAttribute('data-theme') || 'dark'));
+    obs.observe(el, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => obs.disconnect();
+  }, []);
+  return theme;
+}
+
+const MARKET_CITIES = ['moscow', 'london']
+  .map((key) => WORLD_CITIES.find((c) => c.key === key))
+  .filter(Boolean);
+
+/** Две биржевые площадки (Москва, Лондон) — живое время, фото меняется со сменой темы. */
+export function RuMarketTiles({ className = '' }) {
+  const [now, setNow] = useState(() => new Date());
+  const theme = useRlTheme();
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className={`rl-market-tiles ${className}`.trim()} aria-label="Мировые площадки золота">
+      {MARKET_CITIES.map((c) => {
+        const { hm, s } = tzParts(now, c.tz);
+        const img = theme === 'light' ? c.imgLight : c.imgDark;
+        return (
+          <div key={c.key} className="rl-market-tile" style={{ backgroundImage: `url(${img})` }}>
+            <div className="rl-market-tile-top">
+              <span className="rl-market-tile-city"><i />{c.label}</span>
+              <span className="rl-market-tile-code">{c.code} · {tzOffsetLabel(now, c.tz)}</span>
+            </div>
+            <div className="rl-market-tile-bottom">
+              <span className="rl-market-tile-time">{hm}<b>:{s}</b></span>
+              <span className="rl-market-tile-date">{tzDateLabel(now, c.tz)}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Фото с лайтбоксом (переиспользует .il-lb* оверлей из общего IL_CSS). */
 export function RuPhotoCard({ src, alt, caption, className = '' }) {
   const [open, setOpen] = useState(false);
@@ -403,7 +451,7 @@ export function RuFooter() {
               <img className="il-logo-mark" src="/logo-reaktivo-mark.svg" alt="" width="32" height="32" />
               <span className="il-logo-text">REAKTIVO</span>
             </a>
-            <p>Выкуп золота без посредников. Курс как в обменке, отделение и курьеры в Калининграде.</p>
+            <p>Финтех-сервис покупки и продажи золота по биржевому курсу: собственные отделения и курьеры.</p>
           </div>
           <div className="il-footer-col">
             <span className="il-footer-col-title">Продать и купить</span>
@@ -419,7 +467,8 @@ export function RuFooter() {
           </div>
           <div className="il-footer-col">
             <span className="il-footer-col-title">Контакты</span>
-            <a href="tel:+78005551848" className="il-nav-link">8 (800) 555-18-48</a>
+            <a href="tel:+74956460044" className="il-nav-link">Москва: 8 (495) 646-00-44</a>
+            <a href="tel:+78005551848" className="il-nav-link">По России: 8 (800) 555-18-48</a>
             <a href="mailto:team@reaktivo.ru" className="il-nav-link">team@reaktivo.ru</a>
             <a href="/kabinet" className="il-nav-link">Личный кабинет</a>
           </div>
@@ -587,6 +636,11 @@ export function RuLeadForm({
   );
 }
 
+/** Красная финальная панель: форма заявки или заголовок + кнопка, как на «Продать». */
+export function RuCtaPanel({ children }) {
+  return <div className="il-cta-panel rl-cta-panel">{children}</div>;
+}
+
 export const RL_CSS = `
 .rl-preview-flag {
   position: fixed; bottom: 16px; left: 16px; z-index: 90;
@@ -729,6 +783,66 @@ export const RL_CSS = `
     linear-gradient(165deg, color-mix(in srgb, #fff 4%, var(--bg-panel-solid)) 0%, var(--bg-panel-solid) 55%);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
+/* ── Красный финальный CTA: форма или заголовок + кнопка, без тёмной карточки ── */
+.rl-cta-panel { padding: clamp(36px, 5vw, 56px) clamp(20px, 5vw, 44px); text-align: left; }
+.rl-cta-panel:not(:has(.rl-form)) { text-align: center; }
+.rl-cta-panel .il-h2 { color: #fff; }
+.rl-cta-panel > p {
+  color: rgba(255, 255, 255, 0.88); margin: 14px auto 26px; max-width: 48ch;
+  font-size: 1.02rem; line-height: 1.6;
+}
+.rl-cta-panel:not(:has(.rl-form)) .il-btn--primary {
+  background: #fff; color: var(--accent); box-shadow: 0 14px 40px -12px rgba(0, 0, 0, 0.45);
+  min-height: 54px;
+}
+.rl-cta-panel:not(:has(.rl-form)) .il-btn--primary:hover { transform: translateY(-2px); }
+.rl-cta-panel .rl-form {
+  position: relative; background: none; border: 0; box-shadow: none; padding: 0; color: #fff;
+  align-items: start;
+}
+.rl-cta-panel .rl-form h3,
+.rl-cta-panel .rl-form-full h3,
+.rl-cta-panel .rl-sent h3 { color: #fff; font-size: clamp(1.4rem, 2.6vw, 1.85rem); }
+.rl-cta-panel .rl-form-note,
+.rl-cta-panel .rl-sent .rl-form-note { color: rgba(255, 255, 255, 0.88); }
+.rl-cta-panel .rl-input {
+  background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.34);
+  color: #fff; height: 52px; min-height: 52px; max-height: 52px; padding: 0 16px; line-height: normal;
+}
+.rl-cta-panel textarea.rl-input { height: auto; min-height: 72px; max-height: none; padding: 12px 16px; line-height: 1.45; }
+.rl-cta-panel .rl-input::placeholder { color: rgba(255, 255, 255, 0.72); }
+.rl-cta-panel .rl-input:focus { border-color: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.22); }
+.rl-cta-panel .rl-form .il-btn--primary {
+  background: #fff; color: var(--accent); box-shadow: 0 14px 40px -12px rgba(0, 0, 0, 0.45);
+  min-height: 54px; line-height: 1.2; padding-top: 16px; padding-bottom: 16px;
+}
+.rl-cta-panel .rl-form .il-btn--primary:hover { transform: translateY(-2px); }
+.rl-cta-panel .rl-btn-spin { border-color: color-mix(in srgb, var(--accent) 35%, transparent); border-top-color: var(--accent); }
+.rl-cta-panel .rl-form-error { color: #fff; font-weight: 700; }
+
+/* ── Сравнительная таблица: украшение vs слиток Reaktivo ── */
+.rl-compare {
+  display: flex; flex-direction: column; border-radius: 22px; border: 1px solid var(--stroke-soft);
+  overflow: hidden; background: var(--bg-panel);
+}
+.rl-compare-row {
+  display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 12px; align-items: center;
+  padding: 14px 20px; border-top: 1px solid var(--stroke-soft); font-size: 0.9rem;
+}
+.rl-compare-row:first-child { border-top: none; }
+.rl-compare-head { font-size: 0.76rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-dim); padding-bottom: 16px; }
+.rl-compare-label { color: var(--text-muted); font-weight: 600; }
+.rl-compare-win { color: var(--accent); font-weight: 700; }
+@media (max-width: 640px) {
+  .rl-compare-row { grid-template-columns: 1fr; gap: 3px; padding: 14px 16px; text-align: left; }
+  .rl-compare-head { display: none; }
+  .rl-compare-label { font-size: 0.78rem; opacity: 0.75; }
+  .rl-compare-row > span:nth-child(2)::before { content: 'Украшение: '; font-weight: 700; opacity: 0.6; }
+  .rl-compare-row > span:nth-child(3)::before { content: 'Слиток Reaktivo: '; font-weight: 700; }
+}
+
+.rl-stars { display: inline-flex; gap: 3px; margin-bottom: 12px; color: var(--accent); }
+.rl-stars svg { width: 15px; height: 15px; }
 .rl-statement { position: relative; }
 .rl-root .il-footer {
   position: relative;
@@ -969,11 +1083,18 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .il-section-lead { margin: 14px auto 0; max-width: 640px; font-size: 0.98rem; line-height: 1.55; color: var(--text-dim); }
 
 /* ── Цифры-факты ── */
-.rl-kpis-section { padding: 56px 0 24px; }
-.rl-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-.rl-kpi { display: flex; flex-direction: column; gap: 6px; padding: 24px 14px; border-radius: 20px; border: 1px solid var(--stroke-soft); text-align: center; }
-.rl-kpi-val { font-size: clamp(1.9rem, 3.6vw, 2.6rem); font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong); font-variant-numeric: tabular-nums; }
-.rl-kpi-label { font-size: 0.8rem; color: var(--text-strong); font-weight: 600; opacity: 0.82; }
+.rl-kpis-section { padding: 64px 0 32px; }
+.rl-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.rl-kpi {
+  display: flex; flex-direction: column; gap: 8px; padding: 30px 16px 26px; border-radius: 22px;
+  border: 1px solid var(--stroke-soft); text-align: center; position: relative; overflow: hidden;
+}
+.rl-kpi::before {
+  content: ''; position: absolute; top: 0; left: 14%; right: 14%; height: 2px; border-radius: 0 0 4px 4px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0.75;
+}
+.rl-kpi-val { font-size: clamp(2.1rem, 4vw, 2.9rem); font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.rl-kpi-label { font-size: 0.84rem; color: var(--text-strong); font-weight: 600; opacity: 0.82; }
 
 /* ── Фраза, проявляющаяся при скролле ── */
 .rl-statement { padding: 108px 0 90px; }
@@ -993,7 +1114,7 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   position: relative; display: block; width: 100%; border: none; padding: 0; margin: 0; cursor: pointer;
   border-radius: 24px; overflow: hidden; background: var(--bg-panel-solid); -webkit-tap-highlight-color: transparent;
 }
-.rl-photo img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s cubic-bezier(0.22,1,0.36,1); }
+.rl-photo img { display: block; width: 100%; height: auto; object-fit: cover; transition: transform 0.5s cubic-bezier(0.22,1,0.36,1); }
 .rl-photo:hover img, .rl-photo:focus-visible img { transform: scale(1.035); }
 .rl-photo-caption {
   position: absolute; left: 16px; bottom: 14px; font-size: 0.82rem; font-weight: 700; color: #fff;
@@ -1034,6 +1155,45 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   position: static; aspect-ratio: 4 / 5; flex: 1; width: 100%; height: auto;
 }
 .rl-media-split--fill .rl-media-split-visual img { object-position: 50% 28%; }
+
+/* ── Плитки мировых рынков (Москва / Лондон), фото меняется с темой ── */
+.rl-market-tiles { display: flex; flex-direction: column; gap: 12px; width: 100%; height: 100%; }
+.rl-market-tile {
+  position: relative; flex: 1; overflow: hidden; border-radius: 22px;
+  padding: 20px 22px; display: flex; flex-direction: column; justify-content: space-between;
+  background-size: cover; background-position: center 38%; isolation: isolate;
+  min-height: 120px; transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rl-market-tile::before {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(180deg, rgba(8, 9, 12, 0.6) 0%, rgba(8, 9, 12, 0.14) 42%, rgba(8, 9, 12, 0.68) 100%);
+}
+.rl-market-tile:hover { transform: scale(1.012); }
+.rl-market-tile-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.rl-market-tile-city {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 0.94rem; font-weight: 700; color: #fff;
+  letter-spacing: 0.01em; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+}
+.rl-market-tile-city i {
+  width: 7px; height: 7px; border-radius: 50%; background: #4ade80;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.9); animation: rlPulseDot 2.2s ease-in-out infinite;
+}
+@keyframes rlPulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.rl-market-tile-code {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85); background: rgba(10, 11, 15, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; padding: 4px 10px;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); white-space: nowrap;
+}
+.rl-market-tile-bottom { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.rl-market-tile-time {
+  font-family: var(--font-display); font-size: clamp(1.7rem, 1.2rem + 2vw, 2.4rem); font-weight: 700;
+  letter-spacing: 0.01em; color: #fff; line-height: 1; text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+.rl-market-tile-time b { font-size: 0.55em; font-weight: 600; color: rgba(255, 255, 255, 0.66); margin-left: 2px; }
+.rl-market-tile-date { font-size: 0.78rem; font-weight: 600; color: rgba(255, 255, 255, 0.82); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55); white-space: nowrap; }
+@media (max-width: 900px) { .rl-market-tile-time { font-size: clamp(1.4rem, 1rem + 2.5vw, 1.9rem); } }
 .rl-media-split--fill .rl-rows {
   display: flex; flex-direction: column; height: 100%; align-self: stretch; min-height: 0;
 }

@@ -10,6 +10,8 @@ import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
 import { buildScrapContractPdfBuffer } from './scrapContractPdf.js';
+import { recognizePassportImage } from './passportOcr.js';
+import { checkPassportValidity } from './passportValidityCheck.js';
 import { computeAnalyticsSummaryData } from './analyticsSummaryData.js';
 import { buildAnalyticsReportPdfBuffer } from './analyticsReportPdf.js';
 import { buildDashboardReportPdf } from './dashboardReportPdf.js';
@@ -282,6 +284,7 @@ async function recordScrapDealFromPdf({ req, body, totalRub }) {
   return insertScrapDealRow(supabase, { operatorUserId: req.user?.id || null, body, totalRub });
 }
 
+
 /** Email → полный доступ к API (если роль из profiles по какой-то причине не подтягивается). Render: PANEL_FULL_ACCESS_EMAILS=a@b.com,c@d.com */
 function panelFullAccessEmails() {
   return (process.env.PANEL_FULL_ACCESS_EMAILS || '')
@@ -422,6 +425,26 @@ const supportMessageLimiter = rateLimit({
   message: { error: 'Слишком много сообщений подряд. Подождите пару минут.' },
 });
 
+// Скан паспорта — платный запрос во внешний OCR, лимит защищает от случайного
+// перерасхода (по ошибке в цикле, повторных кликах и т.п.), не от обычной работы.
+const passportOcrLimiter = rateLimit({
+  windowMs: 5 * 60_000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много сканирований подряд. Подождите пару минут.' },
+});
+
+// Проверка действительности паспорта — тоже платный запрос (внешний посредник NewDB),
+// плюс сам запрос к МВД может держать соединение до минуты — лимит уже, чем у OCR.
+const passportValidityLimiter = rateLimit({
+  windowMs: 10 * 60_000,
+  limit: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много проверок подряд. Подождите несколько минут.' },
+});
+
 app.use('/api', apiLimiter);
 app.use(
   [
@@ -438,7 +461,7 @@ app.use(
 // для остальных оставляем строгие 100kb. Глобальный парсер иначе режет тело раньше роутового.
 const jsonSmall = express.json({ limit: '100kb' });
 const jsonLarge = express.json({ limit: '16mb' });
-const LARGE_BODY_PATHS = new Set(['/api/deal-photos/upload', '/api/public/fintech/kyc/upload']);
+const LARGE_BODY_PATHS = new Set(['/api/deal-photos/upload', '/api/public/fintech/kyc/upload', '/api/passport-ocr']);
 app.use((req, res, next) => {
   if (LARGE_BODY_PATHS.has(req.path)) return jsonLarge(req, res, next);
   return jsonSmall(req, res, next);
@@ -3735,6 +3758,46 @@ app.post(
   })
 );
 
+/**
+ * Скан/фото главной страницы паспорта → подсказка для формы: ФИО, серия/номер,
+ * дата и орган выдачи. Ускоряет оператора и курьера, но не заменяет проверку
+ * оригинала — распознанное всегда можно поправить руками перед сохранением.
+ */
+app.post(
+  '/api/passport-ocr',
+  passportOcrLimiter,
+  asyncHandler(async (req, res) => {
+    const base64 = String(req.body?.imageBase64 || '').replace(/^data:image\/\w+;base64,/, '').trim();
+    if (!base64) return res.status(400).json({ error: 'Не передано изображение' });
+    if (base64.length > 14_000_000) return res.status(413).json({ error: 'Файл слишком большой' });
+    const out = await recognizePassportImage(base64);
+    res.json(out);
+  })
+);
+
+/**
+ * Проверка действительности паспорта РФ по базе МВД (через посредника NewDB, СМЭВ).
+ * Только подсказка оператору/курьеру перед сделкой — юридическую ответственность
+ * за приём документа это не заменяет, но отсекает явно недействительные паспорта
+ * (утеряны, заменены, в розыске у МВД) до того, как деньги уже переданы.
+ */
+app.post(
+  '/api/passport-validity-check',
+  passportValidityLimiter,
+  asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    const out = await checkPassportValidity({
+      seria: body.seria,
+      number: body.number,
+      firstname: body.firstname,
+      lastname: body.lastname,
+      secondname: body.secondname,
+      dob: body.dob,
+    });
+    res.json(out);
+  })
+);
+
 app.post(
   '/api/scrap-contract/pdf',
   asyncHandler(async (req, res) => {
@@ -3757,18 +3820,24 @@ app.post(
     if (!Number.isFinite(total) || total <= 0) {
       return res.status(400).json({ error: 'Укажите итоговую сумму или стоимость по строкам' });
     }
-    const buf = await buildScrapContractPdfBuffer({ ...body, totalRub: total });
+    // Номер договора назначается сервером при сохранении сделки (сквозная нумерация),
+    // поэтому сделку пишем в базу до сборки PDF — иначе на бумаге был бы другой номер.
     let dealId = null;
+    let contractNo = '';
     try {
-      dealId = await recordScrapDealFromPdf({ req, body, totalRub: total });
+      const inserted = await recordScrapDealFromPdf({ req, body, totalRub: total });
+      dealId = inserted.id;
+      contractNo = inserted.contractNo || '';
       cacheInvalidate('analytics:');
       cacheInvalidate('recent:');
     } catch (e) {
       console.error('[scrap_deals insert]', e?.message || e);
     }
+    const buf = await buildScrapContractPdfBuffer({ ...body, contractNo, totalRub: total });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="dogovor-kvitanciya.pdf"');
     if (dealId) res.setHeader('X-Deal-Id', dealId);
+    if (contractNo) res.setHeader('X-Contract-No', contractNo);
     res.send(buf);
   })
 );

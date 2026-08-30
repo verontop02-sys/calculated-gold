@@ -78,6 +78,17 @@ function dealDenormFromRows(rows) {
   };
 }
 
+/**
+ * Следующий номер договора берётся из общей БД-последовательности, а не от оператора
+ * или курьера: ни один из них не видит всю ленту сделок, чтобы продолжить нумерацию
+ * без дублей. RPC делает это атомарно, никакой гонки между параллельными сделками.
+ */
+async function nextScrapContractNo(supabase) {
+  const { data, error } = await supabase.rpc('next_scrap_contract_no');
+  if (error) throw error;
+  return String(data ?? '').trim() || null;
+}
+
 export async function insertScrapDealRow(supabase, { operatorUserId, body, totalRub, source = 'office' }) {
   const customerRaw = body?.customerId;
   let customerId =
@@ -91,10 +102,12 @@ export async function insertScrapDealRow(supabase, { operatorUserId, body, total
   const rows = normalizeDealRowsForWrite(body?.rows);
   const denorm = dealDenormFromRows(rows);
   const total = Number.isFinite(Number(totalRub)) ? Math.round(Number(totalRub)) : sumRowsRub(rows);
+  // Номер всегда назначается сервером — присланный клиентом contractNo игнорируется.
+  const contractNo = await nextScrapContractNo(supabase);
   const baseRow = {
     customer_id: customerId,
     operator_id: operatorUserId,
-    contract_no: String(body?.contractNo || '').trim() || null,
+    contract_no: contractNo,
     total_rub: total,
     seller_name: String(body?.sellerName || '').trim() || null,
     phone,
@@ -110,7 +123,7 @@ export async function insertScrapDealRow(supabase, { operatorUserId, body, total
     ({ data, error } = await supabase.from('scrap_deals').insert(baseRow).select('id').single());
   }
   if (error) throw error;
-  return data?.id || null;
+  return { id: data?.id || null, contractNo };
 }
 
 /**
@@ -331,8 +344,10 @@ export async function createFieldDealSession(supabase, { reqUser, requesterRole,
     if (resolved) customerId = resolved;
   }
 
+  // Номер договора здесь не хранится: он назначается сервером в момент фактического
+  // подтверждения сделки клиентом (insertScrapDealRow), а не когда курьер только
+  // отправляет ссылку — иначе нумерация шла бы не по факту сделки, а по факту заявки.
   const payload = {
-    contractNo: String(body?.contractNo || '').trim(),
     sellerName,
     passportLine: String(body?.passportLine || '').trim(),
     address: String(body?.address || '').trim(),
@@ -542,7 +557,8 @@ export async function verifyFieldDealSession(supabase, { token, code, clientIp }
 
   let dealId;
   try {
-    dealId = await insertScrapDealRow(supabase, { operatorUserId: operatorId, body, totalRub: s.total_rub, source: 'delivery' });
+    const inserted = await insertScrapDealRow(supabase, { operatorUserId: operatorId, body, totalRub: s.total_rub, source: 'delivery' });
+    dealId = inserted.id;
   } catch (e) {
     await supabase.from('field_deal_sessions').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', s.id);
     await audit(supabase, s.id, 'deal_insert_failed', 'system', null, { error: e?.message || String(e) });
@@ -647,7 +663,7 @@ export async function sendFieldDealReceiptByClient(supabase, { token, channel, t
   }
   const { data: s, error } = await supabase
     .from('field_deal_sessions')
-    .select('id, status, total_rub, phone, payload, created_at')
+    .select('id, status, total_rub, phone, payload, created_at, scrap_deal_id')
     .eq('public_token', t)
     .maybeSingle();
   if (error) throw error;
@@ -667,7 +683,14 @@ export async function sendFieldDealReceiptByClient(supabase, { token, channel, t
     err.status = 409;
     throw err;
   }
-  const text = buildMiniReceiptText({ payload: s.payload, totalRub: s.total_rub, createdAt: s.created_at });
+  // Номер договора назначается только в момент подтверждения (insertScrapDealRow),
+  // поэтому берём его из уже сохранённой сделки, а не из исходного payload сессии.
+  let contractNo = '';
+  if (s.scrap_deal_id) {
+    const { data: dealRow } = await supabase.from('scrap_deals').select('contract_no').eq('id', s.scrap_deal_id).maybeSingle();
+    contractNo = dealRow?.contract_no || '';
+  }
+  const text = buildMiniReceiptText({ payload: { ...s.payload, contractNo }, totalRub: s.total_rub, createdAt: s.created_at });
   if (mode === 'email') {
     const email = String(target || '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -677,7 +700,7 @@ export async function sendFieldDealReceiptByClient(supabase, { token, channel, t
     }
     const emailOut = await sendDealReceiptTextEmailIfConfigured({
       toEmail: email,
-      subject: `Чек по сделке REAKTIVO — договор № ${String(s.payload?.contractNo || '').trim() || '—'}`,
+      subject: `Чек по сделке REAKTIVO — договор № ${contractNo || '—'}`,
       text,
       payload: s.payload,
       totalRub: s.total_rub,

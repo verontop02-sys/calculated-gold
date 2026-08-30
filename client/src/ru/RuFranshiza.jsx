@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuPhotoCard, RuStatement,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuPhotoCard, RuStatement,
   officeHallPhoto, officeWorkPhoto, setDraftMeta, useRuLenis,
 } from './RuShared.jsx';
 
@@ -197,7 +197,7 @@ export function RuFranshiza() {
               <Reveal delay={0.14}><p className="il-section-lead">Светлый зал, отдельная зона проверки и оплаты, живой курс на экране. Таким получает отделение каждый партнёр.</p></Reveal>
             </div>
             <Reveal delay={0.1} className="rl-photo-frame">
-              <RuPhotoCard src={officeHallPhoto} alt="Зал отделения Reaktivo" caption="Отделение Reaktivo в Калининграде" />
+              <RuPhotoCard src={officeHallPhoto} alt="Зал отделения Reaktivo" caption="Наше отделение" />
             </Reveal>
           </div>
         </section>
@@ -233,7 +233,11 @@ export function RuFranshiza() {
 
         <section className="il-section il-section--cta" id="zayavka">
           <div className="il-section-inner il-section-inner--narrow">
-            <Reveal><FranshizaForm /></Reveal>
+            <Reveal>
+              <RuCtaPanel>
+                <FranshizaForm />
+              </RuCtaPanel>
+            </Reveal>
           </div>
         </section>
       </main>

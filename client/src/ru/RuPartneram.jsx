@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuPhotoCard, RuStatement,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuPhotoCard, RuStatement,
   setDraftMeta, useRuLenis,
 } from './RuShared.jsx';
 
@@ -183,7 +183,11 @@ export function RuPartneram() {
 
         <section className="il-section il-section--cta" id="zayavka">
           <div className="il-section-inner il-section-inner--narrow">
-            <Reveal><PartnerForm /></Reveal>
+            <Reveal>
+              <RuCtaPanel>
+                <PartnerForm />
+              </RuCtaPanel>
+            </Reveal>
           </div>
         </section>
       </main>
