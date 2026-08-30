@@ -97,6 +97,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   const [sellerName, setSellerName] = useState('');
   const [phone, setPhone] = useState('');
   const [passportLine, setPassportLine] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [address, setAddress] = useState('');
   const [appraiserName, setAppraiserName] = useState('');
   const [rows, setRows] = useState(() => [emptyRow()]);
@@ -104,6 +105,15 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   const [scanBusy, setScanBusy] = useState(false);
   const [validityBusy, setValidityBusy] = useState(false);
   const [validityResult, setValidityResult] = useState(null); // { normalized, rawStatus } | null
+  const [newDbBalance, setNewDbBalance] = useState(null); // number | null
+
+  useEffect(() => {
+    if (!isSuperAdminRole(user?.role)) return;
+    api
+      .newDbBalance()
+      .then((out) => setNewDbBalance(out?.balance ?? null))
+      .catch(() => setNewDbBalance(null));
+  }, [user?.role]);
 
   const [searchQ, setSearchQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -249,6 +259,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     setSellerName(c?.full_name || '');
     setPhone(phoneValue);
     setPassportLine(c?.passport_line || '');
+    setBirthDate(c?.birth_date || '');
     setAddress(c?.address || '');
     setValidityResult(null);
   }
@@ -351,6 +362,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     setSellerName('');
     setPhone('');
     setPassportLine('');
+    setBirthDate('');
     setAddress('');
     setAppraiserName('');
     setCustomerId(null);
@@ -445,6 +457,10 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         setPassportLine(out.passportLine);
         filled += 1;
       }
+      if (out.birthDate) {
+        setBirthDate(out.birthDate);
+        filled += 1;
+      }
       if (filled > 0) {
         toast?.('Данные распознаны — проверьте перед сохранением', 'success');
       } else {
@@ -479,6 +495,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         firstname,
         lastname,
         secondname,
+        dob: birthDate.trim() || undefined,
       });
       setValidityResult(out);
       if (out.normalized === 'invalid') toast?.('Паспорт недействителен по базе МВД!', 'error');
@@ -505,6 +522,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         phone: phone.trim() || null,
         passport_line: passportLine.trim() || null,
         address: address.trim() || null,
+        birth_date: birthDate.trim() || null,
       });
       if (customer?.id) setCustomerId(customer.id);
       toast?.('Данные клиента сохранены', 'success');
@@ -782,7 +800,24 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
                 {validityResult.normalized === 'unknown' && `МВД: ${validityResult.rawStatus}`}
               </p>
             )}
+            {isSuperAdminRole(user?.role) && newDbBalance != null && (
+              <p className={`muted small${newDbBalance < 100 ? ' contract-balance-low' : ''}`} style={{ margin: '4px 0 0' }}>
+                Баланс NewDB (проверка МВД): {newDbBalance} ₽
+                {newDbBalance < 100 && ' — пополните, иначе проверки перестанут проходить'}
+              </p>
+            )}
           </div>
+          <label className="field">
+            <span className="field-label">Дата рождения</span>
+            <input
+              value={birthDate}
+              onChange={(e) => {
+                setBirthDate(e.target.value);
+                setValidityResult(null);
+              }}
+              placeholder="ДД.ММ.ГГГГ"
+            />
+          </label>
           <label className="field contract-span-2">
             <span className="field-label">Адрес регистрации</span>
             <textarea
@@ -1134,6 +1169,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         .contract-validity-badge--invalid { background: var(--crimson-soft); color: var(--crimson); }
         .contract-validity-badge--not_found,
         .contract-validity-badge--unknown { background: var(--stroke-soft); color: var(--text-muted); }
+        .contract-balance-low { color: var(--crimson); font-weight: 600; }
 
         /* Positions */
         .contract-table-head { margin-bottom: 16px; }

@@ -794,6 +794,8 @@ export const api = {
       body: JSON.stringify(body),
       timeout: 45_000,
     }),
+  /** Баланс NewDB (₽) — только для суперадмина, реестр платных подписок. */
+  newDbBalance: () => request('/admin/newdb-balance'),
   /** PDF договора: возвращает { blob, dealId, contractNo } — номер назначает сервер. */
   scrapContractPdf: async (body) => {
     const { blob, headers } = await requestBlob('/scrap-contract/pdf', { method: 'POST', body, returnHeaders: true });

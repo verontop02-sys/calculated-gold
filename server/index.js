@@ -11,7 +11,7 @@ import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
 import { buildScrapContractPdfBuffer } from './scrapContractPdf.js';
 import { recognizePassportImage } from './passportOcr.js';
-import { checkPassportValidity } from './passportValidityCheck.js';
+import { checkPassportValidity, getNewDbBalance } from './passportValidityCheck.js';
 import { computeAnalyticsSummaryData } from './analyticsSummaryData.js';
 import { buildAnalyticsReportPdfBuffer } from './analyticsReportPdf.js';
 import { buildDashboardReportPdf } from './dashboardReportPdf.js';
@@ -3088,7 +3088,7 @@ app.get(
     if (q.length < 2) return res.json({ customers: [] });
     const esc = q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
     const pattern = `%${esc}%`;
-    const sel = 'id, full_name, phone, passport_line, address, updated_at';
+    const sel = 'id, full_name, phone, passport_line, address, birth_date, updated_at';
     const phoneDig = normalizeScrapPhoneDigits(q);
 
     const { data: byName, error: e1 } = await supabase
@@ -3135,7 +3135,7 @@ app.get(
   })
 );
 
-const SCRAP_CUST_LIST_SEL = 'id, full_name, phone, passport_line, address, created_at, updated_at';
+const SCRAP_CUST_LIST_SEL = 'id, full_name, phone, passport_line, address, birth_date, created_at, updated_at';
 
 app.get(
   '/api/scrap-customers',
@@ -3709,13 +3709,14 @@ app.post(
     const { phone, phone_normalized } = scrapCustomerPhonePayload(body.phone);
     const passport_line = String(body.passport_line || '').trim() || null;
     const address = String(body.address || '').trim() || null;
+    const birth_date = String(body.birth_date || '').trim() || null;
     const id = body.id ? String(body.id) : null;
     const now = new Date().toISOString();
 
     if (id) {
       const { data, error } = await supabase
         .from('scrap_customers')
-        .update({ full_name, phone, phone_normalized, passport_line, address, updated_at: now })
+        .update({ full_name, phone, phone_normalized, passport_line, address, birth_date, updated_at: now })
         .eq('id', id)
         .select()
         .maybeSingle();
@@ -3740,7 +3741,7 @@ app.post(
     if (duplicateId) {
       const { data, error } = await supabase
         .from('scrap_customers')
-        .update({ full_name, phone, phone_normalized, passport_line, address, updated_at: now })
+        .update({ full_name, phone, phone_normalized, passport_line, address, birth_date, updated_at: now })
         .eq('id', duplicateId)
         .select()
         .maybeSingle();
@@ -3750,7 +3751,7 @@ app.post(
 
     const { data, error } = await supabase
       .from('scrap_customers')
-      .insert({ full_name, phone, phone_normalized, passport_line, address, updated_at: now })
+      .insert({ full_name, phone, phone_normalized, passport_line, address, birth_date, updated_at: now })
       .select()
       .maybeSingle();
     if (error) throw error;
@@ -3794,6 +3795,19 @@ app.post(
       secondname: body.secondname,
       dob: body.dob,
     });
+    res.json(out);
+  })
+);
+
+/**
+ * Баланс платного посредника NewDB (проверка паспортов в МВД) — реестр подписок:
+ * видно заранее, что пора пополнить, чтобы не остаться без проверки в разгар сделки.
+ */
+app.get(
+  '/api/admin/newdb-balance',
+  requireSuperAdmin,
+  asyncHandler(async (req, res) => {
+    const out = await getNewDbBalance();
     res.json(out);
   })
 );

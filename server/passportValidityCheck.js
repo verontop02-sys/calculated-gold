@@ -18,6 +18,32 @@ export function passportValidityCheckConfigured() {
   return Boolean(process.env.NEWDB_API_KEY);
 }
 
+/**
+ * Баланс аккаунта NewDB (₽). Проверки платные (≈2₽/шт) — виджет для админа,
+ * чтобы пополнить заранее и не остаться без проверки посреди ключевой сделки.
+ */
+export async function getNewDbBalance() {
+  if (!passportValidityCheckConfigured()) {
+    const err = new Error('NEWDB_API_KEY не настроен на сервере');
+    err.status = 503;
+    throw err;
+  }
+  const res = await fetch(`${BASE_URL}/balance`, {
+    headers: { 'X-API-KEY': process.env.NEWDB_API_KEY },
+  });
+  const text = await res.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`NewDB вернул не-JSON (${res.status})`);
+  }
+  if (!res.ok) {
+    throw new Error(json?.error || json?.message || `Ошибка запроса баланса (${res.status})`);
+  }
+  return { balance: Number(json?.balance) || 0 };
+}
+
 export async function checkPassportValidity({ seria, number, firstname, lastname, secondname, dob }) {
   if (!passportValidityCheckConfigured()) {
     const err = new Error('Проверка действительности паспорта не настроена (нет ключа NewDB на сервере)');

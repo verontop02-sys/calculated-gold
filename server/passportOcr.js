@@ -1,5 +1,6 @@
 /**
- * Скан паспорта РФ → подсказка для формы договора: ФИО, серия/номер, дата и орган выдачи.
+ * Скан паспорта РФ → подсказка для формы договора: ФИО, серия/номер, дата и орган выдачи,
+ * дата рождения (нужна для ГИЗДМДК и для точного сопоставления при проверке в МВД).
  * Распознавание — Yandex Vision OCR. Сначала модель `passport` (размеченные entities),
  * при дырах в полях — добор через `page` + regex. Поля остаются редактируемыми.
  *
@@ -108,8 +109,13 @@ function extractFromEntities(entities) {
     /department|subdivision|unit.?code|код.?подраздел/i
   );
   const issuedBy = entityText(entities, /issu.?by|authority|issued.?by|кем.?выдан|орган/i);
+  // ГИЗДМДК требует дату рождения при регистрации сделки — берём отдельной entity,
+  // чтобы не спутать с датой выдачи паспорта (обе даты часто рядом на разворе).
+  const birthDate = normalizeDate(
+    entityText(entities, /birth.?date|date.?of.?birth|дата.?рожд/i)
+  );
 
-  return { fullName, seriesNumber, issueDate, deptCode, issuedBy };
+  return { fullName, seriesNumber, issueDate, deptCode, issuedBy, birthDate };
 }
 
 function normalizeSeriesNumber(raw) {
@@ -151,6 +157,20 @@ function extractFromLines(lines) {
     if (m) issueDate = m[1];
   }
 
+  // Дата рождения ищется рядом со строкой «дата рождения» отдельно от даты выдачи —
+  // на развороте они рядом, простое «первая найденная дата» их бы перепутало.
+  let birthDate = '';
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/дата\s*рожд/i.test(lines[i])) {
+      const window = `${lines[i]} ${lines[i + 1] || ''} ${lines[i + 2] || ''}`;
+      const m = window.match(/\b(\d{2}[.\s]\d{2}[.\s]\d{4})\b/);
+      if (m) {
+        birthDate = m[1].replace(/\s/g, '.');
+        break;
+      }
+    }
+  }
+
   // ФИО на развороте паспорта почти всегда тремя отдельными словами-строками CAPS
   const header =
     /российс|федерац|паспорт|министер|внутренн|дел|миграц|служба|кем\s*выдан|дата|код\s*под|муж|жен|отдел|уфмс|мвд|овд|город|област|район|гражданин/i;
@@ -182,7 +202,7 @@ function extractFromLines(lines) {
     if (org) issuedBy = normSpaces(org);
   }
 
-  return { fullName, seriesNumber, issueDate, deptCode, issuedBy };
+  return { fullName, seriesNumber, issueDate, deptCode, issuedBy, birthDate };
 }
 
 function nameWordCount(s) {
@@ -190,7 +210,7 @@ function nameWordCount(s) {
 }
 
 function mergeFields(...parts) {
-  const out = { fullName: '', seriesNumber: '', issueDate: '', deptCode: '', issuedBy: '' };
+  const out = { fullName: '', seriesNumber: '', issueDate: '', deptCode: '', issuedBy: '', birthDate: '' };
   for (const p of parts) {
     for (const k of Object.keys(out)) {
       if (!p?.[k]) continue;
@@ -206,7 +226,7 @@ function mergeFields(...parts) {
 }
 
 function hasUsefulFields(f) {
-  return Boolean(f.fullName || f.seriesNumber || f.issueDate || f.deptCode || f.issuedBy);
+  return Boolean(f.fullName || f.seriesNumber || f.issueDate || f.deptCode || f.issuedBy || f.birthDate);
 }
 
 /**
@@ -260,6 +280,7 @@ export async function recognizePassportImage(base64Image) {
     issueDate: merged.issueDate || '',
     deptCode: merged.deptCode || '',
     issuedBy: merged.issuedBy || '',
+    birthDate: merged.birthDate || '',
     passportLine: passportLineParts.join(', '),
     rawText: rawText || '',
   };
