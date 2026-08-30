@@ -165,8 +165,8 @@ export function RuSlitki() {
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
             <RuKpis items={[
-              { val: 'до 3×', label: 'меньше теряете при продаже, чем на украшении', icon: 'coins', imgDark: '/ru/kpi-coins-dark.jpg', imgLight: '/ru/kpi-coins-light.jpg' },
-              { val: '585–900', label: 'ювелирные пробы слитка', icon: 'gem', imgDark: '/ru/kpi-gem-dark.jpg', imgLight: '/ru/kpi-gem-light.jpg' },
+              { val: 'до 3×', label: 'меньше теряете при продаже, чем на украшении', icon: 'coins', imgDark: '/ru/kpi-multiplier-dark.jpg', imgLight: '/ru/kpi-multiplier-light.jpg' },
+              { val: '585–900', label: 'ювелирные пробы слитка', icon: 'gem', imgDark: '/ru/kpi-hallmark-dark.jpg', imgLight: '/ru/kpi-hallmark-light.jpg' },
               { val: 'слабировано', label: 'капсула, проба, вес, серийный номер', icon: 'shield', imgDark: '/ru/kpi-shield-dark.jpg', imgLight: '/ru/kpi-shield-light.jpg' },
               { val: 'выкуп', label: 'гарантирован в сети Reaktivo', icon: 'check', imgDark: '/ru/kpi-check-dark.jpg', imgLight: '/ru/kpi-check-light.jpg' },
             ]} />

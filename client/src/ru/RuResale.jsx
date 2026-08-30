@@ -99,7 +99,7 @@ export function RuResale() {
           <div className="il-section-inner">
             <RuKpis items={[
               { val: '100%', label: 'лотов проходят экспертизу', icon: 'check', imgDark: '/ru/kpi-check-dark.jpg', imgLight: '/ru/kpi-check-light.jpg' },
-              { val: 'бренды', label: 'мировые дома и ювелирные марки', icon: 'star', imgDark: '/ru/kpi-star-dark.jpg', imgLight: '/ru/kpi-star-light.jpg' },
+              { val: 'бренды', label: 'мировые дома и ювелирные марки', icon: 'star', imgDark: '/ru/kpi-medal-dark.jpg', imgLight: '/ru/kpi-medal-light.jpg' },
               { val: 'договор', label: 'происхождение каждой вещи известно', icon: 'shield', imgDark: '/ru/kpi-contract-dark.jpg', imgLight: '/ru/kpi-contract-light.jpg' },
               { val: 'Telegram', label: 'новые лоты первыми видят подписчики', icon: 'send', imgDark: '/ru/kpi-telegram-dark.jpg', imgLight: '/ru/kpi-telegram-light.jpg' },
             ]} />
