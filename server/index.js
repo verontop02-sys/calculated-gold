@@ -363,7 +363,7 @@ app.use(
       'Range',
     ],
     // Чтобы фронт на другом домене мог прочитать id созданной сделки и догрузить фото.
-    exposedHeaders: ['X-Deal-Id'],
+    exposedHeaders: ['X-Deal-Id', 'X-Contract-No'],
   })
 );
 
