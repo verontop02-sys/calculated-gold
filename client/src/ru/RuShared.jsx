@@ -1425,6 +1425,11 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   .rl-media-split--even .rl-media-split-visual { aspect-ratio: 16 / 9; height: auto; flex: none; }
   .rl-media-split--fill > .rl-tilt-perspective { height: auto; display: block; }
   .rl-media-split--fill .rl-media-split-visual { aspect-ratio: 16 / 9; height: auto; flex: none; }
+  /* Плитки мировых часов (Москва/Лондон) не влезают в фикс. соотношение 16:9 — их всегда
+     два, каждая с собственной минимальной высотой, поэтому даём блоку высоту «по контенту». */
+  .rl-media-split-visual:has(.rl-market-tiles) { aspect-ratio: auto; height: auto; }
+  .rl-market-tiles { gap: 10px; }
+  .rl-market-tile { min-height: 108px; padding: 16px 18px; }
   .rl-media-split--fill .rl-rows { display: block; height: auto; }
   .rl-media-split--fill .rl-row { flex: none; }
   .rl-tilt-cards { grid-template-columns: 1fr 1fr; }
