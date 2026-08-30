@@ -115,6 +115,13 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       .catch(() => setNewDbBalance(null));
   }, [user?.role]);
 
+  // Оценщик = тот, кто сидит под аккаунтом — не переписывается руками каждый раз.
+  // Экономит секунды на каждой сделке и убирает путаницу, когда сделку делают вдвоём.
+  const boundAppraiserName = String(user?.displayName || '').trim();
+  useEffect(() => {
+    if (boundAppraiserName) setAppraiserName(boundAppraiserName);
+  }, [boundAppraiserName]);
+
   const [searchQ, setSearchQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchHits, setSearchHits] = useState([]);
@@ -364,7 +371,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     setPassportLine('');
     setBirthDate('');
     setAddress('');
-    setAppraiserName('');
+    setAppraiserName(boundAppraiserName);
     setCustomerId(null);
     setSearchQ('');
     setSearchHits([]);
@@ -792,12 +799,15 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
                 {validityBusy ? 'Проверяем…' : 'Проверить в МВД'}
               </button>
             </div>
+            <p className="muted small" style={{ margin: '6px 0 0' }}>
+              Для проверки нужны: ФИО (фамилия и имя обязательны) и серия + номер паспорта. Отчество и дата рождения — если заполнены, проверка точнее.
+            </p>
             {validityResult && (
-              <p className={`contract-validity-badge contract-validity-badge--${validityResult.normalized}`}>
-                {validityResult.normalized === 'valid' && 'Действителен по базе МВД'}
-                {validityResult.normalized === 'invalid' && 'Недействителен по базе МВД — не принимайте документ'}
-                {validityResult.normalized === 'not_found' && 'МВД: данные не найдены'}
-                {validityResult.normalized === 'unknown' && `МВД: ${validityResult.rawStatus}`}
+              <p className={`contract-validity-badge contract-validity-badge--${validityResult.normalized === 'valid' ? 'valid' : 'bad'}`}>
+                {validityResult.normalized === 'valid' && '✓ Паспорт действителен (МВД)'}
+                {validityResult.normalized === 'invalid' && '✕ Паспорт недействителен — не принимайте документ'}
+                {validityResult.normalized === 'not_found' && '✕ Паспорт не найден в базе МВД — проверьте данные'}
+                {validityResult.normalized === 'unknown' && `✕ МВД: ${validityResult.rawStatus}`}
               </p>
             )}
             {isSuperAdminRole(user?.role) && newDbBalance != null && (
@@ -975,9 +985,19 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
             value={appraiserName}
             onChange={(e) => setAppraiserName(e.target.value)}
             placeholder="Кто принял товар"
+            readOnly={Boolean(boundAppraiserName)}
             required
           />
         </label>
+        {boundAppraiserName ? (
+          <p className="muted small" style={{ margin: '6px 0 0' }}>
+            Подставлено из вашего аккаунта. Чтобы изменить — поправьте имя в профиле.
+          </p>
+        ) : (
+          <p className="muted small" style={{ margin: '6px 0 0' }}>
+            Укажите имя в профиле, чтобы это поле заполнялось само.
+          </p>
+        )}
       </div>
 
       {isUserManagerRole(user?.role) && fieldStaff.length > 0 && (
@@ -1162,13 +1182,11 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           white-space: nowrap; cursor: pointer; font-size: 0.82rem; padding: 0 14px;
         }
         .contract-validity-badge {
-          margin: 8px 0 0; padding: 8px 12px; border-radius: 10px;
-          font-size: 0.82rem; font-weight: 600;
+          margin: 8px 0 0; padding: 10px 14px; border-radius: 10px;
+          font-size: 0.9rem; font-weight: 700;
         }
         .contract-validity-badge--valid { background: var(--emerald-soft); color: var(--emerald); }
-        .contract-validity-badge--invalid { background: var(--crimson-soft); color: var(--crimson); }
-        .contract-validity-badge--not_found,
-        .contract-validity-badge--unknown { background: var(--stroke-soft); color: var(--text-muted); }
+        .contract-validity-badge--bad { background: var(--crimson-soft); color: var(--crimson); }
         .contract-balance-low { color: var(--crimson); font-weight: 600; }
 
         /* Positions */
@@ -1373,6 +1391,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
 
         /* Required field mark */
         .field-required { color: var(--danger, #ef4444); margin-left: 2px; font-weight: 700; }
+        .field input[readonly] { background: var(--stroke-soft); color: var(--text-muted); cursor: default; }
       `}</style>
     </div>
   );
