@@ -276,15 +276,19 @@ export function RuKpis({ items }) {
           const sizeClass = len > 10 ? 'rl-kpi-val--xs' : len > 6 ? 'rl-kpi-val--sm' : '';
           return (
             <motion.div
-              className="rl-kpi"
+              className={`rl-kpi${k.img ? ' rl-kpi--photo' : ''}`}
               key={k.label}
               variants={kpiChild}
               transition={{ duration: 0.6, ease: EASE }}
               whileHover={{ y: -6 }}
             >
-              <span className="rl-kpi-icon">{KPI_ICONS[k.icon] || KPI_ICONS.star}</span>
-              <span className={`rl-kpi-val ${sizeClass}`.trim()}><KpiValue val={k.val} /></span>
-              <span className="rl-kpi-label">{k.label}</span>
+              {k.img && <img className="rl-kpi-photo" src={k.img} alt="" aria-hidden loading="lazy" decoding="async" />}
+              {k.img && <span className="rl-kpi-photo-overlay" aria-hidden />}
+              <span className="rl-kpi-content">
+                <span className="rl-kpi-icon">{KPI_ICONS[k.icon] || KPI_ICONS.star}</span>
+                <span className={`rl-kpi-val ${sizeClass}`.trim()}><KpiValue val={k.val} /></span>
+                <span className="rl-kpi-label">{k.label}</span>
+              </span>
             </motion.div>
           );
         })}
@@ -1231,6 +1235,29 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke-soft));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 16px 34px -18px color-mix(in srgb, var(--accent) 50%, transparent);
 }
+.rl-kpi-content { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+/* Карточка с фото: тон всегда тёмный (не зависит от темы сайта) — так фото и обработка
+   не «плывут» между светлой и тёмной темой, это и была главная сложность подбора фото. */
+.rl-kpi--photo {
+  padding: 0; min-height: clamp(200px, 22vw, 248px); justify-content: flex-end;
+  background: #0a0605; border-color: rgba(255, 255, 255, 0.12);
+}
+.rl-kpi--photo::before { display: none; }
+.rl-kpi--photo .rl-kpi-content { padding: 0 12px 20px; }
+.rl-kpi-photo {
+  position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover;
+  transition: transform 600ms ease;
+}
+.rl-kpi--photo:hover .rl-kpi-photo { transform: scale(1.07); }
+.rl-kpi-photo-overlay {
+  position: absolute; inset: 0; z-index: 1;
+  background:
+    linear-gradient(180deg, rgba(8, 4, 4, 0.1) 0%, rgba(8, 4, 4, 0.5) 55%, rgba(6, 3, 3, 0.92) 100%),
+    radial-gradient(120% 90% at 15% 0%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 60%);
+}
+.rl-kpi--photo .rl-kpi-icon { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.35); color: #fff; }
+.rl-kpi--photo .rl-kpi-val, .rl-kpi--photo .rl-kpi-label { color: #fff; }
+.rl-kpi--photo .rl-kpi-label { opacity: 0.88; }
 .rl-kpi-icon {
   display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%;
   color: var(--accent);
@@ -1401,6 +1428,7 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   .rl-kpi-val--xs { font-size: clamp(0.86rem, 3.6vw, 1.15rem); }
   .rl-kpi-label { font-size: 0.76rem; }
   .rl-kpis-orb--a, .rl-kpis-orb--b { filter: blur(40px); }
+  .rl-kpi--photo { min-height: 168px; }
   .rl-statement { padding: 76px 0 60px; }
   .rl-tilt-cards { grid-template-columns: 1fr; }
   .rl-perks-grid { grid-template-columns: 1fr !important; }
