@@ -1307,9 +1307,23 @@ async function notifyLandingLeadTelegram({ source, name, phone, fields = {} }) {
   return sendTelegramMessage(chatId, lines.join('\n'));
 }
 
+/** Российский номер: +7 / 8XXXXXXXXXX / 9XXXXXXXXX. */
+function isRuPhone(value) {
+  const d = String(value || '').replace(/\D/g, '');
+  if (d.length === 11 && (d.startsWith('7') || d.startsWith('8'))) return true;
+  if (d.length === 10 && d.startsWith('9')) return true;
+  return false;
+}
+
+function isLeadName(value) {
+  const s = String(value || '').trim();
+  if (s.length < 2 || s.length > 120) return false;
+  return /[a-zA-Zа-яА-ЯёЁ]/.test(s);
+}
+
 /**
  * Публичная заявка с лендингов reaktivo.ru: база + Telegram.
- * Контакт свободной формы: телефон или Telegram-ник.
+ * Телефон обязателен: без него заявку не принимаем.
  */
 app.post(
   '/api/public/landing-lead',
@@ -1324,9 +1338,11 @@ app.post(
       return res.status(400).json({ error: 'Неизвестный источник заявки' });
     }
     const name = String(req.body?.name || '').trim().slice(0, 120);
-    if (name.length < 2) return res.status(400).json({ error: 'Укажите имя' });
+    if (!isLeadName(name)) return res.status(400).json({ error: 'Укажите имя' });
     const phone = String(req.body?.phone || '').trim().slice(0, 120);
-    if (phone.length < 5) return res.status(400).json({ error: 'Укажите телефон или Telegram' });
+    if (!isRuPhone(phone)) {
+      return res.status(400).json({ error: 'Укажите номер телефона, без него мы не сможем связаться' });
+    }
     const fields = sanitizeLeadFields(req.body?.fields);
 
     let saved = null;
