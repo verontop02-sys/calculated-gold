@@ -13,6 +13,8 @@ const SOURCE_META = {
   resale: { label: 'Resale', color: '#7c4dbe' },
   franshiza: { label: 'Франшиза', color: '#2563eb' },
   partneram: { label: 'B2B', color: '#0e7490' },
+  komanda: { label: 'Команда', color: '#ea580c' },
+  'pismo-ceo': { label: 'Письмо CEO', color: '#be123c' },
   pro: { label: 'reaktivo.pro', color: '#64748b' },
 };
 

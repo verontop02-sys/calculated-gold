@@ -1260,6 +1260,8 @@ const LANDING_LEAD_SOURCES = {
   resale: 'Reaktivo Resale',
   franshiza: 'Франшиза',
   partneram: 'Партнёрам (B2B)',
+  komanda: 'Попасть в команду',
+  'pismo-ceo': 'Письмо CEO',
   pro: 'Консультация (reaktivo.pro)',
 };
 
@@ -1271,7 +1273,7 @@ function sanitizeLeadFields(raw) {
   for (const [k, v] of Object.entries(raw)) {
     if (n >= 8) break;
     const key = String(k).trim().slice(0, 60);
-    const val = String(v ?? '').trim().slice(0, 500);
+    const val = String(v ?? '').trim().slice(0, 2000);
     if (!key || !val) continue;
     out[key] = val;
     n += 1;
