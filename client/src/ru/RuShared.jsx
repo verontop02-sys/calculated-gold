@@ -475,7 +475,7 @@ export function setDraftMeta(title) {
 
 const NAV = [
   { href: '/ru/prodat/', label: 'Продать' },
-  { href: '/ru/slitki/', label: 'Слитки' },
+  { href: '/ru/slitki/', label: 'Купить' },
   { href: '/ru/resale/', label: 'Resale' },
   { href: '/ru/agenty/', label: 'Работа' },
   { href: '/ru/franshiza/', label: 'Франшиза' },
@@ -956,7 +956,7 @@ export const RL_CSS = `
 .rl-compare-row:first-child { border-top: none; }
 .rl-compare-head { font-size: 0.76rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-dim); padding-bottom: 16px; }
 .rl-compare-label { color: var(--text-muted); font-weight: 600; }
-.rl-compare-win { color: var(--accent); font-weight: 700; }
+.rl-compare-win { color: var(--accent); font-weight: 800; }
 @media (max-width: 640px) {
   .rl-compare-row { grid-template-columns: 1fr; gap: 3px; padding: 14px 16px; text-align: left; }
   .rl-compare-head { display: none; }
@@ -1105,8 +1105,24 @@ export const RL_CSS = `
 .rl-calc-brand i { color: var(--accent); margin: 0 2px; }
 .rl-calc-live { display: inline-flex; align-items: center; gap: 6px; font-size: 0.76rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
 .rl-calc-live i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: ilPulse 1.8s ease-in-out infinite; }
+/* ── Живой курс: графическая динамика вместо текста «курс живой» — бары растут/красятся
+   зелёным при росте цены и красным при снижении, так пользователь видит, что курс настоящий. ── */
+.rl-rate { display: inline-flex; align-items: center; gap: 7px; font-size: 0.74rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; transition: color 0.3s ease; }
+.rl-rate--up { color: var(--emerald); }
+.rl-rate--down { color: var(--danger); }
+.rl-rate-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; animation: ilPulse 1.8s ease-in-out infinite; }
+.rl-rate-bars { display: inline-flex; align-items: flex-end; gap: 2.5px; height: 16px; flex-shrink: 0; }
+.rl-rate-bars i {
+  display: block; width: 3.5px; min-height: 26%; border-radius: 2px;
+  background: color-mix(in srgb, currentColor 55%, transparent);
+  transition: height 0.45s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease;
+}
+.rl-rate-bars i.is-up { background: var(--emerald); }
+.rl-rate-bars i.is-down { background: var(--danger); }
 .rl-calc-label { font-size: 0.98rem; font-weight: 700; color: var(--text-strong); }
 .rl-calc-note { font-size: 0.82rem; color: var(--text-dim); margin: 4px 0 0; }
+.rl-calc-note--breakdown { margin-top: 12px; }
+.rl-calc-buyback { display: block; margin-top: 4px; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); }
 .rl-seg { display: flex; gap: 4px; background: var(--stroke-soft); border-radius: 12px; padding: 4px; margin-top: 16px; }
 .rl-seg button {
   flex: 1; padding: 9px 4px; border-radius: 9px; font-size: 0.82rem; font-weight: 600; font-family: inherit;
@@ -1150,6 +1166,25 @@ export const RL_CSS = `
 .rl-row-n { font-family: var(--font-display); font-weight: 800; font-size: 0.78rem; color: var(--text-dim); padding-top: 3px; }
 .rl-row h4 { font-size: 1.02rem; font-weight: 700; color: var(--text-strong); margin: 0; letter-spacing: -0.01em; }
 .rl-row p { font-size: 0.88rem; color: var(--text-muted); margin: 6px 0 0; line-height: 1.55; }
+
+/* ── Форматы слитков: крупная цифра в акцентном «жетоне» + карточка с рамкой вместо плоского
+   списка со строчками — по правкам «список смотрится грустно, увеличить цифры». ── */
+.rl-rows--forms { border-top: none; }
+.rl-row--forms {
+  border: 1px solid var(--stroke-soft); border-bottom: 1px solid var(--stroke-soft); border-radius: 18px;
+  padding: 20px 20px; margin-bottom: 12px; transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+.rl-row--forms:last-child { margin-bottom: 0; }
+.rl-row--forms:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke-soft));
+  box-shadow: 0 20px 40px -28px color-mix(in srgb, var(--accent) 35%, transparent);
+  transform: translateY(-2px);
+}
+.rl-row-n--lg {
+  width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; font-weight: 800; color: var(--accent); background: var(--accent-soft);
+  padding-top: 0; flex-shrink: 0;
+}
 
 .rl-vs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .rl-vs-col { border-radius: 22px; padding: 30px 28px; border: 1px solid var(--stroke); }
@@ -1284,6 +1319,9 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .rl-kpi-val {
   font-size: clamp(2rem, 3.8vw, 2.7rem); font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong);
   font-variant-numeric: tabular-nums; white-space: nowrap; max-width: 100%;
+  /* Фикс. высота слота под самый крупный кегль — иначе цифры/слова разной длины «прыгают»
+     по вертикали между карточками. Значение центрируется внутри слота. */
+  min-height: clamp(2rem, 3.8vw, 2.7rem); display: flex; align-items: center; justify-content: center;
 }
 .rl-kpi--photo .rl-kpi-val { text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55), 0 0 26px color-mix(in srgb, var(--accent) 45%, transparent); }
 .rl-kpi-val--sm { font-size: clamp(1.4rem, 2.6vw, 2rem); }
@@ -1308,30 +1346,48 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 /* ── 3D-наклон для фото/иллюстраций ── */
 .rl-tilt-perspective { perspective: 1400px; }
 .rl-tilt { transform-style: preserve-3d; will-change: transform; border-radius: 26px; overflow: hidden; box-shadow: var(--shadow-card); }
+.rl-tilt.rl-media-split-visual { border-radius: 0; box-shadow: none; }
 
-/* ── Фото с лайтбоксом ── */
+/* ── Фото с лайтбоксом — скруглённые края, без серой «рамки» вокруг ── */
 .rl-photo {
   position: relative; display: block; width: 100%; border: none; padding: 0; margin: 0; cursor: pointer;
-  border-radius: 24px; overflow: hidden; background: var(--bg-panel-solid); -webkit-tap-highlight-color: transparent;
+  border-radius: 20px; overflow: hidden; background: transparent; -webkit-tap-highlight-color: transparent;
+  box-shadow: none;
 }
-.rl-photo img { display: block; width: 100%; height: auto; object-fit: cover; transition: transform 0.5s cubic-bezier(0.22,1,0.36,1); }
+.rl-photo img {
+  display: block; width: 100%; height: auto; object-fit: cover;
+  transition: transform 0.5s cubic-bezier(0.22,1,0.36,1);
+}
 .rl-photo:hover img, .rl-photo:focus-visible img { transform: scale(1.035); }
 .rl-photo-caption {
-  position: absolute; left: 16px; bottom: 14px; font-size: 0.82rem; font-weight: 700; color: #fff;
+  position: absolute; left: 16px; bottom: 14px; z-index: 1; font-size: 0.82rem; font-weight: 700; color: #fff;
   text-shadow: 0 2px 10px rgba(0,0,0,0.55); letter-spacing: 0.01em;
 }
 .rl-photo-zoom {
-  position: absolute; right: 12px; top: 12px; width: 34px; height: 34px; border-radius: 50%;
+  position: absolute; right: 12px; top: 12px; z-index: 1; width: 34px; height: 34px; border-radius: 50%;
   display: grid; place-items: center; background: rgba(0,0,0,0.42); color: #fff; font-size: 15px;
   opacity: 0; transition: opacity 0.25s ease; pointer-events: none;
 }
 .rl-photo:hover .rl-photo-zoom, .rl-photo:focus-visible .rl-photo-zoom { opacity: 1; }
-.rl-photo-frame { border-radius: 24px; border: 1px solid var(--stroke); box-shadow: var(--shadow-card); }
-.rl-photo-frame .rl-photo { border-radius: 23px; }
+.rl-photo-frame { border: none; box-shadow: none; background: transparent; padding: 0; }
+.rl-photo-frame .rl-photo { border-radius: 20px; }
 
-/* ── Фото в правой колонке hero (страницы без калькулятора) ── */
-.rl-hero-visual { width: 100%; max-width: 500px; justify-self: end; }
-.rl-hero-photo { aspect-ratio: 4 / 3; }
+/* ── Фото в правой колонке hero (страницы без калькулятора).
+   На десктопе крупнее (~1.5× от 560); на ≤1180 колонка одна — фото тянется по ширине. ── */
+@media (min-width: 1181px) {
+  .rl-root .il-hero-inner:has(.rl-hero-visual) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr);
+    gap: 44px;
+  }
+}
+.rl-hero-visual { width: 100%; max-width: 840px; justify-self: end; align-self: center; }
+/* Единый ландшафт 3:2 как у Resale/Партнёрам — портреты (франшиза) обрезаются cover, без серых полей */
+.rl-hero-photo {
+  aspect-ratio: 3 / 2; display: block; line-height: 0; width: 100%;
+}
+.rl-hero-photo img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 28%;
+}
 
 /* ── Сетка из двух широких карточек (форматы франшизы и т.п.) ── */
 .rl-two-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
@@ -1434,7 +1490,7 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   .rl-media-split--fill .rl-row { flex: none; }
   .rl-tilt-cards { grid-template-columns: 1fr 1fr; }
   .rl-perks-grid { grid-template-columns: 1fr 1fr !important; }
-  .rl-hero-visual { justify-self: stretch; max-width: 620px; margin: 0 auto; }
+  .rl-hero-visual { justify-self: stretch; max-width: 100%; margin: 0 auto; }
 }
 @media (max-width: 620px) {
   .rl-products { grid-template-columns: 1fr; }

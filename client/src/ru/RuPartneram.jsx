@@ -96,7 +96,7 @@ export function RuPartneram() {
                 </motion.a>
               </motion.div>
             </div>
-            <motion.div className="rl-hero-visual rl-photo-frame" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.35, ease: EASE }}>
+            <motion.div className="rl-hero-visual" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.35, ease: EASE }}>
               <RuPhotoCard className="rl-hero-photo" src="/ru/partner.jpg" alt="Приёмка партнёрской партии: лоток с золотом у прецизионных весов" caption="Партии принимаются в приоритете" />
             </motion.div>
           </div>

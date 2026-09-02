@@ -15,6 +15,7 @@ import {
   Cell,
 } from 'recharts';
 import { api } from './api.js';
+import { importChunk } from './importChunk.js';
 import { SkeletonStats, SkeletonChart, SkeletonTable } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
 import { PageHint } from './PageHint.jsx';
@@ -415,7 +416,7 @@ export function Analytics({ formatMoney, toast }) {
     }
     setPdfBusy(true);
     try {
-      const { openAnalyticsReport } = await import('./analyticsReport.js');
+      const { openAnalyticsReport } = await importChunk(() => import('./analyticsReport.js'));
       let authorName = '';
       try {
         const me = await api.me();

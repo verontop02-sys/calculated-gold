@@ -84,7 +84,7 @@ export function RuResale() {
                 </motion.a>
               </motion.div>
             </div>
-            <motion.div className="rl-hero-visual rl-photo-frame" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.35, ease: EASE }}>
+            <motion.div className="rl-hero-visual" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.35, ease: EASE }}>
               <RuPhotoCard className="rl-hero-photo" src="/ru/resale.jpg" alt="Брендовые украшения после чистки на лотке ювелира" caption="После экспертизы и чистки" />
             </motion.div>
           </div>

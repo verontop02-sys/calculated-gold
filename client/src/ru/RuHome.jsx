@@ -246,7 +246,7 @@ export function RuHome() {
               <Reveal delay={0.08}><h2 className="il-h2">Высокий стандарт. Наш формат</h2></Reveal>
               <Reveal delay={0.14}><p className="il-section-lead">Во всём. Светлый зал, отдельная зона проверки и оплаты. Никакой ломбардной атмосферы, только вы и комфорт.</p></Reveal>
             </div>
-            <Reveal delay={0.1} className="rl-photo-frame">
+            <Reveal delay={0.1}>
               <RuPhotoCard src={officeHallPhoto} alt="Зал отделения Reaktivo" caption="Наше отделение" />
             </Reveal>
           </div>

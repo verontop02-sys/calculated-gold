@@ -98,7 +98,7 @@ export function RuFranshiza() {
                 </motion.a>
               </motion.div>
             </div>
-            <motion.div className="rl-hero-visual rl-photo-frame" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.35, ease: EASE }}>
+            <motion.div className="rl-hero-visual" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.35, ease: EASE }}>
               <RuPhotoCard className="rl-hero-photo" src={officeWorkPhoto} alt="Рабочая зона отделения Reaktivo" caption="Действующее отделение Reaktivo" />
             </motion.div>
           </div>
@@ -196,7 +196,7 @@ export function RuFranshiza() {
               <Reveal delay={0.08}><h2 className="il-h2">Отделение, в которое не страшно зайти</h2></Reveal>
               <Reveal delay={0.14}><p className="il-section-lead">Светлый зал, отдельная зона проверки и оплаты, живой курс на экране. Таким получает отделение каждый партнёр.</p></Reveal>
             </div>
-            <Reveal delay={0.1} className="rl-photo-frame">
+            <Reveal delay={0.1}>
               <RuPhotoCard src={officeHallPhoto} alt="Зал отделения Reaktivo" caption="Наше отделение" />
             </Reveal>
           </div>

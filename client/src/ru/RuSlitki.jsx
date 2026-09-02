@@ -7,46 +7,105 @@ import {
 } from './RuShared.jsx';
 
 const WHY = [
-  { title: 'Точный вес и проба', text: 'Никаких скрытых потерь на замках, вставках и паразитных сплавах — весь заявленный вес это чистый металл заявленной пробы, 585, 750 или 900.' },
-  { title: 'Слабировано как защита сделки', text: 'Слиток запечатан в капсулу с пробой, весом и серийным номером — по аналогии с грейдингом монет. Подлинность не нужно доказывать заново при каждой продаже.' },
-  { title: 'Гарантированный выкуп Reaktivo', text: 'Купили у нас — можете продать обратно в любом отделении по прозрачному биржевому курсу, без поиска покупателя самостоятельно.' },
+  { title: 'Точный вес и проба', text: 'Никаких скрытых потерь на замках, вставках и примесях — весь заявленный вес составляет чистый металл выбранной пробы: 585, 750 или 900.' },
+  { title: 'Слэбировано для защиты ценности', text: 'Слиток запечатан в слэб-капсулу с пробой, весом и сертификатом. Подлинность не нужно подтверждать заново при каждой продаже.' },
+  { title: 'Гарантированный выкуп Reaktivo', text: 'Купили у нас — сможете продать обратно в любом отделении по прозрачному биржевому курсу, получив доход без необходимости самостоятельно искать покупателя.' },
 ];
 
 const COMPARE = [
   { label: 'Наценка при покупке', jewelry: '80–130% сверх металла', bar: '15–30% сверх металла' },
-  { label: 'За что наценка', jewelry: 'Дизайн, бренд, работа мастера', bar: 'Подлинность, серия, слабирование' },
-  { label: 'Проверка при сдаче', jewelry: 'Полная переоценка каждый раз', bar: 'Не нужна — подтверждено слабом' },
-  { label: 'Обратный выкуп', jewelry: '~80–85% от стоимости металла', bar: '~92–95% от стоимости металла' },
+  { label: 'За что наценка', jewelry: 'Дизайн, бренд, работа мастера', bar: 'Подлинность, проба, слэбирование' },
+  { label: 'Проверка при сдаче', jewelry: 'Полная переоценка каждый раз', bar: 'Не нужна — подтверждено сертификатом и слэбом' },
+  { label: 'Обратный выкуп', jewelry: 'Оценка только за металл, 45–50% от стоимости', bar: '~92–95% от стоимости металла' },
   { label: 'Риск скрытой потери веса', jewelry: 'Да — замки, вставки, сплавы', bar: 'Нет — точный вес и проба' },
-  { label: 'Вторичный рынок', jewelry: 'Отсутствует', bar: 'Есть — тематические коллекции' },
+  { label: 'Вторичный рынок', jewelry: 'Отсутствует', bar: 'Стоимость определяется биржей' },
 ];
 
 const FORMS = [
-  { n: '01', title: 'Цепочка', text: 'Слиток-звено в плетении: украшение, которое остаётся инвестицией. Вес и проба зафиксированы на клейме.' },
-  { n: '02', title: 'Подвеска', text: 'Классический мини-слиток на цепочку: строгая форма, клеймо и проба на лицевой стороне.' },
-  { n: '03', title: 'Кулон', text: 'Слиток в оправе — ближе к ювелирному украшению, дальше от сейфа. Носится каждый день.' },
-  { n: '04', title: 'Тематическая серия', text: 'Лимитированные коллекции с собственным дизайном — коллекционная ценность сверх стоимости металла.' },
+  { n: '1', title: 'Цепочка', text: 'Слиток-звено в плетении: украшение, которое остаётся инвестицией. Вес и проба зафиксированы на клейме.' },
+  { n: '2', title: 'Подвеска', text: 'Классический мини-слиток на цепочку: строгая форма, клеймо и проба на лицевой стороне.' },
+  { n: '3', title: 'Кулон', text: 'Слиток в оправе — ближе к ювелирному украшению, дальше от сейфа. Носится каждый день.' },
+  { n: '4', title: 'Тематическая серия', text: 'Лимитированные коллекции с собственным дизайном — коллекционная ценность сверх стоимости металла.' },
 ];
 
 const STEPS = [
-  { n: '01', title: 'Заявка', text: 'Оставьте телефон — менеджер уточнит, что подбираем: проба, вес, форма, бюджет.' },
-  { n: '02', title: 'Подбор и расчёт', text: 'Предложим варианты с точным весом и ценой, посчитанной от биржевого курса на день покупки.' },
-  { n: '03', title: 'Оплата и оформление', text: 'Официальная продажа ювелирного изделия со слабированием, документами и чеком.' },
-  { n: '04', title: 'Доставка или самовывоз', text: 'Доставим по всей стране или отдадим в отделении — как вам удобнее.' },
+  { n: '01', title: 'Заявка', text: 'Выберите нужный вес, пробу и количество слитков.' },
+  { n: '02', title: 'Подбор', text: 'Менеджер уточнит детали: нужный вес, формат и пробу. А также зафиксирует стоимость по курсу.' },
+  { n: '03', title: 'Оплата и оформление', text: 'Произведите оплату любым удобным способом.' },
+  { n: '04', title: 'Доставка и самовывоз', text: 'Доставим слиток и документы по всей стране или выдадим в отделении — как вам удобнее.' },
 ];
 
 const FAQ = [
   { q: 'Чем слиток-украшение отличается от обычной ювелирки?', a: 'Вес и проба зафиксированы и запечатаны в капсулу — никаких потерь на замках, вставках и сплавах. Наценка при покупке 15–30% против 80–130% у обычного украшения, а при обратной продаже вы теряете в 2,5–3 раза меньше.' },
-  { q: 'Что такое слабирование?', a: 'Слиток запечатывается в защищённую капсулу с указанием пробы, веса и серийного номера — как грейдинг монет. Это подтверждает подлинность и характеристики без повторной экспертизы при каждой сделке.' },
-  { q: 'Можно ли продать слиток обратно?', a: 'Да. Reaktivo ежедневно выкупает золото по живому курсу: принесите слиток в любое отделение или вызовите курьера. Слабированный слиток проходит без переоценки — это быстрее и выгоднее.' },
+  { q: 'Что такое слэбирование?', a: 'Слиток запечатывается в защищённую капсулу с указанием пробы, веса и серийного номера — как грейдинг монет. Это подтверждает подлинность и характеристики без повторной экспертизы при каждой сделке.' },
+  { q: 'Можно ли продать слиток обратно?', a: 'Да. Reaktivo ежедневно выкупает золото по живому курсу: принесите слиток в любое отделение или вызовите курьера. Слэбированный слиток проходит без переоценки — это быстрее и выгоднее.' },
   { q: 'Что за тематические коллекции?', a: 'Лимитированные серии слитков, объединённые темой или дизайном. У удачных коллекций есть коллекционная надбавка сверх стоимости металла — то, чего не может обычное украшение.' },
-  { q: 'Как считается цена?', a: 'От биржевого курса золота на день покупки, пересчитанного на пробу и вес, плюс наценка 15–30% за работу и слабирование. Точный расчёт вы видите до оплаты — без скрытых наценок.' },
-  { q: 'Это подходит как подарок?', a: 'Да, и лучше обычной ювелирки: помимо эстетической и подарочной ценности слиток сохраняет статус актива, привязанного к металлу, а не к витринной наценке.' },
+  { q: 'Как считается цена?', a: 'От биржевого курса золота на день покупки, пересчитанного на пробу и вес, плюс наценка 15–30% за работу и слэбирование. Точный расчёт вы видите до оплаты — без скрытых наценок.' },
+  { q: 'Это подходит как подарок?', a: 'Да, и лучше обычного ювелирного изделия: помимо эстетической и подарочной ценности слиток сохраняет статус актива, привязанного к металлу, а не к витринной наценке.' },
 ];
 
 const PROBAS = [585, 750, 900];
-const WEIGHTS = [1, 2.5, 5, 10, 20];
+const WEIGHTS = [5, 10, 25, 50, 100];
 const MARKUP = 1.22; // середина диапазона 15–30% сверх металла
+
+/** Живая динамика курса вместо статичной надписи «курс живой»: копим последние тики цены
+ *  и красим бары/подпись в зелёный при росте, в красный при снижении — так видно, что курс
+ *  настоящий и меняется, а не просто декларация. */
+function useRateHistory(value, size = 8) {
+  const [points, setPoints] = useState([]);
+  const prevRef = useRef(null);
+  useEffect(() => {
+    if (value == null) return;
+    if (prevRef.current == null) {
+      prevRef.current = value;
+      setPoints([{ v: value, dir: 0 }]);
+      return;
+    }
+    if (value === prevRef.current) return;
+    const dir = value > prevRef.current ? 1 : -1;
+    prevRef.current = value;
+    setPoints((p) => [...p, { v: value, dir }].slice(-size));
+  }, [value, size]);
+  return points;
+}
+
+function RuGoldTicker({ value }) {
+  const size = 8;
+  const points = useRateHistory(value, size);
+  const last = points[points.length - 1];
+  const dir = last?.dir ?? 0;
+
+  // Пока не накопилось хотя бы одно реальное изменение курса — показываем нейтральный
+  // пульсирующий индикатор, чтобы не рисовать «пустой» бар-график до первых тиков.
+  if (points.length < 2) {
+    return (
+      <span className="rl-rate rl-rate--flat">
+        <i className="rl-rate-dot" aria-hidden />
+        курс живой
+      </span>
+    );
+  }
+
+  const deltas = points.map((p, i) => Math.abs(p.v - (points[i - 1]?.v ?? p.v)));
+  const max = Math.max(1, ...deltas);
+  const label = dir === 1 ? 'растёт' : dir === -1 ? 'снижается' : 'живой';
+
+  return (
+    <span className={`rl-rate rl-rate--${dir === 1 ? 'up' : dir === -1 ? 'down' : 'flat'}`}>
+      <span className="rl-rate-bars" aria-hidden>
+        {Array.from({ length: size }).map((_, i) => {
+          const p = points[i];
+          const delta = p ? Math.abs(p.v - (points[i - 1]?.v ?? p.v)) : 0;
+          const h = p ? 34 + Math.min(66, (delta / max) * 66) : 26;
+          const cls = !p || p.dir === 0 ? '' : p.dir === 1 ? 'is-up' : 'is-down';
+          return <i key={i} className={cls} style={{ height: `${h}%` }} />;
+        })}
+      </span>
+      <i className="rl-rate-dot" aria-hidden />
+      курс {label}
+    </span>
+  );
+}
 
 function SlitokPriceCard({ quote }) {
   const [proba, setProba] = useState(750);
@@ -60,8 +119,8 @@ function SlitokPriceCard({ quote }) {
   return (
     <motion.div className="rl-calc-card rl-calc-card--wide" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.3, ease: EASE }}>
       <div className="rl-calc-top">
-        <span className="rl-calc-brand">СЛИТОК<i>·</i>REAKTIVO</span>
-        <span className="rl-calc-live"><i />курс живой</span>
+        <span className="rl-calc-brand">СЛИТОК</span>
+        <RuGoldTicker value={perGram} />
       </div>
       <span className="rl-calc-label">Проба слитка</span>
       <div className="rl-seg">
@@ -69,7 +128,7 @@ function SlitokPriceCard({ quote }) {
           <button key={p} type="button" className={p === proba ? 'is-active' : ''} onClick={() => setProba(p)}>{p}</button>
         ))}
       </div>
-      <span className="rl-calc-label" style={{ marginTop: 12 }}>Вес изделия</span>
+      <span className="rl-calc-label" style={{ marginTop: 12 }}>Вес слитка</span>
       <div className="rl-seg">
         {WEIGHTS.map((v) => (
           <button key={v} type="button" className={v === w ? 'is-active' : ''} onClick={() => setW(v)}>
@@ -78,14 +137,16 @@ function SlitokPriceCard({ quote }) {
         ))}
       </div>
       <div className="rl-calc-mini">
-        <div>Металл в изделии<b>{metalDisplay != null ? formatMoney(metalDisplay) : '· · ·'}</b></div>
+        <div>Золото в изделии<b>{metalDisplay != null ? formatMoney(metalDisplay) : '· · ·'}</b></div>
         <div>Наценка<b>~22%</b></div>
       </div>
+      <p className="rl-calc-note rl-calc-note--breakdown">В наценку входит: изготовление, слэбирование, сертификация пробы, сертификат подлинности.</p>
       <div className="rl-calc-out">
         <span className="rl-calc-out-label">Цена слитка сегодня</span>
         <span className="rl-calc-out-val">{priceDisplay != null ? formatMoney(priceDisplay) : '· · ·'}</span>
+        <span className="rl-calc-buyback">Доступен обратный выкуп — по курсу, на дату продажи изделия</span>
       </div>
-      <p className="rl-calc-note">Слабировано: проба, вес и серийный номер зафиксированы в капсуле. Финальная цена зависит от формы — посчитаем в заявке.</p>
+      <p className="rl-calc-note">Слэбировано: проба, вес и сертификат зафиксированы в капсуле. Финальная цена зависит от формы — посчитаем в заявке.</p>
       <a href="#zayavka" className="rl-btn rl-btn--primary rl-calc-cta">Подобрать под бюджет</a>
     </motion.div>
   );
@@ -114,7 +175,7 @@ export function RuSlitki() {
   const { scrollYProgress } = useScroll();
   const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
 
-  useEffect(() => { setDraftMeta('Ювелирные слитки — Reaktivo (черновик)'); }, []);
+  useEffect(() => { setDraftMeta('Купить слиток — Reaktivo (черновик)'); }, []);
 
   return (
     <div className="il-root rl-root">
@@ -125,7 +186,7 @@ export function RuSlitki() {
       <RuHeader active="/ru/slitki/" lenisRef={lenisRef} ctaHref="#zayavka" ctaLabel="Выбрать слиток" />
 
       <main>
-        <p className="rl-crumbs"><a href="/ru/">Reaktivo</a> · Ювелирные слитки</p>
+        <p className="rl-crumbs"><a href="/ru/">Reaktivo</a> · Купить</p>
 
         <section className="il-hero" style={{ paddingTop: '48px' }} ref={heroRef}>
           <RuHeroBg heroRef={heroRef} />
@@ -139,7 +200,7 @@ export function RuSlitki() {
               </motion.h1>
               <motion.p className="il-hero-sub" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.32, ease: EASE }}>
                 Не украшение, которое дешевеет в момент покупки, и не банковский слиток с высоким порогом входа.
-                Точный вес, проба 585–900 и слабирование, которое защищает сделку при обратной продаже.
+                Точный вес, проба на выбор 585 · 750 · 900 и слэбирование, которое защищает сделку при обратной продаже.
               </motion.p>
               <motion.div className="il-hero-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.44, ease: EASE }}>
                 <Magnetic>
@@ -149,7 +210,7 @@ export function RuSlitki() {
                   </motion.a>
                 </Magnetic>
                 <motion.a href="#formy" className="il-btn il-btn--outline il-btn--lg" whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }}>
-                  Формы и веса
+                  Подробнее
                 </motion.a>
               </motion.div>
             </div>
@@ -158,17 +219,17 @@ export function RuSlitki() {
         </section>
 
         <RuMarquee items={[
-          'Пробы 585 · 750 · 900', 'Слабировано и пронумеровано', 'Цена привязана к бирже', 'Доставка по всей стране',
-          'Обратный выкуп по живому курсу', 'Тематические коллекции',
+          'Пробы 585 · 750 · 900', 'Слэбировано и пронумеровано', 'Цена привязана к бирже', 'Доставка по всей стране',
+          'Обратный выкуп по курсу биржи', 'Тематические коллекции',
         ]} />
 
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
             <RuKpis items={[
-              { val: 'до 3×', label: 'меньше теряете при продаже, чем на украшении', icon: 'coins', imgDark: '/ru/kpi-multiplier-dark.jpg', imgLight: '/ru/kpi-multiplier-light.jpg' },
-              { val: '585–900', label: 'ювелирные пробы слитка', icon: 'gem', imgDark: '/ru/kpi-hallmark-dark.jpg', imgLight: '/ru/kpi-hallmark-light.jpg' },
-              { val: 'слабировано', label: 'капсула, проба, вес, серийный номер', icon: 'shield', imgDark: '/ru/kpi-shield-dark.jpg', imgLight: '/ru/kpi-shield-light.jpg' },
-              { val: 'выкуп', label: 'гарантирован в сети Reaktivo', icon: 'check', imgDark: '/ru/kpi-check-dark.jpg', imgLight: '/ru/kpi-check-light.jpg' },
+              { val: '3×', label: 'выгоднее при продаже, чем обычные украшения', icon: 'coins', imgDark: '/ru/kpi-multiplier-dark.jpg', imgLight: '/ru/kpi-multiplier-light.jpg' },
+              { val: '585 · 750 · 900', label: 'ювелирные пробы слитка', icon: 'gem', imgDark: '/ru/kpi-hallmark-dark.jpg', imgLight: '/ru/kpi-hallmark-light.jpg' },
+              { val: 'Слэбировано', label: 'капсула: слэб, проба, вес, сертификат', icon: 'shield', imgDark: '/ru/kpi-shield-dark.jpg', imgLight: '/ru/kpi-shield-light.jpg' },
+              { val: 'Обратный выкуп', label: 'гарантирован Reaktivo', icon: 'check', imgDark: '/ru/kpi-check-dark.jpg', imgLight: '/ru/kpi-check-light.jpg' },
             ]} />
           </div>
         </section>
@@ -201,7 +262,7 @@ export function RuSlitki() {
               <div className="rl-compare-row rl-compare-head">
                 <span />
                 <span>Украшение 750, 10 г</span>
-                <span className="rl-compare-win">Слиток Reaktivo, 10 г</span>
+                <span className="rl-compare-win">Слиток Reaktivo, 750, 10 г</span>
               </div>
               {COMPARE.map((r) => (
                 <div className="rl-compare-row" key={r.label}>
@@ -221,10 +282,10 @@ export function RuSlitki() {
               <Reveal delay={0.08}><h2 className="il-h2">Одна идея — четыре формы</h2></Reveal>
             </div>
             <div className="rl-media-split rl-media-split--fill">
-              <div className="rl-rows">
+              <div className="rl-rows rl-rows--forms">
                 {FORMS.map((s, i) => (
-                  <Reveal key={s.n} delay={i * 0.05} className="rl-row">
-                    <span className="rl-row-n">{s.n}</span>
+                  <Reveal key={s.n} delay={i * 0.05} className="rl-row rl-row--forms">
+                    <span className="rl-row-n rl-row-n--lg">{s.n}</span>
                     <div><h4>{s.title}</h4><p>{s.text}</p></div>
                   </Reveal>
                 ))}
@@ -236,7 +297,7 @@ export function RuSlitki() {
           </div>
         </section>
 
-        <RuStatement text="Обычная ювелирка теряет больше половины цены на выходе из магазина. Слиток Reaktivo — не украшение и не банковский слиток, а свой формат хранения ценности." />
+        <RuStatement text="Обычные украшения теряют более половины стоимости сразу после покупки. Ювелирный слиток Reaktivo — новый формат сохранения и увеличения ценности." />
 
         <section className="il-section il-section--alt">
           <div className="il-section-inner il-section-inner--narrow">

@@ -12,6 +12,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { api } from './api.js';
+import { importChunk } from './importChunk.js';
 import { isUserManagerRole, roleLabel } from './roles.js';
 import { SkeletonStats, SkeletonChart, SkeletonTable } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
@@ -173,7 +174,7 @@ export function TeamPerformance({ formatMoney, toast, user }) {
   async function exportPdf() {
     setPdfBusy(true);
     try {
-      const { openTeamReport } = await import('./teamReport.js');
+      const { openTeamReport } = await importChunk(() => import('./teamReport.js'));
       const authorName = user?.displayName || user?.email || '';
       const ok = await openTeamReport({
         data,

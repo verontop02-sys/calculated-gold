@@ -4,6 +4,8 @@
  * Шапка на каждом листе: лого, автор, раздел, дата (+ опц. курс).
  */
 
+import { importChunk } from './importChunk.js';
+
 export function escapeHtml(v) {
   return String(v == null ? '' : v)
     .replace(/&/g, '&amp;')
@@ -696,8 +698,8 @@ html, body { margin: 0 !important; padding: 0 !important; background: ${pageBg} 
     iframe.style.height = `${Math.min(Math.max(fullH, 400), 20000)}px`;
 
     const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-      import('html2canvas'),
-      import('jspdf'),
+      importChunk(() => import('html2canvas')),
+      importChunk(() => import('jspdf')),
     ]);
 
     const canvas = await html2canvas(docEl, {

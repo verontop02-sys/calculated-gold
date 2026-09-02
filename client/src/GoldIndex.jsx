@@ -9,6 +9,7 @@ import {
   Cell,
 } from 'recharts';
 import { api } from './api.js';
+import { importChunk } from './importChunk.js';
 import { SkeletonStats, SkeletonMap, SkeletonCard, SkeletonChart } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
 import { PageHint } from './PageHint.jsx';
@@ -706,7 +707,7 @@ export function GoldIndex({ formatMoney, toast }) {
   async function handlePdf() {
     setPdfBusy(true);
     try {
-      const { openGoldIndexReport } = await import('./goldIndexReport.js');
+      const { openGoldIndexReport } = await importChunk(() => import('./goldIndexReport.js'));
       let authorName = '';
       try {
         const me = await api.me();

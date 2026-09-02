@@ -173,6 +173,29 @@ function drawTop(page, text, x, yFromTop, options = {}) {
   page.drawText(String(text || ''), { x, y, size, font, maxWidth, lineHeight, color });
 }
 
+/**
+ * Подбирает кегль, при котором строка целиком помещается в maxWidth — вместо переноса
+ * pdf-lib на вторую строку, который «наезжает» на соседнее поле снизу (напр. Паспорт → Адрес,
+ * где между строками шаблона всего ~26pt). Длинные значения (серия/номер + кем выдан + дата +
+ * код подразделения) просто становятся чуть мельче, но остаются в одну строку.
+ */
+function fitSize(font, text, maxWidth, { size = 10, minSize = 7 } = {}) {
+  const str = String(text || '');
+  if (!str || !font || !maxWidth) return size;
+  let s = size;
+  while (s > minSize && font.widthOfTextAtSize(str, s) > maxWidth) {
+    s -= 0.25;
+  }
+  return Math.max(s, minSize);
+}
+
+/** Рисует текст одной строкой, подбирая кегль под maxWidth (см. fitSize) — без авто-переноса. */
+function drawFit(page, text, x, yFromTop, options = {}) {
+  const { size = 10, minSize = 7, font, maxWidth, color } = options;
+  const fitted = fitSize(font, text, maxWidth, { size, minSize });
+  drawTop(page, text, x, yFromTop, { size: fitted, font, color });
+}
+
 export async function buildScrapContractPdfBuffer(body) {
   const templateBytes = readFileSync(TEMPLATE_PATH);
   const pdfDoc = await PDFDocument.load(templateBytes);
@@ -207,10 +230,12 @@ export async function buildScrapContractPdfBuffer(body) {
   drawTop(page, contractNo, 218, 162, { size: 11, font: regularFont, maxWidth: 60 });
   drawTop(page, stripYearsFromOverlayFragment(`от ${issueLine}`), 320, 162, { size: 10, font: regularFont, maxWidth: 120 });
 
-  // Данные продавца (lines at yFromTop: 479.8, 508.3, 534.6 — baseline 6pt above each)
-  drawTop(page, sellerName, 118, 474, { size: 10, font: regularFont, maxWidth: 430 });
-  drawTop(page, passportLine, 118, 502, { size: 10, font: regularFont, maxWidth: 430 });
-  drawTop(page, address, 118, 528, { size: 10, font: regularFont, maxWidth: 430 });
+  // Данные продавца (lines at yFromTop: 479.8, 508.3, 534.6 — baseline 6pt above each).
+  // Кегль подбирается под ширину поля (fitSize/drawFit), чтобы длинные ФИО/паспорт/адрес
+  // не переносились на вторую строку и не наезжали на соседнее поле снизу.
+  drawFit(page, sellerName, 118, 474, { size: 10, minSize: 8, font: regularFont, maxWidth: 430 });
+  drawFit(page, passportLine, 118, 502, { size: 10, minSize: 7, font: regularFont, maxWidth: 430 });
+  drawFit(page, address, 118, 528, { size: 10, minSize: 7, font: regularFont, maxWidth: 430 });
 
   // Таблица: текст в первых N слотах шаблона; пустые слоты 2–3 затираем белым.
   coverUnusedTemplateRows(page, rows.length);

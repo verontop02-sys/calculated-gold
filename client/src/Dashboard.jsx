@@ -13,6 +13,7 @@ import {
   Cell,
 } from 'recharts';
 import { api } from './api.js';
+import { importChunk } from './importChunk.js';
 import { PageHint } from './PageHint.jsx';
 import { WorldClocksCard } from './WorldClocks.jsx';
 import { isUserManagerRole } from './roles.js';
@@ -925,7 +926,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
 
     setReportBusy(true);
     try {
-      const { openDashboardReport } = await import('./dashboardReport.js');
+      const { openDashboardReport } = await importChunk(() => import('./dashboardReport.js'));
       const ok = await openDashboardReport({
         ...payload,
         formatMoney,
