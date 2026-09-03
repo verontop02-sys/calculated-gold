@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
-import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
+import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuStatement, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuKpis, RuHeader, RuLeadForm, RuMarquee, RuStatement, RuThemedImg, RuTiltCard, RuTimeline,
   formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
@@ -48,65 +48,6 @@ const PROBAS = [585, 750, 900];
 const WEIGHTS = [5, 10, 25, 50, 100];
 const MARKUP = 1.22; // середина диапазона 15–30% сверх металла
 
-/** Живая динамика курса вместо статичной надписи «курс живой»: копим последние тики цены
- *  и красим бары/подпись в зелёный при росте, в красный при снижении — так видно, что курс
- *  настоящий и меняется, а не просто декларация. */
-function useRateHistory(value, size = 8) {
-  const [points, setPoints] = useState([]);
-  const prevRef = useRef(null);
-  useEffect(() => {
-    if (value == null) return;
-    if (prevRef.current == null) {
-      prevRef.current = value;
-      setPoints([{ v: value, dir: 0 }]);
-      return;
-    }
-    if (value === prevRef.current) return;
-    const dir = value > prevRef.current ? 1 : -1;
-    prevRef.current = value;
-    setPoints((p) => [...p, { v: value, dir }].slice(-size));
-  }, [value, size]);
-  return points;
-}
-
-function RuGoldTicker({ value }) {
-  const size = 8;
-  const points = useRateHistory(value, size);
-  const last = points[points.length - 1];
-  const dir = last?.dir ?? 0;
-
-  // Пока не накопилось хотя бы одно реальное изменение курса — показываем нейтральный
-  // пульсирующий индикатор, чтобы не рисовать «пустой» бар-график до первых тиков.
-  if (points.length < 2) {
-    return (
-      <span className="rl-rate rl-rate--flat">
-        <i className="rl-rate-dot" aria-hidden />
-        курс живой
-      </span>
-    );
-  }
-
-  const deltas = points.map((p, i) => Math.abs(p.v - (points[i - 1]?.v ?? p.v)));
-  const max = Math.max(1, ...deltas);
-  const label = dir === 1 ? 'растёт' : dir === -1 ? 'снижается' : 'живой';
-
-  return (
-    <span className={`rl-rate rl-rate--${dir === 1 ? 'up' : dir === -1 ? 'down' : 'flat'}`}>
-      <span className="rl-rate-bars" aria-hidden>
-        {Array.from({ length: size }).map((_, i) => {
-          const p = points[i];
-          const delta = p ? Math.abs(p.v - (points[i - 1]?.v ?? p.v)) : 0;
-          const h = p ? 34 + Math.min(66, (delta / max) * 66) : 26;
-          const cls = !p || p.dir === 0 ? '' : p.dir === 1 ? 'is-up' : 'is-down';
-          return <i key={i} className={cls} style={{ height: `${h}%` }} />;
-        })}
-      </span>
-      <i className="rl-rate-dot" aria-hidden />
-      курс {label}
-    </span>
-  );
-}
-
 function SlitokPriceCard({ quote }) {
   const [proba, setProba] = useState(750);
   const [w, setW] = useState(5);
@@ -144,7 +85,7 @@ function SlitokPriceCard({ quote }) {
       <div className="rl-calc-out">
         <span className="rl-calc-out-label">Цена слитка сегодня</span>
         <span className="rl-calc-out-val">{priceDisplay != null ? formatMoney(priceDisplay) : '· · ·'}</span>
-        <span className="rl-calc-buyback">Доступен обратный выкуп — по курсу, на дату продажи изделия</span>
+        <span className="rl-calc-buyback">Доступен обратный выкуп — по курсу, на дату продажи</span>
       </div>
       <p className="rl-calc-note">Слэбировано: проба, вес и сертификат зафиксированы в капсуле. Финальная цена зависит от формы — посчитаем в заявке.</p>
       <a href="#zayavka" className="rl-btn rl-btn--primary rl-calc-cta">Подобрать под бюджет</a>
@@ -171,52 +112,30 @@ function SlitokForm() {
 export function RuSlitki() {
   const quote = useGoldQuote();
   const lenisRef = useRuLenis();
-  const heroRef = useRef(null);
   const { scrollYProgress } = useScroll();
   const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
 
-  useEffect(() => { setDraftMeta('Купить слиток — Reaktivo (черновик)'); }, []);
+  useEffect(() => { setDraftMeta('Купить слиток — Reaktivo'); }, []);
 
   return (
     <div className="il-root rl-root">
       <motion.div className="il-progress" style={{ scaleX: progressX }} aria-hidden />
       <RuAtmosphere />
-      <div className="rl-preview-flag">Черновик для просмотра · не окончательная версия</div>
 
       <RuHeader active="/ru/slitki/" lenisRef={lenisRef} ctaHref="#zayavka" ctaLabel="Выбрать слиток" />
 
       <main>
-        <p className="rl-crumbs"><a href="/ru/">Reaktivo</a> · Купить</p>
-
-        <section className="il-hero" style={{ paddingTop: '48px' }} ref={heroRef}>
-          <RuHeroBg heroRef={heroRef} />
-          <div className="il-hero-inner">
-            <div className="il-hero-copy">
-              <motion.span className="il-badge" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}>
-                <i className="il-badge-dot" /> Новый формат хранения ценности
-              </motion.span>
-              <motion.h1 className="il-hero-title rl-hero-title" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.1, ease: EASE }}>
-                Слиток, который<br />можно <span className="il-accent-text">носить</span>
-              </motion.h1>
-              <motion.p className="il-hero-sub" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.32, ease: EASE }}>
-                Не украшение, которое дешевеет в момент покупки, и не банковский слиток с высоким порогом входа.
-                Точный вес, проба на выбор 585 · 750 · 900 и слэбирование, которое защищает сделку при обратной продаже.
-              </motion.p>
-              <motion.div className="il-hero-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.44, ease: EASE }}>
-                <Magnetic>
-                  <motion.a href="#zayavka" className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.96 }}>
-                    Выбрать слиток
-                    <span className="il-btn-arrow" aria-hidden>→</span>
-                  </motion.a>
-                </Magnetic>
-                <motion.a href="#formy" className="il-btn il-btn--outline il-btn--lg" whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }}>
-                  Подробнее
-                </motion.a>
-              </motion.div>
-            </div>
-            <SlitokPriceCard quote={quote} />
-          </div>
-        </section>
+        <RuFullHero
+          imgDark="/ru/hero-slitki.jpg"
+          imgLight="/ru/hero-slitki-light.jpg"
+          imgPos="62% 50%"
+          kicker="Новый формат хранения ценности"
+          title={<>Слиток, который<br />можно <span className="il-accent-text">носить</span></>}
+          sub="Не украшение, которое дешевеет в момент покупки, и не банковский слиток с высоким порогом входа. Точный вес, проба на выбор 585 · 750 · 900 и слэбирование, которое защищает сделку при обратной продаже."
+          primary={{ href: '#zayavka', label: 'Выбрать слиток' }}
+          secondary={{ href: '#formy', label: 'Подробнее' }}
+          aside={<SlitokPriceCard quote={quote} />}
+        />
 
         <RuMarquee items={[
           'Пробы 585 · 750 · 900', 'Слэбировано и пронумеровано', 'Цена привязана к бирже', 'Доставка по всей стране',
@@ -237,8 +156,8 @@ export function RuSlitki() {
         <section className="il-section il-section--alt">
           <div className="il-section-inner">
             <div className="il-section-head">
-              <Reveal><span className="il-pill">Почему это интереснее ювелирки</span></Reveal>
-              <Reveal delay={0.08}><h2 className="il-h2">Золото, которое остаётся <span className="il-accent-text">деньгами</span></h2></Reveal>
+              <Reveal><span className="il-pill">Почему это интереснее «ювелирки»</span></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Выгоднее любого <span className="il-accent-text">украшения</span></h2></Reveal>
             </div>
             <motion.div className="il-cards" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
               {WHY.map((a) => (
@@ -291,13 +210,13 @@ export function RuSlitki() {
                 ))}
               </div>
               <RuTiltCard className="rl-media-split-visual">
-                <img src="/ru/slitok.jpg" alt="Слиток-подвеска на золотой цепочке" loading="lazy" decoding="async" />
+                <RuThemedImg dark="/ru/slitok.jpg" light="/ru/slitok-light.jpg" alt="Слиток-подвеска на золотой цепочке" />
               </RuTiltCard>
             </div>
           </div>
         </section>
 
-        <RuStatement text="Обычные украшения теряют более половины стоимости сразу после покупки. Ювелирный слиток Reaktivo — новый формат сохранения и увеличения ценности." />
+        <RuStatement text="Обычные украшения теряют более половины стоимости сразу после покупки. Ювелирный слиток Reaktivo — новый формат хранения и увеличения ценности." />
 
         <section className="il-section il-section--alt">
           <div className="il-section-inner il-section-inner--narrow">
@@ -305,14 +224,7 @@ export function RuSlitki() {
               <Reveal><span className="il-pill">Как купить</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Четыре шага до слитка</h2></Reveal>
             </div>
-            <div className="rl-rows">
-              {STEPS.map((s, i) => (
-                <Reveal key={s.n} delay={i * 0.05} className="rl-row">
-                  <span className="rl-row-n">{s.n}</span>
-                  <div><h4>{s.title}</h4><p>{s.text}</p></div>
-                </Reveal>
-              ))}
-            </div>
+            <RuTimeline items={STEPS} />
           </div>
         </section>
 

@@ -765,10 +765,12 @@ export const api = {
   settings: () => request('/settings'),
   saveSettings: (body) => request('/settings', { method: 'PUT', body: JSON.stringify(body) }),
   users: () => request('/users'),
-  createUser: (email, password, role) =>
-    request('/users', { method: 'POST', body: JSON.stringify({ email, password, role }) }),
+  createUser: (email, password, role, displayName) =>
+    request('/users', { method: 'POST', body: JSON.stringify({ email, password, role, displayName }) }),
   deleteUser: (uid) => request(`/users/${uid}`, { method: 'DELETE' }),
   changeRole: (uid, role) => request(`/users/${uid}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  updateUserDisplayName: (uid, displayName) =>
+    request(`/users/${uid}/name`, { method: 'PATCH', body: JSON.stringify({ displayName }) }),
   scrapCustomersSearch: (q) =>
     request(`/scrap-customers/search?q=${encodeURIComponent(q)}`),
   saveScrapCustomer: (body) => request('/scrap-customers', { method: 'POST', body: JSON.stringify(body) }),

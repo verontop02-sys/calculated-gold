@@ -991,11 +991,11 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         </label>
         {boundAppraiserName ? (
           <p className="muted small" style={{ margin: '6px 0 0' }}>
-            Подставлено из вашего аккаунта. Чтобы изменить — поправьте имя в профиле.
+            Подставлено из вашего аккаунта. Чтобы изменить — откройте профиль (имя слева внизу).
           </p>
         ) : (
           <p className="muted small" style={{ margin: '6px 0 0' }}>
-            Укажите имя в профиле, чтобы это поле заполнялось само.
+            Укажите ФИО в профиле (имя слева внизу) — поле заполнится само. Пока можно ввести вручную.
           </p>
         )}
       </div>
@@ -1012,7 +1012,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
               <option value="">— кто отправил ссылку (текущий пользователь) —</option>
               {fieldStaff.map((u) => (
                 <option key={u.uid} value={u.uid}>
-                  {u.email} ({u.role})
+                  {u.displayName ? `${u.displayName} · ${u.email}` : u.email} ({u.role})
                 </option>
               ))}
             </select>

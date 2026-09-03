@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
-import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
+import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuSbpBadge, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuSbpBadge, RuThemedImg, RuTiltCard,
   GramsSlider, formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
@@ -33,17 +33,25 @@ const FAQ = [
   { q: 'В других городах есть курьеры?', a: 'Курьеры Reaktivo работают в Калининграде, Москве и Санкт-Петербурге. В остальных регионах золото принимают агенты Reaktivo — условия абсолютно одинаковые. Следите за открытием новых регионов в разделе Агенты.' },
 ];
 
-function BigCalcCard({ quote }) {
+function BigCalcCard({ quote, pulseKey }) {
   const [proba, setProba] = useState(585);
   const [grams, setGrams] = useState(12);
+  const [pulse, setPulse] = useState(false);
   const perGram = quote?.goldRubPerGram || null;
   const sum = perGram ? perGram * (proba / 1000) * grams * 0.9 : null;
   const perGramOut = perGram ? perGram * (proba / 1000) * 0.9 : null;
   const sumDisplay = useAnimatedNumber(sum);
   const perGramDisplay = useAnimatedNumber(perGramOut);
 
+  useEffect(() => {
+    if (!pulseKey) return;
+    setPulse(true);
+    const t = setTimeout(() => setPulse(false), 900);
+    return () => clearTimeout(t);
+  }, [pulseKey]);
+
   return (
-    <motion.div className="rl-calc-card rl-calc-card--wide" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: EASE }}>
+    <motion.div className={`rl-calc-card rl-calc-card--wide${pulse ? ' rl-calc-card--pulse' : ''}`} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: EASE }}>
       <div className="rl-calc-top">
         <span className="rl-calc-brand">РАСЧЁТ<i>·</i>ВЫКУП</span>
         <span className="rl-calc-live"><i />курс живой</span>
@@ -84,54 +92,37 @@ function LeadForm() {
 export function RuProdat() {
   const quote = useGoldQuote();
   const lenisRef = useRuLenis();
-  const heroRef = useRef(null);
   const { scrollYProgress } = useScroll();
   const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
+  const [calcPulse, setCalcPulse] = useState(0);
 
-  useEffect(() => { setDraftMeta('Продать золото — Reaktivo (черновик)'); }, []);
+  const goToCalc = (e) => {
+    e.preventDefault();
+    document.querySelector('#calc')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setCalcPulse((n) => n + 1);
+  };
+
+  useEffect(() => { setDraftMeta('Продать золото — Reaktivo'); }, []);
 
   return (
     <div className="il-root rl-root">
       <motion.div className="il-progress" style={{ scaleX: progressX }} aria-hidden />
       <RuAtmosphere />
-      <div className="rl-preview-flag">Черновик для просмотра · не окончательная версия</div>
 
       <RuHeader active="/ru/prodat/" lenisRef={lenisRef} />
 
       <main>
-        <p className="rl-crumbs"><a href="/ru/">Reaktivo</a> · Продать золото</p>
-
-        <section className="il-hero" style={{ paddingTop: '48px' }} ref={heroRef}>
-          <RuHeroBg heroRef={heroRef} />
-          <div className="il-hero-inner">
-            <div className="il-hero-copy">
-              <motion.span className="il-badge" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}>
-                <i className="il-badge-dot" /> Выкуп золота
-              </motion.span>
-              <motion.h1 className="il-hero-title rl-hero-title" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.1, ease: EASE }}>
-                Мы привозим<br /><span className="il-accent-text">деньги</span>, а не просто оценку
-              </motion.h1>
-              <motion.p className="il-hero-sub" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.32, ease: EASE }}>
-                Оценка по биржевому курсу, оплата сразу — в отделении или с курьером.
-                Мы выплачиваем всю стоимость. Никаких скрытых процентов и комиссий.
-              </motion.p>
-              <motion.div className="il-hero-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.44, ease: EASE }}>
-                <Magnetic>
-                  <motion.a href="#calc" className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.96 }}>
-                    Рассчитать стоимость
-                    <span className="il-btn-arrow" aria-hidden>→</span>
-                  </motion.a>
-                </Magnetic>
-                <motion.a href="#zayavka" className="il-btn il-btn--outline il-btn--lg" whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }}>
-                  Вызвать курьера
-                </motion.a>
-              </motion.div>
-            </div>
-            <div id="calc">
-              <BigCalcCard quote={quote} />
-            </div>
-          </div>
-        </section>
+        <RuFullHero
+          imgDark="/ru/hero-prodat.jpg"
+          imgLight="/ru/hero-prodat-light.jpg"
+          imgPos="70% 45%"
+          kicker="Выкуп золота"
+          title={<>Мы привозим<br /><span className="il-accent-text">деньги</span>, а не просто оценку</>}
+          sub="Оценка по биржевому курсу, оплата сразу — в отделении или с курьером. Мы выплачиваем всю стоимость. Никаких скрытых процентов и комиссий."
+          primary={{ href: '#calc', label: 'Рассчитать стоимость', onClick: goToCalc }}
+          secondary={{ href: '#zayavka', label: 'Вызвать курьера' }}
+          aside={<div id="calc"><BigCalcCard quote={quote} pulseKey={calcPulse} /></div>}
+        />
 
         <RuMarquee items={[
           'Курс каждые 3 секунды', 'До 90% от биржи', 'Курьер бесплатно', 'Деньги сразу',
@@ -182,7 +173,7 @@ export function RuProdat() {
                 ))}
               </div>
               <RuTiltCard className="rl-media-split-visual">
-                <img src="/ru/courier.jpg" alt="Курьер Reaktivo передаёт документы и терминал для оплаты" loading="lazy" decoding="async" />
+                <RuThemedImg dark="/ru/partner.jpg" light="/ru/partner-light.jpg" alt="Проверка изделия на прецизионных весах при клиенте" />
               </RuTiltCard>
             </div>
           </div>

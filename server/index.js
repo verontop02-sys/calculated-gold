@@ -2710,24 +2710,35 @@ app.get(
   })
 );
 
-// Обновление отображаемого имени.
+function parseStaffDisplayName(raw) {
+  const displayName = String(raw ?? '').trim().replace(/\s+/g, ' ');
+  if (displayName.length > 80) return { error: 'Имя не должно превышать 80 символов' };
+  return { displayName: displayName || null };
+}
+
+async function saveProfileDisplayName(uid, displayName) {
+  const now = new Date().toISOString();
+  const { data: existing, error: selErr } = await supabase.from('profiles').select('id').eq('id', uid).maybeSingle();
+  if (selErr) throw selErr;
+  if (existing) {
+    const { error } = await supabase.from('profiles').update({ display_name: displayName, updated_at: now }).eq('id', uid);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from('profiles').insert({ id: uid, display_name: displayName, role: 'courier' });
+    if (error) throw error;
+  }
+  profileRoleMem.delete(uid);
+  cacheInvalidate(`auth-me:${uid}`);
+}
+
+// Обновление отображаемого имени (своё — любой сотрудник).
 app.patch(
   '/api/profile/me',
   asyncHandler(async (req, res) => {
-    const uid = req.user.id;
-    const raw = String(req.body?.displayName ?? '').trim();
-    if (raw.length > 80) {
-      return res.status(400).json({ error: 'Имя не должно превышать 80 символов' });
-    }
-    const displayName = raw || null;
-    const { error } = await supabase
-      .from('profiles')
-      .update({ display_name: displayName, updated_at: new Date().toISOString() })
-      .eq('id', uid);
-    if (error) throw error;
-    profileRoleMem.delete(uid);
-    cacheInvalidate(`auth-me:${uid}`);
-    res.json({ ok: true, displayName });
+    const parsed = parseStaffDisplayName(req.body?.displayName);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    await saveProfileDisplayName(req.user.id, parsed.displayName);
+    res.json({ ok: true, displayName: parsed.displayName });
   })
 );
 
@@ -3903,15 +3914,16 @@ app.get(
     const { data: listData, error: listErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
     if (listErr) throw listErr;
     const users = listData?.users || [];
-    const { data: profiles, error: pErr } = await supabase.from('profiles').select('id, role');
+    const { data: profiles, error: pErr } = await supabase.from('profiles').select('id, role, display_name');
     if (pErr) throw pErr;
-    const roleById = Object.fromEntries((profiles || []).map((p) => [p.id, p.role]));
+    const byId = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
     res.json(
       users.map((u) => ({
         uid: u.id,
         email: u.email,
         disabled: !!u.banned_until,
-        role: roleById[u.id] || 'courier',
+        role: byId[u.id]?.role || 'courier',
+        displayName: byId[u.id]?.display_name || null,
       }))
     );
   })
@@ -3921,8 +3933,10 @@ app.post(
   '/api/users',
   asyncHandler(requireUserManager),
   asyncHandler(async (req, res) => {
-    const { email, password, role } = req.body || {};
+    const { email, password, role, displayName: rawName } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'Email и пароль обязательны' });
+    const parsedName = parseStaffDisplayName(rawName);
+    if (parsedName.error) return res.status(400).json({ error: parsedName.error });
     const me = await getRequesterRole(req);
     const ALL = ['courier', 'seller', 'admin', 'super_admin'];
     const requested = String(role || 'courier').toLowerCase();
@@ -3944,7 +3958,7 @@ app.post(
     const newId = created.user?.id;
     if (!newId) return res.status(500).json({ error: 'Не удалось создать пользователя' });
     const { error: uErr } = await supabase.from('profiles').upsert(
-      { id: newId, role: dbRole },
+      { id: newId, role: dbRole, display_name: parsedName.displayName },
       { onConflict: 'id' }
     );
     if (uErr) console.error('[profiles upsert after create]', uErr);
@@ -3974,6 +3988,21 @@ app.patch(
     const { error } = await supabase.from('profiles').upsert({ id: uid, role: dbRole }, { onConflict: 'id' });
     if (error) throw error;
     res.json({ ok: true, uid, role: dbRole });
+  })
+);
+
+app.patch(
+  '/api/users/:uid/name',
+  asyncHandler(requireSuperAdmin),
+  asyncHandler(async (req, res) => {
+    const uid = req.params.uid;
+    const parsed = parseStaffDisplayName(req.body?.displayName);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const { data: existing, error: selErr } = await supabase.from('profiles').select('id').eq('id', uid).maybeSingle();
+    if (selErr) throw selErr;
+    if (!existing) return res.status(404).json({ error: 'Пользователь не найден' });
+    await saveProfileDisplayName(uid, parsed.displayName);
+    res.json({ ok: true, uid, displayName: parsed.displayName });
   })
 );
 

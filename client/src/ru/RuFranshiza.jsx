@@ -1,23 +1,30 @@
-import { useEffect, useRef } from 'react';
-import { motion, useScroll, useSpring } from 'motion/react';
-import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
+import { useEffect, useState } from 'react';
+import { AnimatePresence, motion, useScroll, useSpring } from 'motion/react';
+import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuPhotoCard, RuStatement,
-  officeHallPhoto, officeWorkPhoto, setDraftMeta, useRuLenis,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuPhotoCard, RuStatement, RuTiltCard, RuTimeline,
+  formatMoney, officeHallPhoto, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis, useShowcaseCycle,
 } from './RuShared.jsx';
 
 const INCLUDES = [
-  { title: 'Бренд и оформление', text: 'Вывеска, навигация и стандарт интерьера: клиент видит сервис, которому доверяют, а не «окно в стене».' },
-  { title: 'Операционная система', text: 'Живой курс с биржи, оформление сделок, договоры, фото изделий, отчётность и статистика — всё в одной программе.' },
-  { title: 'Обучение команды', text: 'Эксперты проходят курс: пробы, подделки, спектральный анализ, стандарты общения с клиентом — и аттестацию.' },
-  { title: 'Стандарты сервиса', text: 'Регламент проверки при клиенте, зона ожидания, безопасность сделок — то, за что Reaktivo выбирают.' },
-  { title: 'Маркетинг запуска', text: 'Реклама на город, страница отделения на сайте — заявки с reaktivo.ru идут в ваше отделение.' },
-  { title: 'Сопровождение', text: 'Поддержка по операционке, юридическим вопросам и сложным изделиям. Вы не остаётесь один на один с нишей.' },
+  { title: 'Бренд и оформление', text: 'Вывеска, навигация и стандарты интерьера: продуманные решения — клиент видит бренд, которому доверяют.' },
+  { title: 'Обучение команды', text: 'Программа подготовки команды: обучение работе с золотом и оборудованием, повышение стандартов коммуникации с клиентом. Прописаны самые высокие стандарты и предусмотрена обязательная аттестация.' },
+  { title: 'Маркетинг запуска', text: 'Стартовый набор для запуска вашего отделения: настройка каналов продвижения и подключение к глобальной рекламной кампании с передачей заявок от Reaktivo.ru.' },
+  { title: 'Операционная система', text: 'Биржевой курс в реальном времени, оформление сделок и договоров, управление командой, фото изделий, отчётность и статистика — всё в одном IT-решении.' },
+  { title: 'Стандарты сервиса', text: 'Ведение клиентов и правила обслуживания на всех этапах до сделки — всё то, за что клиенты выбирают сервис Reaktivo.' },
+  { title: 'Сопровождение', text: 'Поддержка на всех этапах запуска новой точки, а также полное сопровождение по юридическим и организационным вопросам. Это не просто франчайзинг, а настоящее партнёрство.' },
+];
+
+const IT_FEATURES = [
+  { title: 'Живой биржевой курс', text: 'Котировки приходят с биржи и пересчитываются каждые несколько секунд. На сайте, на экране отделения и в системе — один курс.' },
+  { title: 'Сделка без бумаг и калькулятора', text: 'Расчёт выкупа, договор и фото изделия оформляются в системе за минуты. Человеческий фактор исключён из цены.' },
+  { title: 'Отчётность и статистика', text: 'История сделок, отчёты и показатели отделения формируются автоматически — вы видите свой бизнес в реальном времени.' },
+  { title: 'Управление командой', text: 'Роли, смены и действия сотрудников — в одной системе. Новичок работает по регламенту с первого дня.' },
 ];
 
 const FORMATS = [
-  { title: 'Запуск с нуля', text: 'Подбор локации, ремонт по стандарту, найм и обучение команды, запуск рекламы. Для тех, кто заходит в нишу впервые: ведём за руку от договора до первой сделки.' },
-  { title: 'Экспресс-переход', text: 'Для действующих скупок и ломбардов: ребрендинг, установка операционной системы, обучение вашей команды. Быстрее и дешевле запуска с нуля — точка продолжает работать.' },
+  { title: 'Запуск с нуля', text: 'Подбор локации, ремонт по стандартам, помощь в найме и обучении команды, запуск рекламы. Для тех, кто заходит в нишу впервые: сопровождаем от договора до первой сделки.' },
+  { title: 'Экспресс-переход', text: 'Для действующих скупок и ломбардов: полный ребрендинг, установка операционной системы и обучение вашей команды. Быстрее и дешевле запуска с нуля — точка продолжает работать.' },
 ];
 
 const STEPS = [
@@ -53,56 +60,192 @@ function FranshizaForm() {
   );
 }
 
+/* ── Живой мокап операционной системы: настоящий биржевой курс + «идущая» сделка.
+   Демонстрирует «не скупка, а финтех» вживую, а не текстом. ── */
+const OS_DEALS = [
+  { item: 'Цепочка · 585', grams: 14.2, proba: 585 },
+  { item: 'Кольцо · 750', grams: 3.6, proba: 750 },
+  { item: 'Браслет · 585', grams: 21.4, proba: 585 },
+  { item: 'Серьги · 375', grams: 5.2, proba: 375 },
+];
+const OS_PHASES = ['Проверка пробы', 'Договор', 'Выплата'];
+const OS_LOG_TIMES = ['12:41', '11:58', '10:24'];
+
+export function FranshizaOsMock({ quote }) {
+  const perGram = quote?.goldRubPerGram || null;
+  const rateDisplay = useAnimatedNumber(perGram);
+  const [di, setDi] = useState(0);
+  const [phase, setPhase] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPhase((p) => {
+        if (p < OS_PHASES.length - 1) return p + 1;
+        setDi((d) => (d + 1) % OS_DEALS.length);
+        return 0;
+      });
+    }, 1700);
+    return () => clearInterval(id);
+  }, []);
+
+  const deal = OS_DEALS[di];
+  const payout = perGram ? perGram * (deal.proba / 1000) * deal.grams * 0.9 : null;
+  const payoutDisplay = useAnimatedNumber(payout);
+
+  return (
+    <div className="rl-os">
+      <div className="rl-os-bar">
+        <span className="rl-os-dots" aria-hidden><i /><i /><i /></span>
+        <span className="rl-os-title">REAKTIVO · ОПЕРАЦИОННАЯ СИСТЕМА</span>
+        <span className="rl-calc-live"><i />live</span>
+      </div>
+      <div className="rl-os-rate">
+        <div>
+          <span className="rl-os-rate-label">Золото · биржевой курс</span>
+          <span className="rl-os-rate-val">{rateDisplay != null ? formatMoney(rateDisplay) : '· · ·'}<b>/г</b></span>
+        </div>
+        <RuGoldTicker value={perGram} />
+      </div>
+      <div className="rl-os-deal">
+        <AnimatePresence mode="wait">
+          <motion.div key={di} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.4, ease: EASE }}>
+            <div className="rl-os-deal-top">
+              <span className="rl-os-deal-id">Сделка №{1024 + di}</span>
+              <span className="rl-os-deal-item">{deal.item} · {String(deal.grams).replace('.', ',')} г</span>
+            </div>
+            <div className="rl-os-deal-sum">{payoutDisplay != null ? formatMoney(payoutDisplay) : '· · ·'}</div>
+            <div className="rl-os-phases">
+              {OS_PHASES.map((p, i) => (
+                <span key={p} className={`rl-os-phase${i < phase ? ' is-done' : ''}${i === phase ? ' is-active' : ''}`}>
+                  <i>{i < phase ? '✓' : i + 1}</i>{p}
+                </span>
+              ))}
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+      <div className="rl-os-log">
+        <span className="rl-os-log-title">Завершено сегодня</span>
+        {OS_LOG_TIMES.map((t, i) => {
+          const d = OS_DEALS[(di + i + 1) % OS_DEALS.length];
+          const sum = perGram ? perGram * (d.proba / 1000) * d.grams * 0.9 : null;
+          return (
+            <span className="rl-os-log-row" key={t}>
+              <b>{t}</b>
+              <span>{d.item} · {String(d.grams).replace('.', ',')} г</span>
+              <i>{sum != null ? formatMoney(sum) : '· · ·'}</i>
+            </span>
+          );
+        })}
+      </div>
+      <div className="rl-os-foot">
+        <span className="rl-os-chip">ГИИС ДМДК ✓</span>
+        <span className="rl-os-chip">Договор сформирован</span>
+        <span className="rl-os-chip">Отчёт дня готов</span>
+      </div>
+    </div>
+  );
+}
+
+const BRANCH_CITIES = [
+  { name: 'Москва', state: 'on', img: '/office-lobby.jpg', pos: '62% 48%', seal: 'стандарт интерьера', hint: 'флагман сети' },
+  { name: 'Калининград', state: 'on', img: '/office-interior.jpg', pos: '48% 50%', seal: 'стандарт интерьера', hint: 'первая точка' },
+  { name: 'Санкт-Петербург', state: 'on', img: '/office-work.jpg', pos: '55% 42%', seal: 'стандарт интерьера', hint: 'центр' },
+  { name: 'Ваш город', state: 'next', img: '/ru/okompanii-storefront.jpg', pos: '50% 48%', seal: 'откроем под вас', hint: 'следующая точка' },
+];
+
+function FranshizaBranchCard({ quote }) {
+  const perGram = quote?.goldRubPerGram || null;
+  const rateDisplay = useAnimatedNumber(perGram);
+  const [idx, go] = useShowcaseCycle(BRANCH_CITIES.length, 4200);
+  const city = BRANCH_CITIES[idx];
+
+  return (
+    <div className="rl-branch-stage">
+      <span className="rl-branch-ghost rl-branch-ghost--2" aria-hidden />
+      <span className="rl-branch-ghost rl-branch-ghost--1" aria-hidden />
+      <motion.div className="rl-branch" initial={{ opacity: 0, y: 36 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.35, ease: EASE }}>
+        <div className="rl-branch-bar">
+          <span className="rl-branch-pin" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M12 21s7-5.6 7-11.2A7 7 0 0 0 5 9.8C5 15.4 12 21 12 21z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+              <circle cx="12" cy="9.8" r="2.2" stroke="currentColor" strokeWidth="1.7" />
+            </svg>
+          </span>
+          <span className="rl-branch-bar-copy">
+            <b>ОТДЕЛЕНИЕ REAKTIVO</b>
+            <i>{city.hint}</i>
+          </span>
+          <span className="rl-calc-live"><i />live</span>
+        </div>
+        <button type="button" className="rl-branch-media" onClick={() => go()} aria-label="Следующий город">
+          <AnimatePresence mode="wait">
+            <motion.img
+              key={city.name}
+              src={city.img}
+              alt=""
+              style={{ objectPosition: city.pos }}
+              initial={{ opacity: 0, scale: 1.05 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease: EASE }}
+            />
+          </AnimatePresence>
+          <span className="rl-branch-seal">{city.seal}</span>
+        </button>
+        <div className="rl-branch-cities">
+          {BRANCH_CITIES.map((c, i) => (
+            <button
+              key={c.name}
+              type="button"
+              className={`rl-branch-city${c.state === 'next' ? ' rl-branch-city--next' : ''}${i === idx ? ' is-active' : ''}`}
+              onClick={() => go(i)}
+              aria-pressed={i === idx}
+            >
+              <span className="rl-branch-city-name"><i aria-hidden />{c.name}</span>
+              <b>{c.state === 'on' ? 'работает' : 'открываем'}</b>
+            </button>
+          ))}
+        </div>
+        <div className="rl-branch-rate">
+          <div>
+            <span className="rl-branch-rate-label">курс на экране отделения</span>
+            <strong>{rateDisplay != null ? formatMoney(rateDisplay) : '· · ·'}<em>/г</em></strong>
+          </div>
+          <RuGoldTicker value={perGram} />
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 export function RuFranshiza() {
+  const quote = useGoldQuote();
   const lenisRef = useRuLenis();
-  const heroRef = useRef(null);
   const { scrollYProgress } = useScroll();
   const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
 
-  useEffect(() => { setDraftMeta('Франшиза Reaktivo — открыть отделение (черновик)'); }, []);
+  useEffect(() => { setDraftMeta('Франшиза Reaktivo — открыть отделение'); }, []);
 
   return (
     <div className="il-root rl-root">
       <motion.div className="il-progress" style={{ scaleX: progressX }} aria-hidden />
       <RuAtmosphere />
-      <div className="rl-preview-flag">Черновик для просмотра · не окончательная версия</div>
 
       <RuHeader active="/ru/franshiza/" lenisRef={lenisRef} ctaHref="#zayavka" ctaLabel="Обсудить открытие" />
 
       <main>
-        <p className="rl-crumbs"><a href="/ru/">Reaktivo</a> · Франшиза</p>
-
-        <section className="il-hero" style={{ paddingTop: '48px' }} ref={heroRef}>
-          <RuHeroBg heroRef={heroRef} />
-          <div className="il-hero-inner">
-            <div className="il-hero-copy">
-              <motion.span className="il-badge" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}>
-                <i className="il-badge-dot" /> Франшиза
-              </motion.span>
-              <motion.h1 className="il-hero-title rl-hero-title" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.1, ease: EASE }}>
-                Откройте отделение <span className="il-accent-text">в своём городе</span>
-              </motion.h1>
-              <motion.p className="il-hero-sub" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.32, ease: EASE }}>
-                Запуск под ключ или экспресс-переход для действующей скупки: бренд,
-                операционная система, обучение команды и поддержка на каждом этапе.
-              </motion.p>
-              <motion.div className="il-hero-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.44, ease: EASE }}>
-                <Magnetic>
-                  <motion.a href="#zayavka" className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.96 }}>
-                    Обсудить открытие
-                    <span className="il-btn-arrow" aria-hidden>→</span>
-                  </motion.a>
-                </Magnetic>
-                <motion.a href="#chto" className="il-btn il-btn--outline il-btn--lg" whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }}>
-                  Что входит
-                </motion.a>
-              </motion.div>
-            </div>
-            <motion.div className="rl-hero-visual" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.35, ease: EASE }}>
-              <RuPhotoCard className="rl-hero-photo" src={officeWorkPhoto} alt="Рабочая зона отделения Reaktivo" caption="Действующее отделение Reaktivo" />
-            </motion.div>
-          </div>
-        </section>
+        <RuFullHero
+          imgDark="/office-lobby.jpg"
+          imgLight="/office-lobby.jpg"
+          imgPos="72% 55%"
+          kicker="Франшиза"
+          title={<>Откройте отделение <span className="il-accent-text">в своём городе</span></>}
+          sub="Запуск под ключ или экспресс-переход для действующей скупки: бренд, операционная система, обучение команды и поддержка на каждом этапе."
+          primary={{ href: '#zayavka', label: 'Обсудить открытие' }}
+          secondary={{ href: '#chto', label: 'Что входит' }}
+          aside={<FranshizaBranchCard quote={quote} />}
+        />
 
         <RuMarquee items={[
           'Бренд', 'Операционная система', 'Обучение команды', 'Стандарты сервиса',
@@ -113,8 +256,8 @@ export function RuFranshiza() {
           <div className="il-section-inner">
             <RuKpis items={[
               { val: '3 города', label: 'уже работают по системе', icon: 'pin', imgDark: '/ru/kpi-cities-dark.jpg', imgLight: '/ru/kpi-cities-light.jpg' },
-              { val: '15 мин', label: 'средняя сделка в отделении', icon: 'clock', imgDark: '/ru/kpi-watch-dark.jpg', imgLight: '/ru/kpi-watch-light.jpg' },
-              { val: 'до 90%', label: 'клиенту — поток рекомендует сам себя', icon: 'percent', imgDark: '/ru/kpi-percent-dark.jpg', imgLight: '/ru/kpi-percent-light.jpg' },
+              { val: '5 минут', label: 'средняя сделка в отделении', icon: 'clock', imgDark: '/ru/kpi-watch-dark.jpg', imgLight: '/ru/kpi-watch-light.jpg' },
+              { val: 'финтех', label: 'операционная система, а не тетрадь с калькулятором', icon: 'bolt', imgDark: '/ru/kpi-ticker-dark.jpg', imgLight: '/ru/kpi-ticker-light.jpg' },
               { val: '2 формата', label: 'с нуля или переход действующей точки', icon: 'building', imgDark: '/ru/kpi-office-dark.jpg', imgLight: '/ru/kpi-office-light.jpg' },
             ]} />
           </div>
@@ -124,31 +267,31 @@ export function RuFranshiza() {
           <div className="il-section-inner">
             <div className="il-section-head">
               <Reveal><span className="il-pill">Почему модель работает</span></Reveal>
-              <Reveal delay={0.08}><h2 className="il-h2">Клиент выбирает сервис,<br />а не ближайшее окно</h2></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Клиент выбирает технологичный сервис,<br />скорость и комфорт</h2></Reveal>
             </div>
             <div className="rl-vs">
               <Reveal className="rl-vs-col rl-vs-col--old" y={20}>
                 <span className="rl-vs-tag">Обычная скупка</span>
                 <h4>Точка без бренда<br />и без системы</h4>
                 <ul>
-                  <li>Кустарная вывеска и недоверие с порога</li>
-                  <li>Курс «по звонку», клиент торгуется</li>
+                  <li>Раздутый курс в рекламе и другой на месте</li>
+                  <li>Комиссии и другие предлоги снизить цену</li>
                   <li>Тетрадь, калькулятор и человеческий фактор</li>
-                  <li>Клиент приходит один раз и не возвращается</li>
+                  <li>Негативный опыт клиента от сделки</li>
                 </ul>
-                <div className="rl-vs-fig">Случайные клиенты</div>
+                <div className="rl-vs-fig">Разовые клиенты</div>
                 <div className="rl-vs-figl">и потолок по обороту</div>
               </Reveal>
               <Reveal className="rl-vs-col rl-vs-col--new" delay={0.08} y={20}>
                 <span className="rl-vs-tag">Отделение Reaktivo</span>
                 <h4>Бренд, система<br />и стандарты сервиса</h4>
                 <ul>
-                  <li>Узнаваемый бренд и светлый зал</li>
-                  <li>Живой биржевой курс — на сайте и на экране</li>
-                  <li>Сделки, договоры и отчёты считает система</li>
-                  <li>Клиент возвращается и рекомендует</li>
+                  <li>Единый биржевой курс — на сайте и в отделениях</li>
+                  <li>Никаких комиссий и вычетов</li>
+                  <li>Расчёт выкупа, договор и курс в операционной системе</li>
+                  <li>Клиентская база и система лояльности</li>
                 </ul>
-                <div className="rl-vs-fig">Поток и повторные</div>
+                <div className="rl-vs-fig">Постоянные клиенты сервиса</div>
                 <div className="rl-vs-figl">заявки с reaktivo.ru идут в ваше отделение</div>
               </Reveal>
             </div>
@@ -172,11 +315,34 @@ export function RuFranshiza() {
           </div>
         </section>
 
+        <section className="il-section il-section--alt" id="it">
+          <div className="il-section-inner">
+            <div className="il-section-head">
+              <Reveal><span className="il-pill">Превосходство IT</span></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Не скупка, а <span className="il-accent-text">финтех</span></h2></Reveal>
+              <Reveal delay={0.14}><p className="il-section-lead">Вместе с франшизой вы получаете операционную систему Reaktivo. Справа — она в работе: настоящий биржевой курс и сделка, как её видит ваша команда.</p></Reveal>
+            </div>
+            <div className="rl-media-split rl-media-split--even">
+              <motion.div className="il-cards rl-media-split-cards" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
+                {IT_FEATURES.map((a) => (
+                  <motion.div className="il-card" key={a.title} variants={staggerChild} whileHover={{ y: -8 }} transition={{ duration: 0.35, ease: EASE }}>
+                    <h3 className="il-card-title">{a.title}</h3>
+                    <p className="il-card-text">{a.text}</p>
+                  </motion.div>
+                ))}
+              </motion.div>
+              <RuTiltCard className="rl-media-split-visual rl-media-split-visual--os">
+                <FranshizaOsMock quote={quote} />
+              </RuTiltCard>
+            </div>
+          </div>
+        </section>
+
         <section className="il-section">
           <div className="il-section-inner">
             <div className="il-section-head">
               <Reveal><span className="il-pill">Два формата</span></Reveal>
-              <Reveal delay={0.08}><h2 className="il-h2">С нуля — или поверх действующей точки</h2></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Новая точка — или экспресс-переход</h2></Reveal>
             </div>
             <motion.div className="rl-two-cards" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
               {FORMATS.map((f) => (
@@ -192,12 +358,12 @@ export function RuFranshiza() {
         <section className="il-section il-section--alt">
           <div className="il-section-inner">
             <div className="il-section-head">
-              <Reveal><span className="il-pill">Как выглядит стандарт</span></Reveal>
-              <Reveal delay={0.08}><h2 className="il-h2">Отделение, в которое не страшно зайти</h2></Reveal>
-              <Reveal delay={0.14}><p className="il-section-lead">Светлый зал, отдельная зона проверки и оплаты, живой курс на экране. Таким получает отделение каждый партнёр.</p></Reveal>
+              <Reveal><span className="il-pill">Наши стандарты</span></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Формат, созданный для клиента</h2></Reveal>
+              <Reveal delay={0.14}><p className="il-section-lead">Светлые пространства, отдельные зоны для проверки и оплаты, вывод курса на экране. Именно таким будет отделение каждого партнёра Reaktivo.</p></Reveal>
             </div>
             <Reveal delay={0.1}>
-              <RuPhotoCard src={officeHallPhoto} alt="Зал отделения Reaktivo" caption="Наше отделение" />
+              <RuPhotoCard src={officeHallPhoto} alt="Зал отделения Reaktivo" />
             </Reveal>
           </div>
         </section>
@@ -210,14 +376,7 @@ export function RuFranshiza() {
               <Reveal><span className="il-pill">Путь к открытию</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Пять шагов до первой сделки</h2></Reveal>
             </div>
-            <div className="rl-rows">
-              {STEPS.map((s, i) => (
-                <Reveal key={s.n} delay={i * 0.05} className="rl-row">
-                  <span className="rl-row-n">{s.n}</span>
-                  <div><h4>{s.title}</h4><p>{s.text}</p></div>
-                </Reveal>
-              ))}
-            </div>
+            <RuTimeline items={STEPS} />
           </div>
         </section>
 

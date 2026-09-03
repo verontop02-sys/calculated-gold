@@ -17,7 +17,7 @@ export function SettingsPanel({ user }) {
   const [users, setUsers] = useState([]);
   const [usersNote, setUsersNote] = useState('');
   const [userListStatus, setUserListStatus] = useState('loading');
-  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'courier' });
+  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'courier', displayName: '' });
   const [saving, setSaving] = useState(false);
   const [savedSection, setSavedSection] = useState(null);
   const [err, setErr] = useState('');
@@ -25,6 +25,9 @@ export function SettingsPanel({ user }) {
   const [deleting, setDeleting] = useState(false);
   const [changingRoleUid, setChangingRoleUid] = useState(null);
   const [roleChangeBusy, setRoleChangeBusy] = useState(null);
+  const [editingNameUid, setEditingNameUid] = useState(null);
+  const [nameDraft, setNameDraft] = useState('');
+  const [nameBusy, setNameBusy] = useState(null);
   /** String drafts so users can clear fields and type new numbers (parseFloat('')||0 was snapping to 0). */
   const [buybackStr, setBuybackStr] = useState('');
   const [rangeStr, setRangeStr] = useState('');
@@ -145,13 +148,30 @@ export function SettingsPanel({ user }) {
     }
     setErr('');
     try {
-      await api.createUser(newUser.email, newUser.password, newUser.role);
-      setNewUser({ email: '', password: '', role: 'courier' });
+      await api.createUser(newUser.email, newUser.password, newUser.role, newUser.displayName);
+      setNewUser({ email: '', password: '', role: 'courier', displayName: '' });
       await load();
       toast('Пользователь создан', 'success');
     } catch (ex) {
       setErr(ex.message);
       toast(ex.message, 'error');
+    }
+  }
+
+  async function applyDisplayName(uid) {
+    if (!isSuper) return;
+    setNameBusy(uid);
+    setErr('');
+    try {
+      const out = await api.updateUserDisplayName(uid, nameDraft);
+      setUsers((prev) => prev.map((u) => (u.uid === uid ? { ...u, displayName: out.displayName || null } : u)));
+      setEditingNameUid(null);
+      toast('Имя сохранено', 'success');
+    } catch (ex) {
+      setErr(ex.message);
+      toast(ex.message, 'error');
+    } finally {
+      setNameBusy(null);
     }
   }
 
@@ -350,7 +370,7 @@ export function SettingsPanel({ user }) {
               <strong>Администратор</strong> — как курьер в панели (калькулятор и курс, в том числе «Обновить сейчас»), плюс только этот блок: создание курьеров и продавцов. Политика выкупа и пробы — у супер-администратора.{' '}
             </>
           )}
-          <strong>Продавец</strong> и <strong>курьер</strong> видят только калькулятор.
+          <strong>Продавец</strong> и <strong>курьер</strong> видят только калькулятор. ФИО в профиле подставляется в договор как эксперт-оценщик — его может указать сам сотрудник или супер-администратор здесь.
         </p>
         {usersNote && <p className="users-note muted small block-desc">{usersNote}</p>}
 
@@ -376,6 +396,58 @@ export function SettingsPanel({ user }) {
               <li key={u.uid} className="user-row">
                 <div className="user-info">
                   <strong className="user-email">{u.email}</strong>
+                  {isSuper && editingNameUid === u.uid ? (
+                    <span className="user-name-edit">
+                      <input
+                        className="user-name-input"
+                        value={nameDraft}
+                        onChange={(e) => setNameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') applyDisplayName(u.uid);
+                          if (e.key === 'Escape') setEditingNameUid(null);
+                        }}
+                        maxLength={80}
+                        placeholder="ФИО для договора"
+                        autoFocus
+                        disabled={nameBusy === u.uid}
+                      />
+                      <button
+                        type="button"
+                        className="btn-ghost small"
+                        disabled={nameBusy === u.uid}
+                        onClick={() => applyDisplayName(u.uid)}
+                      >
+                        {nameBusy === u.uid ? '…' : 'Ок'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-ghost small"
+                        disabled={nameBusy === u.uid}
+                        onClick={() => setEditingNameUid(null)}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="user-display-row">
+                      <span className={`user-display-name${u.displayName ? '' : ' is-empty'}`}>
+                        {u.displayName || 'ФИО не указано'}
+                      </span>
+                      {isSuper && (
+                        <button
+                          type="button"
+                          className="user-name-btn"
+                          title="ФИО в договоре как эксперт-оценщик"
+                          onClick={() => {
+                            setEditingNameUid(u.uid);
+                            setNameDraft(u.displayName || '');
+                          }}
+                        >
+                          имя ✎
+                        </button>
+                      )}
+                    </span>
+                  )}
                   {changingRoleUid === u.uid ? (
                     <span className="role-change-row">
                       {rolesForPicker.map((r) => (
@@ -460,6 +532,13 @@ export function SettingsPanel({ user }) {
             placeholder="Email пользователя"
             value={newUser.email}
             onChange={(e) => setNewUser((x) => ({ ...x, email: e.target.value }))}
+            disabled={!canManageUsers}
+            autoComplete="off"
+          />
+          <input
+            placeholder="ФИО (для договора)"
+            value={newUser.displayName}
+            onChange={(e) => setNewUser((x) => ({ ...x, displayName: e.target.value }))}
             disabled={!canManageUsers}
             autoComplete="off"
           />
@@ -643,6 +722,19 @@ export function SettingsPanel({ user }) {
         .user-row:hover { box-shadow: var(--shadow-pop); }
         .user-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
         .user-email { word-break: break-all; font-size: 0.88rem; font-weight: 600; }
+        .user-display-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .user-display-name { font-size: 0.8rem; color: var(--text-muted); }
+        .user-display-name.is-empty { color: var(--crimson); opacity: 0.85; }
+        .user-name-btn {
+          background: none; border: 1px dashed var(--stroke); border-radius: 999px;
+          padding: 2px 10px; font-size: 0.72rem; cursor: pointer; color: var(--text-muted);
+        }
+        .user-name-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .user-name-edit { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .user-name-input {
+          flex: 1; min-width: 160px; padding: 6px 10px; border-radius: 8px;
+          border: 1px solid var(--stroke); background: var(--bg-panel); font: inherit; font-size: 0.84rem;
+        }
         .user-actions { flex-shrink: 0; display: flex; align-items: flex-start; }
         .role-badge-btn { background: none; border: 1px dashed var(--stroke); border-radius: 999px; padding: 4px 12px; font-size: 0.74rem; cursor: pointer; transition: border-color 0.2s, color 0.2s; text-align: left; }
         .role-badge-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }

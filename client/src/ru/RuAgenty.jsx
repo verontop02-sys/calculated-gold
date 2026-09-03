@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
-import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
+import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuStatement, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuStatement, RuThemedImg, RuTiltCard, RuTimeline,
   formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
@@ -132,11 +132,10 @@ function AgentForm() {
 export function RuAgenty() {
   const quote = useGoldQuote();
   const lenisRef = useRuLenis();
-  const heroRef = useRef(null);
   const { scrollYProgress } = useScroll();
   const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
 
-  useEffect(() => { setDraftMeta('Работа с Reaktivo — агентская программа (черновик)'); }, []);
+  useEffect(() => { setDraftMeta('Работа с Reaktivo — агентская программа'); }, []);
 
   const rate585 = quote?.goldRubPerGram ? quote.goldRubPerGram * 0.585 : null;
   const oldPay = rate585 ? rate585 * 12 * 0.6 : null;
@@ -147,42 +146,21 @@ export function RuAgenty() {
     <div className="il-root rl-root">
       <motion.div className="il-progress" style={{ scaleX: progressX }} aria-hidden />
       <RuAtmosphere />
-      <div className="rl-preview-flag">Черновик для просмотра · не окончательная версия</div>
 
       <RuHeader active="/ru/agenty/" lenisRef={lenisRef} ctaHref="#zayavka" ctaLabel="Стать агентом" />
 
       <main>
-        <p className="rl-crumbs"><a href="/ru/">Reaktivo</a> · Работа</p>
-
-        <section className="il-hero" style={{ paddingTop: '48px' }} ref={heroRef}>
-          <RuHeroBg heroRef={heroRef} />
-          <div className="il-hero-inner">
-            <div className="il-hero-copy">
-              <motion.span className="il-badge" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}>
-                <i className="il-badge-dot" /> Для агентов в регионах
-              </motion.span>
-              <motion.h1 className="il-hero-title rl-hero-title" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.1, ease: EASE }}>
-                Зарабатывайте на золоте <span className="il-accent-text">в своём городе</span>
-              </motion.h1>
-              <motion.p className="il-hero-sub" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.32, ease: EASE }}>
-                Пройдите обучение, получите набор для проверки золота и доступ в приложение —
-                зарабатывайте в своём городе и регионе.
-              </motion.p>
-              <motion.div className="il-hero-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.44, ease: EASE }}>
-                <Magnetic>
-                  <motion.a href="#zayavka" className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.96 }}>
-                    Стать агентом
-                    <span className="il-btn-arrow" aria-hidden>→</span>
-                  </motion.a>
-                </Magnetic>
-                <motion.a href="/ru/prodat/" className="il-btn il-btn--outline il-btn--lg" whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }}>
-                  Я клиент, хочу продать
-                </motion.a>
-              </motion.div>
-            </div>
-            <AgentCalc quote={quote} />
-          </div>
-        </section>
+        <RuFullHero
+          imgDark="/ru/agent-kit.jpg"
+          imgLight="/ru/agent-kit-light.jpg"
+          imgPos="72% 50%"
+          kicker="Для агентов в регионах"
+          title={<>Зарабатывайте на золоте <span className="il-accent-text">в своём городе</span></>}
+          sub="Пройдите обучение, получите набор для проверки золота и доступ в приложение — зарабатывайте в своём городе и регионе."
+          primary={{ href: '#zayavka', label: 'Стать агентом' }}
+          secondary={{ href: '/ru/prodat/', label: 'Я клиент, хочу продать' }}
+          aside={<AgentCalc quote={quote} />}
+        />
 
         <RuMarquee items={[
           'Обучение', 'Инструменты', 'Приложение', 'SOS', 'Рейтинг', 'Оборотный капитал',
@@ -242,7 +220,7 @@ export function RuAgenty() {
             </div>
             <div className="rl-media-split rl-media-split--reverse rl-media-split--even">
               <RuTiltCard className="rl-media-split-visual">
-                <img src="/ru/agent-kit.jpg" alt="Фирменный набор агента Reaktivo: сумка, весы, прибор для оценки золота" loading="lazy" decoding="async" />
+                <RuThemedImg dark="/ru/courier.jpg" light="/ru/courier-light.jpg" alt="Агент Reaktivo с фирменной сумкой на выезде" />
               </RuTiltCard>
               <motion.div className="il-cards rl-perks-grid" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
                 {PERKS.map((a) => (
@@ -262,7 +240,7 @@ export function RuAgenty() {
               <Reveal><span className="il-pill">Правила без исключений</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Это защищает и клиента, и вас</h2></Reveal>
             </div>
-            <div className="rl-rows">
+            <div className="rl-rows rl-rows--2">
               {RULES.map((r, i) => (
                 <Reveal key={r.title} delay={i * 0.05} className="rl-row">
                   <span className="rl-row-n">{String(i + 1).padStart(2, '0')}</span>
@@ -330,14 +308,7 @@ export function RuAgenty() {
               <Reveal><span className="il-pill">Начало</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Как стать агентом</h2></Reveal>
             </div>
-            <div className="rl-rows">
-              {STEPS.map((s, i) => (
-                <Reveal key={s.n} delay={i * 0.05} className="rl-row">
-                  <span className="rl-row-n">{s.n}</span>
-                  <div><h4>{s.title}</h4><p>{s.text}</p></div>
-                </Reveal>
-              ))}
-            </div>
+            <RuTimeline items={STEPS} />
           </div>
         </section>
 

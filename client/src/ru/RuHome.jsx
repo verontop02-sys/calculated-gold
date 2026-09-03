@@ -1,34 +1,40 @@
-import { useEffect, useRef, useState } from 'react';
-import { motion, useScroll, useSpring, useTransform } from 'motion/react';
-import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
+import { useEffect, useState } from 'react';
+import { motion, useScroll, useSpring } from 'motion/react';
+import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuMarketTiles, RuMarquee, RuPhotoCard, RuSbpBadge, RuStatement, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuHeader, RuKpis, RuMarketTiles, RuMarquee, RuPhotoCard, RuSbpBadge, RuStatement, RuThemedImg, RuTiltCard,
   GramsSlider, formatMoney, officeHallPhoto, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
 const DIRECTIONS = [
   {
-    tag: 'Выкуп золота', title: 'Продать золото', href: '/ru/prodat/', live: true,
+    tag: 'Выкуп золота', title: 'Продать золото', href: '/ru/prodat/',
+    imgDark: '/ru/hero-prodat.jpg', imgLight: '/ru/hero-prodat-light.jpg', imgPos: '62% 50%',
     text: 'Оценка по бирже, оплата сразу — в отделениях или с курьером.',
   },
   {
-    tag: 'Регионы', title: 'Работа', href: '/ru/agenty/', live: true,
+    tag: 'Регионы', title: 'Работа', href: '/ru/agenty/',
+    imgDark: '/ru/courier.jpg', imgLight: '/ru/courier-light.jpg', imgPos: '50% 26%',
     text: 'Обучение, набор для проверки золота, и доступ в приложение — зарабатывайте в своём городе и регионе.',
   },
   {
-    tag: 'Интернет-магазин', title: 'Ювелирные слитки', href: '/ru/slitki/', live: true,
+    tag: 'Интернет-магазин', title: 'Ювелирные слитки', href: '/ru/slitki/',
+    imgDark: '/ru/slitok.jpg', imgLight: '/ru/slitok-light.jpg', imgPos: '50% 45%',
     text: 'Слиток-украшение: кулон, подвеска, цепочка. Ювелирное украшение, сохраняющее ценность.',
   },
   {
-    tag: 'Reaktivo Resale', title: 'Проверенные украшения', href: '/ru/resale/', live: true,
+    tag: 'Reaktivo Resale', title: 'Проверенные украшения', href: '/ru/resale/',
+    imgDark: '/ru/resale.jpg', imgLight: '/ru/resale-light.jpg', imgPos: '55% 45%',
     text: 'Брендовые изделия из выкупа — сразу после экспертизы и ювелирного SPA. Мировые бренды по выгодной цене.',
   },
   {
-    tag: 'Франшиза', title: 'Открыть отделение', href: '/ru/franshiza/', live: true,
+    tag: 'Франшиза', title: 'Открыть отделение', href: '/ru/franshiza/',
+    imgDark: '/office-lobby.jpg', imgLight: '/office-lobby.jpg', imgPos: '70% 55%',
     text: 'Запуск под ключ или экспресс-переход для действующих скупок и ломбардов: бренд, операционная система, процессы и поддержка.',
   },
   {
-    tag: 'B2B', title: 'Партнёрам', href: '/ru/partneram/', live: true,
+    tag: 'B2B', title: 'Партнёрам', href: '/ru/partneram/',
+    imgDark: '/ru/partner.jpg', imgLight: '/ru/partner-light.jpg', imgPos: '55% 45%',
     text: 'Ювелиры, ломбарды и дилеры получают специальный курс на продажу и покупку, приоритетную логистику и совместные программы.',
   },
 ];
@@ -77,7 +83,7 @@ function LiveCalcCard({ quote }) {
         <span className="rl-calc-out-label">Вы получите наличными или переводом<RuSbpBadge /></span>
         <span className="rl-calc-out-val">{sumDisplay != null ? formatMoney(sumDisplay) : '· · ·'}</span>
       </div>
-      <a href="/ru/prodat/" className="rl-btn rl-btn--primary rl-calc-cta">Точный расчёт и вызов курьера</a>
+      <a href="/ru/prodat/#zayavka" className="rl-btn rl-btn--primary rl-calc-cta">Точный расчёт и вызов курьера</a>
     </motion.div>
   );
 }
@@ -85,16 +91,10 @@ function LiveCalcCard({ quote }) {
 export function RuHome() {
   const quote = useGoldQuote();
   const lenisRef = useRuLenis();
-  const heroRef = useRef(null);
   const { scrollYProgress } = useScroll();
   const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
-  // Прогресс скролла именно внутри hero (а не абсолютные пиксели) — на мобильной
-  // вёрстке блоки уходят в столбец и hero становится выше, фиксированный диапазон
-  // в пикселях гасил калькулятор ещё до того, как его успевали открутить.
-  const { scrollYProgress: heroProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
-  const heroFade = useTransform(heroProgress, [0, 0.9], [1, 0]);
 
-  useEffect(() => { setDraftMeta('Reaktivo — выкуп золота без ломбардной логики (черновик)'); }, []);
+  useEffect(() => { setDraftMeta('Reaktivo — выкуп золота без ломбардной логики'); }, []);
 
   const goTo = (e, selector) => {
     e.preventDefault();
@@ -106,49 +106,21 @@ export function RuHome() {
     <div className="il-root rl-root">
       <motion.div className="il-progress" style={{ scaleX: progressX }} aria-hidden />
       <RuAtmosphere />
-      <div className="rl-preview-flag">Черновик для просмотра · не окончательная версия</div>
 
       <RuHeader active="home" lenisRef={lenisRef} />
 
       <main>
-        <section className="il-hero" ref={heroRef}>
-          <RuHeroBg heroRef={heroRef} />
-          <motion.div className="il-hero-inner" style={{ opacity: heroFade }}>
-            <div className="il-hero-copy">
-              <motion.span className="il-badge" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}>
-                <i className="il-badge-dot" /> Сервис выкупа золота — без ломбардной логики
-              </motion.span>
-
-              <motion.h1
-                className="il-hero-title rl-hero-title"
-                initial={{ opacity: 0, y: 24 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.12, ease: EASE }}
-              >
-                Курс, который<br />видно <span className="il-accent-text">до визита</span>
-              </motion.h1>
-
-              <motion.p className="il-hero-sub" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.4, ease: EASE }}>
-                Оценка по биржевому курсу, оплата сразу — в отделении или с курьером.
-                Мы платим всю стоимость. Никаких скрытых процентов и комиссий.
-              </motion.p>
-
-              <motion.div className="il-hero-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.54, ease: EASE }}>
-                <Magnetic>
-                  <motion.a href="/ru/prodat/" className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.96 }}>
-                    Рассчитать стоимость
-                    <span className="il-btn-arrow" aria-hidden>→</span>
-                  </motion.a>
-                </Magnetic>
-                <motion.a href="#napravlenia" className="il-btn il-btn--outline il-btn--lg" onClick={(e) => goTo(e, '#napravlenia')} whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }}>
-                  Все направления
-                </motion.a>
-              </motion.div>
-            </div>
-
-            <LiveCalcCard quote={quote} />
-          </motion.div>
-        </section>
+        <RuFullHero
+          imgDark="/ru/hero-home-style-dark.jpg"
+          imgLight="/ru/hero-home-style-light.jpg"
+          imgPos="62% 42%"
+          kicker="Сервис выкупа золота — без ломбардной логики"
+          title={<>Курс, который<br />видно <span className="il-accent-text">до визита</span></>}
+          sub="Оценка по биржевому курсу, оплата сразу — в отделении или с курьером. Мы платим всю стоимость. Никаких скрытых процентов и комиссий."
+          primary={{ href: '/ru/prodat/', label: 'Продать золото' }}
+          secondary={{ href: '#napravlenia', label: 'Все направления', onClick: (e) => goTo(e, '#napravlenia') }}
+          aside={<LiveCalcCard quote={quote} />}
+        />
 
         <RuMarquee items={[
           'Курс каждые 3 секунды', 'До 90% от биржи', 'Курьер бесплатно', 'Ювелирные слитки',
@@ -172,23 +144,19 @@ export function RuHome() {
               <Reveal><span className="il-pill">Что у нас есть</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Не ещё одна скупка —<br /><span className="il-accent-text">настоящий сервис</span></h2></Reveal>
             </div>
-            <motion.div className="il-products rl-products" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
+            <motion.div className="rl-dirs" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
               {DIRECTIONS.map((d) => (
-                d.live ? (
-                  <motion.a className="il-product" href={d.href} key={d.title} variants={staggerChild} whileHover={{ y: -3 }}>
-                    <span className="il-product-tag">{d.tag}</span>
-                    <h3 className="il-product-title">{d.title}</h3>
-                    <p className="il-product-text">{d.text}</p>
-                    <span className="il-product-link">Открыть раздел →</span>
-                  </motion.a>
-                ) : (
-                  <motion.div className="il-product rl-product--soon" key={d.title} variants={staggerChild}>
-                    <span className="il-product-tag">{d.tag}</span>
-                    <h3 className="il-product-title">{d.title}</h3>
-                    <p className="il-product-text">{d.text}</p>
-                    <span className="rl-soon-chip">Готовим</span>
-                  </motion.div>
-                )
+                <motion.a className="rl-dir" href={d.href} key={d.title} variants={staggerChild}>
+                  <span className="rl-dir-media" aria-hidden>
+                    <RuThemedImg dark={d.imgDark} light={d.imgLight} alt="" style={{ objectPosition: d.imgPos }} />
+                    <span className="rl-dir-tag">{d.tag}</span>
+                  </span>
+                  <span className="rl-dir-body">
+                    <h3 className="rl-dir-title">{d.title}</h3>
+                    <p className="rl-dir-text">{d.text}</p>
+                    <span className="rl-dir-link">Открыть раздел <i aria-hidden>→</i></span>
+                  </span>
+                </motion.a>
               ))}
             </motion.div>
           </div>
@@ -247,7 +215,7 @@ export function RuHome() {
               <Reveal delay={0.14}><p className="il-section-lead">Во всём. Светлый зал, отдельная зона проверки и оплаты. Никакой ломбардной атмосферы, только вы и комфорт.</p></Reveal>
             </div>
             <Reveal delay={0.1}>
-              <RuPhotoCard src={officeHallPhoto} alt="Зал отделения Reaktivo" caption="Наше отделение" />
+              <RuPhotoCard src={officeHallPhoto} alt="Зал отделения Reaktivo" />
             </Reveal>
           </div>
         </section>

@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react';
-import { motion, useScroll, useSpring } from 'motion/react';
-import { CSS as IL_CSS, EASE, Magnetic, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
+import { useEffect } from 'react';
+import { AnimatePresence, motion, useScroll, useSpring } from 'motion/react';
+import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuHeader, RuHeroBg, RuKpis, RuLeadForm, RuMarquee, RuPhotoCard, RuStatement,
-  setDraftMeta, useRuLenis,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuStatement, RuTimeline,
+  formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis, useShowcaseCycle,
 } from './RuShared.jsx';
 
 const WHY = [
@@ -13,7 +13,7 @@ const WHY = [
 ];
 
 const PATH = [
-  { n: '01', title: 'Выкуп', text: 'Изделие приезжает из отделения или от курьера — по обычной паспортной сделке Reaktivo.' },
+  { n: '01', title: 'Выкуп', text: 'Reaktivo выкупает изделие у владельца по договору и проверяет его историю.' },
   { n: '02', title: 'Экспертиза', text: 'Проба, подлинность бренда, состояние. Всё, что не проходит проверку, уходит в переработку, а не в продажу.' },
   { n: '03', title: 'Чистка и полировка', text: 'Профессиональный уход и предпродажная подготовка: изделие выглядит так, как должно.' },
   { n: '04', title: 'Публикация в канале', text: 'Фото, честное описание и цена. Лучшие лоты первыми видят подписчики Telegram-канала.' },
@@ -26,6 +26,100 @@ const FAQ = [
   { q: 'Можно посмотреть изделие вживую?', a: 'Да, в городах присутствия лот можно посмотреть в отделении перед покупкой — договоритесь с менеджером о времени.' },
   { q: 'Откуда изделия?', a: 'Из ежедневного выкупа Reaktivo: люди продают золото и брендовые украшения, и лучшее после экспертизы попадает в Resale вместо переплавки.' },
 ];
+
+const LOTS = [
+  {
+    id: 1847, name: 'Цепь', meta: '750 проба · 42,1 г', grams: 42.1, proba: 750,
+    img: '/ru/resale.jpg', imgPos: '58% 48%', resaleK: 1.28, storeK: 2.38,
+  },
+  {
+    id: 1842, name: 'Карманные часы', meta: 'золотой корпус · 22,4 г', grams: 22.4, proba: 750,
+    img: '/ru/kpi-watch-dark.jpg', imgPos: '50% 72%', resaleK: 1.42, storeK: 2.85,
+  },
+  {
+    id: 1838, name: 'Браслет', meta: '585 проба · 28,6 г', grams: 28.6, proba: 585,
+    img: '/ru/hero-home-style-dark.jpg', imgPos: '72% 48%', resaleK: 1.32, storeK: 2.42,
+  },
+];
+
+function ResaleLotMock({ quote }) {
+  const [idx, go] = useShowcaseCycle(LOTS.length, 4200);
+  const perGram = quote?.goldRubPerGram || null;
+
+  const lot = LOTS[idx];
+  const metal = perGram ? perGram * (lot.proba / 1000) * lot.grams : null;
+  const resale = metal ? metal * lot.resaleK : null;
+  const store = metal ? metal * lot.storeK : null;
+  const resaleDisplay = useAnimatedNumber(resale);
+  const off = resale && store ? Math.round((1 - resale / store) * 100) : null;
+
+  return (
+    <div className="rl-lot-stage">
+      <span className="rl-lot-ghost rl-lot-ghost--2" aria-hidden />
+      <span className="rl-lot-ghost rl-lot-ghost--1" aria-hidden />
+      <motion.div className="rl-lot" initial={{ opacity: 0, y: 36 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.35, ease: EASE }}>
+        <div className="rl-lot-bar">
+          <span className="rl-lot-plane" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M3.4 11.2 21 4.2l-7.4 16.2-2.6-6.2-6.2-3z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <span className="rl-lot-bar-copy">
+            <b>REAKTIVO RESALE</b>
+            <i>так выглядит канал</i>
+          </span>
+          <span className="rl-calc-live"><i />live</span>
+        </div>
+        <AnimatePresence mode="wait">
+          <motion.div key={lot.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.38, ease: EASE }}>
+            <button type="button" className="rl-lot-media" onClick={() => go()} aria-label="Следующий лот">
+              <img src={lot.img} alt="" style={{ objectPosition: lot.imgPos }} />
+              <span className="rl-lot-new">новый лот</span>
+              <span className="rl-lot-seal">экспертиза пройдена</span>
+            </button>
+            <div className="rl-lot-body">
+              <div className="rl-lot-id">лот #{lot.id}</div>
+              <h3>{lot.name}</h3>
+              <p>{lot.meta}</p>
+              <div className="rl-lot-checks">
+                <span>Проба</span>
+                <span>Подлинность</span>
+                <span>SPA</span>
+                <span>Договор</span>
+              </div>
+              <div className="rl-lot-price">
+                <div>
+                  <span className="rl-lot-price-label">цена в канале</span>
+                  <strong>{resaleDisplay != null ? formatMoney(resaleDisplay) : '· · ·'}</strong>
+                </div>
+                <div className="rl-lot-store">
+                  {store != null && <s>{formatMoney(store)}</s>}
+                  {off != null && <b>−{off}%</b>}
+                  <span>витрина бутика</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+        <div className="rl-lot-feed">
+          <span className="rl-lot-feed-title">в канале сегодня</span>
+          {LOTS.map((l, i) => (
+            <button
+              type="button"
+              className={`rl-lot-feed-row${i === idx ? ' is-active' : ''}`}
+              key={l.id}
+              onClick={() => go(i)}
+              aria-pressed={i === idx}
+            >
+              <b>{i === idx ? 'сейчас' : 'ещё'}</b>
+              <span>{l.name} · {l.meta.split(' · ')[0]}</span>
+            </button>
+          ))}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 function ResaleForm() {
   return (
@@ -40,55 +134,32 @@ function ResaleForm() {
 }
 
 export function RuResale() {
+  const quote = useGoldQuote();
   const lenisRef = useRuLenis();
-  const heroRef = useRef(null);
   const { scrollYProgress } = useScroll();
   const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
 
-  useEffect(() => { setDraftMeta('Reaktivo Resale — проверенные украшения (черновик)'); }, []);
+  useEffect(() => { setDraftMeta('Reaktivo Resale — проверенные украшения'); }, []);
 
   return (
     <div className="il-root rl-root">
       <motion.div className="il-progress" style={{ scaleX: progressX }} aria-hidden />
       <RuAtmosphere />
-      <div className="rl-preview-flag">Черновик для просмотра · не окончательная версия</div>
 
       <RuHeader active="/ru/resale/" lenisRef={lenisRef} ctaHref="#zayavka" ctaLabel="Хочу в канал" />
 
       <main>
-        <p className="rl-crumbs"><a href="/ru/">Reaktivo</a> · Resale</p>
-
-        <section className="il-hero" style={{ paddingTop: '48px' }} ref={heroRef}>
-          <RuHeroBg heroRef={heroRef} />
-          <div className="il-hero-inner">
-            <div className="il-hero-copy">
-              <motion.span className="il-badge" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}>
-                <i className="il-badge-dot" /> Reaktivo Resale
-              </motion.span>
-              <motion.h1 className="il-hero-title rl-hero-title" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.1, ease: EASE }}>
-                Брендовые украшения <span className="il-accent-text">после экспертизы</span>
-              </motion.h1>
-              <motion.p className="il-hero-sub" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.32, ease: EASE }}>
-                Лучшие изделия из выкупа проходят проверку подлинности, пробы и чистку —
-                и продаются в Telegram-канале по цене заметно ниже магазинной.
-              </motion.p>
-              <motion.div className="il-hero-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.44, ease: EASE }}>
-                <Magnetic>
-                  <motion.a href="#zayavka" className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.96 }}>
-                    Хочу в канал
-                    <span className="il-btn-arrow" aria-hidden>→</span>
-                  </motion.a>
-                </Magnetic>
-                <motion.a href="#kak" className="il-btn il-btn--outline il-btn--lg" whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }}>
-                  Как мы проверяем
-                </motion.a>
-              </motion.div>
-            </div>
-            <motion.div className="rl-hero-visual" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.35, ease: EASE }}>
-              <RuPhotoCard className="rl-hero-photo" src="/ru/resale.jpg" alt="Брендовые украшения после чистки на лотке ювелира" caption="После экспертизы и чистки" />
-            </motion.div>
-          </div>
-        </section>
+        <RuFullHero
+          imgDark="/ru/resale.jpg"
+          imgLight="/ru/resale-light.jpg"
+          imgPos="60% 45%"
+          kicker="Проверенные украшения"
+          title={<>Брендовые украшения <span className="il-accent-text">после экспертизы</span></>}
+          sub="Лучшие изделия из выкупа проходят проверку подлинности, пробы и чистку — и продаются в Telegram-канале по цене заметно ниже магазинной."
+          primary={{ href: '#zayavka', label: 'Хочу в канал' }}
+          secondary={{ href: '#kak', label: 'Как мы проверяем' }}
+          aside={<ResaleLotMock quote={quote} />}
+        />
 
         <RuMarquee items={[
           'Экспертиза каждого изделия', 'Мировые бренды', 'Чистка и полировка', 'Паспортные сделки',
@@ -129,14 +200,7 @@ export function RuResale() {
               <Reveal><span className="il-pill">Путь изделия</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">От выкупа до канала — четыре фильтра</h2></Reveal>
             </div>
-            <div className="rl-rows">
-              {PATH.map((s, i) => (
-                <Reveal key={s.n} delay={i * 0.05} className="rl-row">
-                  <span className="rl-row-n">{s.n}</span>
-                  <div><h4>{s.title}</h4><p>{s.text}</p></div>
-                </Reveal>
-              ))}
-            </div>
+            <RuTimeline items={PATH} />
           </div>
         </section>
 

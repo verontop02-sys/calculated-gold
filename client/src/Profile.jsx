@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
-import { roleLabel, isSuperAdminRole } from './roles.js';
+import { roleLabel } from './roles.js';
 import { getShowHints, setShowHints, resetDismissedHints } from './PageHint.jsx';
 
 const INSTRUCTIONS_KEY = 'cg_show_instructions';
@@ -122,7 +122,7 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
           </button>
           <div className="pf-avatar">{initials}</div>
           <div className="pf-id">
-            {editingName && isSuperAdminRole(user?.role) ? (
+            {editingName ? (
               <div className="pf-name-edit">
                 <input
                   className="pf-name-input"
@@ -130,7 +130,7 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
                   onChange={(e) => setNameVal(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditingName(false); }}
                   maxLength={80}
-                  placeholder="Ваше имя"
+                  placeholder="ФИО, как в договоре"
                   autoFocus
                   disabled={nameBusy}
                 />
@@ -147,23 +147,24 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
             ) : (
               <div className="pf-name-row">
                 <span className="pf-name">{displayName || user?.email || '—'}</span>
-                {isSuperAdminRole(user?.role) && (
-                  <button
-                    type="button"
-                    className="pf-name-pencil"
-                    title="Переименовать"
-                    onClick={() => { setNameVal(displayName || ''); setEditingName(true); setNameErr(''); }}
-                    aria-label="Изменить имя"
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                    </svg>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="pf-name-pencil"
+                  title="Это ФИО попадёт в договор как эксперт-оценщик"
+                  onClick={() => { setNameVal(displayName || ''); setEditingName(true); setNameErr(''); }}
+                  aria-label="Изменить имя"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
               </div>
             )}
             <div className="pf-email">{user?.email || '—'}</div>
+            {!displayName && !editingName && (
+              <span className="pf-name-hint">Укажите ФИО — оно подставится в договор как эксперт-оценщик</span>
+            )}
             <span className="pf-role">{roleLabel(user?.role)}</span>
           </div>
           {stats?.firstDealAt && (
@@ -347,6 +348,7 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
         .pf-name-save:disabled, .pf-name-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
         .pf-name-err { font-size: 0.76rem; color: #fca5a5; text-align: center; }
         .pf-email { font-size: 0.86rem; opacity: 0.85; word-break: break-all; line-height: 1.2; }
+        .pf-name-hint { font-size: 0.74rem; opacity: 0.88; max-width: 280px; line-height: 1.35; }
         .pf-role {
           font-size: 0.74rem; font-weight: 600; padding: 3px 12px; border-radius: 999px;
           background: rgba(255,255,255,0.2);
