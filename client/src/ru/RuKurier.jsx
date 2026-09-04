@@ -21,6 +21,46 @@ const STEPS = [
   { n: '04', title: 'Курьер приезжает', text: 'Проверка пробы и веса при вас, оплата сразу — наличными или переводом.' },
 ];
 
+/**
+ * На мобильном хедер прячет CTA за гамбургер — без постоянно видимой кнопки
+ * запись ощущается неудобной (нужно листать назад к форме). Плавающая кнопка
+ * внизу экрана — стандартный паттерн доставок/маркетплейсов; прячем её, пока
+ * сама форма записи (#zapis) в кадре, чтобы не дублировать «Записать курьера».
+ */
+function KurierStickyCta() {
+  const [visible, setVisible] = useState(false);
+  const formInViewRef = useRef(false);
+
+  useEffect(() => {
+    const target = document.getElementById('zapis');
+    if (!target) return undefined;
+    const recompute = () => setVisible(!formInViewRef.current && window.scrollY > 480);
+    const io = new IntersectionObserver(
+      ([entry]) => { formInViewRef.current = entry.isIntersecting; recompute(); },
+      { rootMargin: '0px 0px -10% 0px' }
+    );
+    io.observe(target);
+    window.addEventListener('scroll', recompute, { passive: true });
+    return () => { io.disconnect(); window.removeEventListener('scroll', recompute); };
+  }, []);
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          className="rl-sticky-cta"
+          initial={{ y: 90, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 90, opacity: 0 }}
+          transition={{ duration: 0.25, ease: EASE }}
+        >
+          <a href="#zapis" className="il-btn il-btn--primary il-btn--lg">Вызвать курьера бесплатно</a>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 const COMPARE = [
   {
     title: 'Вызов курьера',
@@ -560,8 +600,15 @@ function KurierBookingForm() {
             Назад
           </button>
         )}
-        {step === 1 && (
-          <motion.button type="button" className="il-btn il-btn--primary il-btn--lg" disabled={!locationReady} whileTap={{ scale: 0.97 }} onClick={() => goStep(2)}>
+        {step === 1 && locationReady && (
+          <motion.button
+            type="button"
+            className="il-btn il-btn--primary il-btn--lg"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => goStep(2)}
+          >
             Далее
           </motion.button>
         )}
@@ -709,9 +756,30 @@ export function RuKurier() {
       </main>
 
       <RuFooter lenisRef={lenisRef} />
+      <KurierStickyCta />
 
       <style>{IL_CSS}</style>
       <style>{RL_CSS}</style>
+      <style>{KURIER_CSS}</style>
     </div>
   );
 }
+
+const KURIER_CSS = `
+/* Фиксированный хедер (72–80px) иначе перекрывает заголовок при переходе по якорю. */
+#calc, #zapis, #faq { scroll-margin-top: 96px; }
+
+.rl-sticky-cta { display: none; }
+@media (max-width: 900px) {
+  .rl-sticky-cta {
+    display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, var(--bg-deep) 55%, transparent);
+    pointer-events: none;
+  }
+  .rl-sticky-cta .il-btn {
+    pointer-events: auto; width: 100%; justify-content: center;
+    box-shadow: 0 -8px 28px -6px rgba(0, 0, 0, 0.45);
+  }
+}
+`;
