@@ -8,6 +8,7 @@ import { ClientDisplay } from './ClientDisplay.jsx';
 import { InvestLanding } from './InvestLanding.jsx';
 import { RuHome } from './ru/RuHome.jsx';
 import { RuProdat } from './ru/RuProdat.jsx';
+import { RuKurier } from './ru/RuKurier.jsx';
 import { RuAgenty } from './ru/RuAgenty.jsx';
 import { RuSlitki } from './ru/RuSlitki.jsx';
 import { RuResale } from './ru/RuResale.jsx';
@@ -63,6 +64,8 @@ if (token) {
   inner = <App />;
 } else if (ruRoute === 'prodat') {
   inner = <RuProdat />;
+} else if (ruRoute === 'kurier') {
+  inner = <RuKurier />;
 } else if (ruRoute === 'agenty') {
   inner = <RuAgenty />;
 } else if (ruRoute === 'slitki') {

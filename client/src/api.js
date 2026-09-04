@@ -529,6 +529,17 @@ export const clientApi = {
     if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
     return j;
   },
+  /** Запись на вызов курьера: { name, phone, city, address, date, slot, website }. */
+  courierOrder: async (payload) => {
+    const r = await fetch(withBase('/public/courier-order'), {
+      method: 'POST',
+      headers: { ...apiGatewayHeaders(null), 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    return j;
+  },
   /** Чат поддержки: история сообщений (открытие обнуляет непрочитанное у клиента). */
   supportChat: async () => {
     const r = await fetch(withBase('/public/client/support'), {

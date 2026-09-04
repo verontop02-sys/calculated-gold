@@ -29,6 +29,7 @@ import {
 } from './fieldDealSession.js';
 import { sendConsultLeadEmailIfConfigured } from './emailDealReceipt.js';
 import { sendTelegramMessage } from './telegramNotify.js';
+import { sendDealConfirmationSms } from './smsSend.js';
 import { mountSupabaseBrowserProxy } from './supabaseBrowserProxy.js';
 import {
   buildGoldIndexOverview,
@@ -465,6 +466,7 @@ app.use(
     '/api/public/fintech-auth',
     '/api/public/consult-lead',
     '/api/public/landing-lead',
+    '/api/public/courier-order',
   ],
   authBurstLimiter
 );
@@ -1266,6 +1268,7 @@ app.post(
  */
 const LANDING_LEAD_SOURCES = {
   prodat: 'Продать золото',
+  kurier: 'Вызов курьера',
   agenty: 'Агентская программа',
   slitki: 'Ювелирные слитки',
   resale: 'Reaktivo Resale',
@@ -1372,6 +1375,142 @@ app.post(
     if (!saved && !tg?.sent) {
       return res.status(502).json({ error: 'Не удалось отправить заявку. Напишите на team@reaktivo.ru' });
     }
+    res.json({ ok: true });
+  })
+);
+
+/**
+ * Запись на вызов курьера (reaktivo.ru/kurier): дата+слот дублируем и валидируем
+ * на сервере — клиенту не доверяем. Никакого резерва занятости курьеров нет,
+ * это просто бизнес-правило (cutoff/окна), см. client/src/ru/kurierSlots.js.
+ */
+const KURIER_SLOT_WINDOWS = {
+  '10-12': '10:00–12:00',
+  '12-14': '12:00–14:00',
+  '14-16': '14:00–16:00',
+  '16-18': '16:00–18:00',
+  '18-20': '18:00–20:00',
+};
+const KURIER_SLOT_START_HOUR = { '10-12': 10, '12-14': 12, '14-16': 14, '16-18': 16, '18-20': 18 };
+const KURIER_DAYS_AHEAD = 14;
+const KURIER_TODAY_CUTOFF_HOUR = 16;
+const KURIER_MIN_LEAD_HOURS = 3;
+
+function isIsoDateString(v) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+}
+
+function isKurierDateAllowed(dateStr, now = new Date()) {
+  if (!isIsoDateString(dateStr)) return false;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const day = new Date(y, m - 1, d);
+  if (Number.isNaN(day.getTime())) return false;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((day.getTime() - today.getTime()) / 86_400_000);
+  if (diffDays < 0 || diffDays > KURIER_DAYS_AHEAD) return false;
+  if (diffDays === 0 && now.getHours() >= KURIER_TODAY_CUTOFF_HOUR) return false;
+  return true;
+}
+
+function isKurierSlotAllowed(dateStr, slotKey, now = new Date()) {
+  if (!isKurierDateAllowed(dateStr, now)) return false;
+  const startHour = KURIER_SLOT_START_HOUR[slotKey];
+  if (startHour == null) return false;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const isToday = y === now.getFullYear() && m - 1 === now.getMonth() && d === now.getDate();
+  if (!isToday) return true;
+  const slotStart = new Date(y, m - 1, d, startHour, 0, 0, 0);
+  const minStart = new Date(now.getTime() + KURIER_MIN_LEAD_HOURS * 3_600_000);
+  return slotStart.getTime() >= minStart.getTime();
+}
+
+function formatKurierDateRu(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+}
+
+async function notifyCourierOrderTelegram({ name, phone, city, address, date, slot }) {
+  const chatId = process.env.TELEGRAM_LEADS_CHAT_ID || process.env.TELEGRAM_SUPPORT_CHAT_ID;
+  if (!chatId) {
+    console.warn('[courier-order tg] skip: TELEGRAM_SUPPORT_CHAT_ID not set');
+    return { sent: false, reason: 'not_configured' };
+  }
+  const lines = [
+    '🚚 Вызов курьера',
+    `Дата: ${formatKurierDateRu(date)}`,
+    `Время: ${KURIER_SLOT_WINDOWS[slot] || slot}`,
+    `Город: ${city}`,
+    `Адрес: ${address}`,
+    `Имя: ${name}`,
+    `Телефон: ${phone}`,
+    '',
+    'Панель → «Заявки с сайта»',
+  ];
+  return sendTelegramMessage(chatId, lines.join('\n'));
+}
+
+app.post(
+  '/api/public/courier-order',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    // Ловушка для ботов: скрытое поле, живой человек его не заполняет.
+    if (String(req.body?.website || '').trim()) return res.json({ ok: true });
+
+    const name = String(req.body?.name || '').trim().slice(0, 120);
+    if (!isLeadName(name)) return res.status(400).json({ error: 'Укажите имя' });
+
+    const phone = String(req.body?.phone || '').trim().slice(0, 120);
+    if (!isRuPhone(phone)) {
+      return res.status(400).json({ error: 'Укажите номер телефона, без него мы не сможем связаться' });
+    }
+
+    const city = String(req.body?.city || '').trim().slice(0, 120);
+    if (city.length < 2) return res.status(400).json({ error: 'Укажите город' });
+
+    const address = String(req.body?.address || '').trim().slice(0, 300);
+    if (address.length < 5) return res.status(400).json({ error: 'Укажите адрес для курьера' });
+
+    const date = String(req.body?.date || '').trim();
+    const slot = String(req.body?.slot || '').trim();
+    const now = new Date();
+    if (!isKurierDateAllowed(date, now)) return res.status(400).json({ error: 'Выберите доступную дату визита' });
+    if (!isKurierSlotAllowed(date, slot, now)) return res.status(400).json({ error: 'Выберите доступное время визита' });
+
+    const fields = {
+      Город: city,
+      Адрес: address,
+      Дата: formatKurierDateRu(date),
+      Слот: KURIER_SLOT_WINDOWS[slot],
+    };
+
+    let saved = null;
+    try {
+      saved = await insertLandingLead({ source: 'kurier', name, phone, fields });
+    } catch (e) {
+      console.error('[courier-order insert]', e?.message || e);
+    }
+
+    // Ждём TG до ответа — на free-инстансе fire-and-forget может оборваться.
+    const tg = await notifyCourierOrderTelegram({ name, phone, city, address, date, slot }).catch((e) => {
+      console.warn('[courier-order tg]', e?.message || e);
+      return { sent: false, reason: 'error' };
+    });
+
+    if (!saved && !tg?.sent) {
+      return res.status(502).json({ error: 'Не удалось отправить заявку. Напишите на team@reaktivo.ru' });
+    }
+
+    // SMS клиенту — best-effort: если провайдер упал, заявка всё равно принята (есть в БД/Telegram).
+    try {
+      await sendDealConfirmationSms({
+        to: phone,
+        text: `Reaktivo: заявка на курьера принята. ${formatKurierDateRu(date)}, ${KURIER_SLOT_WINDOWS[slot]}. Мы позвоним за 1-2 часа до визита для подтверждения.`,
+      });
+    } catch (e) {
+      console.warn('[courier-order sms]', e?.message || e);
+    }
+
     res.json({ ok: true });
   })
 );

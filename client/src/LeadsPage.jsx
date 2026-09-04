@@ -8,6 +8,7 @@ import { api } from './api.js';
 
 const SOURCE_META = {
   prodat: { label: 'Продать золото', color: '#c81e22' },
+  kurier: { label: 'Курьер', color: '#0891b2' },
   agenty: { label: 'Агенты', color: '#1f9d55' },
   slitki: { label: 'Слитки', color: '#b8860b' },
   resale: { label: 'Resale', color: '#7c4dbe' },

@@ -1,5 +1,5 @@
 /** Слаги маркетинговых страниц (без префикса /ru). */
-export const RU_SLUGS = ['prodat', 'slitki', 'resale', 'agenty', 'franshiza', 'partneram', 'o-kompanii'];
+export const RU_SLUGS = ['prodat', 'kurier', 'slitki', 'resale', 'agenty', 'franshiza', 'partneram', 'o-kompanii'];
 
 export const PRO_ORIGIN = 'https://reaktivo.pro';
 
