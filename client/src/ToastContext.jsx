@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { CookieBanner } from './CookieBanner.jsx';
 
 const ToastCtx = createContext(
   /** @type {null | ((msg: string, type?: 'success' | 'error' | 'info') => void)} */ (null),
@@ -30,6 +31,7 @@ export function ToastProvider({ children }) {
   return (
     <ToastCtx.Provider value={showToast}>
       {children}
+      <CookieBanner />
       <div className="toast-stack" aria-live="polite" aria-relevant="additions">
         {toasts.map((t) => (
           <div key={t.id} className={`toast toast-${t.type}`} role="status">

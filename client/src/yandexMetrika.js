@@ -1,5 +1,23 @@
 /** Публичный счётчик Яндекс Метрики (не для /pro, кабинета и служебных экранов). */
 const YM_ID = Number(String(import.meta.env.VITE_YM_ID || '').replace(/\D/g, '')) || 0;
+export const COOKIE_CONSENT_KEY = 'cg-cookie-ok';
+
+export function hasCookieConsent() {
+  try {
+    return localStorage.getItem(COOKIE_CONSENT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function grantCookieConsent() {
+  try {
+    localStorage.setItem(COOKIE_CONSENT_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+  initYandexMetrika();
+}
 
 function isPublicMarketingPath(path) {
   const p = String(path || '');
@@ -12,6 +30,7 @@ function isPublicMarketingPath(path) {
 
 export function initYandexMetrika() {
   if (!YM_ID || typeof window === 'undefined') return;
+  if (!hasCookieConsent()) return;
   if (!isPublicMarketingPath(window.location.pathname || '')) return;
   if (typeof window.ym === 'function') {
     window.ym(YM_ID, 'hit', window.location.href);

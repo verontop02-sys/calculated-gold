@@ -19,7 +19,6 @@ import { ToastProvider } from './ToastContext.jsx';
 import { initThemeFromStorage } from './theme.js';
 import { recoverAuthIfNeeded } from './supabase.js';
 import { pingApiHealth } from './api.js';
-import { initYandexMetrika } from './yandexMetrika.js';
 import { isReaktivoRuHost, matchRuRoute } from './ru/ruSite.js';
 
 initThemeFromStorage();
@@ -90,7 +89,6 @@ const tree = (
     <ToastProvider>{inner}</ToastProvider>
   </StrictMode>
 );
-initYandexMetrika();
 createRoot(el).render(tree);
 // Восстановление сессии сотрудника только на /pro (не на лендинге / кабинете / display).
 if (isStaffApp) void recoverAuthIfNeeded().catch(() => {});

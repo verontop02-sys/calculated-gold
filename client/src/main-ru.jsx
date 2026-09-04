@@ -13,7 +13,6 @@ import { PrivacyPolicy } from './PrivacyPolicy.jsx';
 import { ToastProvider } from './ToastContext.jsx';
 import { initThemeFromStorage } from './theme.js';
 import { pingApiHealth } from './api.js';
-import { initYandexMetrika } from './yandexMetrika.js';
 import { matchRuRoute, PRO_ORIGIN } from './ru/ruSite.js';
 
 initThemeFromStorage();
@@ -49,7 +48,6 @@ if (typeof window !== 'undefined' && sendToPro) {
     inner = <RuHome />;
   }
 
-  initYandexMetrika();
   createRoot(el).render(
     <StrictMode>
       <ToastProvider>{inner}</ToastProvider>
