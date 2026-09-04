@@ -909,7 +909,7 @@ export async function reverseGeocodeGoldIndex({ lat, lng }) {
   try {
     ({ data } = await axios.get('https://nominatim.openstreetmap.org/reverse', {
       params: { lat, lon: lng, format: 'json', 'accept-language': 'ru' },
-      timeout: 10000,
+      timeout: 12000,
       headers: {
         'User-Agent':
           process.env.NOMINATIM_USER_AGENT ||
@@ -917,14 +917,16 @@ export async function reverseGeocodeGoldIndex({ lat, lng }) {
       },
     }));
     nominatimOk = true;
-  } catch { /* fall through to Photon */ }
+  } catch (e) {
+    console.warn('[reverseGeocode] Nominatim failed:', e?.response?.status || e?.code || e?.message);
+  }
 
   if (!nominatimOk) {
     // Fallback: Photon reverse geocode
     try {
       const photon = await axios.get('https://photon.komoot.io/reverse', {
         params: { lat, lon: lng, lang: 'ru' },
-        timeout: 10000,
+        timeout: 12000,
         headers: { 'User-Agent': 'ReaktivoProGoldIndex/1.0 (https://reaktivo.pro)' },
       });
       const feat = photon.data?.features?.[0];
@@ -936,7 +938,9 @@ export async function reverseGeocodeGoldIndex({ lat, lng }) {
         const displayName = [p.name, p.street, city, region, 'Россия'].filter(Boolean).join(', ');
         return { city, region, street, displayName };
       }
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.warn('[reverseGeocode] Photon failed:', e?.response?.status || e?.code || e?.message);
+    }
     const err = new Error('Сервис геокодирования временно недоступен');
     err.status = 502;
     throw err;

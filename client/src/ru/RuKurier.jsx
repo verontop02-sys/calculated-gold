@@ -172,12 +172,31 @@ function KurierLocationStep({ city, setCity, address, setAddress, lat, lng, setC
   const markerRef = useRef(null);
 
   async function reverseGeocode(la, lo) {
+    // Геокодируем прямо из браузера клиента (как в «Индекс золота» в админке):
+    // у сервера общий IP на весь трафик, и Nominatim/Photon его иногда режут по
+    // лимитам, а с адреса живого посетителя запрос проходит нормально.
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${la}&lon=${lo}&accept-language=ru`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'ru' } });
+      if (!res.ok) throw new Error('nominatim failed');
+      const gd = await res.json();
+      const addr = gd?.address || {};
+      const geoCity = addr.city || addr.town || addr.village || addr.county || addr.municipality || '';
+      const street = [addr.road || addr.pedestrian || addr.footway || '', addr.house_number || '']
+        .map((s) => String(s).trim())
+        .filter(Boolean)
+        .join(', ');
+      setCity((prev) => geoCity || prev);
+      setAddress((prev) => (street && !prev ? street : prev));
+      return;
+    } catch { /* пробуем через наш сервер ниже */ }
+
     try {
       const geo = await clientApi.reverseGeocode({ lat: la, lng: lo });
       const streetLabel = geo?.street ? geo.street : '';
       setCity((prev) => geo?.city || prev);
       setAddress((prev) => (streetLabel && !prev ? streetLabel : prev));
-    } catch (e) {
+    } catch {
       // Координаты уже есть — просто не смогли расшифровать адрес, клиент допишет сам.
     }
   }
