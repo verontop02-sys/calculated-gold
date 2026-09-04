@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { clientApi } from '../api.js';
+import { ymReachGoal } from '../yandexMetrika.js';
 import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import { FranshizaOsMock } from './RuFranshiza.jsx';
 import {
@@ -64,6 +65,7 @@ function JoinTeamForm() {
     setError('');
     try {
       await clientApi.landingLead(payload);
+      ymReachGoal('lead', { source: payload.source || '' });
       setPhase('sent');
     } catch (err) {
       setPhase('idle');
@@ -147,6 +149,7 @@ function CeoLetterForm() {
     setError('');
     try {
       await clientApi.landingLead(payload);
+      ymReachGoal('lead', { source: payload.source || '' });
       setPhase('sent');
     } catch (err) {
       setPhase('idle');

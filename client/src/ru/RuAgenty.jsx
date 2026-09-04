@@ -3,7 +3,7 @@ import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
   RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuStatement, RuThemedImg, RuTiltCard, RuTimeline,
-  formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
+  formatMoney, ruHref, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
 const PERKS = [
@@ -158,7 +158,7 @@ export function RuAgenty() {
           title={<>Зарабатывайте на золоте <span className="il-accent-text">в своём городе</span></>}
           sub="Пройдите обучение, получите набор для проверки золота и доступ в приложение — зарабатывайте в своём городе и регионе."
           primary={{ href: '#zayavka', label: 'Стать агентом' }}
-          secondary={{ href: '/ru/prodat/', label: 'Я клиент, хочу продать' }}
+          secondary={{ href: ruHref('prodat'), label: 'Я клиент, хочу продать' }}
           aside={<AgentCalc quote={quote} />}
         />
 

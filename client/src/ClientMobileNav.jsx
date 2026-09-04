@@ -116,7 +116,7 @@ export function ClientMobileNav({ tab, onChange, phoneMasked, onOpenCabinet, onS
                 <span className="cpm-drawer__row-label">Тема</span>
                 <ThemeToggle />
               </div>
-              <a className="cpm-drawer__item" href="/" style={{ textDecoration: 'none' }}>
+              <a className="cpm-drawer__item" href="https://reaktivo.ru/" style={{ textDecoration: 'none' }}>
                 <span className="cpm-drawer__item-icon"><IconHomeArrow /></span>
                 <span className="cpm-drawer__item-label">На главную reaktivo.ru</span>
               </a>

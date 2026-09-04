@@ -11,6 +11,7 @@ import {
 } from 'motion/react';
 import Lenis from 'lenis';
 import { clientApi, fintechApi, getClientToken, getFintechToken } from './api.js';
+import { ymReachGoal } from './yandexMetrika.js';
 import { ThemeToggle } from './ThemeToggle.jsx';
 import { JewelryShowcase } from './JewelryShowcase.jsx';
 import officeHall from './assets/office/hall.jpg';
@@ -320,6 +321,7 @@ function ConsultLeadForm() {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Не удалось отправить заявку');
+      ymReachGoal('lead', { source: 'consult' });
       setOk(true);
       setName('');
       setPhone('');

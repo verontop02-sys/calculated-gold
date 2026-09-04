@@ -2,13 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useInView, useMotionValue, useScroll, useSpring, useTransform } from 'motion/react';
 import Lenis from 'lenis';
 import { clientApi } from '../api.js';
+import { ymReachGoal } from '../yandexMetrika.js';
 import { ThemeToggle } from '../ThemeToggle.jsx';
 import { EASE, Magnetic, Reveal } from '../InvestLanding.jsx';
 import { WORLD_CITIES, tzDateLabel, tzOffsetLabel, tzParts } from '../WorldClocks.jsx';
+import { ruHref } from './ruSite.js';
 import officeHallPhoto from '../assets/office/hall.jpg';
 import officeWaitingPhoto from '../assets/office/waiting.jpg';
 import officeWorkPhoto from '../assets/office/work.jpg';
 
+export { ruHref, isReaktivoRuHost } from './ruSite.js';
 export { officeHallPhoto, officeWaitingPhoto, officeWorkPhoto };
 
 export const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -644,14 +647,16 @@ export function setDraftMeta(title) {
 }
 
 const NAV = [
-  { href: '/ru/prodat/', label: 'Продать' },
-  { href: '/ru/slitki/', label: 'Купить' },
-  { href: '/ru/resale/', label: 'Resale' },
+  { slug: 'prodat', label: 'Продать' },
+  { slug: 'slitki', label: 'Купить' },
+  { slug: 'resale', label: 'Resale' },
 ];
 
-export function RuHeader({ active, lenisRef, ctaHref = '/ru/prodat/', ctaLabel = 'Продать золото' }) {
+export function RuHeader({ active, lenisRef, ctaHref, ctaLabel = 'Продать золото' }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const homeHref = ruHref();
+  const buyHref = ctaHref || ruHref('prodat');
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -671,14 +676,18 @@ export function RuHeader({ active, lenisRef, ctaHref = '/ru/prodat/', ctaLabel =
     <>
       <header className={`il-header${scrolled ? ' il-header--scrolled' : ''}`}>
         <div className="il-header-inner">
-          <a href="/ru/" className="il-logo" aria-label="Reaktivo, на главную">
+          <a href={homeHref} className="il-logo" aria-label="Reaktivo, на главную">
             <img className="il-logo-mark" src="/logo-reaktivo-mark.svg" alt="" width="40" height="40" />
             <span className="il-logo-text">REAKTIVO</span>
           </a>
           <nav className="il-nav" aria-label="Основная навигация">
-            {NAV.map((n) => (
-              <a key={n.href} href={n.href} className={`il-nav-link${active === n.href ? ' is-active' : ''}`}>{n.label}</a>
-            ))}
+            {NAV.map((n) => {
+              const href = ruHref(n.slug);
+              const on = active === n.slug || active === href || active === `/ru/${n.slug}/`;
+              return (
+                <a key={n.slug} href={href} className={`il-nav-link${on ? ' is-active' : ''}`}>{n.label}</a>
+              );
+            })}
           </nav>
           <div className="il-header-actions">
             <a href="tel:+78005551848" className="il-header-phone" title="8 800 555-18-48" aria-label="Позвонить">
@@ -687,7 +696,7 @@ export function RuHeader({ active, lenisRef, ctaHref = '/ru/prodat/', ctaLabel =
               </svg>
             </a>
             <ThemeToggle />
-            <motion.a href={ctaHref} className="il-btn il-btn--primary il-btn--header-buy" whileHover={{ y: -1 }} whileTap={{ scale: 0.97 }}>
+            <motion.a href={buyHref} className="il-btn il-btn--primary il-btn--header-buy" whileHover={{ y: -1 }} whileTap={{ scale: 0.97 }}>
               {ctaLabel}
             </motion.a>
             <button
@@ -709,7 +718,7 @@ export function RuHeader({ active, lenisRef, ctaHref = '/ru/prodat/', ctaLabel =
             <button type="button" className="il-menu-backdrop" aria-label="Закрыть" onClick={() => setMenuOpen(false)} />
             <motion.div className="il-menu-sheet" initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 16, opacity: 0 }} transition={{ duration: 0.28, ease: EASE }} role="dialog" aria-modal="true" aria-label="Меню">
               <div className="il-menu-head">
-                <a href="/ru/" className="il-logo" onClick={() => setMenuOpen(false)}>
+                <a href={homeHref} className="il-logo" onClick={() => setMenuOpen(false)}>
                   <img className="il-logo-mark" src="/logo-reaktivo-mark.svg" alt="" width="36" height="36" />
                   <span className="il-logo-text">REAKTIVO</span>
                 </a>
@@ -717,11 +726,11 @@ export function RuHeader({ active, lenisRef, ctaHref = '/ru/prodat/', ctaLabel =
               </div>
               <nav className="il-menu-nav">
                 {NAV.map((n) => (
-                  <a key={n.href} href={n.href} onClick={() => setMenuOpen(false)}>{n.label}</a>
+                  <a key={n.slug} href={ruHref(n.slug)} onClick={() => setMenuOpen(false)}>{n.label}</a>
                 ))}
               </nav>
               <div className="il-menu-actions">
-                <a href={ctaHref} className="il-btn il-btn--primary" onClick={() => setMenuOpen(false)}>{ctaLabel}</a>
+                <a href={buyHref} className="il-btn il-btn--primary" onClick={() => setMenuOpen(false)}>{ctaLabel}</a>
               </div>
               <div className="il-menu-contacts">
                 <a href="tel:+78005551848" className="il-menu-phone">8 800 555-18-48</a>
@@ -741,7 +750,7 @@ export function RuFooter() {
       <div className="il-section-inner">
         <div className="il-footer-grid">
           <div className="il-footer-brand">
-            <a href="/ru/" className="il-logo">
+            <a href={ruHref()} className="il-logo">
               <img className="il-logo-mark" src="/logo-reaktivo-mark.svg" alt="" width="32" height="32" />
               <span className="il-logo-text">REAKTIVO</span>
             </a>
@@ -749,16 +758,16 @@ export function RuFooter() {
           </div>
           <div className="il-footer-col">
             <span className="il-footer-col-title">Продать и купить</span>
-            <a href="/ru/prodat/" className="il-nav-link">Выкуп золота</a>
-            <a href="/ru/slitki/" className="il-nav-link">Ювелирные слитки</a>
-            <a href="/ru/resale/" className="il-nav-link">Reaktivo Resale</a>
+            <a href={ruHref('prodat')} className="il-nav-link">Выкуп золота</a>
+            <a href={ruHref('slitki')} className="il-nav-link">Ювелирные слитки</a>
+            <a href={ruHref('resale')} className="il-nav-link">Reaktivo Resale</a>
           </div>
           <div className="il-footer-col">
             <span className="il-footer-col-title">Работать с нами</span>
-            <a href="/ru/agenty/" className="il-nav-link">Работа</a>
-            <a href="/ru/franshiza/" className="il-nav-link">Франшиза</a>
-            <a href="/ru/partneram/" className="il-nav-link">Партнёрам</a>
-            <a href="/ru/o-kompanii/" className="il-nav-link">О компании</a>
+            <a href={ruHref('agenty')} className="il-nav-link">Работа</a>
+            <a href={ruHref('franshiza')} className="il-nav-link">Франшиза</a>
+            <a href={ruHref('partneram')} className="il-nav-link">Партнёрам</a>
+            <a href={ruHref('o-kompanii')} className="il-nav-link">О компании</a>
           </div>
           <div className="il-footer-col">
             <span className="il-footer-col-title">Контакты</span>
@@ -863,6 +872,7 @@ export function RuLeadForm({
     setError('');
     try {
       await clientApi.landingLead(payload);
+      ymReachGoal('lead', { source: payload.source || '' });
       setPhase('sent');
     } catch (err) {
       setPhase('idle');

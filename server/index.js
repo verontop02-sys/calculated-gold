@@ -168,10 +168,21 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const isDev = process.env.NODE_ENV !== 'production';
 
 const PORT = Number(process.env.PORT || 8787);
-const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
+const PUBLIC_WEB_ORIGINS = [
+  'https://reaktivo.pro',
+  'https://www.reaktivo.pro',
+  'https://reaktivo.ru',
+  'https://www.reaktivo.ru',
+  'https://gold-panel.web.app',
+  'https://gold-panel.firebaseapp.com',
+];
+const corsOrigins = [...new Set([
+  ...(process.env.CORS_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+  ...PUBLIC_WEB_ORIGINS,
+])];
 
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
 const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
@@ -1911,6 +1922,9 @@ function allowedTopupReturnUrl(candidate) {
       ...(process.env.CORS_ORIGIN || '').split(',').map((s) => s.trim()).filter(Boolean),
       'http://localhost:5173',
       'https://reaktivo.pro',
+      'https://www.reaktivo.pro',
+      'https://reaktivo.ru',
+      'https://www.reaktivo.ru',
       'https://gold-panel.web.app',
       'https://gold-panel.firebaseapp.com',
     ].map((o) => {

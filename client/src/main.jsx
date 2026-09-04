@@ -19,6 +19,8 @@ import { ToastProvider } from './ToastContext.jsx';
 import { initThemeFromStorage } from './theme.js';
 import { recoverAuthIfNeeded } from './supabase.js';
 import { pingApiHealth } from './api.js';
+import { initYandexMetrika } from './yandexMetrika.js';
+import { isReaktivoRuHost, matchRuRoute } from './ru/ruSite.js';
 
 initThemeFromStorage();
 // Прогрев Render с первой миллисекунды — пока грузится JS и восстанавливается сессия.
@@ -42,17 +44,10 @@ const token = m?.[1] ? decodeURIComponent(m[1]) : '';
 const isClientPortal = /^\/kabinet\/?$/.test(path);
 const isClientDisplay = /^\/display\/?$/.test(path);
 const isPrivacy = /^\/privacy\/?$/.test(path);
+const ruRoute = matchRuRoute(path);
 // Публичный лендинг Invest: корень домена + /invest (оба ведут на одну страницу).
-const isInvestLanding = /^\/(?:invest\/?)?$/.test(path);
-// Новый сайт reaktivo.ru временно живёт на /ru, пока не переедет на свой домен.
-const isRuHome = /^\/ru\/?$/.test(path);
-const isRuProdat = /^\/ru\/prodat\/?$/.test(path);
-const isRuAgenty = /^\/ru\/agenty\/?$/.test(path);
-const isRuSlitki = /^\/ru\/slitki\/?$/.test(path);
-const isRuResale = /^\/ru\/resale\/?$/.test(path);
-const isRuFranshiza = /^\/ru\/franshiza\/?$/.test(path);
-const isRuPartneram = /^\/ru\/partneram\/?$/.test(path);
-const isRuOKompanii = /^\/ru\/o-kompanii\/?$/.test(path);
+// На reaktivo.ru корень — сайт выкупа, не Invest.
+const isInvestLanding = !isReaktivoRuHost() && /^\/(?:invest\/?)?$/.test(path);
 // Панель сотрудников (оценка/выкуп) — отдельный путь, чтобы корень был маркетинговым.
 const isStaffApp = /^\/pro\/?$/.test(path);
 
@@ -67,21 +62,21 @@ if (token) {
   inner = <ClientDisplay />;
 } else if (isStaffApp) {
   inner = <App />;
-} else if (isRuProdat) {
+} else if (ruRoute === 'prodat') {
   inner = <RuProdat />;
-} else if (isRuAgenty) {
+} else if (ruRoute === 'agenty') {
   inner = <RuAgenty />;
-} else if (isRuSlitki) {
+} else if (ruRoute === 'slitki') {
   inner = <RuSlitki />;
-} else if (isRuResale) {
+} else if (ruRoute === 'resale') {
   inner = <RuResale />;
-} else if (isRuFranshiza) {
+} else if (ruRoute === 'franshiza') {
   inner = <RuFranshiza />;
-} else if (isRuPartneram) {
+} else if (ruRoute === 'partneram') {
   inner = <RuPartneram />;
-} else if (isRuOKompanii) {
+} else if (ruRoute === 'o-kompanii') {
   inner = <RuOKompanii />;
-} else if (isRuHome) {
+} else if (ruRoute === 'home' || isReaktivoRuHost()) {
   inner = <RuHome />;
 } else if (isInvestLanding) {
   inner = <InvestLanding />;
@@ -95,6 +90,7 @@ const tree = (
     <ToastProvider>{inner}</ToastProvider>
   </StrictMode>
 );
+initYandexMetrika();
 createRoot(el).render(tree);
 // Восстановление сессии сотрудника только на /pro (не на лендинге / кабинете / display).
 if (isStaffApp) void recoverAuthIfNeeded().catch(() => {});

@@ -3,37 +3,37 @@ import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
   RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuHeader, RuKpis, RuMarketTiles, RuMarquee, RuPhotoCard, RuSbpBadge, RuStatement, RuThemedImg, RuTiltCard,
-  GramsSlider, formatMoney, officeHallPhoto, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
+  GramsSlider, formatMoney, officeHallPhoto, ruHref, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
 const DIRECTIONS = [
   {
-    tag: 'Выкуп золота', title: 'Продать золото', href: '/ru/prodat/',
+    tag: 'Выкуп золота', title: 'Продать золото', page: 'prodat',
     imgDark: '/ru/hero-prodat.jpg', imgLight: '/ru/hero-prodat-light.jpg', imgPos: '62% 50%',
     text: 'Оценка по бирже, оплата сразу — в отделениях или с курьером.',
   },
   {
-    tag: 'Регионы', title: 'Работа', href: '/ru/agenty/',
+    tag: 'Регионы', title: 'Работа', page: 'agenty',
     imgDark: '/ru/courier.jpg', imgLight: '/ru/courier-light.jpg', imgPos: '50% 26%',
     text: 'Обучение, набор для проверки золота, и доступ в приложение — зарабатывайте в своём городе и регионе.',
   },
   {
-    tag: 'Интернет-магазин', title: 'Ювелирные слитки', href: '/ru/slitki/',
+    tag: 'Интернет-магазин', title: 'Ювелирные слитки', page: 'slitki',
     imgDark: '/ru/slitok.jpg', imgLight: '/ru/slitok-light.jpg', imgPos: '50% 45%',
     text: 'Слиток-украшение: кулон, подвеска, цепочка. Ювелирное украшение, сохраняющее ценность.',
   },
   {
-    tag: 'Reaktivo Resale', title: 'Проверенные украшения', href: '/ru/resale/',
+    tag: 'Reaktivo Resale', title: 'Проверенные украшения', page: 'resale',
     imgDark: '/ru/resale.jpg', imgLight: '/ru/resale-light.jpg', imgPos: '55% 45%',
     text: 'Брендовые изделия из выкупа — сразу после экспертизы и ювелирного SPA. Мировые бренды по выгодной цене.',
   },
   {
-    tag: 'Франшиза', title: 'Открыть отделение', href: '/ru/franshiza/',
+    tag: 'Франшиза', title: 'Открыть отделение', page: 'franshiza',
     imgDark: '/office-lobby.jpg', imgLight: '/office-lobby.jpg', imgPos: '70% 55%',
     text: 'Запуск под ключ или экспресс-переход для действующих скупок и ломбардов: бренд, операционная система, процессы и поддержка.',
   },
   {
-    tag: 'B2B', title: 'Партнёрам', href: '/ru/partneram/',
+    tag: 'B2B', title: 'Партнёрам', page: 'partneram',
     imgDark: '/ru/partner.jpg', imgLight: '/ru/partner-light.jpg', imgPos: '55% 45%',
     text: 'Ювелиры, ломбарды и дилеры получают специальный курс на продажу и покупку, приоритетную логистику и совместные программы.',
   },
@@ -83,7 +83,7 @@ function LiveCalcCard({ quote }) {
         <span className="rl-calc-out-label">Вы получите наличными или переводом<RuSbpBadge /></span>
         <span className="rl-calc-out-val">{sumDisplay != null ? formatMoney(sumDisplay) : '· · ·'}</span>
       </div>
-      <a href="/ru/prodat/#zayavka" className="rl-btn rl-btn--primary rl-calc-cta">Точный расчёт и вызов курьера</a>
+      <a href={ruHref('prodat', '#zayavka')} className="rl-btn rl-btn--primary rl-calc-cta">Точный расчёт и вызов курьера</a>
     </motion.div>
   );
 }
@@ -117,7 +117,7 @@ export function RuHome() {
           kicker="Сервис выкупа золота — без ломбардной логики"
           title={<>Курс, который<br />видно <span className="il-accent-text">до визита</span></>}
           sub="Оценка по биржевому курсу, оплата сразу — в отделении или с курьером. Мы платим всю стоимость. Никаких скрытых процентов и комиссий."
-          primary={{ href: '/ru/prodat/', label: 'Продать золото' }}
+          primary={{ href: ruHref('prodat'), label: 'Продать золото' }}
           secondary={{ href: '#napravlenia', label: 'Все направления', onClick: (e) => goTo(e, '#napravlenia') }}
           aside={<LiveCalcCard quote={quote} />}
         />
@@ -146,7 +146,7 @@ export function RuHome() {
             </div>
             <motion.div className="rl-dirs" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
               {DIRECTIONS.map((d) => (
-                <motion.a className="rl-dir" href={d.href} key={d.title} variants={staggerChild}>
+                <motion.a className="rl-dir" href={ruHref(d.page)} key={d.title} variants={staggerChild}>
                   <span className="rl-dir-media" aria-hidden>
                     <RuThemedImg dark={d.imgDark} light={d.imgLight} alt="" style={{ objectPosition: d.imgPos }} />
                     <span className="rl-dir-tag">{d.tag}</span>
@@ -236,7 +236,7 @@ export function RuHome() {
               <RuCtaPanel>
                 <h2 className="il-h2">Готовы посчитать точно?</h2>
                 <p>Откройте калькулятор выкупа — сумма считается по текущему курсу, до визита курьера.</p>
-                <a href="/ru/prodat/" className="il-btn il-btn--primary il-btn--lg">Рассчитать стоимость</a>
+                <a href={ruHref('prodat')} className="il-btn il-btn--primary il-btn--lg">Рассчитать стоимость</a>
               </RuCtaPanel>
             </Reveal>
           </div>
