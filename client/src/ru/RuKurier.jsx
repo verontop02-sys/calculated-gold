@@ -8,13 +8,13 @@ import {
 import { clientApi } from '../api.js';
 import { ymReachGoal } from '../yandexMetrika.js';
 import {
-  KURIER_SLOT_WINDOWS, KURIER_WEEKDAYS, getAvailableDays, getAvailableSlots, getCalendarGrid,
-  isKurierDayAllowed, isKurierSlotAllowed, kurierSlotLabel,
+  KURIER_WEEKDAYS, formatKurierTimeLabel, getAvailableDays, getCalendarGrid, getMaxTimeStrForDay,
+  getMinTimeStrForDay, getQuickTimes, isKurierDayAllowed, isKurierTimeAllowed,
 } from './kurierSlots.js';
 
 const STEPS = [
   { n: '01', title: 'Считаете сумму', text: 'Укажите пробу и вес в калькуляторе — увидите точную сумму, которую получите.' },
-  { n: '02', title: 'Выбираете время', text: 'Дата, окно на 2 часа и адрес — форма ниже. Ничего не нужно уточнять по телефону заранее.' },
+  { n: '02', title: 'Выбираете время', text: 'Дата, точное время и адрес — форма ниже. Ничего не нужно уточнять по телефону заранее.' },
   { n: '03', title: 'Мы звоним для подтверждения', text: 'За 1–2 часа до визита оператор позвонит, чтобы подтвердить время и адрес.' },
   { n: '04', title: 'Курьер приезжает', text: 'Проверка пробы и веса при вас, оплата сразу — наличными или переводом.' },
 ];
@@ -30,7 +30,7 @@ const COMPARE = [
   {
     title: 'Вызов курьера',
     highlight: true,
-    points: ['Не нужно никуда ехать', 'Вы сами выбираете дату и 2-часовое окно', 'Бесплатно в зоне обслуживания', 'Проверка и оплата дома или в офисе'],
+    points: ['Не нужно никуда ехать', 'Вы сами выбираете дату и точное время', 'Бесплатно в зоне обслуживания', 'Проверка и оплата дома или в офисе'],
   },
   {
     title: 'Визит в отделение',
@@ -147,7 +147,7 @@ function useNowMinute() {
 const CITY_NAMES = ['Москва', 'Санкт-Петербург', 'Калининград'];
 const BOOK_STEPS = [
   { n: '1', title: 'Город', hint: 'куда едем' },
-  { n: '2', title: 'Когда', hint: 'дата и окно' },
+  { n: '2', title: 'Когда', hint: 'дата и время' },
   { n: '3', title: 'Адрес', hint: 'и телефон' },
 ];
 
@@ -174,10 +174,12 @@ function KurierBookingForm() {
   const [cityOther, setCityOther] = useState('');
   const [address, setAddress] = useState('');
   const [day, setDay] = useState(days[0]?.iso || '');
-  const [slot, setSlot] = useState('');
+  const [time, setTime] = useState('');
   const [website, setWebsite] = useState('');
 
-  const slots = useMemo(() => getAvailableSlots(day, now), [day, now]);
+  const quickTimes = useMemo(() => getQuickTimes(day, now), [day, now]);
+  const minTime = useMemo(() => getMinTimeStrForDay(day, now), [day, now]);
+  const maxTime = getMaxTimeStrForDay();
   const isOtherCity = city === 'other';
   const cityLabel = isOtherCity ? cityOther.trim() : city;
   const dayLabel = days.find((d) => d.iso === day)?.label || '';
@@ -186,8 +188,8 @@ function KurierBookingForm() {
     if (!days.some((d) => d.iso === day)) setDay(days[0]?.iso || '');
   }, [days, day]);
   useEffect(() => {
-    if (slot && !slots.some((s) => s.key === slot)) setSlot('');
-  }, [slots, slot]);
+    if (time && !isKurierTimeAllowed(day, time, now)) setTime('');
+  }, [day, now]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function pickCity(id) {
     setCity(id);
@@ -195,8 +197,8 @@ function KurierBookingForm() {
     if (id !== 'other') setStep(2);
   }
 
-  function pickSlot(key) {
-    setSlot(key);
+  function pickTime(t) {
+    setTime(t);
     setError('');
     setStep(3);
   }
@@ -206,7 +208,7 @@ function KurierBookingForm() {
       setError('Сначала выберите город');
       return;
     }
-    if (n === 3 && (!isKurierDayAllowed(day, now) || !slot)) {
+    if (n === 3 && (!isKurierDayAllowed(day, now) || !isKurierTimeAllowed(day, time, now))) {
       setError('Выберите дату и время');
       return;
     }
@@ -227,7 +229,7 @@ function KurierBookingForm() {
       setStep(1);
       return setError('Укажите город');
     }
-    if (!isKurierDayAllowed(day, now) || !isKurierSlotAllowed(day, slot, now)) {
+    if (!isKurierDayAllowed(day, now) || !isKurierTimeAllowed(day, time, now)) {
       setStep(2);
       return setError('Выберите дату и время визита');
     }
@@ -243,7 +245,7 @@ function KurierBookingForm() {
         city: cityLabel,
         address: address.trim(),
         date: day,
-        slot,
+        time,
         website,
       });
       ymReachGoal('lead', { source: 'kurier' });
@@ -276,7 +278,7 @@ function KurierBookingForm() {
           </motion.span>
           <h3>Курьер записан</h3>
           <p className="rl-form-note">
-            {dayLabel}, {kurierSlotLabel(slot)}. Мы позвоним за 1–2 часа до визита, чтобы подтвердить адрес.
+            {dayLabel}, {formatKurierTimeLabel(time)}. Мы позвоним за 1–2 часа до визита, чтобы подтвердить адрес и время.
           </p>
           <ul className="rl-kurier-summary">
             {cityLabel && <li><span>Город</span><b>{cityLabel}</b></li>}
@@ -292,7 +294,7 @@ function KurierBookingForm() {
       <div className="rl-book-head">
         <div>
           <h3>Вызвать курьера</h3>
-          <p>Три шага: город, удобное окно, адрес. Подтвердим звонком заранее.</p>
+          <p>Три шага: город, удобное время, адрес. Подтвердим звонком заранее.</p>
         </div>
       </div>
 
@@ -374,27 +376,37 @@ function KurierBookingForm() {
               </div>
             </div>
             <div>
-              <span className="rl-book-slots-label">Окно приезда · {dayLabel.toLowerCase()}</span>
-              {slots.length > 0 ? (
-                <div className="rl-book-slots">
-                  {KURIER_SLOT_WINDOWS.map((w) => {
-                    const avail = slots.some((s) => s.key === w.key);
-                    return (
+              <span className="rl-book-slots-label">Время приезда · {dayLabel.toLowerCase()}</span>
+              {quickTimes.length > 0 ? (
+                <>
+                  <div className="rl-book-slots">
+                    {quickTimes.map((t) => (
                       <button
-                        key={w.key}
+                        key={t}
                         type="button"
-                        disabled={!avail}
-                        className={`rl-book-slot${slot === w.key ? ' is-active' : ''}`}
-                        onClick={() => pickSlot(w.key)}
+                        className={`rl-book-slot${time === t ? ' is-active' : ''}`}
+                        onClick={() => pickTime(t)}
                       >
-                        {w.label}
-                        <small>{avail ? 'свободно' : 'уже поздно'}</small>
+                        {t}
                       </button>
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+                  <div className="rl-book-time-custom">
+                    <span>Своё время</span>
+                    <input
+                      type="time"
+                      className="rl-input"
+                      min={minTime || undefined}
+                      max={maxTime}
+                      step={300}
+                      value={time}
+                      onChange={(e) => { setTime(e.target.value); setError(''); }}
+                    />
+                  </div>
+                  <p className="rl-book-note">Курьеры работают с {minTime} до {maxTime} — можно указать любую минуту.</p>
+                </>
               ) : (
-                <p className="rl-book-note">На эту дату окон уже нет — выберите другой день.</p>
+                <p className="rl-book-note">На эту дату времени уже нет — выберите другой день.</p>
               )}
             </div>
           </motion.div>
@@ -404,7 +416,7 @@ function KurierBookingForm() {
           <motion.div key="where" className="rl-book-contacts" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.22, ease: EASE }}>
             <div className="rl-book-recap">
               <button type="button" onClick={() => setStep(1)}>{cityLabel || 'Город'}</button>
-              <button type="button" onClick={() => setStep(2)}>{dayLabel} · {kurierSlotLabel(slot)}</button>
+              <button type="button" onClick={() => setStep(2)}>{dayLabel} · {formatKurierTimeLabel(time)}</button>
             </div>
             <textarea className="rl-input" style={{ gridColumn: '1 / -1' }} placeholder="Адрес: улица, дом, квартира, этаж, домофон" rows={3} maxLength={300} value={address} onChange={(e) => setAddress(e.target.value)} />
             <input className="rl-input" name="name" placeholder="Ваше имя" maxLength={120} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -478,7 +490,7 @@ export function RuKurier() {
           imgPos="50% 40%"
           kicker="Вызов курьера"
           title={<>Назначьте время <br /><span className="il-accent-text">сами</span> — мы приедем</>}
-          sub="Выберите дату и удобное 2-часовое окно, укажите адрес — курьер приедет с проверкой пробы при вас и оплатой сразу. Бесплатно в Москве, Санкт-Петербурге и Калининграде."
+          sub="Выберите дату и любое удобное время, укажите адрес — курьер приедет с проверкой пробы при вас и оплатой сразу. Бесплатно в Москве, Санкт-Петербурге и Калининграде."
           primary={{ href: '#calc', label: 'Рассчитать стоимость', onClick: goToCalc }}
           secondary={{ href: '#zapis', label: 'Записаться на визит' }}
           aside={<div id="calc"><KurierCalcCard quote={quote} pulseKey={calcPulse} /></div>}
@@ -499,7 +511,7 @@ export function RuKurier() {
               { val: '0 ₽', label: 'вызов курьера — без скрытых доплат', icon: 'zerofee', imgDark: '/ru/kpi-zerofee-dark.jpg', imgLight: '/ru/kpi-zerofee-light.jpg' },
               { val: 'При вас', label: 'проба и вес проверяются на глазах у клиента', icon: 'shield', imgDark: '/ru/kpi-shield-dark.jpg', imgLight: '/ru/kpi-shield-light.jpg' },
               { val: 'до 90%', label: 'от биржевой стоимости — курс фиксирован заранее', icon: 'percent', imgDark: '/ru/kpi-percent-dark.jpg', imgLight: '/ru/kpi-percent-light.jpg' },
-              { val: '~2 часа', label: 'окно приезда — вы точно знаете, когда ждать', icon: 'time', imgDark: '/ru/kpi-time-dark.jpg', imgLight: '/ru/kpi-time-light.jpg' },
+              { val: 'Любое', label: 'время приезда — вы указываете его сами, а не диапазон', icon: 'time', imgDark: '/ru/kpi-time-dark.jpg', imgLight: '/ru/kpi-time-light.jpg' },
             ]} />
           </div>
         </section>

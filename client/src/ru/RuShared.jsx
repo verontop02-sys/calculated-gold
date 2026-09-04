@@ -2569,17 +2569,23 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .rl-book-day.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .rl-book-day.is-active i { color: rgba(255,255,255,0.82); }
 .rl-book-day.is-empty { visibility: hidden; pointer-events: none; }
-.rl-book-slots { display: grid; gap: 8px; }
+.rl-book-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 8px; }
 .rl-book-slot {
   border: 1px solid var(--stroke); background: var(--bg-panel-solid); color: var(--text-strong);
-  border-radius: 14px; padding: 12px 14px; font: inherit; font-weight: 600; text-align: left; cursor: pointer;
-  display: flex; justify-content: space-between; align-items: center;
+  border-radius: 12px; padding: 11px 8px; font: inherit; font-weight: 700; text-align: center; cursor: pointer;
+  display: flex; justify-content: center; align-items: center;
   transition: border-color 0.18s, background 0.18s, color 0.18s, transform 0.15s;
 }
 .rl-book-slot:hover { transform: translateY(-1px); }
 .rl-book-slot.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .rl-book-slot:disabled { opacity: 0.38; cursor: not-allowed; transform: none; }
 .rl-book-slot small { font-size: 0.75rem; font-weight: 600; opacity: 0.72; }
+.rl-book-time-custom {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--stroke);
+}
+.rl-book-time-custom span { font-size: 0.85rem; font-weight: 600; color: var(--text-dim); white-space: nowrap; }
+.rl-book-time-custom .rl-input { width: auto; padding: 9px 12px; }
 .rl-book-contacts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .rl-book-recap {
   grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px;
