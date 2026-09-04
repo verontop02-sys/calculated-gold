@@ -2586,6 +2586,21 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 }
 .rl-book-time-custom span { font-size: 0.85rem; font-weight: 600; color: var(--text-dim); white-space: nowrap; }
 .rl-book-time-custom .rl-input { width: auto; padding: 9px 12px; }
+.rl-loc { display: grid; gap: 12px; }
+.rl-loc-cta {
+  border: none; border-radius: 16px; padding: 20px 18px; font: inherit; font-size: 1rem; font-weight: 700;
+  color: #fff; background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000));
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+  box-shadow: 0 12px 28px -14px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.rl-loc-cta:disabled { opacity: 0.7; cursor: wait; }
+.rl-loc-manual-link {
+  border: none; background: none; color: var(--text-dim); font: inherit; font-size: 0.85rem; font-weight: 600;
+  text-decoration: underline; cursor: pointer; padding: 2px; justify-self: center;
+}
+.rl-loc-manual-link:hover { color: var(--text-strong); }
+.rl-loc-fields { display: grid; gap: 10px; }
+.rl-loc-map { width: 100%; height: 180px; border-radius: 14px; overflow: hidden; border: 1px solid var(--stroke); }
 .rl-book-contacts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .rl-book-recap {
   grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px;

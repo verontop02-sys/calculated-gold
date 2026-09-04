@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useScroll, useSpring } from 'motion/react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
   RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuMarquee, RuSbpBadge, RuThemedImg, RuTiltCard,
@@ -17,13 +19,6 @@ const STEPS = [
   { n: '02', title: 'Выбираете время', text: 'Дата, точное время и адрес — форма ниже. Ничего не нужно уточнять по телефону заранее.' },
   { n: '03', title: 'Мы звоним для подтверждения', text: 'За 1–2 часа до визита оператор позвонит, чтобы подтвердить время и адрес.' },
   { n: '04', title: 'Курьер приезжает', text: 'Проверка пробы и веса при вас, оплата сразу — наличными или переводом.' },
-];
-
-const BOOK_CITIES = [
-  { id: 'Москва', name: 'Москва', hint: 'Курьеры каждый день' },
-  { id: 'Санкт-Петербург', name: 'Санкт-Петербург', hint: 'Курьеры каждый день' },
-  { id: 'Калининград', name: 'Калининград', hint: 'Курьеры каждый день' },
-  { id: 'other', name: 'Другой город', hint: 'Уточним ближайшую дату' },
 ];
 
 const COMPARE = [
@@ -144,12 +139,130 @@ function useNowMinute() {
   return now;
 }
 
-const CITY_NAMES = ['Москва', 'Санкт-Петербург', 'Калининград'];
 const BOOK_STEPS = [
-  { n: '1', title: 'Город', hint: 'куда едем' },
+  { n: '1', title: 'Место', hint: 'город и адрес' },
   { n: '2', title: 'Когда', hint: 'дата и время' },
-  { n: '3', title: 'Адрес', hint: 'и телефон' },
+  { n: '3', title: 'Контакты', hint: 'имя и телефон' },
 ];
+
+function pinDivIcon() {
+  return L.divIcon({
+    className: 'rl-loc-pin',
+    html: `<div style="display:flex;flex-direction:column;align-items:center;">
+      <div style="width:30px;height:30px;background:linear-gradient(135deg,#ff3b42,#b4141c);border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.35);">
+        <div style="width:9px;height:9px;background:#fff;border-radius:50%;transform:rotate(45deg);"></div>
+      </div>
+    </div>`,
+    iconSize: [30, 42],
+    iconAnchor: [15, 40],
+  });
+}
+
+/**
+ * Определение места визита одним тапом (та же идея, что и «Индекс золота» в
+ * админке): GPS → обратное геокодирование → точка на карте, которую можно
+ * перетащить, если геокодер ошибся. Ручной ввод — резервный путь, когда
+ * геолокация недоступна/запрещена или клиент хочет ввести адрес сам.
+ */
+function KurierLocationStep({ city, setCity, address, setAddress, lat, lng, setCoords }) {
+  const [mode, setMode] = useState('idle'); // idle | locating | ready
+  const [error, setError] = useState('');
+  const mapElRef = useRef(null);
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
+
+  async function reverseGeocode(la, lo) {
+    try {
+      const geo = await clientApi.reverseGeocode({ lat: la, lng: lo });
+      const streetLabel = geo?.street ? geo.street : '';
+      setCity((prev) => geo?.city || prev);
+      setAddress((prev) => (streetLabel && !prev ? streetLabel : prev));
+    } catch (e) {
+      // Координаты уже есть — просто не смогли расшифровать адрес, клиент допишет сам.
+    }
+  }
+
+  function locate() {
+    if (!navigator.geolocation) {
+      setError('Геолокация не поддерживается этим браузером — укажите адрес вручную');
+      setMode('ready');
+      return;
+    }
+    setError('');
+    setMode('locating');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const la = pos.coords.latitude;
+        const lo = pos.coords.longitude;
+        setCoords(la, lo);
+        setMode('ready');
+        reverseGeocode(la, lo);
+      },
+      () => {
+        setError('Не удалось определить местоположение — укажите адрес вручную');
+        setMode('ready');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+    );
+  }
+
+  // Карта появляется, когда есть координаты; маркер можно перетащить, если геокодер ошибся.
+  useEffect(() => {
+    if (lat == null || lng == null || !mapElRef.current) return undefined;
+    if (!mapRef.current) {
+      const m = L.map(mapElRef.current, { attributionControl: false, zoomControl: false }).setView([lat, lng], 16);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(m);
+      const marker = L.marker([lat, lng], { icon: pinDivIcon(), draggable: true }).addTo(m);
+      marker.on('dragend', () => {
+        const p = marker.getLatLng();
+        setCoords(p.lat, p.lng);
+        reverseGeocode(p.lat, p.lng);
+      });
+      mapRef.current = m;
+      markerRef.current = marker;
+    } else {
+      mapRef.current.setView([lat, lng], mapRef.current.getZoom() || 16);
+      markerRef.current.setLatLng([lat, lng]);
+    }
+    return () => {
+      mapRef.current?.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    };
+  }, [lat != null, lng != null]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const showFields = mode === 'ready' || Boolean(city || address);
+
+  return (
+    <div className="rl-loc">
+      {!showFields && (
+        <motion.button
+          type="button"
+          className="rl-loc-cta"
+          whileTap={{ scale: 0.98 }}
+          onClick={locate}
+          disabled={mode === 'locating'}
+        >
+          {mode === 'locating' ? (<><span className="rl-btn-spin" aria-hidden /> Определяем…</>) : '📍 Определить моё местоположение'}
+        </motion.button>
+      )}
+      {!showFields && (
+        <button type="button" className="rl-loc-manual-link" onClick={() => setMode('ready')}>Указать вручную</button>
+      )}
+      {error && <p className="rl-form-error" style={{ margin: '10px 0 0' }}>{error}</p>}
+      {showFields && (
+        <div className="rl-loc-fields">
+          {lat != null && lng != null && <div ref={mapElRef} className="rl-loc-map" />}
+          <input className="rl-input" placeholder="Город" maxLength={120} value={city} onChange={(e) => setCity(e.target.value)} />
+          <textarea className="rl-input" placeholder="Адрес: улица, дом, квартира, этаж, домофон" rows={3} maxLength={300} value={address} onChange={(e) => setAddress(e.target.value)} />
+          {lat == null && (
+            <button type="button" className="rl-loc-manual-link" onClick={locate}>📍 Определить автоматически</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function monthCaption(days) {
   if (!days.length) return '';
@@ -171,8 +284,9 @@ function KurierBookingForm() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
-  const [cityOther, setCityOther] = useState('');
   const [address, setAddress] = useState('');
+  const [lat, setLat] = useState(null);
+  const [lng, setLng] = useState(null);
   const [day, setDay] = useState(days[0]?.iso || '');
   const [time, setTime] = useState('');
   const [website, setWebsite] = useState('');
@@ -180,9 +294,9 @@ function KurierBookingForm() {
   const quickTimes = useMemo(() => getQuickTimes(day, now), [day, now]);
   const minTime = useMemo(() => getMinTimeStrForDay(day, now), [day, now]);
   const maxTime = getMaxTimeStrForDay();
-  const isOtherCity = city === 'other';
-  const cityLabel = isOtherCity ? cityOther.trim() : city;
+  const cityLabel = city.trim();
   const dayLabel = days.find((d) => d.iso === day)?.label || '';
+  const locationReady = cityLabel.length >= 2 && address.trim().length >= 5;
 
   useEffect(() => {
     if (!days.some((d) => d.iso === day)) setDay(days[0]?.iso || '');
@@ -191,10 +305,9 @@ function KurierBookingForm() {
     if (time && !isKurierTimeAllowed(day, time, now)) setTime('');
   }, [day, now]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function pickCity(id) {
-    setCity(id);
-    setError('');
-    if (id !== 'other') setStep(2);
+  function setCoords(la, lo) {
+    setLat(la);
+    setLng(lo);
   }
 
   function pickTime(t) {
@@ -204,8 +317,8 @@ function KurierBookingForm() {
   }
 
   function goStep(n) {
-    if (n === 2 && !cityLabel) {
-      setError('Сначала выберите город');
+    if (n === 2 && !locationReady) {
+      setError('Сначала укажите город и адрес');
       return;
     }
     if (n === 3 && (!isKurierDayAllowed(day, now) || !isKurierTimeAllowed(day, time, now))) {
@@ -229,11 +342,14 @@ function KurierBookingForm() {
       setStep(1);
       return setError('Укажите город');
     }
+    if (address.trim().length < 5) {
+      setStep(1);
+      return setError('Укажите адрес для курьера');
+    }
     if (!isKurierDayAllowed(day, now) || !isKurierTimeAllowed(day, time, now)) {
       setStep(2);
       return setError('Выберите дату и время визита');
     }
-    if (address.trim().length < 5) return setError('Укажите адрес для курьера');
     if (!isLeadName(name)) return setError('Укажите имя');
     if (!isRuPhone(phone)) return setError('Укажите номер телефона, без него мы не сможем связаться');
 
@@ -244,6 +360,8 @@ function KurierBookingForm() {
         phone: phone.trim(),
         city: cityLabel,
         address: address.trim(),
+        lat,
+        lng,
         date: day,
         time,
         website,
@@ -294,7 +412,7 @@ function KurierBookingForm() {
       <div className="rl-book-head">
         <div>
           <h3>Вызвать курьера</h3>
-          <p>Три шага: город, удобное время, адрес. Подтвердим звонком заранее.</p>
+          <p>Три шага: место, удобное время, контакты. Подтвердим звонком заранее.</p>
         </div>
       </div>
 
@@ -310,7 +428,7 @@ function KurierBookingForm() {
               role="tab"
               aria-selected={on}
               className={on ? 'is-on' : done ? 'is-done' : ''}
-              disabled={n > step && !city}
+              disabled={n > step && !locationReady}
               onClick={() => goStep(n)}
             >
               <i>{done ? '✓' : s.n}</i>
@@ -326,25 +444,15 @@ function KurierBookingForm() {
       <AnimatePresence mode="wait">
         {step === 1 && (
           <motion.div key="city" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.22, ease: EASE }}>
-            <div className="rl-book-cities">
-              {BOOK_CITIES.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={`rl-book-city${city === c.id ? ' is-active' : ''}`}
-                  onClick={() => pickCity(c.id)}
-                >
-                  <b>{c.name}</b>
-                  <em>{c.hint}</em>
-                </button>
-              ))}
-            </div>
-            {isOtherCity && (
-              <div style={{ marginTop: 14, display: 'grid', gap: 10 }}>
-                <input className="rl-input" placeholder="Укажите ваш город" maxLength={120} value={cityOther} onChange={(e) => setCityOther(e.target.value)} />
-                <p className="rl-book-note">Курьеры закреплены за Москвой, Санкт-Петербургом и Калининградом — для другого города уточним ближайшую дату.</p>
-              </div>
-            )}
+            <KurierLocationStep
+              city={city}
+              setCity={setCity}
+              address={address}
+              setAddress={setAddress}
+              lat={lat}
+              lng={lng}
+              setCoords={setCoords}
+            />
           </motion.div>
         )}
 
@@ -415,10 +523,9 @@ function KurierBookingForm() {
         {step === 3 && (
           <motion.div key="where" className="rl-book-contacts" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.22, ease: EASE }}>
             <div className="rl-book-recap">
-              <button type="button" onClick={() => setStep(1)}>{cityLabel || 'Город'}</button>
+              <button type="button" onClick={() => setStep(1)}>{cityLabel || 'Город'}{address ? ` · ${address}` : ''}</button>
               <button type="button" onClick={() => setStep(2)}>{dayLabel} · {formatKurierTimeLabel(time)}</button>
             </div>
-            <textarea className="rl-input" style={{ gridColumn: '1 / -1' }} placeholder="Адрес: улица, дом, квартира, этаж, домофон" rows={3} maxLength={300} value={address} onChange={(e) => setAddress(e.target.value)} />
             <input className="rl-input" name="name" placeholder="Ваше имя" maxLength={120} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
             <input className="rl-input" name="phone" placeholder="+7 (900) 000-00-00" maxLength={120} inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
             <p className="rl-book-note">За 1–2 часа до визита позвоним, чтобы подтвердить время. Продажа не обязательна — можно отказаться на месте.</p>
@@ -434,8 +541,8 @@ function KurierBookingForm() {
             Назад
           </button>
         )}
-        {step === 1 && isOtherCity && (
-          <motion.button type="button" className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.97 }} onClick={() => goStep(2)}>
+        {step === 1 && (
+          <motion.button type="button" className="il-btn il-btn--primary il-btn--lg" disabled={!locationReady} whileTap={{ scale: 0.97 }} onClick={() => goStep(2)}>
             Далее
           </motion.button>
         )}

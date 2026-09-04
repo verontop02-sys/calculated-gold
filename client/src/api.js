@@ -530,6 +530,15 @@ export const clientApi = {
     return j;
   },
   /** Запись на вызов курьера: { name, phone, city, address, date, slot, website }. */
+  /** Публичное обратное геокодирование (без авторизации) — «Определить моё местоположение» на /kurier. */
+  reverseGeocode: async ({ lat, lng }) => {
+    const r = await fetch(withBase(`/public/reverse-geocode?lat=${lat}&lng=${lng}`), {
+      headers: apiGatewayHeaders(null),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Ошибка ${r.status}`);
+    return j;
+  },
   courierOrder: async (payload) => {
     const r = await fetch(withBase('/public/courier-order'), {
       method: 'POST',

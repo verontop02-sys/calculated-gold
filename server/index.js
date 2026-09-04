@@ -467,6 +467,7 @@ app.use(
     '/api/public/consult-lead',
     '/api/public/landing-lead',
     '/api/public/courier-order',
+    '/api/public/reverse-geocode',
   ],
   authBurstLimiter
 );
@@ -1454,6 +1455,30 @@ async function notifyCourierOrderTelegram({ name, phone, city, address, date, ti
   return sendTelegramMessage(chatId, lines.join('\n'));
 }
 
+/**
+ * Публичное обратное геокодирование для «Вызвать курьера»: тап «Определить
+ * автоматически» шлёт координаты браузера, мы возвращаем город/улицу — тот же
+ * Nominatim/Photon-пайплайн, что и в админской «Индекс золота», но без auth,
+ * под тем же burst-лимитером, что и остальные публичные формы.
+ */
+app.get(
+  '/api/public/reverse-geocode',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      return res.status(400).json({ error: 'Неверные координаты' });
+    }
+    try {
+      const out = await reverseGeocodeGoldIndex({ lat, lng });
+      res.json(out);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Не удалось определить адрес' });
+    }
+  })
+);
+
 app.post(
   '/api/public/courier-order',
   asyncHandler(async (req, res) => {
@@ -1482,11 +1507,15 @@ app.post(
     if (!isKurierDateAllowed(date, now)) return res.status(400).json({ error: 'Выберите доступную дату визита' });
     if (!isKurierTimeAllowed(date, time, now)) return res.status(400).json({ error: 'Выберите доступное время визита' });
 
+    const lat = Number.isFinite(Number(req.body?.lat)) ? Number(req.body.lat) : null;
+    const lng = Number.isFinite(Number(req.body?.lng)) ? Number(req.body.lng) : null;
+
     const fields = {
       Город: city,
       Адрес: address,
       Дата: formatKurierDateRu(date),
       Время: time,
+      ...(lat != null && lng != null ? { Координаты: `${lat.toFixed(6)}, ${lng.toFixed(6)}` } : {}),
     };
 
     let saved = null;
