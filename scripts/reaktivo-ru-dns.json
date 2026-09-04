@@ -1,0 +1,20 @@
+{
+  "preview": "https://reaktivo-ru.web.app",
+  "panel": "https://cp.masterhost.ru",
+  "do_not_change": {
+    "NS": ["ns1.masterhost.ru", "ns2.masterhost.ru", "ns.masterhost.ru"],
+    "MX": "10 mx.yandex.net",
+    "TXT_spf": "v=spf1 redirect=_spf.yandex.net",
+    "TXT_yandex": "yandex-verification: 8fc93f5e5b0e72cc"
+  },
+  "remove": [
+    { "host": "@", "type": "A", "value": "176.57.66.104", "note": "Tilda" },
+    { "host": "www", "type": "A", "value": "176.57.66.104", "note": "Tilda" }
+  ],
+  "add": [
+    { "host": "@", "type": "TXT", "value": "hosting-site=reaktivo-ru" },
+    { "host": "@", "type": "A", "value": "199.36.158.100" },
+    { "host": "www", "type": "CNAME", "value": "reaktivo-ru.web.app" },
+    { "host": "_acme-challenge", "type": "TXT", "value": "PYEQAcj1LaVQRpaN_NYgUV7VGdf34IFU-BSzbh8Sfww", "note": "SSL check; if Firebase shows a new value, use that" }
+  ]
+}

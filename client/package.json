@@ -4,9 +4,13 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "build:ru": "vite build --mode ru",
+    "build:all": "vite build && vite build --mode ru",
+    "dev": "vite",
+    "dev:ru": "vite --mode ru",
+    "preview": "vite preview",
+    "preview:ru": "vite preview --outDir dist-ru --mode ru"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

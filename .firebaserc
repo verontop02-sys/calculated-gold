@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "gold-panel"
-  }
+  },
+  "targets": {
+    "gold-panel": {
+      "hosting": {
+        "pro": [
+          "gold-panel"
+        ],
+        "ru": [
+          "reaktivo-ru"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

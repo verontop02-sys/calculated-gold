@@ -6,12 +6,12 @@ import { ymReachGoal } from '../yandexMetrika.js';
 import { ThemeToggle } from '../ThemeToggle.jsx';
 import { EASE, Magnetic, Reveal } from '../InvestLanding.jsx';
 import { WORLD_CITIES, tzDateLabel, tzOffsetLabel, tzParts } from '../WorldClocks.jsx';
-import { ruHref } from './ruSite.js';
+import { ruHref, staffHref } from './ruSite.js';
 import officeHallPhoto from '../assets/office/hall.jpg';
 import officeWaitingPhoto from '../assets/office/waiting.jpg';
 import officeWorkPhoto from '../assets/office/work.jpg';
 
-export { ruHref, isReaktivoRuHost } from './ruSite.js';
+export { ruHref, isReaktivoRuHost, staffHref } from './ruSite.js';
 export { officeHallPhoto, officeWaitingPhoto, officeWorkPhoto };
 
 export const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -774,8 +774,8 @@ export function RuFooter() {
             <a href="tel:+74956460044" className="il-nav-link">Москва: 8 (495) 646-00-44</a>
             <a href="tel:+78005551848" className="il-nav-link">По России: 8 (800) 555-18-48</a>
             <a href="mailto:team@reaktivo.ru" className="il-nav-link">team@reaktivo.ru</a>
-            <a href="/kabinet" className="il-nav-link">Личный кабинет</a>
-            <a href="/pro?staff" className="il-nav-link">Вход для сотрудников</a>
+            <a href={staffHref('/kabinet')} className="il-nav-link">Личный кабинет</a>
+            <a href={staffHref('/pro?staff')} className="il-nav-link">Вход для сотрудников</a>
           </div>
         </div>
         <div className="il-footer-bottom">

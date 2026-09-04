@@ -6,53 +6,67 @@
       "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "*.local"]
     }
   ],
-  "hosting": {
-    "site": "gold-panel",
-    "public": "client/dist",
-    "predeploy": ["npm run build"],
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [
-      {
-        "source": "/api/**",
-        "function": {
-          "functionId": "apiProxy",
-          "region": "europe-west1"
+  "hosting": [
+    {
+      "target": "pro",
+      "public": "client/dist",
+      "predeploy": ["npm run build"],
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        {
+          "source": "/api/**",
+          "function": { "functionId": "apiProxy", "region": "europe-west1" }
+        },
+        {
+          "source": "/sb",
+          "function": { "functionId": "apiProxy", "region": "europe-west1" }
+        },
+        {
+          "source": "/sb/**",
+          "function": { "functionId": "apiProxy", "region": "europe-west1" }
+        },
+        { "source": "**", "destination": "/index.html" }
+      ],
+      "headers": [
+        {
+          "source": "/index.html",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+            { "key": "Pragma", "value": "no-cache" },
+            { "key": "Expires", "value": "0" }
+          ]
+        },
+        {
+          "source": "**/*.@(js|css)",
+          "headers": [
+            { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+          ]
         }
-      },
-      {
-        "source": "/sb",
-        "function": {
-          "functionId": "apiProxy",
-          "region": "europe-west1"
+      ]
+    },
+    {
+      "target": "ru",
+      "public": "client/dist-ru",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        { "source": "**", "destination": "/index.html" }
+      ],
+      "headers": [
+        {
+          "source": "/index.html",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+            { "key": "Pragma", "value": "no-cache" },
+            { "key": "Expires", "value": "0" }
+          ]
+        },
+        {
+          "source": "**/*.@(js|css)",
+          "headers": [
+            { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+          ]
         }
-      },
-      {
-        "source": "/sb/**",
-        "function": {
-          "functionId": "apiProxy",
-          "region": "europe-west1"
-        }
-      },
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ],
-    "headers": [
-      {
-        "source": "/index.html",
-        "headers": [
-          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
-          { "key": "Pragma", "value": "no-cache" },
-          { "key": "Expires", "value": "0" }
-        ]
-      },
-      {
-        "source": "**/*.@(js|css)",
-        "headers": [
-          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
-        ]
-      }
-    ]
-  }
+      ]
+    }
+  ]
 }

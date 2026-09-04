@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-ru/
 server/data/
 .env
 .env.local

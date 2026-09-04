@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#141516" />
+    <script>
+      try {
+        var t = localStorage.getItem('cg-theme');
+        document.documentElement.setAttribute('data-theme', t === 'light' || t === 'dark' ? t : 'dark');
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/logo-reaktivo-mark.svg" />
+    <title>REAKTIVO — выкуп золота по биржевому курсу</title>
+    <meta name="description" content="Reaktivo — выкуп золота с оплатой сразу: отделения и курьер. Курс с двух бирж, без скрытых комиссий." />
+    <link rel="preload" href="/fonts/geometria/Geometria.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/geometria/Geometria-Medium.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/geometria/Geometria-Bold.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/geometria/Geometria-ExtraBold.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/fonts/brand.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main-ru.jsx"></script>
+  </body>
+</html>

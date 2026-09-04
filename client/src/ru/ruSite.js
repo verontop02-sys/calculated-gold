@@ -1,13 +1,21 @@
 /** Слаги маркетинговых страниц (без префикса /ru). */
 export const RU_SLUGS = ['prodat', 'slitki', 'resale', 'agenty', 'franshiza', 'partneram', 'o-kompanii'];
 
+export const PRO_ORIGIN = 'https://reaktivo.pro';
+
 export function currentHostname() {
   return typeof window !== 'undefined' ? String(window.location.hostname || '') : '';
 }
 
-/** Боевой домен выкупа — после снятия с Тильды корень сайта, не /ru/. */
+function normHost(hostname) {
+  return String(hostname || '').replace(/^www\./i, '').toLowerCase();
+}
+
+/** Сайт выкупа: боевой reaktivo.ru, превью Firebase, либо сборка --mode ru. */
 export function isReaktivoRuHost(hostname = currentHostname()) {
-  return String(hostname || '').replace(/^www\./i, '').toLowerCase() === 'reaktivo.ru';
+  if (String(import.meta.env?.VITE_SITE || '').toLowerCase() === 'ru') return true;
+  const h = normHost(hostname);
+  return h === 'reaktivo.ru' || h === 'reaktivo-ru.web.app' || h === 'reaktivo-ru.firebaseapp.com';
 }
 
 /**
@@ -20,6 +28,14 @@ export function ruHref(slug = '', hash = '') {
   const h = !hash ? '' : hash.startsWith('#') ? hash : `#${hash}`;
   if (isReaktivoRuHost()) return `${s ? `/${s}/` : '/'}${h}`;
   return `${s ? `/ru/${s}/` : '/ru/'}${h}`;
+}
+
+/** Панель / кабинет живут на reaktivo.pro. */
+export function staffHref(pathAndQuery = '/pro') {
+  const raw = String(pathAndQuery || '/pro');
+  const path = raw.startsWith('/') ? raw : `/${raw}`;
+  if (isReaktivoRuHost()) return `${PRO_ORIGIN}${path}`;
+  return path;
 }
 
 /** Какая RU-страница открыта, или null если это не маркетинг выкупа. */
