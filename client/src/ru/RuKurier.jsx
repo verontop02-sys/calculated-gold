@@ -644,8 +644,16 @@ export function RuKurier() {
           sub="Укажите вес, пробу, адрес и удобное время в одной форме — курьер приедет с проверкой пробы при вас и оплатой сразу. Бесплатно в Москве, Санкт-Петербурге и Калининграде."
           primary={{ href: '#order', label: 'Оформить заявку', onClick: goToOrder }}
           secondary={{ href: '#protsess', label: 'Как это работает' }}
-          aside={<div id="order"><KurierOrderCard quote={quote} pulseKey={calcPulse} /></div>}
         />
+
+        {/* Карточка расчёта+записи — отдельным блоком под хиро, а не сбоку: там она
+            попадала в scroll-fade хиро-обёртки (тускнела при скролле формы) и была
+            зажата в узкую колонку. Ниже она получает свою ширину и не гаснет. */}
+        <section className="il-section rl-order-section" id="order">
+          <div className="il-section-inner">
+            <Reveal><KurierOrderCard quote={quote} pulseKey={calcPulse} /></Reveal>
+          </div>
+        </section>
 
         <RuMarquee items={[
           'Курьер бесплатно', 'Вы выбираете время', 'Проверка при вас', 'Деньги сразу',
@@ -735,14 +743,11 @@ const KURIER_CSS = `
 /* Фиксированный хедер (72–80px) иначе перекрывает заголовок при переходе по якорю. */
 #order, #protsess, #faq { scroll-margin-top: 96px; }
 
-/* Единая карточка «расчёт + запись» в хиро — она длиннее обычного калькулятора,
-   поэтому высоту не тянем на 100% колонки (иначе контент обрежется), а даём
-   ей естественную высоту; левая колонка с заголовком остаётся сверху. */
-.rl-fhero-aside .rl-calc-card.rl-order-card { height: auto; max-height: none; overflow: visible; }
-.rl-fhero--aside .il-hero-copy.rl-fhero-copy-panel { align-self: flex-start; height: auto; position: sticky; top: 96px; }
-@media (max-width: 1024px) {
-  .rl-fhero--aside .il-hero-copy.rl-fhero-copy-panel { position: static; top: auto; }
-}
+/* Карточка «расчёт + запись» — отдельный блок под хиро, не в боковой колонке:
+   там она попадала в scroll-fade хиро (тускнела при скролле формы) и была
+   зажата в узкую колонку. */
+.rl-order-section .il-section-inner { display: flex; justify-content: center; }
+.rl-calc-card.rl-order-card { max-width: 560px; width: 100%; }
 
 .rl-order-card { gap: 0; }
 .rl-order-card .rl-calc-label { display: block; margin-top: 20px; margin-bottom: 0; }
