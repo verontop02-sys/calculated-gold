@@ -467,6 +467,7 @@ app.use(
     '/api/public/consult-lead',
     '/api/public/landing-lead',
     '/api/public/courier-order',
+    '/api/public/courier-photo/upload',
     '/api/public/reverse-geocode',
   ],
   authBurstLimiter
@@ -475,7 +476,12 @@ app.use(
 // для остальных оставляем строгие 100kb. Глобальный парсер иначе режет тело раньше роутового.
 const jsonSmall = express.json({ limit: '100kb' });
 const jsonLarge = express.json({ limit: '16mb' });
-const LARGE_BODY_PATHS = new Set(['/api/deal-photos/upload', '/api/public/fintech/kyc/upload', '/api/passport-ocr']);
+const LARGE_BODY_PATHS = new Set([
+  '/api/deal-photos/upload',
+  '/api/public/fintech/kyc/upload',
+  '/api/passport-ocr',
+  '/api/public/courier-photo/upload',
+]);
 app.use((req, res, next) => {
   if (LARGE_BODY_PATHS.has(req.path)) return jsonLarge(req, res, next);
   return jsonSmall(req, res, next);
@@ -1478,6 +1484,47 @@ app.get(
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message || 'Не удалось определить адрес' });
     }
+  })
+);
+
+// Срок жизни подписанной ссылки на фото изделия из заявки на курьера — как у deal-photos,
+// живёт столько же, сколько сам лид может быть актуален для истории.
+const COURIER_PHOTO_URL_TTL_SEC = 10 * 365 * 24 * 60 * 60;
+
+/**
+ * Необязательное фото изделия к заявке на курьера: клиент не обязан знать точный вес,
+ * но фото с телефона даёт оператору понимание объёма/типа изделия до выезда. Приватный
+ * бакет courier-photos, доступ — только через сервер (service_role), публичной ссылки
+ * не отдаём — только подписанную, которая уходит в Telegram/карточку лида.
+ */
+app.post(
+  '/api/public/courier-photo/upload',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const base64 = req.body?.base64;
+    if (!base64 || typeof base64 !== 'string') {
+      return res.status(400).json({ error: 'Нет данных изображения' });
+    }
+    const rawBase64 = base64.replace(/^data:[^;]+;base64,/, '');
+    if (rawBase64.length > 14_000_000) {
+      return res.status(413).json({ error: 'Файл слишком большой — до 10 МБ' });
+    }
+    const buf = Buffer.from(rawBase64, 'base64');
+    const mimeType = String(req.body?.mimeType || 'image/jpeg');
+    const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+    const fileName = `${new Date().toISOString().slice(0, 10)}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const { error: upErr } = await supabase.storage
+      .from('courier-photos')
+      .upload(fileName, buf, { contentType: mimeType, upsert: false });
+    if (upErr) return res.status(502).json({ error: `Не удалось загрузить фото: ${upErr.message}` });
+
+    const { data: urlData, error: signErr } = await supabase.storage
+      .from('courier-photos')
+      .createSignedUrl(fileName, COURIER_PHOTO_URL_TTL_SEC);
+    if (signErr) return res.status(502).json({ error: `Не удалось получить ссылку на фото: ${signErr.message}` });
+
+    res.json({ ok: true, photoUrl: urlData?.signedUrl || '', photoPath: fileName });
   })
 );
 

@@ -90,6 +90,37 @@ function roundTo100(n) {
   return Math.round(n / 100) * 100;
 }
 
+/** Сжимаем фото в браузере перед отправкой — с телефона это 3–10 МБ HEIC/JPEG,
+ * а нам достаточно превью для оператора, не оригинал в полном разрешении. */
+function resizeImageFile(file, maxDim = 1280, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDim) {
+          height = Math.round(height * (maxDim / width));
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = Math.round(width * (maxDim / height));
+          height = maxDim;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve({ base64: canvas.toDataURL('image/jpeg', quality), mimeType: 'image/jpeg' });
+      };
+      img.onerror = () => reject(new Error('Не удалось прочитать изображение'));
+      img.src = reader.result;
+    };
+    reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+    reader.readAsDataURL(file);
+  });
+}
+
 const WEIGHT_BUCKETS = [
   { label: 'до 5 г', value: 3 },
   { label: '5–15 г', value: 10 },
@@ -228,6 +259,65 @@ function KurierLocationField({ city, setCity, address, setAddress, lat, lng, set
   );
 }
 
+/**
+ * Необязательное фото изделия: клиент часто не знает точный вес, а фото с
+ * телефона даёт оператору понять объём и тип украшения/лома до выезда
+ * курьера. Сжимаем на клиенте, грузим сразу (не ждём отправки формы), в
+ * заявке остаётся только готовая ссылка.
+ */
+function KurierPhotoField({ photoUrl, setPhotoUrl }) {
+  const [preview, setPreview] = useState('');
+  const [status, setStatus] = useState('idle'); // idle | uploading | done | error
+  const [error, setError] = useState('');
+  const inputRef = useRef(null);
+
+  async function onPick(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setError('');
+    setStatus('uploading');
+    try {
+      const { base64, mimeType } = await resizeImageFile(file);
+      setPreview(base64);
+      const out = await clientApi.courierPhotoUpload({ base64, mimeType });
+      setPhotoUrl(out.photoUrl || '');
+      setStatus('done');
+    } catch (err) {
+      setStatus('error');
+      setError(err?.message || 'Не удалось загрузить фото — попробуйте ещё раз');
+    }
+  }
+
+  function removePhoto() {
+    setPreview('');
+    setPhotoUrl('');
+    setStatus('idle');
+    setError('');
+  }
+
+  return (
+    <div className="rl-photo">
+      <input ref={inputRef} type="file" accept="image/*" capture="environment" hidden onChange={onPick} />
+      {!preview ? (
+        <button type="button" className="rl-photo-cta" onClick={() => inputRef.current?.click()} disabled={status === 'uploading'}>
+          {status === 'uploading' ? (<><span className="rl-btn-spin" aria-hidden /> Загружаем…</>) : '📷 Прикрепить фото изделия'}
+        </button>
+      ) : (
+        <div className="rl-photo-preview">
+          <img src={preview} alt="Фото изделия" />
+          <div>
+            <span>{status === 'uploading' ? 'Загружаем…' : status === 'done' ? 'Фото прикреплено' : 'Не загрузилось'}</span>
+            <button type="button" onClick={removePhoto}>Убрать</button>
+          </div>
+        </div>
+      )}
+      <p className="rl-photo-hint">Необязательно — поможет точнее понять вес и объём, не влияет на цену.</p>
+      {error && <p className="rl-form-error" style={{ margin: '4px 0 0' }}>{error}</p>}
+    </div>
+  );
+}
+
 function monthCaption(days) {
   if (!days.length) return '';
   const a = days[0].date;
@@ -264,6 +354,7 @@ function KurierOrderCard({ quote, pulseKey }) {
   const [time, setTime] = useState('');
   const [consent, setConsent] = useState(false);
   const [website, setWebsite] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
 
   const perGram = quote?.goldRubPerGram || null;
   const isUnknownProba = proba === 'unknown';
@@ -335,7 +426,11 @@ function KurierOrderCard({ quote, pulseKey }) {
         date: day,
         time,
         website,
-        fields: { 'Проба (заявка)': isUnknownProba ? 'не знает' : String(proba), 'Вес, г': String(grams) },
+        fields: {
+          'Проба (заявка)': isUnknownProba ? 'не знает' : String(proba),
+          'Вес, г': String(grams),
+          ...(photoUrl ? { 'Фото изделия': photoUrl } : {}),
+        },
       });
       ymReachGoal('lead', { source: 'kurier' });
       setPhase('sent');
@@ -405,6 +500,8 @@ function KurierOrderCard({ quote, pulseKey }) {
         ))}
         <button type="button" className={isUnknownProba ? 'is-active' : ''} onClick={() => setProba('unknown')}>не знаю</button>
       </div>
+
+      <KurierPhotoField photoUrl={photoUrl} setPhotoUrl={setPhotoUrl} />
 
       <div className="rl-price-range">
         <span className="rl-price-range-val">
@@ -665,6 +762,21 @@ const KURIER_CSS = `
 }
 .rl-price-range-val { display: block; font-size: clamp(1.3rem, 2.6vw, 1.6rem); font-weight: 800; letter-spacing: -0.01em; color: var(--accent); font-variant-numeric: tabular-nums; }
 .rl-price-range p { margin: 6px 0 0; font-size: 0.78rem; color: var(--text-dim); line-height: 1.4; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+
+.rl-photo { margin-top: 14px; }
+.rl-photo-cta {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 16px; border-radius: 12px; font: inherit; font-size: 0.86rem; font-weight: 700;
+  color: var(--text-dim); background: transparent; border: 1px dashed var(--stroke); cursor: pointer; transition: 0.2s;
+}
+.rl-photo-cta:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--stroke)); color: var(--text-strong); }
+.rl-photo-cta:disabled { opacity: 0.7; cursor: wait; }
+.rl-photo-preview { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 12px; border: 1px solid var(--stroke); background: var(--stroke-soft); }
+.rl-photo-preview img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
+.rl-photo-preview div { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.rl-photo-preview span { font-size: 0.8rem; font-weight: 600; color: var(--text-strong); }
+.rl-photo-preview button { font: inherit; font-size: 0.76rem; font-weight: 700; color: var(--accent); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; }
+.rl-photo-hint { margin: 6px 0 0; font-size: 0.72rem; color: var(--text-dim); }
 
 .rl-order-divider { display: flex; align-items: center; gap: 10px; margin: 26px 0 4px; }
 .rl-order-divider::before,
