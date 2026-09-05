@@ -599,7 +599,7 @@ function KurierOrderCard({ quote, pulseKey }) {
       <motion.button type="submit" className="il-btn il-btn--primary il-btn--lg" style={{ width: '100%' }} disabled={phase === 'sending'} whileTap={{ scale: 0.97 }}>
         {phase === 'sending' ? (<><span className="rl-btn-spin" aria-hidden /> Отправляем…</>) : 'Оформить заявку'}
       </motion.button>
-      <p className="rl-book-note">За 1–2 часа до визита позвоним, чтобы подтвердить время. Продажа не обязательна — можно отказаться на месте.</p>
+      <p className="rl-book-note">За 1–2 часа до визита позвоним, чтобы подтвердить время.</p>
 
       <AnimatePresence>
         {error && (
