@@ -749,6 +749,18 @@ const KURIER_CSS = `
 .rl-order-section .il-section-inner { display: flex; justify-content: center; }
 .rl-calc-card.rl-order-card { max-width: 560px; width: 100%; }
 
+/* На мобильном карточка идёт во всю ширину экрана, без «рамки» — без полей
+   секции, скруглений и бордера, как нативный полноэкранный блок, а не форма
+   в карточке. */
+@media (max-width: 720px) {
+  .rl-order-section { padding: 40px 0; }
+  .rl-order-section .il-section-inner { max-width: none; padding: 0; }
+  .rl-calc-card.rl-order-card {
+    max-width: none; width: 100%; border-radius: 0; border-left: 0; border-right: 0;
+    box-shadow: none; padding: 24px 18px;
+  }
+}
+
 .rl-order-card { gap: 0; }
 .rl-order-card .rl-calc-label { display: block; margin-top: 20px; margin-bottom: 0; }
 .rl-order-card .rl-seg--wrap { flex-wrap: wrap; }
