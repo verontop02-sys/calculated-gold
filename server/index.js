@@ -1435,12 +1435,13 @@ function formatKurierDateRu(dateStr) {
   return new Date(y, m - 1, d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 }
 
-async function notifyCourierOrderTelegram({ name, phone, city, address, date, time }) {
+async function notifyCourierOrderTelegram({ name, phone, city, address, date, time, extraFields }) {
   const chatId = process.env.TELEGRAM_LEADS_CHAT_ID || process.env.TELEGRAM_SUPPORT_CHAT_ID;
   if (!chatId) {
     console.warn('[courier-order tg] skip: TELEGRAM_SUPPORT_CHAT_ID not set');
     return { sent: false, reason: 'not_configured' };
   }
+  const extraLines = Object.entries(extraFields || {}).map(([k, v]) => `${k}: ${v}`);
   const lines = [
     '🚚 Вызов курьера',
     `Дата: ${formatKurierDateRu(date)}`,
@@ -1449,6 +1450,7 @@ async function notifyCourierOrderTelegram({ name, phone, city, address, date, ti
     `Адрес: ${address}`,
     `Имя: ${name}`,
     `Телефон: ${phone}`,
+    ...extraLines,
     '',
     'Панель → «Заявки с сайта»',
   ];
@@ -1510,12 +1512,24 @@ app.post(
     const lat = Number.isFinite(Number(req.body?.lat)) ? Number(req.body.lat) : null;
     const lng = Number.isFinite(Number(req.body?.lng)) ? Number(req.body.lng) : null;
 
+    // Необязательные подсказки из калькулятора на той же карточке (проба/вес) —
+    // не влияют на валидацию заявки, только попадают в карточку лида/Telegram.
+    const extraFields = {};
+    if (req.body?.fields && typeof req.body.fields === 'object') {
+      for (const [k, v] of Object.entries(req.body.fields).slice(0, 10)) {
+        const key = String(k).slice(0, 60);
+        const val = String(v ?? '').trim().slice(0, 200);
+        if (key && val) extraFields[key] = val;
+      }
+    }
+
     const fields = {
       Город: city,
       Адрес: address,
       Дата: formatKurierDateRu(date),
       Время: time,
       ...(lat != null && lng != null ? { Координаты: `${lat.toFixed(6)}, ${lng.toFixed(6)}` } : {}),
+      ...extraFields,
     };
 
     let saved = null;
@@ -1526,7 +1540,7 @@ app.post(
     }
 
     // Ждём TG до ответа — на free-инстансе fire-and-forget может оборваться.
-    const tg = await notifyCourierOrderTelegram({ name, phone, city, address, date, time }).catch((e) => {
+    const tg = await notifyCourierOrderTelegram({ name, phone, city, address, date, time, extraFields }).catch((e) => {
       console.warn('[courier-order tg]', e?.message || e);
       return { sent: false, reason: 'error' };
     });

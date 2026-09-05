@@ -5,7 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
   RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuMarquee, RuSbpBadge, RuThemedImg, RuTiltCard,
-  GramsSlider, formatMoney, isLeadName, isRuPhone, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
+  GramsSlider, formatMoney, isLeadName, isRuPhone, setDraftMeta, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 import { clientApi } from '../api.js';
 import { ymReachGoal } from '../yandexMetrika.js';
@@ -25,14 +25,14 @@ const STEPS = [
  * На мобильном хедер прячет CTA за гамбургер — без постоянно видимой кнопки
  * запись ощущается неудобной (нужно листать назад к форме). Плавающая кнопка
  * внизу экрана — стандартный паттерн доставок/маркетплейсов; прячем её, пока
- * сама форма записи (#zapis) в кадре, чтобы не дублировать «Записать курьера».
+ * сама форма (#order) в кадре, чтобы не дублировать «Оформить заявку».
  */
 function KurierStickyCta() {
   const [visible, setVisible] = useState(false);
   const formInViewRef = useRef(false);
 
   useEffect(() => {
-    const target = document.getElementById('zapis');
+    const target = document.getElementById('order');
     if (!target) return undefined;
     const recompute = () => setVisible(!formInViewRef.current && window.scrollY > 480);
     const io = new IntersectionObserver(
@@ -54,7 +54,7 @@ function KurierStickyCta() {
           exit={{ y: 90, opacity: 0 }}
           transition={{ duration: 0.25, ease: EASE }}
         >
-          <a href="#zapis" className="il-btn il-btn--primary il-btn--lg">Вызвать курьера бесплатно</a>
+          <a href="#order" className="il-btn il-btn--primary il-btn--lg">Вызвать курьера бесплатно</a>
         </motion.div>
       )}
     </AnimatePresence>
@@ -86,88 +86,18 @@ const FAQ = [
   { q: 'Что если я передумаю?', a: 'Продажа не является обязательной: вы всегда можете отказаться или перенести визит — это бесплатно.' },
 ];
 
-function formatFineGrams(g) {
-  return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(g);
-}
-function formatRate(n) {
-  if (n == null || !Number.isFinite(Number(n))) return '· · ·';
-  return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Number(n))} ₽/г`;
+function roundTo100(n) {
+  return Math.round(n / 100) * 100;
 }
 
-function KurierCalcCard({ quote, pulseKey }) {
-  const [proba, setProba] = useState(585);
-  const [grams, setGrams] = useState(12);
-  const [pulse, setPulse] = useState(false);
-  const perGram = quote?.goldRubPerGram || null;
-  const fineGrams = grams * (proba / 1000);
-  const scrapRub = perGram ? perGram * fineGrams : null;
-  const sum = scrapRub != null ? scrapRub * 0.9 : null;
-  const pawnRub = scrapRub != null ? scrapRub * 0.5 : null;
-  const extraRub = sum != null && pawnRub != null ? sum - pawnRub : null;
-  const sumDisplay = useAnimatedNumber(sum);
+const WEIGHT_BUCKETS = [
+  { label: 'до 5 г', value: 3 },
+  { label: '5–15 г', value: 10 },
+  { label: '15–30 г', value: 20 },
+  { label: '30+ г', value: 40 },
+];
 
-  useEffect(() => {
-    if (!pulseKey) return;
-    setPulse(true);
-    const t = setTimeout(() => setPulse(false), 900);
-    return () => clearTimeout(t);
-  }, [pulseKey]);
-
-  return (
-    <motion.div className={`rl-calc-card rl-calc-card--wide${pulse ? ' rl-calc-card--pulse' : ''}`} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: EASE }}>
-      <div className="rl-calc-top">
-        <span className="rl-calc-brand">РАСЧЁТ<i>·</i>КУРЬЕР</span>
-        <RuGoldTicker value={perGram} />
-      </div>
-      <span className="rl-calc-label">Проба изделия</span>
-      <div className="rl-seg">
-        {[375, 585, 750, 999].map((p) => (
-          <button key={p} type="button" className={p === proba ? 'is-active' : ''} onClick={() => setProba(p)}>{p}</button>
-        ))}
-      </div>
-      <GramsSlider value={grams} onChange={setGrams} max={1000} allowType typeMax={5000} />
-
-      <div className="rl-calc-foot">
-        <div className="rl-calc-bill" aria-label="Из чего складывается сумма">
-          <div className="rl-calc-bill-row">
-            <span>Биржа, золото 999°<small>Мосбиржа, живой курс</small></span>
-            <b>{perGram != null ? formatRate(perGram) : '· · ·'}</b>
-          </div>
-          <div className="rl-calc-bill-row">
-            <span>Чистого золота<small>{grams} г × {proba} / 1000</small></span>
-            <b>{formatFineGrams(fineGrams)} г</b>
-          </div>
-          <div className="rl-calc-bill-row">
-            <span>Полная стоимость по бирже</span>
-            <b>{scrapRub != null ? formatMoney(scrapRub) : '· · ·'}</b>
-          </div>
-          <div className="rl-calc-bill-row">
-            <span>Ваша доля</span>
-            <b>90%</b>
-          </div>
-          <div className="rl-calc-bill-row">
-            <span>Курьер</span>
-            <b>0 ₽</b>
-          </div>
-        </div>
-        <div className="rl-calc-out">
-          <span className="rl-calc-out-label">К выплате наличными или переводом<RuSbpBadge /></span>
-          <span className="rl-calc-out-val">{sumDisplay != null ? formatMoney(sumDisplay) : '· · ·'}</span>
-          {perGram != null && (
-            <span className="rl-calc-out-eq">{formatRate(perGram).replace(' ₽/г', '')} × {formatFineGrams(fineGrams)} г × 90%</span>
-          )}
-        </div>
-        {pawnRub != null && extraRub != null && extraRub > 0 && (
-          <p className="rl-calc-vs">
-            В ломбарде за это же — около <strong>{formatMoney(pawnRub)}</strong>
-            {' '}(≈ 50% от биржи). Разница <strong>{formatMoney(extraRub)}</strong>.
-          </p>
-        )}
-        <p className="rl-calc-note">После проверки пробы при вас сумма пересчитывается по той же формуле — не «на глаз».</p>
-      </div>
-    </motion.div>
-  );
-}
+const PROBA_OPTIONS = [375, 500, 585, 750, 999];
 
 /** Обновляем «текущее время» раз в минуту — доступность дня/слота зависит от часа. */
 function useNowMinute() {
@@ -178,12 +108,6 @@ function useNowMinute() {
   }, []);
   return now;
 }
-
-const BOOK_STEPS = [
-  { n: '1', title: 'Место', hint: 'город и адрес' },
-  { n: '2', title: 'Когда', hint: 'дата и время' },
-  { n: '3', title: 'Контакты', hint: 'имя и телефон' },
-];
 
 function pinDivIcon() {
   return L.divIcon({
@@ -199,13 +123,14 @@ function pinDivIcon() {
 }
 
 /**
- * Определение места визита одним тапом (та же идея, что и «Индекс золота» в
- * админке): GPS → обратное геокодирование → точка на карте, которую можно
- * перетащить, если геокодер ошибся. Ручной ввод — резервный путь, когда
- * геолокация недоступна/запрещена или клиент хочет ввести адрес сам.
+ * Место визита — один блок, без шагов: поля город/адрес видны сразу, кнопка
+ * геолокации их просто подставляет (та же идея, что и «Индекс золота» в
+ * админке — GPS → обратное геокодирование → точка на карте, которую можно
+ * перетащить, если геокодер ошибся). Перетаскивание маркера ВСЕГДА
+ * перезаписывает адрес — это явное «поправь точку», а не случайный ввод.
  */
-function KurierLocationStep({ city, setCity, address, setAddress, lat, lng, setCoords }) {
-  const [mode, setMode] = useState('idle'); // idle | locating | ready
+function KurierLocationField({ city, setCity, address, setAddress, lat, lng, setCoords }) {
+  const [locating, setLocating] = useState(false);
   const [error, setError] = useState('');
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
@@ -226,16 +151,15 @@ function KurierLocationStep({ city, setCity, address, setAddress, lat, lng, setC
         .map((s) => String(s).trim())
         .filter(Boolean)
         .join(', ');
-      setCity((prev) => geoCity || prev);
-      setAddress((prev) => (street && !prev ? street : prev));
+      if (geoCity) setCity(geoCity);
+      if (street) setAddress(street);
       return;
     } catch { /* пробуем через наш сервер ниже */ }
 
     try {
       const geo = await clientApi.reverseGeocode({ lat: la, lng: lo });
-      const streetLabel = geo?.street ? geo.street : '';
-      setCity((prev) => geo?.city || prev);
-      setAddress((prev) => (streetLabel && !prev ? streetLabel : prev));
+      if (geo?.city) setCity(geo.city);
+      if (geo?.street) setAddress(geo.street);
     } catch {
       // Координаты уже есть — просто не смогли расшифровать адрес, клиент допишет сам.
     }
@@ -244,22 +168,21 @@ function KurierLocationStep({ city, setCity, address, setAddress, lat, lng, setC
   function locate() {
     if (!navigator.geolocation) {
       setError('Геолокация не поддерживается этим браузером — укажите адрес вручную');
-      setMode('ready');
       return;
     }
     setError('');
-    setMode('locating');
+    setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const la = pos.coords.latitude;
         const lo = pos.coords.longitude;
         setCoords(la, lo);
-        setMode('ready');
+        setLocating(false);
         reverseGeocode(la, lo);
       },
       () => {
         setError('Не удалось определить местоположение — укажите адрес вручную');
-        setMode('ready');
+        setLocating(false);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
     );
@@ -290,35 +213,17 @@ function KurierLocationStep({ city, setCity, address, setAddress, lat, lng, setC
     };
   }, [lat != null, lng != null]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const showFields = mode === 'ready' || Boolean(city || address);
-
   return (
     <div className="rl-loc">
-      {!showFields && (
-        <motion.button
-          type="button"
-          className="rl-loc-cta"
-          whileTap={{ scale: 0.98 }}
-          onClick={locate}
-          disabled={mode === 'locating'}
-        >
-          {mode === 'locating' ? (<><span className="rl-btn-spin" aria-hidden /> Определяем…</>) : '📍 Определить моё местоположение'}
-        </motion.button>
-      )}
-      {!showFields && (
-        <button type="button" className="rl-loc-manual-link" onClick={() => setMode('ready')}>Указать вручную</button>
-      )}
-      {error && <p className="rl-form-error" style={{ margin: '10px 0 0' }}>{error}</p>}
-      {showFields && (
-        <div className="rl-loc-fields">
-          {lat != null && lng != null && <div ref={mapElRef} className="rl-loc-map" />}
-          <input className="rl-input" placeholder="Город" maxLength={120} value={city} onChange={(e) => setCity(e.target.value)} />
-          <textarea className="rl-input" placeholder="Адрес: улица, дом, квартира, этаж, домофон" rows={3} maxLength={300} value={address} onChange={(e) => setAddress(e.target.value)} />
-          {lat == null && (
-            <button type="button" className="rl-loc-manual-link" onClick={locate}>📍 Определить автоматически</button>
-          )}
-        </div>
-      )}
+      <button type="button" className="rl-loc-geo-btn" onClick={locate} disabled={locating}>
+        {locating ? (<><span className="rl-btn-spin" aria-hidden /> Определяем…</>) : '📍 Определить моё местоположение'}
+      </button>
+      {error && <p className="rl-form-error" style={{ margin: '8px 0 0' }}>{error}</p>}
+      {lat != null && lng != null && <div ref={mapElRef} className="rl-loc-map" />}
+      <div className="rl-loc-fields">
+        <input className="rl-input" placeholder="Город" maxLength={120} value={city} onChange={(e) => setCity(e.target.value)} />
+        <textarea className="rl-input" placeholder="Адрес: улица, дом, квартира, этаж, домофон" rows={2} maxLength={300} value={address} onChange={(e) => setAddress(e.target.value)} />
+      </div>
     </div>
   );
 }
@@ -332,12 +237,21 @@ function monthCaption(days) {
   return `${a.getDate()} ${months[a.getMonth()].slice(0, 3)} — ${b.getDate()} ${months[b.getMonth()]}`;
 }
 
-function KurierBookingForm() {
+/**
+ * Единый блок: расчёт суммы и запись курьера — без разрыва на калькулятор и
+ * отдельную форму с шагами. Всё видно сразу, скроллом сверху вниз, как в
+ * макете от заказчика (правки «Курьеры»): вес/проба → сумма-вилка → дата,
+ * время, адрес, контакты → одна кнопка отправки.
+ */
+function KurierOrderCard({ quote, pulseKey }) {
   const now = useNowMinute();
   const days = useMemo(() => getAvailableDays(now), [now]);
   const cal = useMemo(() => getCalendarGrid(days), [days]);
 
-  const [step, setStep] = useState(1);
+  const [pulse, setPulse] = useState(false);
+  const [proba, setProba] = useState(585);
+  const [grams, setGrams] = useState(12);
+
   const [phase, setPhase] = useState('idle'); // idle | sending | sent
   const [error, setError] = useState('');
   const [name, setName] = useState('');
@@ -348,14 +262,36 @@ function KurierBookingForm() {
   const [lng, setLng] = useState(null);
   const [day, setDay] = useState(days[0]?.iso || '');
   const [time, setTime] = useState('');
+  const [consent, setConsent] = useState(false);
   const [website, setWebsite] = useState('');
+
+  const perGram = quote?.goldRubPerGram || null;
+  const isUnknownProba = proba === 'unknown';
+  let priceLow = null;
+  let priceHigh = null;
+  if (perGram != null) {
+    if (isUnknownProba) {
+      priceLow = perGram * (grams * 0.375) * 0.9;
+      priceHigh = perGram * (grams * 0.999) * 0.9;
+    } else {
+      const center = perGram * (grams * (proba / 1000)) * 0.9;
+      priceLow = center * 0.97;
+      priceHigh = center * 1.03;
+    }
+  }
+
+  useEffect(() => {
+    if (!pulseKey) return;
+    setPulse(true);
+    const t = setTimeout(() => setPulse(false), 900);
+    return () => clearTimeout(t);
+  }, [pulseKey]);
 
   const quickTimes = useMemo(() => getQuickTimes(day, now), [day, now]);
   const minTime = useMemo(() => getMinTimeStrForDay(day, now), [day, now]);
   const maxTime = getMaxTimeStrForDay();
   const cityLabel = city.trim();
   const dayLabel = days.find((d) => d.iso === day)?.label || '';
-  const locationReady = cityLabel.length >= 2 && address.trim().length >= 5;
 
   useEffect(() => {
     if (!days.some((d) => d.iso === day)) setDay(days[0]?.iso || '');
@@ -369,25 +305,6 @@ function KurierBookingForm() {
     setLng(lo);
   }
 
-  function pickTime(t) {
-    setTime(t);
-    setError('');
-    setStep(3);
-  }
-
-  function goStep(n) {
-    if (n === 2 && !locationReady) {
-      setError('Сначала укажите город и адрес');
-      return;
-    }
-    if (n === 3 && (!isKurierDayAllowed(day, now) || !isKurierTimeAllowed(day, time, now))) {
-      setError('Выберите дату и время');
-      return;
-    }
-    setError('');
-    setStep(n);
-  }
-
   async function onSubmit(e) {
     e.preventDefault();
     if (phase === 'sending') return;
@@ -397,20 +314,14 @@ function KurierBookingForm() {
       setPhase('sent');
       return;
     }
-    if (!cityLabel || cityLabel.length < 2) {
-      setStep(1);
-      return setError('Укажите город');
-    }
-    if (address.trim().length < 5) {
-      setStep(1);
-      return setError('Укажите адрес для курьера');
-    }
+    if (!cityLabel || cityLabel.length < 2) return setError('Укажите город');
+    if (address.trim().length < 5) return setError('Укажите адрес для курьера');
     if (!isKurierDayAllowed(day, now) || !isKurierTimeAllowed(day, time, now)) {
-      setStep(2);
       return setError('Выберите дату и время визита');
     }
     if (!isLeadName(name)) return setError('Укажите имя');
     if (!isRuPhone(phone)) return setError('Укажите номер телефона, без него мы не сможем связаться');
+    if (!consent) return setError('Нужно согласие на обработку персональных данных');
 
     setPhase('sending');
     try {
@@ -424,6 +335,7 @@ function KurierBookingForm() {
         date: day,
         time,
         website,
+        fields: { 'Проба (заявка)': isUnknownProba ? 'не знает' : String(proba), 'Вес, г': String(grams) },
       });
       ymReachGoal('lead', { source: 'kurier' });
       setPhase('sent');
@@ -435,7 +347,7 @@ function KurierBookingForm() {
 
   if (phase === 'sent') {
     return (
-      <div className="rl-book" role="status">
+      <div className="rl-calc-card rl-calc-card--wide rl-order-card rl-order-sent" role="status">
         <div className="rl-sent">
           <motion.span
             className="rl-sent-icon"
@@ -467,162 +379,131 @@ function KurierBookingForm() {
   }
 
   return (
-    <form className="rl-book" onSubmit={onSubmit}>
-      <div className="rl-book-head">
+    <motion.form
+      className={`rl-calc-card rl-calc-card--wide rl-order-card${pulse ? ' rl-calc-card--pulse' : ''}`}
+      onSubmit={onSubmit}
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8, ease: EASE }}
+    >
+      <div className="rl-calc-top">
+        <span className="rl-calc-brand">СЛИТОК, УКРАШЕНИЕ ИЛИ ЛОМ</span>
+        <RuGoldTicker value={perGram} />
+      </div>
+
+      <GramsSlider value={grams} onChange={setGrams} max={1000} allowType typeMax={5000} />
+      <div className="rl-weight-quick">
+        {WEIGHT_BUCKETS.map((b) => (
+          <button key={b.label} type="button" className={grams === b.value ? 'is-active' : ''} onClick={() => setGrams(b.value)}>{b.label}</button>
+        ))}
+      </div>
+
+      <span className="rl-calc-label">Проба</span>
+      <div className="rl-seg rl-seg--wrap">
+        {PROBA_OPTIONS.map((p) => (
+          <button key={p} type="button" className={p === proba ? 'is-active' : ''} onClick={() => setProba(p)}>{p}</button>
+        ))}
+        <button type="button" className={isUnknownProba ? 'is-active' : ''} onClick={() => setProba('unknown')}>не знаю</button>
+      </div>
+
+      <div className="rl-price-range">
+        <span className="rl-price-range-val">
+          {priceLow != null && priceHigh != null ? `≈ ${formatMoney(roundTo100(priceLow))} – ${formatMoney(roundTo100(priceHigh))}` : '· · ·'}
+        </span>
+        <p>Точная сумма — после оценки веса и пробы курьером на месте. Курьер бесплатный<RuSbpBadge /></p>
+      </div>
+
+      <div className="rl-order-divider"><span>Бронирование</span></div>
+
+      <span className="rl-calc-label">Куда приехать</span>
+      <KurierLocationField
+        city={city}
+        setCity={setCity}
+        address={address}
+        setAddress={setAddress}
+        lat={lat}
+        lng={lng}
+        setCoords={setCoords}
+      />
+
+      <div className="rl-book-when">
         <div>
-          <h3>Вызвать курьера</h3>
-          <p>Три шага: место, удобное время, контакты. Подтвердим звонком заранее.</p>
+          <span className="rl-book-cal-label">{monthCaption(days)}</span>
+          <div className="rl-book-week" aria-hidden>
+            {KURIER_WEEKDAYS.map((w) => <span key={w}>{w}</span>)}
+          </div>
+          <div className="rl-book-cal" role="listbox" aria-label="Дата визита">
+            {cal.map((cell, i) => {
+              if (!cell) return <span key={`e-${i}`} className="rl-book-day is-empty" />;
+              const hint = cell.label === 'Сегодня' || cell.label === 'Завтра' ? cell.label : '';
+              return (
+                <button
+                  key={cell.iso}
+                  type="button"
+                  role="option"
+                  aria-selected={day === cell.iso}
+                  className={`rl-book-day${day === cell.iso ? ' is-active' : ''}`}
+                  onClick={() => { setDay(cell.iso); setError(''); }}
+                >
+                  <b>{cell.date.getDate()}</b>
+                  {hint ? <i>{hint}</i> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div>
+          <span className="rl-book-slots-label">Время приезда · {dayLabel.toLowerCase()}</span>
+          {quickTimes.length > 0 ? (
+            <>
+              <div className="rl-book-slots">
+                {quickTimes.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`rl-book-slot${time === t ? ' is-active' : ''}`}
+                    onClick={() => { setTime(t); setError(''); }}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+              <div className="rl-book-time-custom">
+                <span>Своё время</span>
+                <input
+                  type="time"
+                  className="rl-input"
+                  min={minTime || undefined}
+                  max={maxTime}
+                  step={300}
+                  value={time}
+                  onChange={(e) => { setTime(e.target.value); setError(''); }}
+                />
+              </div>
+              <p className="rl-book-note">Курьеры работают с {minTime} до {maxTime} — можно указать любую минуту.</p>
+            </>
+          ) : (
+            <p className="rl-book-note">На эту дату времени уже нет — выберите другой день.</p>
+          )}
         </div>
       </div>
 
-      <div className="rl-book-progress" role="tablist" aria-label="Шаги записи">
-        {BOOK_STEPS.map((s, i) => {
-          const n = i + 1;
-          const done = n < step;
-          const on = n === step;
-          return (
-            <button
-              key={s.n}
-              type="button"
-              role="tab"
-              aria-selected={on}
-              className={on ? 'is-on' : done ? 'is-done' : ''}
-              disabled={n > step && !locationReady}
-              onClick={() => goStep(n)}
-            >
-              <i>{done ? '✓' : s.n}</i>
-              <span>
-                <b>{s.title}</b>
-                <em>{s.hint}</em>
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      <AnimatePresence mode="wait">
-        {step === 1 && (
-          <motion.div key="city" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.22, ease: EASE }}>
-            <KurierLocationStep
-              city={city}
-              setCity={setCity}
-              address={address}
-              setAddress={setAddress}
-              lat={lat}
-              lng={lng}
-              setCoords={setCoords}
-            />
-          </motion.div>
-        )}
-
-        {step === 2 && (
-          <motion.div key="when" className="rl-book-when" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.22, ease: EASE }}>
-            <div>
-              <span className="rl-book-cal-label">{monthCaption(days)}</span>
-              <div className="rl-book-week" aria-hidden>
-                {KURIER_WEEKDAYS.map((w) => <span key={w}>{w}</span>)}
-              </div>
-              <div className="rl-book-cal" role="listbox" aria-label="Дата визита">
-                {cal.map((cell, i) => {
-                  if (!cell) return <span key={`e-${i}`} className="rl-book-day is-empty" />;
-                  const hint = cell.label === 'Сегодня' || cell.label === 'Завтра' ? cell.label : '';
-                  return (
-                    <button
-                      key={cell.iso}
-                      type="button"
-                      role="option"
-                      aria-selected={day === cell.iso}
-                      className={`rl-book-day${day === cell.iso ? ' is-active' : ''}`}
-                      onClick={() => { setDay(cell.iso); setError(''); }}
-                    >
-                      <b>{cell.date.getDate()}</b>
-                      {hint ? <i>{hint}</i> : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div>
-              <span className="rl-book-slots-label">Время приезда · {dayLabel.toLowerCase()}</span>
-              {quickTimes.length > 0 ? (
-                <>
-                  <div className="rl-book-slots">
-                    {quickTimes.map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        className={`rl-book-slot${time === t ? ' is-active' : ''}`}
-                        onClick={() => pickTime(t)}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="rl-book-time-custom">
-                    <span>Своё время</span>
-                    <input
-                      type="time"
-                      className="rl-input"
-                      min={minTime || undefined}
-                      max={maxTime}
-                      step={300}
-                      value={time}
-                      onChange={(e) => { setTime(e.target.value); setError(''); }}
-                    />
-                  </div>
-                  <p className="rl-book-note">Курьеры работают с {minTime} до {maxTime} — можно указать любую минуту.</p>
-                </>
-              ) : (
-                <p className="rl-book-note">На эту дату времени уже нет — выберите другой день.</p>
-              )}
-            </div>
-          </motion.div>
-        )}
-
-        {step === 3 && (
-          <motion.div key="where" className="rl-book-contacts" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.22, ease: EASE }}>
-            <div className="rl-book-recap">
-              <button type="button" onClick={() => setStep(1)}>{cityLabel || 'Город'}{address ? ` · ${address}` : ''}</button>
-              <button type="button" onClick={() => setStep(2)}>{dayLabel} · {formatKurierTimeLabel(time)}</button>
-            </div>
-            <input className="rl-input" name="name" placeholder="Ваше имя" maxLength={120} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
-            <input className="rl-input" name="phone" placeholder="+7 (900) 000-00-00" maxLength={120} inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-            <p className="rl-book-note">За 1–2 часа до визита позвоним, чтобы подтвердить время. Продажа не обязательна — можно отказаться на месте.</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <span className="rl-calc-label">Контакты</span>
+      <input className="rl-input" name="name" placeholder="Ваше имя" maxLength={120} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
+      <input className="rl-input" name="phone" placeholder="+7 (900) 000-00-00" maxLength={120} inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
 
       <input className="rl-hp" type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" value={website} onChange={(e) => setWebsite(e.target.value)} />
 
-      <div className="rl-book-nav">
-        {step > 1 && (
-          <button type="button" className="il-btn il-btn--ghost il-btn--lg" onClick={() => { setError(''); setStep(step - 1); }}>
-            Назад
-          </button>
-        )}
-        {step === 1 && locationReady && (
-          <motion.button
-            type="button"
-            className="il-btn il-btn--primary il-btn--lg"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => goStep(2)}
-          >
-            Далее
-          </motion.button>
-        )}
-        {step === 2 && (
-          <motion.button type="button" className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.97 }} onClick={() => goStep(3)}>
-            Далее
-          </motion.button>
-        )}
-        {step === 3 && (
-          <motion.button type="submit" className="il-btn il-btn--primary il-btn--lg" disabled={phase === 'sending'} whileTap={{ scale: 0.97 }}>
-            {phase === 'sending' ? (<><span className="rl-btn-spin" aria-hidden /> Отправляем…</>) : 'Записать курьера'}
-          </motion.button>
-        )}
-      </div>
+      <label className="rl-consent">
+        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+        <span>Согласен на <a href="/privacy" target="_blank" rel="noreferrer">обработку персональных данных</a> для оформления заявки</span>
+      </label>
+
+      <motion.button type="submit" className="il-btn il-btn--primary il-btn--lg" style={{ width: '100%' }} disabled={phase === 'sending'} whileTap={{ scale: 0.97 }}>
+        {phase === 'sending' ? (<><span className="rl-btn-spin" aria-hidden /> Отправляем…</>) : 'Оформить заявку'}
+      </motion.button>
+      <p className="rl-book-note">За 1–2 часа до визита позвоним, чтобы подтвердить время. Продажа не обязательна — можно отказаться на месте.</p>
+
       <AnimatePresence>
         {error && (
           <motion.p className="rl-form-error" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
@@ -630,7 +511,7 @@ function KurierBookingForm() {
           </motion.p>
         )}
       </AnimatePresence>
-    </form>
+    </motion.form>
   );
 }
 
@@ -641,9 +522,9 @@ export function RuKurier() {
   const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
   const [calcPulse, setCalcPulse] = useState(0);
 
-  const goToCalc = (e) => {
+  const goToOrder = (e) => {
     e.preventDefault();
-    document.querySelector('#calc')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.querySelector('#order')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setCalcPulse((n) => n + 1);
   };
 
@@ -654,7 +535,7 @@ export function RuKurier() {
       <motion.div className="il-progress" style={{ scaleX: progressX }} aria-hidden />
       <RuAtmosphere />
 
-      <RuHeader active="kurier" lenisRef={lenisRef} ctaHref="#zapis" ctaLabel="Вызвать курьера" />
+      <RuHeader active="kurier" lenisRef={lenisRef} ctaHref="#order" ctaLabel="Вызвать курьера" />
 
       <main>
         <RuFullHero
@@ -663,10 +544,10 @@ export function RuKurier() {
           imgPos="50% 40%"
           kicker="Вызов курьера"
           title={<>Назначьте время <br /><span className="il-accent-text">сами</span> — мы приедем</>}
-          sub="Выберите дату и любое удобное время, укажите адрес — курьер приедет с проверкой пробы при вас и оплатой сразу. Бесплатно в Москве, Санкт-Петербурге и Калининграде."
-          primary={{ href: '#calc', label: 'Рассчитать стоимость', onClick: goToCalc }}
-          secondary={{ href: '#zapis', label: 'Записаться на визит' }}
-          aside={<div id="calc"><KurierCalcCard quote={quote} pulseKey={calcPulse} /></div>}
+          sub="Укажите вес, пробу, адрес и удобное время в одной форме — курьер приедет с проверкой пробы при вас и оплатой сразу. Бесплатно в Москве, Санкт-Петербурге и Калининграде."
+          primary={{ href: '#order', label: 'Оформить заявку', onClick: goToOrder }}
+          secondary={{ href: '#protsess', label: 'Как это работает' }}
+          aside={<div id="order"><KurierOrderCard quote={quote} pulseKey={calcPulse} /></div>}
         />
 
         <RuMarquee items={[
@@ -689,19 +570,7 @@ export function RuKurier() {
           </div>
         </section>
 
-        <section className="il-section il-section--alt" id="zapis">
-          <div className="il-section-inner">
-            <div className="il-section-head">
-              <Reveal><span className="il-pill">Запись</span></Reveal>
-              <Reveal delay={0.08}><h2 className="il-h2">Назначьте визит за полминуты</h2></Reveal>
-            </div>
-            <Reveal>
-              <KurierBookingForm />
-            </Reveal>
-          </div>
-        </section>
-
-        <section className="il-section">
+        <section className="il-section" id="protsess">
           <div className="il-section-inner">
             <div className="il-section-head">
               <Reveal><span className="il-pill">Процесс</span></Reveal>
@@ -767,7 +636,63 @@ export function RuKurier() {
 
 const KURIER_CSS = `
 /* Фиксированный хедер (72–80px) иначе перекрывает заголовок при переходе по якорю. */
-#calc, #zapis, #faq { scroll-margin-top: 96px; }
+#order, #protsess, #faq { scroll-margin-top: 96px; }
+
+/* Единая карточка «расчёт + запись» в хиро — она длиннее обычного калькулятора,
+   поэтому высоту не тянем на 100% колонки (иначе контент обрежется), а даём
+   ей естественную высоту; левая колонка с заголовком остаётся сверху. */
+.rl-fhero-aside .rl-calc-card.rl-order-card { height: auto; max-height: none; overflow: visible; }
+.rl-fhero--aside .il-hero-copy.rl-fhero-copy-panel { align-self: flex-start; height: auto; position: sticky; top: 96px; }
+@media (max-width: 1024px) {
+  .rl-fhero--aside .il-hero-copy.rl-fhero-copy-panel { position: static; top: auto; }
+}
+
+.rl-order-card { gap: 0; }
+.rl-order-card .rl-calc-label { display: block; margin-top: 20px; margin-bottom: 0; }
+.rl-order-card .rl-seg--wrap { flex-wrap: wrap; }
+.rl-order-card .rl-seg--wrap button { flex: 1 1 auto; min-width: 54px; }
+
+.rl-weight-quick { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.rl-weight-quick button {
+  padding: 7px 12px; border-radius: 99px; font-size: 0.78rem; font-weight: 600; font-family: inherit;
+  color: var(--text-dim); background: var(--stroke-soft); border: 1px solid transparent; cursor: pointer; transition: 0.2s;
+}
+.rl-weight-quick button.is-active { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+
+.rl-price-range {
+  margin-top: 18px; padding: 16px 18px; border-radius: 16px;
+  background: var(--stroke-soft); text-align: left;
+}
+.rl-price-range-val { display: block; font-size: clamp(1.3rem, 2.6vw, 1.6rem); font-weight: 800; letter-spacing: -0.01em; color: var(--accent); font-variant-numeric: tabular-nums; }
+.rl-price-range p { margin: 6px 0 0; font-size: 0.78rem; color: var(--text-dim); line-height: 1.4; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+
+.rl-order-divider { display: flex; align-items: center; gap: 10px; margin: 26px 0 4px; }
+.rl-order-divider::before,
+.rl-order-divider::after { content: ''; flex: 1; height: 1px; background: var(--stroke); }
+.rl-order-divider span { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); white-space: nowrap; }
+
+.rl-order-card .rl-input { font-size: 0.95rem; }
+.rl-order-card textarea.rl-input { min-height: 76px; resize: vertical; }
+.rl-order-card .rl-form-error { margin: 10px 0 0; color: var(--accent); font-weight: 700; font-size: 0.88rem; }
+.rl-order-sent .rl-sent { text-align: center; padding: 6px 0; display: grid; justify-items: center; gap: 8px; }
+.rl-order-sent .rl-sent h3 { margin: 0; }
+
+.rl-order-card .rl-loc { margin-top: 12px; }
+.rl-loc-geo-btn {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 16px; border-radius: 12px; font: inherit; font-size: 0.88rem; font-weight: 700;
+  color: var(--accent); background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  cursor: pointer; transition: 0.2s;
+}
+.rl-loc-geo-btn:hover { transform: translateY(-1px); }
+.rl-loc-geo-btn:disabled { opacity: 0.7; cursor: wait; }
+.rl-order-card .rl-loc-fields { display: grid; gap: 10px; margin-top: 10px; }
+.rl-order-card .rl-book-when { margin-top: 14px; }
+
+.rl-consent { display: flex; align-items: flex-start; gap: 10px; margin: 16px 0; cursor: pointer; }
+.rl-consent input[type=checkbox] { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
+.rl-consent span { font-size: 0.76rem; color: var(--text-dim); line-height: 1.4; }
+.rl-consent a { color: var(--text-strong); text-decoration: underline; }
 
 .rl-sticky-cta { display: none; }
 @media (max-width: 900px) {
