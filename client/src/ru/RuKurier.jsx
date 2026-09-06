@@ -273,7 +273,7 @@ function KurierLocationField({ city, setCity, address, setAddress, lat, lng, set
  * курьера. Сжимаем на клиенте, грузим сразу (не ждём отправки формы), в
  * заявке остаётся только готовая ссылка.
  */
-function KurierPhotoField({ photoUrl, setPhotoUrl }) {
+function KurierPhotoField({ photoUrl, setPhotoUrl, setPhotoPath }) {
   const [preview, setPreview] = useState('');
   const [status, setStatus] = useState('idle'); // idle | uploading | done | error
   const [error, setError] = useState('');
@@ -289,6 +289,7 @@ function KurierPhotoField({ photoUrl, setPhotoUrl }) {
       setPreview(base64);
       const out = await clientApi.courierPhotoUpload({ base64, mimeType });
       setPhotoUrl(out.photoUrl || '');
+      setPhotoPath?.(out.photoPath || '');
       setStatus('done');
     } catch (err) {
       setStatus('error');
@@ -299,6 +300,7 @@ function KurierPhotoField({ photoUrl, setPhotoUrl }) {
   function removePhoto() {
     setPreview('');
     setPhotoUrl('');
+    setPhotoPath?.('');
     setStatus('idle');
     setError('');
   }
@@ -359,6 +361,7 @@ function KurierOrderCard({ quote, pulseKey }) {
   const [consent, setConsent] = useState(false);
   const [website, setWebsite] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [photoPath, setPhotoPath] = useState('');
 
   const perGram = quote?.goldRubPerGram || null;
   const isUnknownProba = proba === 'unknown';
@@ -432,6 +435,7 @@ function KurierOrderCard({ quote, pulseKey }) {
           'Проба (заявка)': isUnknownProba ? 'не знает' : String(proba),
           'Вес, г': String(grams),
           ...(photoUrl ? { 'Фото изделия': photoUrl } : {}),
+          ...(photoPath ? { photoPath } : {}),
         },
       });
       ymReachGoal('lead', { source: 'kurier' });
@@ -462,7 +466,7 @@ function KurierOrderCard({ quote, pulseKey }) {
               />
             </svg>
           </motion.span>
-          <h3>Курьер записан</h3>
+          <h3>Курьер забронирован</h3>
           <p className="rl-form-note">
             {dayLabel}, {formatKurierTimeLabel(time)}. За 1 час до визита курьер позвонит вам, чтобы подтвердить адрес и время.
           </p>
@@ -506,7 +510,7 @@ function KurierOrderCard({ quote, pulseKey }) {
           <button type="button" className={isUnknownProba ? 'is-active' : ''} onClick={() => setProba('unknown')}>не знаю</button>
         </div>
 
-        <KurierPhotoField photoUrl={photoUrl} setPhotoUrl={setPhotoUrl} />
+        <KurierPhotoField photoUrl={photoUrl} setPhotoUrl={setPhotoUrl} setPhotoPath={setPhotoPath} />
 
         <div className="rl-price-range">
           <span className="rl-price-range-val">

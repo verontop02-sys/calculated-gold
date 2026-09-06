@@ -1468,7 +1468,7 @@ async function notifyCourierOrderTelegram({ name, phone, city, address, date, ti
   // Фото изделия шлём отдельным сообщением-картинкой (sendPhoto), а не текстовой
   // ссылкой в конце — так оно сразу видно превью в чате и не зависит от того,
   // как Telegram распарсит длинный signed URL с токеном как текст.
-  const { 'Фото изделия': photoUrl, ...restFields } = extraFields || {};
+  const { 'Фото изделия': photoUrl, photoPath, ...restFields } = extraFields || {};
   const extraLines = Object.entries(restFields).map(([k, v]) => `${k}: ${v}`);
   const lines = [
     '🚚 Вызов курьера',
@@ -1483,13 +1483,14 @@ async function notifyCourierOrderTelegram({ name, phone, city, address, date, ti
     'Панель → «Заявки с сайта»',
   ];
   const text = lines.join('\n');
-  if (photoUrl) {
-    const photoRes = await sendTelegramPhoto(chatId, photoUrl, text);
+  const path = extractCourierPhotoPath(photoPath) || extractCourierPhotoPath(photoUrl);
+  if (path || photoUrl) {
+    const bytes = path ? await downloadCourierPhoto(path) : null;
+    const photoRes = await sendTelegramPhoto(chatId, bytes || photoUrl, text);
     if (photoRes.sent) return photoRes;
-    // Не получилось скачать по ссылке (например, Telegram не смог достучаться) —
-    // fallback на обычный текст со ссылкой, заявка всё равно не потеряется.
+    const freshUrl = photoUrl || (path ? await signCourierPhoto(path) : '');
     console.warn('[courier-order tg] sendPhoto failed, falling back to text', photoRes.reason);
-    return sendTelegramMessage(chatId, `${text}\nФото изделия: ${photoUrl}`);
+    return sendTelegramMessage(chatId, freshUrl ? `${text}\nФото изделия: ${freshUrl}` : text);
   }
   return sendTelegramMessage(chatId, text);
 }
@@ -1521,6 +1522,61 @@ app.get(
 // Срок жизни подписанной ссылки на фото изделия из заявки на курьера — как у deal-photos,
 // живёт столько же, сколько сам лид может быть актуален для истории.
 const COURIER_PHOTO_URL_TTL_SEC = 10 * 365 * 24 * 60 * 60;
+
+/** Достаём путь в бакете courier-photos даже из обрезанной signed URL. */
+function extractCourierPhotoPath(value) {
+  const s = String(value || '').trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\.(jpe?g|png|webp|gif)$/i.test(s)) return s;
+  const m = /\/object\/(?:sign|public)\/courier-photos\/([^?\s]+)/i.exec(s)
+    || /courier-photos\/(\d{4}-\d{2}-\d{2}\/[^?\s]+)/i.exec(s);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]).replace(/\/+$/, '');
+  } catch {
+    return m[1];
+  }
+}
+
+async function signCourierPhoto(path) {
+  if (!path) return '';
+  const { data, error } = await supabase.storage
+    .from('courier-photos')
+    .createSignedUrl(path, COURIER_PHOTO_URL_TTL_SEC);
+  if (error) {
+    console.warn('[courier-photo sign]', error.message);
+    return '';
+  }
+  return data?.signedUrl || '';
+}
+
+async function downloadCourierPhoto(path) {
+  if (!path) return null;
+  const { data, error } = await supabase.storage.from('courier-photos').download(path);
+  if (error || !data) {
+    console.warn('[courier-photo download]', error?.message || 'empty');
+    return null;
+  }
+  const buf = Buffer.from(await data.arrayBuffer());
+  return buf.length ? buf : null;
+}
+
+/** Для админки: подменяем обрезанную/протухшую ссылку на свежую, photoPath не показываем. */
+async function refreshLeadPhotoFields(fields) {
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return fields || {};
+  const path = extractCourierPhotoPath(fields.photoPath)
+    || extractCourierPhotoPath(fields['Фото изделия']);
+  if (!path) {
+    const next = { ...fields };
+    delete next.photoPath;
+    return next;
+  }
+  const signed = await signCourierPhoto(path);
+  const next = { ...fields };
+  delete next.photoPath;
+  if (signed) next['Фото изделия'] = signed;
+  return next;
+}
 
 /**
  * Необязательное фото изделия к заявке на курьера: клиент не обязан знать точный вес,
@@ -4618,8 +4674,12 @@ app.get(
     if (status && status !== 'all') q = q.eq('status', status);
     const { data, error } = await q;
     if (error) return res.status(500).json({ error: 'Не удалось загрузить заявки' });
+    const leads = await Promise.all((data || []).map(async (lead) => ({
+      ...lead,
+      fields: await refreshLeadPhotoFields(lead.fields),
+    })));
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ leads: data || [], sources: LANDING_LEAD_SOURCES });
+    res.json({ leads, sources: LANDING_LEAD_SOURCES });
   })
 );
 
@@ -4666,7 +4726,7 @@ app.patch(
       .select('id, source, name, phone, fields, status, processed_by_name, processed_at, created_at')
       .single();
     if (error) return res.status(500).json({ error: 'Не удалось обновить заявку' });
-    res.json({ lead: data });
+    res.json({ lead: { ...data, fields: await refreshLeadPhotoFields(data.fields) } });
   })
 );
 

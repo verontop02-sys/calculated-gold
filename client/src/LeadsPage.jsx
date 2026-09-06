@@ -43,9 +43,12 @@ function leadDate(iso) {
   return `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} ${time}`;
 }
 
-/** Похоже на ссылку на фото (заявка на курьера может приложить фото изделия). */
-function isPhotoUrl(value) {
-  return /^https?:\/\/\S+\.(jpe?g|png|webp|gif)(\?\S*)?$/i.test(String(value || '').trim());
+function isPhotoField(key, value) {
+  if (/^photoPath$/i.test(key)) return false;
+  const v = String(value || '').trim();
+  if (/фото/i.test(key) && /^https?:\/\//i.test(v)) return true;
+  return /^https?:\/\/\S+\.(jpe?g|png|webp|gif)(\?\S*)?$/i.test(v)
+    || /\/object\/(?:sign|public)\/courier-photos\//i.test(v);
 }
 
 function ContactLink({ value }) {
@@ -63,7 +66,9 @@ function ContactLink({ value }) {
 /** Модалка с полной карточкой заявки: все поля, статус, действия. */
 function LeadModal({ lead, busy, onClose, onSetStatus }) {
   const meta = SOURCE_META[lead.source] || { label: lead.source, color: '#64748b' };
-  const fields = lead.fields && typeof lead.fields === 'object' ? Object.entries(lead.fields) : [];
+  const fields = lead.fields && typeof lead.fields === 'object'
+    ? Object.entries(lead.fields).filter(([k]) => k !== 'photoPath')
+    : [];
 
   useEffect(() => {
     function onKey(e) { if (e.key === 'Escape') onClose(); }
@@ -99,7 +104,7 @@ function LeadModal({ lead, busy, onClose, onSetStatus }) {
             {fields.map(([k, v]) => (
               <div key={k} className="cg-leads__field cg-leads__field--modal">
                 <dt>{k}</dt>
-                {isPhotoUrl(v) ? (
+                {isPhotoField(k, v) ? (
                   <dd>
                     <a className="cg-leads__photo-link" href={v} target="_blank" rel="noreferrer">
                       <img className="cg-leads__photo-thumb" src={v} alt="Фото изделия" loading="lazy" />

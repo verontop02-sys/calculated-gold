@@ -32,13 +32,11 @@ export async function sendTelegramMessage(chatId, text) {
 }
 
 /**
- * Отправка фото в Telegram по URL (Telegram сам скачивает файл по ссылке — не
- * шлём байты). Используем для заявок с приложенным фото изделия: так фото сразу
- * видно в чате превью, а не как текстовая ссылка, которую легко испортить обрезкой.
- * При ошибке (например, Telegram не смог скачать по signed URL) — молча падаем
- * назад на обычное текстовое сообщение с той же ссылкой в конце.
+ * Отправка фото в Telegram. Предпочитаем сырые байты (Telegram не зависит от
+ * signed URL и не может «не достучаться» до приватного бакета). URL — запасной
+ * путь, если байты не передали.
  */
-export async function sendTelegramPhoto(chatId, photoUrl, caption) {
+export async function sendTelegramPhoto(chatId, photo, caption) {
   const token = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
   const chat = String(chatId || '').trim();
   if (!token || !chat) {
@@ -47,14 +45,25 @@ export async function sendTelegramPhoto(chatId, photoUrl, caption) {
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
+  const timer = setTimeout(() => controller.abort(), 20_000);
   try {
-    const resp = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chat, photo: photoUrl, caption: caption?.slice(0, 1024) || undefined }),
-      signal: controller.signal,
-    });
+    const url = `https://api.telegram.org/bot${token}/sendPhoto`;
+    let resp;
+    if (Buffer.isBuffer(photo) || photo instanceof Uint8Array) {
+      const form = new FormData();
+      form.append('chat_id', chat);
+      if (caption) form.append('caption', String(caption).slice(0, 1024));
+      const bytes = photo instanceof Uint8Array ? photo : new Uint8Array(photo);
+      form.append('photo', new Blob([bytes], { type: 'image/jpeg' }), 'item.jpg');
+      resp = await fetch(url, { method: 'POST', body: form, signal: controller.signal });
+    } else {
+      resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chat, photo: String(photo || ''), caption: caption?.slice(0, 1024) || undefined }),
+        signal: controller.signal,
+      });
+    }
     if (resp.ok) return { sent: true };
     const detail = await resp.text().catch(() => '');
     console.warn('[telegram notify] sendPhoto error', resp.status, detail.slice(0, 200));
