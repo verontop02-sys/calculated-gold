@@ -13,9 +13,9 @@ const DIRECTIONS = [
     text: 'Оценка по бирже, оплата сразу — в отделениях или с курьером.',
   },
   {
-    tag: 'Регионы', title: 'Работа', page: 'agenty',
-    imgDark: '/ru/agent-kit.jpg', imgLight: '/ru/agent-kit-light.jpg', imgPos: '50% 22%',
-    text: 'Обучение, набор для проверки золота, и доступ в приложение — зарабатывайте в своём городе и регионе.',
+    tag: 'Вызов на дом', title: 'Курьер', page: 'kurier',
+    imgDark: '/ru/courier.jpg', imgLight: '/ru/courier-light.jpg', imgPos: '50% 36%',
+    text: 'Сами выбираете день и время. Курьер приедет бесплатно, проверит пробу при вас и оплатит сразу.',
   },
   {
     tag: 'Интернет-магазин', title: 'Ювелирные слитки', page: 'slitki',
