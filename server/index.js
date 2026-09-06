@@ -4604,10 +4604,10 @@ app.patch(
   })
 );
 
-// ── Заявки с лендингов (сторона сотрудников, только super_admin) ────────────
+// ── Заявки с лендингов (сторона сотрудников, admin/super_admin) ─────────────
 app.get(
   '/api/landing-leads',
-  asyncHandler(requireSuperAdmin),
+  asyncHandler(requireUserManager),
   asyncHandler(async (req, res) => {
     const status = String(req.query.status || '').trim();
     let q = supabase
@@ -4625,7 +4625,7 @@ app.get(
 
 app.get(
   '/api/landing-leads/unread',
-  asyncHandler(requireSuperAdmin),
+  asyncHandler(requireUserManager),
   asyncHandler(async (_req, res) => {
     const { count, error } = await supabase
       .from('landing_leads')
@@ -4638,7 +4638,7 @@ app.get(
 
 app.patch(
   '/api/landing-leads/:id',
-  asyncHandler(requireSuperAdmin),
+  asyncHandler(requireUserManager),
   asyncHandler(async (req, res) => {
     const status = String(req.body?.status || '').trim();
     if (!['new', 'in_progress', 'done'].includes(status)) {

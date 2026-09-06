@@ -28,7 +28,7 @@ export function MobileNav({ tab, onChange, user, onSignOut, onOpenProfile, suppo
     ...(isSuper ? [{ key: 'gold-index', label: 'Индекс золота', icon: <IconMap /> }] : []),
     ...(isAdmin ? [{ key: 'fintech-clients', label: 'Клиенты биржи', icon: <IconInvest />, badge: fintechPending }] : []),
     ...(isAdmin ? [{ key: 'support-chat', label: 'Поддержка', icon: <IconChatBubble />, badge: supportUnread }] : []),
-    ...(isSuper ? [{ key: 'site-leads', label: 'Заявки с сайта', icon: <IconInbox />, badge: leadsNew }] : []),
+    ...(isAdmin ? [{ key: 'site-leads', label: 'Заявки с сайта', icon: <IconInbox />, badge: leadsNew }] : []),
     ...(isAdmin ? [{
       key: 'settings',
       label: isSuper ? 'Настройки и доступы' : 'Пользователи',
