@@ -173,7 +173,7 @@ export function RuProdat() {
                 ))}
               </div>
               <RuTiltCard className="rl-media-split-visual">
-                <RuThemedImg dark="/ru/partner.jpg" light="/ru/partner-light.jpg" alt="Проверка изделия на прецизионных весах при клиенте" />
+                <RuThemedImg dark="/ru/home-prodat.jpg" light="/ru/home-prodat-light.jpg" alt="Проверка изделия на весах при клиенте" style={{ objectPosition: '50% 55%' }} />
               </RuTiltCard>
             </div>
           </div>

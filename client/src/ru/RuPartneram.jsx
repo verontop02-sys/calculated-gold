@@ -66,7 +66,7 @@ const PARTNER_WAYS = [
     key: 'out',
     title: 'Продажа вам',
     sub: 'металл и слитки',
-    img: '/ru/gold-bars.jpg',
+    img: '/ru/gold-bars-light.jpg',
     pos: '50% 48%',
     seal: 'отгрузка металлом',
     hint: 'вам — металл по сетке',
@@ -96,7 +96,6 @@ function PartnerDeskCard({ quote }) {
             <b>ПАРТНЁРСКИЙ СТОЛ</b>
             <i>{way.hint}</i>
           </span>
-          <span className="rl-calc-live"><i />live</span>
         </div>
         <button type="button" className="rl-b2b-media" onClick={() => go()} aria-label="Другое направление">
           <AnimatePresence mode="wait">
@@ -135,7 +134,7 @@ function PartnerDeskCard({ quote }) {
           <div className="rl-b2b-rate-aside">
             <span>партнёрам</span>
             <b>своя сетка</b>
-            <RuGoldTicker value={perGram} />
+            <RuGoldTicker value={perGram} change={quote?.change} />
           </div>
         </div>
         <div className="rl-b2b-foot">

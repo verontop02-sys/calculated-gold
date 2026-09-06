@@ -38,7 +38,7 @@ const LOTS = [
   },
   {
     id: 1838, name: 'Браслет', meta: '585 проба · 28,6 г', grams: 28.6, proba: 585,
-    img: '/ru/hero-home-style-dark.jpg', imgPos: '72% 48%', resaleK: 1.32, storeK: 2.42,
+    img: '/ru/hero-prodat.jpg', imgPos: '48% 52%', resaleK: 1.32, storeK: 2.42,
   },
 ];
 
@@ -68,7 +68,6 @@ function ResaleLotMock({ quote }) {
             <b>REAKTIVO RESALE</b>
             <i>так выглядит канал</i>
           </span>
-          <span className="rl-calc-live"><i />live</span>
         </div>
         <AnimatePresence mode="wait">
           <motion.div key={lot.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.38, ease: EASE }}>

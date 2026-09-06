@@ -677,7 +677,7 @@ export function RuKurier() {
                 ))}
               </div>
               <RuTiltCard className="rl-media-split-visual">
-                <RuThemedImg dark="/ru/courier.jpg" light="/ru/courier-light.jpg" alt="Курьер Reaktivo проверяет изделие у клиента дома" />
+                <RuThemedImg dark="/ru/agent-kit.jpg" light="/ru/agent-kit-light.jpg" alt="Курьер Reaktivo приезжает к клиенту с терминалом" style={{ objectPosition: '50% 22%' }} />
               </RuTiltCard>
             </div>
           </div>

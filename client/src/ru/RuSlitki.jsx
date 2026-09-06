@@ -210,7 +210,7 @@ export function RuSlitki() {
                 ))}
               </div>
               <RuTiltCard className="rl-media-split-visual">
-                <RuThemedImg dark="/ru/slitok.jpg" light="/ru/slitok-light.jpg" alt="Слиток-подвеска на золотой цепочке" />
+                <RuThemedImg dark="/ru/gold-bars.jpg" light="/ru/gold-bars-light.jpg" alt="Слиток Reaktivo в защитной капсуле со слэбом и цепочкой" style={{ objectPosition: '50% 42%' }} />
               </RuTiltCard>
             </div>
           </div>
