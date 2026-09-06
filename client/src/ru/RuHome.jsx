@@ -2,24 +2,24 @@ import { useEffect, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuHeader, RuKpis, RuMarketTiles, RuMarquee, RuPhotoCard, RuSbpBadge, RuStatement, RuThemedImg, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuMarketTiles, RuMarquee, RuPhotoCard, RuSbpBadge, RuStatement, RuThemedImg, RuTiltCard,
   GramsSlider, formatMoney, officeHallPhoto, ruHref, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
 const DIRECTIONS = [
   {
     tag: 'Выкуп золота', title: 'Продать золото', page: 'prodat',
-    imgDark: '/ru/hero-prodat.jpg', imgLight: '/ru/hero-prodat-light.jpg', imgPos: '62% 50%',
+    imgDark: '/ru/home-prodat.jpg', imgLight: '/ru/home-prodat-light.jpg', imgPos: '50% 58%',
     text: 'Оценка по бирже, оплата сразу — в отделениях или с курьером.',
   },
   {
     tag: 'Регионы', title: 'Работа', page: 'agenty',
-    imgDark: '/ru/courier.jpg', imgLight: '/ru/courier-light.jpg', imgPos: '50% 26%',
+    imgDark: '/ru/agent-kit.jpg', imgLight: '/ru/agent-kit-light.jpg', imgPos: '50% 22%',
     text: 'Обучение, набор для проверки золота, и доступ в приложение — зарабатывайте в своём городе и регионе.',
   },
   {
     tag: 'Интернет-магазин', title: 'Ювелирные слитки', page: 'slitki',
-    imgDark: '/ru/slitok.jpg', imgLight: '/ru/slitok-light.jpg', imgPos: '50% 45%',
+    imgDark: '/ru/home-slitok.jpg', imgLight: '/ru/home-slitok-light.jpg', imgPos: '50% 38%',
     text: 'Слиток-украшение: кулон, подвеска, цепочка. Ювелирное украшение, сохраняющее ценность.',
   },
   {
@@ -70,7 +70,7 @@ function LiveCalcCard({ quote }) {
     <motion.div className="rl-calc-card" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.5, ease: EASE }}>
       <div className="rl-calc-top">
         <span className="rl-calc-brand">REAKTIVO<i>·</i>RU</span>
-        <span className="rl-calc-live"><i />live</span>
+        <RuGoldTicker value={perGram} change={quote?.change} />
       </div>
       <span className="rl-calc-label">Сколько вы получаете</span>
       <div className="rl-seg">

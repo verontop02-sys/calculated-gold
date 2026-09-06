@@ -624,7 +624,7 @@ export function RuKurier() {
         <RuFullHero
           imgDark="/ru/courier.jpg"
           imgLight="/ru/courier-light.jpg"
-          imgPos="50% 40%"
+          imgPos="50% 36%"
           kicker="Вызов курьера"
           title={<>Продать золото —<br />это просто <span className="il-accent-text">выбрать время</span></>}
           sub="Вы сами выбираете день и время, а за 1 час до визита мы позвоним, чтобы подтвердить выезд."

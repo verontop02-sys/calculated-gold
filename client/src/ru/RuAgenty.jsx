@@ -2,14 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuStatement, RuThemedImg, RuTiltCard, RuTimeline,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuStatement, RuThemedImg, RuTiltCard, RuTimeline,
   formatMoney, ruHref, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
 const PERKS = [
   { title: 'Инструменты', text: 'Фирменная сумка, весы, прибор для оценки золота, бейдж, визитки и элементы фирменной одежды. Для агентов с высоким рейтингом — детектор металла.' },
   { title: 'Обучение и аттестация', text: 'Как определить пробу и распознать подделку, как отличить золото от гальванического покрытия, как разговаривать с клиентом. Итоговый тест и практика на реальных изделиях.' },
-  { title: 'Приложение агента', text: 'Живой курс, расчёт выкупа, оформление сделки без бумаг, история операций, поддержка и личный рейтинг.' },
+  { title: 'Приложение агента', text: 'Актуальный курс с биржи, расчёт выкупа, оформление сделки без бумаг, история операций, поддержка и личный рейтинг.' },
   { title: 'Оборотный капитал', text: 'Первое время вы покупаете золото на свои средства. Доступ к оборотному капиталу Reaktivo открывается по мере роста рейтинга.' },
   { title: 'Безопасность', text: 'Кнопка SOS с передачей местоположения, прямая связь с поддержкой и безналичный расчёт с клиентом — не нужно носить крупные суммы наличных.' },
   { title: 'Заявки с сайта и сервиса', text: 'Часть заказов Reaktivo распределяет между агентами в вашем районе. Приоритет получают самые быстрые и агенты с высоким рейтингом.' },
@@ -87,7 +87,7 @@ function AgentCalc({ quote }) {
     <motion.div className="rl-calc-card rl-calc-card--wide" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.4, ease: EASE }}>
       <div className="rl-calc-top">
         <span className="rl-calc-brand">АГЕНТ<i>·</i>ДОХОД</span>
-        <span className="rl-calc-live"><i />live</span>
+        <RuGoldTicker value={spot} change={quote?.change} />
       </div>
       <span className="rl-calc-label">Ваш доход в месяц</span>
       <div className="rl-seg">
@@ -153,7 +153,7 @@ export function RuAgenty() {
         <RuFullHero
           imgDark="/ru/agent-kit.jpg"
           imgLight="/ru/agent-kit-light.jpg"
-          imgPos="72% 50%"
+          imgPos="48% 22%"
           kicker="Для агентов в регионах"
           title={<>Зарабатывайте на золоте <span className="il-accent-text">в своём городе</span></>}
           sub="Пройдите обучение, получите набор для проверки золота и доступ в приложение — зарабатывайте в своём городе и регионе."

@@ -61,7 +61,7 @@ function SlitokPriceCard({ quote }) {
     <motion.div className="rl-calc-card rl-calc-card--wide" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.3, ease: EASE }}>
       <div className="rl-calc-top">
         <span className="rl-calc-brand">СЛИТОК</span>
-        <RuGoldTicker value={perGram} />
+        <RuGoldTicker value={perGram} change={quote?.change} />
       </div>
       <span className="rl-calc-label">Проба слитка</span>
       <div className="rl-seg">
@@ -128,7 +128,7 @@ export function RuSlitki() {
         <RuFullHero
           imgDark="/ru/hero-slitki.jpg"
           imgLight="/ru/hero-slitki-light.jpg"
-          imgPos="62% 50%"
+          imgPos="58% 36%"
           kicker="Новый формат хранения ценности"
           title={<>Слиток, который<br />можно <span className="il-accent-text">носить</span></>}
           sub="Не украшение, которое дешевеет в момент покупки, и не банковский слиток с высоким порогом входа. Точный вес, проба на выбор 585 · 750 · 900 и слэбирование, которое защищает сделку при обратной продаже."

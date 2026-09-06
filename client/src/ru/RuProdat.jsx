@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuSbpBadge, RuThemedImg, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuSbpBadge, RuThemedImg, RuTiltCard,
   GramsSlider, formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
 } from './RuShared.jsx';
 
@@ -54,7 +54,7 @@ function BigCalcCard({ quote, pulseKey }) {
     <motion.div className={`rl-calc-card rl-calc-card--wide${pulse ? ' rl-calc-card--pulse' : ''}`} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: EASE }}>
       <div className="rl-calc-top">
         <span className="rl-calc-brand">РАСЧЁТ<i>·</i>ВЫКУП</span>
-        <span className="rl-calc-live"><i />курс живой</span>
+        <RuGoldTicker value={perGram} change={quote?.change} />
       </div>
       <span className="rl-calc-label">Проба изделия</span>
       <div className="rl-seg">
@@ -115,7 +115,7 @@ export function RuProdat() {
         <RuFullHero
           imgDark="/ru/hero-prodat.jpg"
           imgLight="/ru/hero-prodat-light.jpg"
-          imgPos="70% 45%"
+          imgPos="52% 48%"
           kicker="Выкуп золота"
           title={<>Мы привозим<br /><span className="il-accent-text">деньги</span>, а не просто оценку</>}
           sub="Оценка по биржевому курсу, оплата сразу — в отделении или с курьером. Мы выплачиваем всю стоимость. Никаких скрытых процентов и комиссий."
