@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { AnimatePresence, motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuStatement, RuTimeline,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuStatement, RuThemedImg, RuTimeline,
   formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis, useShowcaseCycle,
 } from './RuShared.jsx';
 
@@ -29,16 +29,12 @@ const FAQ = [
 
 const LOTS = [
   {
-    id: 1847, name: 'Цепь', meta: '750 проба · 42,1 г', grams: 42.1, proba: 750,
-    img: '/ru/resale.jpg', imgPos: '58% 48%', resaleK: 1.28, storeK: 2.38,
+    id: 1838, name: 'Браслет Cartier', meta: 'Love · жёлтое золото', grams: 28.6, proba: 750,
+    imgDark: '/ru/resale-bracelet.jpg', imgLight: '/ru/resale-bracelet-light.jpg', imgPos: '50% 52%', resaleK: 1.32, storeK: 2.42,
   },
   {
-    id: 1842, name: 'Карманные часы', meta: 'золотой корпус · 22,4 г', grams: 22.4, proba: 750,
-    img: '/ru/kpi-watch-dark.jpg', imgPos: '50% 72%', resaleK: 1.42, storeK: 2.85,
-  },
-  {
-    id: 1838, name: 'Браслет', meta: '585 проба · 28,6 г', grams: 28.6, proba: 585,
-    img: '/ru/hero-prodat.jpg', imgPos: '48% 52%', resaleK: 1.32, storeK: 2.42,
+    id: 1842, name: 'Часы Cartier', meta: 'золотой корпус · 18K', grams: 22.4, proba: 750,
+    imgDark: '/ru/resale-watch.jpg', imgLight: '/ru/resale-watch-light.jpg', imgPos: '48% 40%', resaleK: 1.42, storeK: 2.85,
   },
 ];
 
@@ -72,7 +68,7 @@ function ResaleLotMock({ quote }) {
         <AnimatePresence mode="wait">
           <motion.div key={lot.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.38, ease: EASE }}>
             <button type="button" className="rl-lot-media" onClick={() => go()} aria-label="Следующий лот">
-              <img src={lot.img} alt="" style={{ objectPosition: lot.imgPos }} />
+              <RuThemedImg dark={lot.imgDark} light={lot.imgLight} alt="" style={{ objectPosition: lot.imgPos }} />
               <span className="rl-lot-new">новый лот</span>
               <span className="rl-lot-seal">экспертиза пройдена</span>
             </button>
@@ -149,9 +145,9 @@ export function RuResale() {
 
       <main>
         <RuFullHero
-          imgDark="/ru/resale.jpg"
-          imgLight="/ru/resale-light.jpg"
-          imgPos="60% 45%"
+          imgDark="/ru/resale-bracelet.jpg"
+          imgLight="/ru/resale-bracelet-light.jpg"
+          imgPos="50% 48%"
           kicker="Проверенные украшения"
           title={<>Брендовые украшения <span className="il-accent-text">после экспертизы</span></>}
           sub="Лучшие изделия из выкупа проходят проверку подлинности, пробы и чистку — и продаются в Telegram-канале по цене заметно ниже магазинной."
@@ -169,7 +165,7 @@ export function RuResale() {
           <div className="il-section-inner">
             <RuKpis items={[
               { val: '100%', label: 'лотов проходят экспертизу', icon: 'check', imgDark: '/ru/kpi-check-dark.jpg', imgLight: '/ru/kpi-check-light.jpg' },
-              { val: 'бренды', label: 'мировые дома и ювелирные марки', icon: 'star', imgDark: '/ru/kpi-medal-dark.jpg', imgLight: '/ru/kpi-medal-light.jpg' },
+              { val: 'бренды', label: 'мировые дома и ювелирные марки', icon: 'star', imgDark: '/ru/resale-watch.jpg', imgLight: '/ru/resale-watch-light.jpg', imgPos: '48% 38%' },
               { val: 'договор', label: 'происхождение каждой вещи известно', icon: 'shield', imgDark: '/ru/kpi-contract-dark.jpg', imgLight: '/ru/kpi-contract-light.jpg' },
               { val: 'Telegram', label: 'новые лоты первыми видят подписчики', icon: 'send', imgDark: '/ru/kpi-telegram-dark.jpg', imgLight: '/ru/kpi-telegram-light.jpg' },
             ]} />

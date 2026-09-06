@@ -395,7 +395,6 @@ function DeckPortfolioCard({ quote }) {
     <>
       <div className="il-card-top">
         <span className="il-card-brand">REAKTIVO<i>·</i>PRO</span>
-        <span className="il-card-live"><i />live</span>
       </div>
       <span className="il-card-label">Заказ изделия</span>
       <div className="il-card-big">Кольцо · 585</div>

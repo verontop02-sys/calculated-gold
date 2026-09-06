@@ -1818,6 +1818,7 @@ app.get(
       rangeHalfWidthPercent: Number(settings.rangeHalfWidthPercent) || 0,
       perGram,
       updatedAt: cache?.cachedAt ?? null,
+      ...(quote === 'xaut' ? { xautUsdPerOz: Number.isFinite(Number(cache?.xautUsdPerOz)) ? Number(cache.xautUsdPerOz) : null } : {}),
     });
   })
 );

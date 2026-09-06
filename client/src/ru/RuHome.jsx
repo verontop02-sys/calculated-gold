@@ -24,7 +24,7 @@ const DIRECTIONS = [
   },
   {
     tag: 'Reaktivo Resale', title: 'Проверенные украшения', page: 'resale',
-    imgDark: '/ru/resale.jpg', imgLight: '/ru/resale-light.jpg', imgPos: '55% 45%',
+    imgDark: '/ru/resale-bracelet.jpg', imgLight: '/ru/resale-bracelet-light.jpg', imgPos: '50% 46%',
     text: 'Брендовые изделия из выкупа — сразу после экспертизы и ювелирного SPA. Мировые бренды по выгодной цене.',
   },
   {
@@ -115,7 +115,7 @@ export function RuHome() {
           imgLight="/ru/hero-home-style-light.jpg"
           imgPos="62% 42%"
           kicker="Сервис выкупа золота — без ломбардной логики"
-          title={<>Курс, который<br />видно <span className="il-accent-text">до визита</span></>}
+          title={<>Курс, который<br /> видно <span className="il-accent-text">до визита</span></>}
           sub="Оценка по биржевому курсу, оплата сразу — в отделении или с курьером. Мы платим всю стоимость. Никаких скрытых процентов и комиссий."
           primary={{ href: ruHref('prodat'), label: 'Продать золото' }}
           secondary={{ href: '#napravlenia', label: 'Все направления', onClick: (e) => goTo(e, '#napravlenia') }}

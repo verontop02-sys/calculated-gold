@@ -72,6 +72,7 @@ function BigCalcCard({ quote, pulseKey }) {
         <span className="rl-calc-out-val">{sumDisplay != null ? formatMoney(sumDisplay) : '· · ·'}</span>
       </div>
       <p className="rl-calc-note">Точная сумма определяется после проверки пробы на месте.</p>
+      <a href="#zayavka" className="rl-btn rl-btn--primary rl-calc-cta">Продать золото</a>
     </motion.div>
   );
 }
@@ -84,6 +85,7 @@ function LeadForm() {
       note="Оставьте телефон — согласуем время в течение 5 минут."
       phonePlaceholder="+7 (900) 000-00-00"
       phoneTel
+      photo
       successNote="Мы позвоним в течение 5 минут и согласуем время."
     />
   );
@@ -109,7 +111,7 @@ export function RuProdat() {
       <motion.div className="il-progress" style={{ scaleX: progressX }} aria-hidden />
       <RuAtmosphere />
 
-      <RuHeader active="/ru/prodat/" lenisRef={lenisRef} />
+      <RuHeader active="/ru/prodat/" lenisRef={lenisRef} ctaHref="#zayavka" ctaLabel="Продать золото" />
 
       <main>
         <RuFullHero
@@ -117,7 +119,7 @@ export function RuProdat() {
           imgLight="/ru/hero-prodat-light.jpg"
           imgPos="52% 48%"
           kicker="Выкуп золота"
-          title={<>Мы привозим<br /><span className="il-accent-text">деньги</span>, а не просто оценку</>}
+          title={<>Мы привозим<br /> <span className="il-accent-text">деньги</span>, а не просто оценку</>}
           sub="Оценка по биржевому курсу, оплата сразу — в отделении или с курьером. Мы выплачиваем всю стоимость. Никаких скрытых процентов и комиссий."
           primary={{ href: '#calc', label: 'Рассчитать стоимость', onClick: goToCalc }}
           secondary={{ href: '#zayavka', label: 'Вызвать курьера' }}

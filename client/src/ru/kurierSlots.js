@@ -12,14 +12,14 @@ export const KURIER_BUSINESS_END_HOUR = 20;
 export const KURIER_LAST_START_MIN = KURIER_BUSINESS_END_HOUR * 60 - 30; // 19:30
 export const KURIER_FIRST_START_MIN = KURIER_BUSINESS_START_HOUR * 60; // 10:00
 
-export const KURIER_DAYS_AHEAD = 14;
+export const KURIER_DAYS_AHEAD = 7;
 /** Время должно начинаться не раньше, чем через это число часов от «сейчас». */
 export const KURIER_MIN_LEAD_HOURS = 3;
-/** Шаг для быстрых кнопок выбора времени (сам ввод — свободный, до минуты). */
+/** Шаг слотов времени в выпадающем списке. */
 export const KURIER_QUICK_STEP_MIN = 30;
 
 const WEEKDAY_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-const MONTH_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+const MONTH_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
 function startOfDay(d) {
   const out = new Date(d);
@@ -69,7 +69,7 @@ export function formatRuDayLabel(d, now = new Date()) {
   const diffDays = Math.round((target - today) / 86_400_000);
   if (diffDays === 0) return 'Сегодня';
   if (diffDays === 1) return 'Завтра';
-  return `${WEEKDAY_SHORT[d.getDay()]}, ${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
+  return `${WEEKDAY_SHORT[d.getDay()]}, ${d.getDate()} ${MONTH_GEN[d.getMonth()]}`;
 }
 
 /** «Сегодня» пропадает из выбора, когда даже самый поздний визит (19:30) не набирает нужный запас часов. */
@@ -152,8 +152,7 @@ export function getMaxTimeStrForDay() {
 }
 
 /**
- * Быстрые кнопки времени для дня — сетка с шагом KURIER_QUICK_STEP_MIN в допустимых
- * границах. Свободный ввод (поле «своё время») позволяет выбрать любую минуту.
+ * Кнопки/слоты времени для дня — шаг KURIER_QUICK_STEP_MIN в рабочем окне.
  * @returns {string[]} массив «HH:MM»
  */
 export function getQuickTimes(dayIso, now = new Date(), step = KURIER_QUICK_STEP_MIN) {

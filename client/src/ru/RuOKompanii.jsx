@@ -6,7 +6,7 @@ import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../Inv
 import { FranshizaOsMock } from './RuFranshiza.jsx';
 import {
   RL_CSS, RuAtmosphere, RuCtaPanel, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuMarquee, RuPhotoCard, RuStatement, RuTiltCard,
-  formatMoney, isLeadName, isRuPhone, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis, useShowcaseCycle,
+  formatMoney, isLeadName, isRuPhone, setDraftMeta, useAnimatedNumber, useGoldQuote, useRlTheme, useRuLenis, useShowcaseCycle,
 } from './RuShared.jsx';
 
 const MEMORANDUM_P = [
@@ -210,6 +210,9 @@ function CeoLetterForm() {
 function AboutTerminalCard({ quote }) {
   const [xaut, setXaut] = useState(null);
   const [idx, go] = useShowcaseCycle(2, 5000);
+  const theme = useRlTheme();
+  const moscowImg = theme === 'light' ? '/cities/moscow-day.jpg' : '/cities/moscow.jpg';
+  const londonImg = theme === 'light' ? '/cities/london-day.jpg' : '/cities/london.jpg';
   const moex = quote?.goldRubPerGram || null;
   const oz = xaut?.xautUsdPerOz || null;
   const moexDisplay = useAnimatedNumber(moex);
@@ -243,29 +246,28 @@ function AboutTerminalCard({ quote }) {
             <b>REAKTIVO PRO</b>
             <i>{idx === 0 ? 'Москва · Мосбиржа' : 'Лондон · XAUT'}</i>
           </span>
-          <span className="rl-calc-live"><i />live</span>
         </div>
         <button
           type="button"
           className={`rl-term-board${idx === 0 ? ' is-active' : ''}`}
-          style={{ backgroundImage: 'url(/cities/moscow.jpg)' }}
+          style={{ backgroundImage: `url(${moscowImg})` }}
           onClick={() => go(0)}
           aria-pressed={idx === 0}
         >
           <span className="rl-term-board-k">Москва · Мосбиржа</span>
           <strong>{moexDisplay != null ? formatMoney(moexDisplay) : '· · ·'}<em>/г</em></strong>
-          <RuGoldTicker value={moex} />
+          <RuGoldTicker value={moex} change={quote?.change} storeKey="rl-gold-rate-moex" />
         </button>
         <button
           type="button"
           className={`rl-term-board rl-term-board--ldn${idx === 1 ? ' is-active' : ''}`}
-          style={{ backgroundImage: 'url(/cities/london.jpg)' }}
+          style={{ backgroundImage: `url(${londonImg})` }}
           onClick={() => go(1)}
           aria-pressed={idx === 1}
         >
           <span className="rl-term-board-k">Лондон · XAUT</span>
           <strong>{ozLabel}<em>/oz</em></strong>
-          <RuGoldTicker value={oz} />
+          <RuGoldTicker value={oz} change={xaut?.change} storeKey="rl-gold-rate-xaut" />
         </button>
         <div className="rl-term-foot">
           <a href="#licenzia">лицензия</a>
@@ -299,7 +301,7 @@ export function RuOKompanii() {
           imgPos="62% 42%"
           kicker="О компании"
           title={<>Не скупка, а <span className="il-accent-text">технологичный сервис</span> нового формата</>}
-          sub="Прозрачный курс, собственная операционная система и команда, которой можно доверять. Мы строим то, что до нас в этой отрасли делали редко."
+          sub="Прозрачный курс, собственная операционная система и команда, которой можно доверять."
           primary={{ href: '#pismo', label: 'Написать CEO' }}
           secondary={{ href: '#komanda', label: 'Попасть в команду' }}
           aside={<AboutTerminalCard quote={quote} />}

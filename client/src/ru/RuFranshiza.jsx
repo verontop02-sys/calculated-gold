@@ -97,14 +97,13 @@ export function FranshizaOsMock({ quote }) {
       <div className="rl-os-bar">
         <span className="rl-os-dots" aria-hidden><i /><i /><i /></span>
         <span className="rl-os-title">REAKTIVO · ОПЕРАЦИОННАЯ СИСТЕМА</span>
-        <span className="rl-calc-live"><i />live</span>
       </div>
       <div className="rl-os-rate">
         <div>
           <span className="rl-os-rate-label">Золото · биржевой курс</span>
           <span className="rl-os-rate-val">{rateDisplay != null ? formatMoney(rateDisplay) : '· · ·'}<b>/г</b></span>
         </div>
-        <RuGoldTicker value={perGram} />
+        <RuGoldTicker value={perGram} change={quote?.change} />
       </div>
       <div className="rl-os-deal">
         <AnimatePresence mode="wait">
@@ -176,7 +175,6 @@ function FranshizaBranchCard({ quote }) {
             <b>ОТДЕЛЕНИЕ REAKTIVO</b>
             <i>{city.hint}</i>
           </span>
-          <span className="rl-calc-live"><i />live</span>
         </div>
         <button type="button" className="rl-branch-media" onClick={() => go()} aria-label="Следующий город">
           <AnimatePresence mode="wait">
@@ -212,7 +210,7 @@ function FranshizaBranchCard({ quote }) {
             <span className="rl-branch-rate-label">курс на экране отделения</span>
             <strong>{rateDisplay != null ? formatMoney(rateDisplay) : '· · ·'}<em>/г</em></strong>
           </div>
-          <RuGoldTicker value={perGram} />
+          <RuGoldTicker value={perGram} change={quote?.change} />
         </div>
       </motion.div>
     </div>

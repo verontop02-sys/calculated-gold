@@ -130,7 +130,7 @@ export function RuSlitki() {
           imgLight="/ru/hero-slitki-light.jpg"
           imgPos="58% 36%"
           kicker="Новый формат хранения ценности"
-          title={<>Слиток, который<br />можно <span className="il-accent-text">носить</span></>}
+          title={<>Слиток, который<br /> можно <span className="il-accent-text">носить</span></>}
           sub="Не украшение, которое дешевеет в момент покупки, и не банковский слиток с высоким порогом входа. Точный вес, проба на выбор 585 · 750 · 900 и слэбирование, которое защищает сделку при обратной продаже."
           primary={{ href: '#zayavka', label: 'Выбрать слиток' }}
           secondary={{ href: '#formy', label: 'Подробнее' }}

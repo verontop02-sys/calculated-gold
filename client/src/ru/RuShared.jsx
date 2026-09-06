@@ -333,7 +333,7 @@ function KpiCard({ k, img, sizeClass, index }) {
       onMouseLeave={handleLeave}
       style={{ rotateX: rotX, rotateY: rotY, '--kpi-delay': `${index * 0.85}s` }}
     >
-      {img && <img className="rl-kpi-photo" src={img} alt="" aria-hidden loading="lazy" decoding="async" />}
+      {img && <img className="rl-kpi-photo" src={img} alt="" aria-hidden loading="lazy" decoding="async" style={k.imgPos ? { objectPosition: k.imgPos } : undefined} />}
       {img && <span className="rl-kpi-photo-overlay" aria-hidden />}
       <span className="rl-kpi-shine" aria-hidden />
       <span className="rl-kpi-glare" aria-hidden />
@@ -548,60 +548,57 @@ export function RuTimeline({ items }) {
   );
 }
 
-/** Живая динамика курса: копим последние тики цены и красим бары/подпись
- *  в зелёный при росте, в красный при снижении — видно, что курс настоящий. */
-export function useRateHistory(value, size = 8) {
-  const [points, setPoints] = useState([]);
-  const prevRef = useRef(null);
-  useEffect(() => {
-    if (value == null) return;
-    if (prevRef.current == null) {
-      prevRef.current = value;
-      setPoints([{ v: value, dir: 0 }]);
-      return;
-    }
-    if (value === prevRef.current) return;
-    const dir = value > prevRef.current ? 1 : -1;
-    prevRef.current = value;
-    setPoints((p) => [...p, { v: value, dir }].slice(-size));
-  }, [value, size]);
-  return points;
+function signRateDir(n) {
+  if (!Number.isFinite(n) || n === 0) return 0;
+  return n > 0 ? 1 : -1;
 }
 
-export function RuGoldTicker({ value }) {
-  const size = 8;
-  const points = useRateHistory(value, size);
-  const last = points[points.length - 1];
-  const dir = last?.dir ?? 0;
+function readStoredRate(key) {
+  try {
+    const j = JSON.parse(window.localStorage.getItem(key) || '');
+    if (j && Number.isFinite(j.v)) return j;
+  } catch { /* private mode / битый JSON */ }
+  return null;
+}
 
-  // Пока не накопилось хотя бы одно реальное изменение курса — нейтральный
-  // пульсирующий индикатор вместо «пустого» бар-графика.
-  if (points.length < 2) {
-    return (
-      <span className="rl-rate rl-rate--flat">
-        <i className="rl-rate-dot" aria-hidden />
-        курс живой
-      </span>
-    );
-  }
-
-  const deltas = points.map((p, i) => Math.abs(p.v - (points[i - 1]?.v ?? p.v)));
-  const max = Math.max(1, ...deltas);
-  const label = dir === 1 ? 'растёт' : dir === -1 ? 'снижается' : 'живой';
-
+function RateArrow({ dir }) {
+  const up = dir === 1;
   return (
-    <span className={`rl-rate rl-rate--${dir === 1 ? 'up' : dir === -1 ? 'down' : 'flat'}`}>
-      <span className="rl-rate-bars" aria-hidden>
-        {Array.from({ length: size }).map((_, i) => {
-          const p = points[i];
-          const delta = p ? Math.abs(p.v - (points[i - 1]?.v ?? p.v)) : 0;
-          const h = p ? 34 + Math.min(66, (delta / max) * 66) : 26;
-          const cls = !p || p.dir === 0 ? '' : p.dir === 1 ? 'is-up' : 'is-down';
-          return <i key={i} className={cls} style={{ height: `${h}%` }} />;
-        })}
-      </span>
-      <i className="rl-rate-dot" aria-hidden />
-      курс {label}
+    <svg className="rl-rate-arrow" viewBox="0 0 12 12" aria-hidden>
+      {up
+        ? <path d="M6 2.4v7.2M2.8 5.6 6 2.4l3.2 3.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        : <path d="M6 9.6V2.4M2.8 6.4 6 9.6l3.2-3.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />}
+    </svg>
+  );
+}
+
+/**
+ * Направление курса без слова «живой»: людям оно ничего не говорит.
+ * Стрелка вверх + «курс растёт», вниз + «курс снижается».
+ * Берём знак с биржи (change), иначе сравниваем с прошлым значением в этом браузере.
+ */
+export function RuGoldTicker({ value, change, storeKey = 'rl-gold-rate' }) {
+  const [dir, setDir] = useState(0);
+
+  useEffect(() => {
+    if (!Number.isFinite(value)) return;
+    const stored = readStoredRate(storeKey);
+    const hasChange = Number.isFinite(change);
+    let next = 0;
+    if (hasChange) next = signRateDir(change);
+    else if (stored && stored.v !== value) next = value > stored.v ? 1 : -1;
+    else next = stored?.dir || 0;
+    setDir(next);
+    try {
+      window.localStorage.setItem(storeKey, JSON.stringify({ v: value, dir: next }));
+    } catch { /* ignore */ }
+  }, [value, change, storeKey]);
+
+  if (dir !== 1 && dir !== -1) return null;
+  return (
+    <span className={`rl-rate rl-rate--${dir === 1 ? 'up' : 'down'}`}>
+      <RateArrow dir={dir} />
+      {dir === 1 ? 'курс растёт' : 'курс снижается'}
     </span>
   );
 }
@@ -622,7 +619,7 @@ export function useRuLenis() {
   return lenisRef;
 }
 
-/** Живой курс золота — тот же публичный источник, что у reaktivo.pro. */
+/** Публичный курс золота — тот же источник, что у reaktivo.pro. */
 export function useGoldQuote() {
   const [quote, setQuote] = useState(null);
   useEffect(() => {
@@ -829,6 +826,103 @@ export function RuFaq({ items }) {
  * [{ key, label, placeholder, required, textarea, full }] — label уходит
  * подписью поля в Telegram и в панель.
  */
+/** Сжимаем фото в браузере перед отправкой — с телефона это 3–10 МБ HEIC/JPEG,
+ * а нам достаточно превью для оператора, не оригинал в полном разрешении. */
+export function resizeImageFile(file, maxDim = 1280, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      const img = new window.Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDim) {
+          height = Math.round(height * (maxDim / width));
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = Math.round(width * (maxDim / height));
+          height = maxDim;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve({ base64: canvas.toDataURL('image/jpeg', quality), mimeType: 'image/jpeg' });
+      };
+      // HEIC/HEIF с iPhone canvas часто не читает — тогда шлём файл как есть.
+      img.onerror = () => {
+        const mimeType = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
+        resolve({ base64: dataUrl, mimeType });
+      };
+      img.src = dataUrl;
+    };
+    reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Необязательное поле «прикрепить фото изделия» — переиспользуется в формах заявок. */
+export function RuPhotoField({ photoUrl, setPhotoUrl, setPhotoPath }) {
+  const [preview, setPreview] = useState('');
+  const [status, setStatus] = useState('idle'); // idle | uploading | done | error
+  const [error, setError] = useState('');
+
+  async function onPick(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setError('');
+    setStatus('uploading');
+    try {
+      const { base64, mimeType } = await resizeImageFile(file);
+      setPreview(base64);
+      const out = await clientApi.courierPhotoUpload({ base64, mimeType });
+      setPhotoUrl(out.photoUrl || '');
+      setPhotoPath?.(out.photoPath || '');
+      setStatus('done');
+    } catch (err) {
+      setStatus('error');
+      setError(err?.message || 'Не удалось загрузить фото — попробуйте ещё раз');
+    }
+  }
+
+  function removePhoto() {
+    setPreview('');
+    setPhotoUrl('');
+    setPhotoPath?.('');
+    setStatus('idle');
+    setError('');
+  }
+
+  return (
+    <div className="rl-photo-field">
+      {!preview ? (
+        <label className={`rl-photo-cta${status === 'uploading' ? ' is-busy' : ''}`}>
+          <input
+            className="rl-photo-input"
+            type="file"
+            accept="image/*,image/heic,image/heif,.heic,.heif"
+            onChange={onPick}
+            disabled={status === 'uploading'}
+          />
+          {status === 'uploading' ? (<><span className="rl-btn-spin" aria-hidden /> Загружаем…</>) : '📷 Прикрепить фото изделия'}
+        </label>
+      ) : (
+        <div className="rl-photo-preview">
+          <img src={preview} alt="Фото изделия" />
+          <div>
+            <span>{status === 'uploading' ? 'Загружаем…' : status === 'done' ? 'Фото прикреплено' : 'Не загрузилось'}</span>
+            <button type="button" onClick={removePhoto}>Убрать</button>
+          </div>
+        </div>
+      )}
+      <p className="rl-photo-hint">Необязательно — поможет точнее понять вес и объём.</p>
+      {error && <p className="rl-form-error" style={{ margin: '4px 0 0' }}>{error}</p>}
+    </div>
+  );
+}
+
 export function RuLeadForm({
   source,
   title,
@@ -839,9 +933,12 @@ export function RuLeadForm({
   phonePlaceholder = '+7 (900) 000-00-00',
   phoneTel = true,
   fields = [],
+  photo = false,
 }) {
   const [phase, setPhase] = useState('idle'); // idle | sending | sent
   const [error, setError] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [photoPath, setPhotoPath] = useState('');
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -861,6 +958,10 @@ export function RuLeadForm({
         setError(`Заполните поле: ${f.placeholder || f.label}`);
         return;
       }
+    }
+    if (photo) {
+      if (photoUrl) payload.fields['Фото изделия'] = photoUrl;
+      if (photoPath) payload.fields.photoPath = photoPath;
     }
     if (!isLeadName(payload.name)) {
       setError('Укажите имя');
@@ -933,6 +1034,11 @@ export function RuLeadForm({
         );
         return f.full || f.textarea ? <div key={f.key} className="rl-form-full">{input}</div> : input;
       })}
+      {photo && (
+        <div className="rl-form-full">
+          <RuPhotoField photoUrl={photoUrl} setPhotoUrl={setPhotoUrl} setPhotoPath={setPhotoPath} />
+        </div>
+      )}
       {/* Ловушка для ботов: люди это поле не видят */}
       <input className="rl-hp" type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" />
       <div className="rl-form-full">
@@ -1297,10 +1403,10 @@ export const RL_CSS = `
 .rl-products .rl-product--soon .il-product-tag { color: var(--text-dim); }
 .rl-product--soon { opacity: 0.72; cursor: default; }
 .rl-soon-chip {
-  display: inline-flex; align-self: flex-start; margin-top: 4px;
+  align-self: flex-start; margin-top: 4px;
   font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
   color: var(--text-dim); background: var(--stroke-soft); border: 1px solid var(--stroke);
-  padding: 5px 10px; border-radius: 99px;
+  padding: 7px 11px 6px 13px; border-radius: 99px;
 }
 .rl-root .il-faq { border-top: none; }
 .rl-root .il-faq-item { border-bottom: none; overflow: hidden; }
@@ -1355,20 +1461,10 @@ export const RL_CSS = `
 .rl-calc-brand i { color: var(--accent); margin: 0 2px; }
 .rl-calc-live { display: inline-flex; align-items: center; gap: 6px; font-size: 0.76rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
 .rl-calc-live i { display: block; width: 6px; height: 6px; margin: 0; padding: 0; border-radius: 50%; background: var(--accent); font-style: normal; line-height: 0; transform: none; animation: rlBadgePulse 1.8s ease-in-out infinite; }
-/* ── Живой курс: графическая динамика вместо текста «курс живой» — бары растут/красятся
-   зелёным при росте цены и красным при снижении, так пользователь видит, что курс настоящий. ── */
-.rl-rate { display: inline-flex; align-items: center; gap: 7px; font-size: 0.74rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; transition: color 0.3s ease; }
+.rl-rate { display: inline-flex; align-items: center; gap: 5px; font-size: 0.74rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
 .rl-rate--up { color: var(--emerald); }
 .rl-rate--down { color: var(--danger); }
-.rl-rate-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; transform: none; animation: rlBadgePulse 1.8s ease-in-out infinite; }
-.rl-rate-bars { display: inline-flex; align-items: flex-end; gap: 2.5px; height: 16px; flex-shrink: 0; }
-.rl-rate-bars i {
-  display: block; width: 3.5px; min-height: 26%; border-radius: 2px;
-  background: color-mix(in srgb, currentColor 55%, transparent);
-  transition: height 0.45s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease;
-}
-.rl-rate-bars i.is-up { background: var(--emerald); }
-.rl-rate-bars i.is-down { background: var(--danger); }
+.rl-rate-arrow { width: 12px; height: 12px; flex-shrink: 0; display: block; }
 .rl-calc-label { font-size: 0.98rem; font-weight: 700; color: var(--text-strong); }
 .rl-calc-note { font-size: 0.82rem; color: var(--text-dim); margin: 4px 0 0; }
 .rl-calc-note--breakdown { margin-top: 12px; }
@@ -1397,7 +1493,30 @@ export const RL_CSS = `
 .rl-calc-out { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--stroke-soft); display: flex; flex-direction: column; gap: 4px; }
 .rl-calc-out-label { font-size: 0.78rem; color: var(--text-dim); }
 .rl-calc-out-val { font-size: clamp(1.7rem, 3vw, 2.1rem); font-weight: 800; letter-spacing: -0.02em; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+/* Светлая тема: сумма красным — как в калькуляторе заказа курьера */
+:root[data-theme='light'] .rl-calc-out-val { color: var(--accent); }
 .rl-calc-cta { display: block; width: 100%; text-align: center; margin-top: 18px; }
+.rl-photo-field { margin-top: 14px; }
+.rl-photo-cta {
+  position: relative; overflow: hidden; box-sizing: border-box;
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 16px; border-radius: 12px; font: inherit; font-size: 0.86rem; font-weight: 700;
+  color: var(--text-dim); background: transparent; border: 1px dashed var(--stroke); cursor: pointer; transition: 0.2s;
+}
+.rl-photo-cta:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--stroke)); color: var(--text-strong); }
+.rl-photo-cta.is-busy { opacity: 0.7; cursor: wait; }
+.rl-photo-input {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer; font-size: 32px; /* iOS иначе сжимает hit-area */
+  border: 0; margin: 0; padding: 0;
+}
+.rl-photo-cta.is-busy .rl-photo-input { pointer-events: none; }
+.rl-photo-preview { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 12px; border: 1px solid var(--stroke); background: var(--stroke-soft); }
+.rl-photo-preview img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
+.rl-photo-preview div { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.rl-photo-preview span { font-size: 0.8rem; font-weight: 600; color: var(--text-strong); }
+.rl-photo-preview button { font: inherit; font-size: 0.76rem; font-weight: 700; color: var(--accent); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; }
+.rl-photo-hint { margin: 8px 0 0; font-size: 0.82rem; line-height: 1.45; color: var(--text-dim); }
 .rl-sbp { display: inline-flex; align-items: center; gap: 3px; vertical-align: -3px; margin-left: 6px; }
 .rl-sbp img { height: 15px; width: auto; display: block; }
 .rl-sbp b { font-size: 0.72em; font-weight: 800; letter-spacing: 0.01em; color: var(--text-dim); }
@@ -1462,7 +1581,7 @@ export const RL_CSS = `
   border-color: transparent; color: #fff;
   box-shadow: 0 26px 56px -30px color-mix(in srgb, var(--accent) 55%, transparent);
 }
-.rl-vs-tag { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; padding: 5px 11px; border-radius: 99px; display: inline-block; }
+.rl-vs-tag { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; padding: 7px 11px 6px 13px; border-radius: 99px; }
 .rl-vs-col--old .rl-vs-tag { background: var(--stroke-soft); color: var(--text-dim); }
 .rl-vs-col--new .rl-vs-tag { background: rgba(255, 255, 255, 0.22); color: #fff; }
 .rl-vs-col h4 { font-size: 1.2rem; font-weight: 700; margin: 16px 0 0; letter-spacing: -0.02em; line-height: 1.3; }
@@ -1702,9 +1821,21 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 /* Точка в бейдже/пилле — через ::before, без scale: иначе пульс поднимает кружок
    над серединой заглавных. Курсивный <i> тоже сбивал оптический центр. */
 .rl-root .il-badge,
-.rl-root .il-pill {
-  display: inline-flex; align-items: center; gap: 8px; line-height: 1;
+.rl-root .il-pill,
+.rl-dir-tag,
+.rl-lot-new,
+.rl-lot-seal,
+.rl-branch-seal,
+.rl-b2b-seal,
+.rl-vs-tag,
+.rl-soon-chip,
+.rl-market-tile-code,
+.rl-os-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  line-height: 1; width: max-content; max-width: 100%; box-sizing: border-box;
 }
+.rl-root .il-badge,
+.rl-root .il-pill { gap: 8px; }
 .rl-root .il-badge::before,
 .rl-root .il-pill::before {
   content: ''; display: block; width: 7px; height: 7px; margin: 0; padding: 0;
@@ -1713,6 +1844,9 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .rl-root .il-pill::before { width: 6px; height: 6px; }
 .rl-root .il-badge::before { animation: rlBadgePulse 1.8s ease-in-out infinite; }
 .rl-root .il-badge-dot { display: none; }
+/* Caps сидят высоко в em-box — чуть больше верхний паддинг, меньше правый
+   (хвост letter-spacing), чтобы текст был в оптическом центре чипа. */
+.rl-root .il-pill { padding: 8px 13px 7px 15px; }
 @keyframes rlBadgePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.38; } }
 .rl-fhero-inner {
   position: relative; z-index: 2; width: 100%; max-width: 1360px; margin: 0 auto;
@@ -1777,9 +1911,14 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .rl-fhero.rl-fhero--aside .il-hero-cta .il-btn {
   width: 100%; justify-content: center; box-sizing: border-box;
 }
+/* Кикер хиро — не отдельная «плашка», а подпись на той же левой оси, что заголовок. */
 .rl-root .rl-fhero .il-badge {
-  color: #fff; background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.26);
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  display: block; color: #fff; background: none; border: none; padding: 0; margin: 0 0 16px;
+  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+  max-width: 100%; white-space: normal;
+}
+.rl-root .rl-fhero .il-badge::before {
+  display: inline-block; vertical-align: 0.08em; margin-right: 8px;
 }
 .rl-fhero .il-btn--outline { color: #fff; border-color: rgba(255, 255, 255, 0.44); background: rgba(12, 8, 10, 0.25); }
 .rl-fhero .il-btn--outline:hover { border-color: #fff; background: rgba(255, 255, 255, 0.09); color: #fff; }
@@ -1820,7 +1959,7 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 :root[data-theme='light'] .rl-fhero .il-hero-title { color: var(--text-strong); }
 :root[data-theme='light'] .rl-fhero .il-hero-sub { color: rgba(22, 18, 16, 0.78); }
 :root[data-theme='light'] .rl-root .rl-fhero .il-badge {
-  color: var(--text-strong); background: rgba(255, 255, 255, 0.62); border-color: var(--stroke);
+  color: var(--text-strong); background: none; border: none;
 }
 :root[data-theme='light'] .rl-fhero .il-btn--outline {
   color: var(--text-strong); border-color: var(--stroke-strong); background: rgba(255, 255, 255, 0.55);
@@ -1883,10 +2022,10 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   background: linear-gradient(180deg, transparent 52%, rgba(10, 7, 9, 0.52) 100%);
 }
 .rl-dir-tag {
-  position: absolute; top: 14px; left: 14px; z-index: 1;
+  position: absolute; top: 18px; left: 18px; z-index: 1;
   font-size: 0.66rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
   color: #fff; background: rgba(10, 7, 9, 0.52); border: 1px solid rgba(255, 255, 255, 0.22);
-  padding: 6px 11px; border-radius: 99px;
+  padding: 8px 10px 7px 14px; border-radius: 99px; white-space: nowrap;
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
 }
 :root[data-theme='light'] .rl-dir-media::after {
@@ -1895,7 +2034,7 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 :root[data-theme='light'] .rl-dir-tag {
   color: var(--text-strong); background: rgba(255, 255, 255, 0.72); border-color: var(--stroke);
 }
-.rl-dir-body { padding: 20px 22px 22px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.rl-dir-body { padding: 20px 18px 22px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .rl-dir-title { margin: 0; font-size: 1.2rem; font-weight: 800; letter-spacing: -0.015em; color: var(--text-strong); }
 .rl-dir-text { margin: 0; font-size: 0.88rem; line-height: 1.55; color: var(--text-muted); flex: 1; }
 .rl-dir-link { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; color: var(--accent); font-size: 0.86rem; font-weight: 700; }
@@ -1950,7 +2089,7 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .rl-os-chip {
   font-size: 0.7rem; font-weight: 700; color: rgba(255, 255, 255, 0.72);
   background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 6px 11px; border-radius: 99px;
+  padding: 7px 11px 6px 13px; border-radius: 99px;
 }
 .rl-media-split-visual--os { border-radius: 22px; }
 .rl-media-split-visual--os .rl-os { height: 100%; }
@@ -1997,18 +2136,18 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .rl-lot-media { position: relative; height: 168px; overflow: hidden; background: #0a0605; cursor: pointer; width: 100%; border: 0; padding: 0; display: block; -webkit-appearance: none; appearance: none; }
 .rl-lot-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .rl-lot-new {
-  position: absolute; left: 12px; top: 12px;
+  position: absolute; left: 16px; top: 16px;
   font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
-  color: #fff; background: var(--accent); padding: 5px 10px; border-radius: 99px;
+  color: #fff; background: var(--accent); padding: 7px 10px 6px 12px; border-radius: 99px; white-space: nowrap;
 }
 .rl-lot-seal {
-  position: absolute; right: 12px; bottom: 12px;
+  position: absolute; right: 16px; bottom: 16px;
   font-size: 0.62rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
   color: #fff; background: rgba(12, 8, 10, 0.72); border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 6px 10px; border-radius: 99px;
+  padding: 7px 10px 6px 12px; border-radius: 99px; white-space: nowrap;
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
-.rl-lot-body { padding: 16px 18px 14px; }
+.rl-lot-body { padding: 16px; }
 .rl-lot-id { font-size: 0.64rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.42); }
 .rl-lot-body h3 { margin: 4px 0 2px; font-size: 1.28rem; font-weight: 800; letter-spacing: -0.02em; color: #fff; }
 .rl-lot-body p { margin: 0; font-size: 0.86rem; font-weight: 600; color: rgba(255, 255, 255, 0.62); }
@@ -2089,10 +2228,10 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .rl-branch-media { position: relative; height: 176px; overflow: hidden; background: #0a0605; width: 100%; border: 0; padding: 0; cursor: pointer; display: block; -webkit-appearance: none; appearance: none; }
 .rl-branch-media img { display: block; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 62% 48%; }
 .rl-branch-seal {
-  position: absolute; left: 12px; bottom: 12px; z-index: 1;
+  position: absolute; left: 16px; bottom: 16px; z-index: 1;
   font-size: 0.62rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
   color: #fff; background: rgba(12, 8, 10, 0.72); border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 6px 10px; border-radius: 99px;
+  padding: 7px 10px 6px 12px; border-radius: 99px; white-space: nowrap;
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 .rl-branch-cities { list-style: none; margin: 0; padding: 12px 14px 4px; display: grid; gap: 7px; }
@@ -2185,10 +2324,10 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .rl-b2b-media { position: relative; height: 168px; overflow: hidden; background: #0a0605; cursor: pointer; width: 100%; border: 0; padding: 0; display: block; -webkit-appearance: none; appearance: none; }
 .rl-b2b-media img { display: block; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 42%; }
 .rl-b2b-seal {
-  position: absolute; left: 12px; bottom: 12px; z-index: 1;
+  position: absolute; left: 16px; bottom: 16px; z-index: 1;
   font-size: 0.62rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
   color: #fff; background: rgba(12, 8, 10, 0.72); border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 6px 10px; border-radius: 99px;
+  padding: 7px 10px 6px 12px; border-radius: 99px; white-space: nowrap;
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 .rl-b2b-ways {
@@ -2274,8 +2413,8 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   position: relative; min-height: 128px; padding: 16px 16px 14px;
   display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;
   background-size: cover; background-position: 50% 42%;
-  width: 100%; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer;
-  opacity: 0.78; transition: opacity 0.25s ease;
+  width: 100%; border: 0; font: inherit; color: #fff; text-align: left; cursor: pointer;
+  opacity: 0.78; transition: opacity 0.25s ease, background-position 0.35s ease;
   -webkit-appearance: none; appearance: none;
 }
 .rl-term-board::before {
@@ -2299,12 +2438,14 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   font-size: 1.7rem; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1.1;
 }
 .rl-term-board em { font-style: normal; font-size: 0.5em; font-weight: 700; color: rgba(255, 255, 255, 0.5); margin-left: 3px; }
-.rl-term-board .rl-rate { color: rgba(255, 255, 255, 0.88); }
+.rl-term-board .rl-rate--up { color: #3dcf8a; }
+.rl-term-board .rl-rate--down { color: #ff6b6b; }
 .rl-term-foot { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px 16px; }
 .rl-term-foot a, .rl-term-foot span {
+  display: inline-flex; align-items: center; justify-content: center; line-height: 1;
   font-size: 0.68rem; font-weight: 700; color: rgba(255, 255, 255, 0.72);
   background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 5px 10px; border-radius: 99px; text-decoration: none;
+  padding: 7px 10px 6px 12px; border-radius: 99px; text-decoration: none;
 }
 .rl-term-foot a:hover { color: #fff; border-color: rgba(255, 255, 255, 0.28); }
 
@@ -2359,7 +2500,7 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .rl-market-tile-code {
   font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
   color: rgba(255, 255, 255, 0.85); background: rgba(10, 11, 15, 0.42);
-  border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; padding: 6px 10px 5px 12px;
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); white-space: nowrap;
 }
 .rl-market-tile-bottom { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
@@ -2464,6 +2605,7 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   .rl-dirs { grid-template-columns: 1fr; }
   .rl-fhero { padding: 112px 18px 64px; min-height: max(100svh, 560px); }
   .rl-fhero .il-hero-title { font-size: clamp(2.15rem, 9vw, 2.8rem); }
+  .rl-fhero .il-hero-title br { display: none; }
   .rl-fhero-scrim-b { background: linear-gradient(180deg, rgba(9, 6, 8, 0.3) 0%, rgba(9, 6, 8, 0.08) 30%, rgba(9, 6, 8, 0.18) 62%, rgba(9, 6, 8, 0.5) 100%); }
   :root[data-theme='light'] .rl-fhero-scrim-b {
     background: linear-gradient(180deg, rgba(245, 242, 236, 0.3) 0%, rgba(245, 242, 236, 0.08) 30%, rgba(245, 242, 236, 0.16) 62%, rgba(245, 242, 236, 0.42) 100%);
@@ -2580,12 +2722,6 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
 .rl-book-slot.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .rl-book-slot:disabled { opacity: 0.38; cursor: not-allowed; transform: none; }
 .rl-book-slot small { font-size: 0.75rem; font-weight: 600; opacity: 0.72; }
-.rl-book-time-custom {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--stroke);
-}
-.rl-book-time-custom span { font-size: 0.85rem; font-weight: 600; color: var(--text-dim); white-space: nowrap; }
-.rl-book-time-custom .rl-input { width: auto; padding: 9px 12px; }
 .rl-loc { display: grid; gap: 12px; }
 .rl-loc-cta {
   border: none; border-radius: 16px; padding: 20px 18px; font: inherit; font-size: 1rem; font-weight: 700;
