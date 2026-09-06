@@ -40,6 +40,11 @@ function leadDate(iso) {
   return `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} ${time}`;
 }
 
+/** Похоже на ссылку на фото (заявка на курьера может приложить фото изделия). */
+function isPhotoUrl(value) {
+  return /^https?:\/\/\S+\.(jpe?g|png|webp|gif)(\?\S*)?$/i.test(String(value || '').trim());
+}
+
 function ContactLink({ value }) {
   const digits = String(value || '').replace(/\D/g, '');
   if (digits.length >= 10) {
@@ -163,7 +168,16 @@ export function LeadsPage({ toast }) {
                       {fields.map(([k, v]) => (
                         <div key={k} className="cg-leads__field">
                           <dt>{k}</dt>
-                          <dd>{v}</dd>
+                          {isPhotoUrl(v) ? (
+                            <dd>
+                              <a className="cg-leads__photo-link" href={v} target="_blank" rel="noreferrer">
+                                <img className="cg-leads__photo-thumb" src={v} alt="Фото изделия" loading="lazy" />
+                                Открыть в полном размере
+                              </a>
+                            </dd>
+                          ) : (
+                            <dd>{v}</dd>
+                          )}
                         </div>
                       ))}
                     </dl>
@@ -242,6 +256,14 @@ a.cg-leads__contact:hover { color: var(--accent); border-bottom-color: var(--acc
 .cg-leads__field { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
 .cg-leads__field dt { font-size: 0.74rem; color: var(--text-dim); white-space: nowrap; }
 .cg-leads__field dd { margin: 0; font-size: 0.82rem; color: var(--text); overflow-wrap: anywhere; }
+.cg-leads__photo-link {
+  display: inline-flex; align-items: center; gap: 8px; color: var(--accent); text-decoration: none;
+  font-weight: 600; border-bottom: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.cg-leads__photo-link:hover { color: var(--accent-strong, var(--accent)); }
+.cg-leads__photo-thumb {
+  width: 40px; height: 40px; border-radius: 8px; object-fit: cover; border: 1px solid var(--stroke); flex-shrink: 0;
+}
 
 .cg-leads__processed { margin: 0; font-size: 0.74rem; color: var(--text-dim); }
 

@@ -28,7 +28,7 @@ import {
   cancelFieldDealSession,
 } from './fieldDealSession.js';
 import { sendConsultLeadEmailIfConfigured } from './emailDealReceipt.js';
-import { sendTelegramMessage } from './telegramNotify.js';
+import { sendTelegramMessage, sendTelegramPhoto } from './telegramNotify.js';
 import { sendDealConfirmationSms } from './smsSend.js';
 import { mountSupabaseBrowserProxy } from './supabaseBrowserProxy.js';
 import {
@@ -520,6 +520,15 @@ function priceSourceMode() {
   return (process.env.PRICE_SOURCE || 'auto').toLowerCase().trim();
 }
 
+function moexNum(row, keys) {
+  for (const key of keys) {
+    const raw = row?.[key];
+    const n = typeof raw === 'number' ? raw : parseFloat(String(raw ?? '').replace(',', '.'));
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
 async function fetchMoexGoldRubPerGram() {
   const { data } = await axios.get(MOEX_GOLD_ISS_URL, {
     params: { 'iss.meta': 'off' },
@@ -533,11 +542,13 @@ async function fetchMoexGoldRubPerGram() {
   if (!cols?.length || !rowArr) throw new Error('MOEX: нет данных marketdata');
 
   const row = Object.fromEntries(cols.map((c, i) => [c, rowArr[i]]));
-  const last = typeof row.LAST === 'number' ? row.LAST : parseFloat(String(row.LAST).replace(',', '.'));
+  const last = moexNum(row, ['LAST']);
   if (!Number.isFinite(last) || last <= 0) throw new Error('MOEX: нет последней цены (LAST)');
+  const change = moexNum(row, ['CHANGE', 'LASTCHANGE', 'LASTCHANGEPRC']);
 
   return {
     goldRubPerGram: last,
+    change,
     sellRubPerGram: null,
     cbrDate: null,
     moexSecurity: 'GLDRUBF',
@@ -595,7 +606,11 @@ async function fetchCbrUsdRub() {
 
 /** Tether Gold XAUT: цена токена в USD за тройскую унцию (1 XAUT = 1 oz) */
 async function fetchXautUsdPerOz() {
-  const { data } = await axios.get(COINGECKO_XAUT_URL, {
+  const base = COINGECKO_XAUT_URL;
+  const url = /include_24hr_change=/i.test(base)
+    ? base
+    : `${base}${base.includes('?') ? '&' : '?'}include_24hr_change=true`;
+  const { data } = await axios.get(url, {
     timeout: 20000,
     headers: { 'User-Agent': 'CalculatedGold/1.0' },
     validateStatus: (s) => s === 200,
@@ -603,11 +618,13 @@ async function fetchXautUsdPerOz() {
   const raw = data?.['tether-gold']?.usd;
   const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(',', '.'));
   if (!Number.isFinite(n) || n <= 0) throw new Error('CoinGecko: нет цены tether-gold (XAUT)');
-  return n;
+  const ch = data?.['tether-gold']?.usd_24h_change;
+  const change = typeof ch === 'number' ? ch : parseFloat(String(ch ?? '').replace(',', '.'));
+  return { usdPerOz: n, usdChange24h: Number.isFinite(change) ? change : null };
 }
 
 async function fetchXautGoldRubPerGram() {
-  const [usdPerOz, { usdRub, cbrDate }] = await Promise.all([fetchXautUsdPerOz(), fetchCbrUsdRub()]);
+  const [{ usdPerOz, usdChange24h }, { usdRub, cbrDate }] = await Promise.all([fetchXautUsdPerOz(), fetchCbrUsdRub()]);
   const usdPerGram = usdPerOz / TROY_OZ_GRAMS;
   const goldRubPerGram = usdPerGram * usdRub;
   return {
@@ -616,6 +633,7 @@ async function fetchXautGoldRubPerGram() {
     cbrDate,
     xautUsdPerOz: usdPerOz,
     cbrUsdRub: usdRub,
+    change: usdChange24h,
     source: 'xaut',
     fetchedAt: new Date().toISOString(),
   };
@@ -1394,7 +1412,7 @@ app.post(
  */
 const KURIER_BUSINESS_START_MIN = 10 * 60; // 10:00
 const KURIER_LAST_START_MIN = 20 * 60 - 30; // 19:30 — последний визит должен начаться до конца рабочего дня
-const KURIER_DAYS_AHEAD = 14;
+const KURIER_DAYS_AHEAD = 7;
 const KURIER_MIN_LEAD_HOURS = 3;
 
 function isIsoDateString(v) {
@@ -1447,7 +1465,11 @@ async function notifyCourierOrderTelegram({ name, phone, city, address, date, ti
     console.warn('[courier-order tg] skip: TELEGRAM_SUPPORT_CHAT_ID not set');
     return { sent: false, reason: 'not_configured' };
   }
-  const extraLines = Object.entries(extraFields || {}).map(([k, v]) => `${k}: ${v}`);
+  // Фото изделия шлём отдельным сообщением-картинкой (sendPhoto), а не текстовой
+  // ссылкой в конце — так оно сразу видно превью в чате и не зависит от того,
+  // как Telegram распарсит длинный signed URL с токеном как текст.
+  const { 'Фото изделия': photoUrl, ...restFields } = extraFields || {};
+  const extraLines = Object.entries(restFields).map(([k, v]) => `${k}: ${v}`);
   const lines = [
     '🚚 Вызов курьера',
     `Дата: ${formatKurierDateRu(date)}`,
@@ -1460,7 +1482,16 @@ async function notifyCourierOrderTelegram({ name, phone, city, address, date, ti
     '',
     'Панель → «Заявки с сайта»',
   ];
-  return sendTelegramMessage(chatId, lines.join('\n'));
+  const text = lines.join('\n');
+  if (photoUrl) {
+    const photoRes = await sendTelegramPhoto(chatId, photoUrl, text);
+    if (photoRes.sent) return photoRes;
+    // Не получилось скачать по ссылке (например, Telegram не смог достучаться) —
+    // fallback на обычный текст со ссылкой, заявка всё равно не потеряется.
+    console.warn('[courier-order tg] sendPhoto failed, falling back to text', photoRes.reason);
+    return sendTelegramMessage(chatId, `${text}\nФото изделия: ${photoUrl}`);
+  }
+  return sendTelegramMessage(chatId, text);
 }
 
 /**
@@ -1565,7 +1596,9 @@ app.post(
     if (req.body?.fields && typeof req.body.fields === 'object') {
       for (const [k, v] of Object.entries(req.body.fields).slice(0, 10)) {
         const key = String(k).slice(0, 60);
-        const val = String(v ?? '').trim().slice(0, 200);
+        // Лимит 2000 (не 200!) — подписанная ссылка на фото изделия с JWT-токеном
+        // легко превышает 200 символов, при обрезке токен рвётся и ссылка не открывается.
+        const val = String(v ?? '').trim().slice(0, 2000);
         if (key && val) extraFields[key] = val;
       }
     }
@@ -1723,6 +1756,7 @@ app.get(
     res.json({
       currency: 'RUB',
       goldRubPerGram,
+      change: Number.isFinite(Number(cache?.change)) ? Number(cache.change) : null,
       source: quote === 'xaut' ? 'xaut' : (cache?.source ?? 'cbr'),
       buybackPercentOfScrap: Number(settings.buybackPercentOfScrap) || null,
       rangeHalfWidthPercent: Number(settings.rangeHalfWidthPercent) || 0,
@@ -4570,10 +4604,10 @@ app.patch(
   })
 );
 
-// ── Заявки с лендингов (сторона сотрудников, admin/super_admin) ─────────────
+// ── Заявки с лендингов (сторона сотрудников, только super_admin) ────────────
 app.get(
   '/api/landing-leads',
-  asyncHandler(requireUserManager),
+  asyncHandler(requireSuperAdmin),
   asyncHandler(async (req, res) => {
     const status = String(req.query.status || '').trim();
     let q = supabase
@@ -4591,7 +4625,7 @@ app.get(
 
 app.get(
   '/api/landing-leads/unread',
-  asyncHandler(requireUserManager),
+  asyncHandler(requireSuperAdmin),
   asyncHandler(async (_req, res) => {
     const { count, error } = await supabase
       .from('landing_leads')
@@ -4604,7 +4638,7 @@ app.get(
 
 app.patch(
   '/api/landing-leads/:id',
-  asyncHandler(requireUserManager),
+  asyncHandler(requireSuperAdmin),
   asyncHandler(async (req, res) => {
     const status = String(req.body?.status || '').trim();
     if (!['new', 'in_progress', 'done'].includes(status)) {

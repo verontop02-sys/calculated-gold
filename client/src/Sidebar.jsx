@@ -42,7 +42,7 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpen
     ...(isSuper ? [{ key: 'gold-index', label: 'Индекс золота', icon: <IconMap /> }] : []),
     ...(isAdmin ? [{ key: 'fintech-clients', label: 'Клиенты биржи', icon: <IconInvest />, badge: fintechPending }] : []),
     ...(isAdmin ? [{ key: 'support-chat', label: 'Поддержка', icon: <IconChatBubble />, badge: supportUnread }] : []),
-    ...(isAdmin ? [{ key: 'site-leads', label: 'Заявки с сайта', icon: <IconInbox />, badge: leadsNew }] : []),
+    ...(isSuper ? [{ key: 'site-leads', label: 'Заявки с сайта', icon: <IconInbox />, badge: leadsNew }] : []),
   ];
 
   const groups = [

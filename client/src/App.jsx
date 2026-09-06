@@ -514,9 +514,9 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const role = user.role;
-    if ((tab === 'team' || tab === 'settings' || tab === 'fintech-clients' || tab === 'support-chat' || tab === 'site-leads') && !isUserManagerRole(role)) {
+    if ((tab === 'team' || tab === 'settings' || tab === 'fintech-clients' || tab === 'support-chat') && !isUserManagerRole(role)) {
       setTab('dashboard');
-    } else if (tab === 'gold-index' && !isSuperAdminRole(role)) {
+    } else if ((tab === 'gold-index' || tab === 'site-leads') && !isSuperAdminRole(role)) {
       setTab('dashboard');
     }
   }, [user, tab]);
@@ -539,6 +539,20 @@ export default function App() {
       api.supportUnread()
         .then((out) => { if (!cancelled) setSupportUnread(out?.total || 0); })
         .catch(() => { /* бейдж не критичен */ });
+    };
+    poll();
+    const id = setInterval(poll, 60_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [user, tab]);
+
+  // Бейдж новых заявок с сайта — доступ только у super_admin (сервер тоже это проверяет).
+  useEffect(() => {
+    if (!user || !isSuperAdminRole(user.role)) {
+      setLeadsNew(0);
+      return undefined;
+    }
+    let cancelled = false;
+    const poll = () => {
       api.landingLeadsUnread()
         .then((out) => { if (!cancelled) setLeadsNew(out?.total || 0); })
         .catch(() => { /* бейдж не критичен */ });
@@ -668,6 +682,7 @@ export default function App() {
     if (next === 'contract') setContractMounted(true);
     if (next === 'team' && !isUserManagerRole(user.role)) return;
     if (next === 'settings' && !isUserManagerRole(user.role)) return;
+    if (next === 'site-leads' && !isSuperAdminRole(user.role)) return;
     if (next === 'gold-index' && !isSuperAdminRole(user.role)) return;
     setTab(next);
     requestAnimationFrame(() => {
@@ -846,7 +861,7 @@ export default function App() {
             {tab === 'support-chat' && isUserManagerRole(user.role) && (
               <SupportAdminPage toast={toast} />
             )}
-            {tab === 'site-leads' && isUserManagerRole(user.role) && (
+            {tab === 'site-leads' && isSuperAdminRole(user.role) && (
               <LeadsPage toast={toast} />
             )}
           </div>
