@@ -781,7 +781,7 @@ const KURIER_CSS = `
   background: var(--stroke-soft); text-align: left;
 }
 .rl-price-range-val { display: block; font-size: clamp(1.3rem, 2.6vw, 1.6rem); font-weight: 800; letter-spacing: -0.01em; color: #fff; font-variant-numeric: tabular-nums; }
-:root[data-theme='light'] .rl-price-range-val { color: var(--text-strong); }
+:root[data-theme='light'] .rl-price-range-val { color: var(--accent); }
 .rl-price-range p { margin: 6px 0 0; font-size: 0.78rem; color: var(--text-dim); line-height: 1.4; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 
 .rl-photo-field { margin-top: 14px; }
