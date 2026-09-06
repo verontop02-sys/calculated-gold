@@ -1633,7 +1633,7 @@ app.post(
     try {
       await sendDealConfirmationSms({
         to: phone,
-        text: `Reaktivo: заявка на курьера принята. ${formatKurierDateRu(date)}, ${time}. Мы позвоним за 1-2 часа до визита для подтверждения.`,
+        text: `Reaktivo: заявка на курьера принята. ${formatKurierDateRu(date)}, ${time}. За 1 час до визита курьер позвонит для подтверждения.`,
       });
     } catch (e) {
       console.warn('[courier-order sms]', e?.message || e);

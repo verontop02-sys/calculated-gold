@@ -10,14 +10,14 @@ import {
 import { clientApi } from '../api.js';
 import { ymReachGoal } from '../yandexMetrika.js';
 import {
-  KURIER_WEEKDAYS, formatKurierTimeLabel, getAvailableDays, getCalendarGrid, getMaxTimeStrForDay,
-  getMinTimeStrForDay, getQuickTimes, isKurierDayAllowed, isKurierTimeAllowed,
+  formatKurierTimeLabel, getAvailableDays,
+  getQuickTimes, isKurierDayAllowed, isKurierTimeAllowed,
 } from './kurierSlots.js';
 
 const STEPS = [
   { n: '01', title: 'Считаете сумму', text: 'Укажите пробу и вес в калькуляторе — увидите точную сумму, которую получите.' },
   { n: '02', title: 'Выбираете время', text: 'Дата, точное время и адрес — форма ниже. Ничего не нужно уточнять по телефону заранее.' },
-  { n: '03', title: 'Мы звоним для подтверждения', text: 'За 1–2 часа до визита оператор позвонит, чтобы подтвердить время и адрес.' },
+  { n: '03', title: 'Мы звоним для подтверждения', text: 'За 1 час до визита курьер позвонит вам, чтобы подтвердить время и адрес.' },
   { n: '04', title: 'Курьер приезжает', text: 'Проверка пробы и веса при вас, оплата сразу — наличными или переводом.' },
 ];
 
@@ -80,7 +80,7 @@ const COMPARE = [
 const FAQ = [
   { q: 'Почему сумма именно такая, а не «оценка на глаз»?', a: 'Формула открытая: биржевой курс чистого золота × вес × проба / 1000 × 90%. Курьер на сумму не влияет — вызов бесплатный. Точная выплата фиксируется после проверки пробы при вас, но логика та же, что на сайте.' },
   { q: 'Что если я укажу «другой город»?', a: 'Мы свяжемся с вами, чтобы уточнить ближайшую дату, когда сможем приехать, либо предложим отделение или альтернативный способ сдать золото.' },
-  { q: 'Можно ли поменять время после записи?', a: 'Да — оператор позвонит за 1–2 часа до визита для подтверждения, в этот момент можно перенести время.' },
+  { q: 'Можно ли поменять время после записи?', a: 'Да — курьер позвонит за 1 час до визита для подтверждения, в этот момент можно перенести время.' },
   { q: 'Как определяется проба, если клеймо стёрлось?', a: 'Пробирным реактивом и, при необходимости, спектральным анализом. Всё делается при вас — вы видите тот же результат, что и эксперт.' },
   { q: 'Нужны ли документы?', a: 'Нужен паспорт — это требование закона к самой сделке приёма металла, а не проверка происхождения вещи.' },
   { q: 'Что если я передумаю?', a: 'Продажа не является обязательной: вы всегда можете отказаться или перенести визит — это бесплатно.' },
@@ -96,6 +96,7 @@ function resizeImageFile(file, maxDim = 1280, quality = 0.75) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
+      const dataUrl = reader.result;
       const img = new window.Image();
       img.onload = () => {
         let { width, height } = img;
@@ -113,8 +114,12 @@ function resizeImageFile(file, maxDim = 1280, quality = 0.75) {
         ctx.drawImage(img, 0, 0, width, height);
         resolve({ base64: canvas.toDataURL('image/jpeg', quality), mimeType: 'image/jpeg' });
       };
-      img.onerror = () => reject(new Error('Не удалось прочитать изображение'));
-      img.src = reader.result;
+      // HEIC/HEIF с iPhone canvas часто не читает — тогда шлём файл как есть.
+      img.onerror = () => {
+        const mimeType = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
+        resolve({ base64: dataUrl, mimeType });
+      };
+      img.src = dataUrl;
     };
     reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
     reader.readAsDataURL(file);
@@ -247,7 +252,11 @@ function KurierLocationField({ city, setCity, address, setAddress, lat, lng, set
   return (
     <div className="rl-loc">
       <button type="button" className="rl-loc-geo-btn" onClick={locate} disabled={locating}>
-        {locating ? (<><span className="rl-btn-spin" aria-hidden /> Определяем…</>) : '📍 Определить моё местоположение'}
+        {locating ? (
+          <><span className="rl-btn-spin" aria-hidden /> Определяем…</>
+        ) : (
+          <><span className="rl-loc-geo-pin" aria-hidden>📍</span>Определить моё местоположение</>
+        )}
       </button>
       {error && <p className="rl-form-error" style={{ margin: '8px 0 0' }}>{error}</p>}
       {lat != null && lng != null && <div ref={mapElRef} className="rl-loc-map" />}
@@ -269,12 +278,11 @@ function KurierPhotoField({ photoUrl, setPhotoUrl }) {
   const [preview, setPreview] = useState('');
   const [status, setStatus] = useState('idle'); // idle | uploading | done | error
   const [error, setError] = useState('');
-  const inputRef = useRef(null);
 
   async function onPick(e) {
     const file = e.target.files?.[0];
-    e.target.value = '';
     if (!file) return;
+    e.target.value = '';
     setError('');
     setStatus('uploading');
     try {
@@ -297,12 +305,18 @@ function KurierPhotoField({ photoUrl, setPhotoUrl }) {
   }
 
   return (
-    <div className="rl-photo">
-      <input ref={inputRef} type="file" accept="image/*" capture="environment" hidden onChange={onPick} />
+    <div className="rl-photo-field">
       {!preview ? (
-        <button type="button" className="rl-photo-cta" onClick={() => inputRef.current?.click()} disabled={status === 'uploading'}>
+        <label className={`rl-photo-cta${status === 'uploading' ? ' is-busy' : ''}`}>
+          <input
+            className="rl-photo-input"
+            type="file"
+            accept="image/*,image/heic,image/heif,.heic,.heif"
+            onChange={onPick}
+            disabled={status === 'uploading'}
+          />
           {status === 'uploading' ? (<><span className="rl-btn-spin" aria-hidden /> Загружаем…</>) : '📷 Прикрепить фото изделия'}
-        </button>
+        </label>
       ) : (
         <div className="rl-photo-preview">
           <img src={preview} alt="Фото изделия" />
@@ -312,31 +326,22 @@ function KurierPhotoField({ photoUrl, setPhotoUrl }) {
           </div>
         </div>
       )}
-      <p className="rl-photo-hint">Необязательно — поможет точнее понять вес и объём, не влияет на цену.</p>
+      <p className="rl-photo-hint">Необязательно — поможет точнее понять вес и объём.</p>
       {error && <p className="rl-form-error" style={{ margin: '4px 0 0' }}>{error}</p>}
     </div>
   );
 }
 
-function monthCaption(days) {
-  if (!days.length) return '';
-  const a = days[0].date;
-  const b = days[days.length - 1].date;
-  const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
-  if (a.getMonth() === b.getMonth()) return `${a.getDate()}–${b.getDate()} ${months[a.getMonth()]}`;
-  return `${a.getDate()} ${months[a.getMonth()].slice(0, 3)} — ${b.getDate()} ${months[b.getMonth()]}`;
-}
-
 /**
  * Единый блок: расчёт суммы и запись курьера — без разрыва на калькулятор и
- * отдельную форму с шагами. Всё видно сразу, скроллом сверху вниз, как в
- * макете от заказчика (правки «Курьеры»): вес/проба → сумма-вилка → дата,
- * время, адрес, контакты → одна кнопка отправки.
+ * отдельную форму с шагами. Всё видно сразу, скроллом сверху вниз.
  */
 function KurierOrderCard({ quote, pulseKey }) {
   const now = useNowMinute();
-  const days = useMemo(() => getAvailableDays(now), [now]);
-  const cal = useMemo(() => getCalendarGrid(days), [days]);
+  const days = useMemo(
+    () => getAvailableDays(now).filter((d) => getQuickTimes(d.iso, now).length > 0),
+    [now]
+  );
 
   const [pulse, setPulse] = useState(false);
   const [proba, setProba] = useState(585);
@@ -379,8 +384,6 @@ function KurierOrderCard({ quote, pulseKey }) {
   }, [pulseKey]);
 
   const quickTimes = useMemo(() => getQuickTimes(day, now), [day, now]);
-  const minTime = useMemo(() => getMinTimeStrForDay(day, now), [day, now]);
-  const maxTime = getMaxTimeStrForDay();
   const cityLabel = city.trim();
   const dayLabel = days.find((d) => d.iso === day)?.label || '';
 
@@ -462,7 +465,7 @@ function KurierOrderCard({ quote, pulseKey }) {
           </motion.span>
           <h3>Курьер записан</h3>
           <p className="rl-form-note">
-            {dayLabel}, {formatKurierTimeLabel(time)}. Мы позвоним за 1–2 часа до визита, чтобы подтвердить адрес и время.
+            {dayLabel}, {formatKurierTimeLabel(time)}. За 1 час до визита курьер позвонит вам, чтобы подтвердить адрес и время.
           </p>
           <ul className="rl-kurier-summary">
             {cityLabel && <li><span>Город</span><b>{cityLabel}</b></li>}
@@ -481,133 +484,113 @@ function KurierOrderCard({ quote, pulseKey }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, ease: EASE }}
     >
-      <div className="rl-calc-top">
-        <span className="rl-calc-brand">СЛИТОК, УКРАШЕНИЕ ИЛИ ЛОМ</span>
-        <RuGoldTicker value={perGram} />
-      </div>
+      <div className="rl-order-col rl-order-col--calc">
+        <div className="rl-order-divider"><span>Расчёт</span></div>
 
-      <GramsSlider value={grams} onChange={setGrams} max={1000} allowType typeMax={5000} />
-      <div className="rl-weight-quick">
-        {WEIGHT_BUCKETS.map((b) => (
-          <button key={b.label} type="button" className={grams === b.value ? 'is-active' : ''} onClick={() => setGrams(b.value)}>{b.label}</button>
-        ))}
-      </div>
-
-      <span className="rl-calc-label">Проба</span>
-      <div className="rl-seg rl-seg--wrap">
-        {PROBA_OPTIONS.map((p) => (
-          <button key={p} type="button" className={p === proba ? 'is-active' : ''} onClick={() => setProba(p)}>{p}</button>
-        ))}
-        <button type="button" className={isUnknownProba ? 'is-active' : ''} onClick={() => setProba('unknown')}>не знаю</button>
-      </div>
-
-      <KurierPhotoField photoUrl={photoUrl} setPhotoUrl={setPhotoUrl} />
-
-      <div className="rl-price-range">
-        <span className="rl-price-range-val">
-          {priceLow != null && priceHigh != null ? `≈ ${formatMoney(roundTo100(priceLow))} – ${formatMoney(roundTo100(priceHigh))}` : '· · ·'}
-        </span>
-        <p>Точная сумма — после оценки веса и пробы курьером на месте. Курьер бесплатный<RuSbpBadge /></p>
-      </div>
-
-      <div className="rl-order-divider"><span>Бронирование</span></div>
-
-      <span className="rl-calc-label">Куда приехать</span>
-      <KurierLocationField
-        city={city}
-        setCity={setCity}
-        address={address}
-        setAddress={setAddress}
-        lat={lat}
-        lng={lng}
-        setCoords={setCoords}
-      />
-
-      <div className="rl-book-when">
-        <div>
-          <span className="rl-book-cal-label">{monthCaption(days)}</span>
-          <div className="rl-book-week" aria-hidden>
-            {KURIER_WEEKDAYS.map((w) => <span key={w}>{w}</span>)}
-          </div>
-          <div className="rl-book-cal" role="listbox" aria-label="Дата визита">
-            {cal.map((cell, i) => {
-              if (!cell) return <span key={`e-${i}`} className="rl-book-day is-empty" />;
-              const hint = cell.label === 'Сегодня' || cell.label === 'Завтра' ? cell.label : '';
-              return (
-                <button
-                  key={cell.iso}
-                  type="button"
-                  role="option"
-                  aria-selected={day === cell.iso}
-                  className={`rl-book-day${day === cell.iso ? ' is-active' : ''}`}
-                  onClick={() => { setDay(cell.iso); setError(''); }}
-                >
-                  <b>{cell.date.getDate()}</b>
-                  {hint ? <i>{hint}</i> : null}
-                </button>
-              );
-            })}
-          </div>
+        <div className="rl-calc-top">
+          <span className="rl-calc-brand">СЛИТОК, УКРАШЕНИЕ ИЛИ ЛОМ</span>
+          <RuGoldTicker value={perGram} change={quote?.change} />
         </div>
-        <div>
-          <span className="rl-book-slots-label">Время приезда · {dayLabel.toLowerCase()}</span>
-          {quickTimes.length > 0 ? (
-            <>
-              <div className="rl-book-slots">
+
+        <GramsSlider value={grams} onChange={setGrams} max={1000} allowType typeMax={5000} />
+        <div className="rl-weight-quick">
+          {WEIGHT_BUCKETS.map((b) => (
+            <button key={b.label} type="button" className={grams === b.value ? 'is-active' : ''} onClick={() => setGrams(b.value)}>{b.label}</button>
+          ))}
+        </div>
+
+        <span className="rl-calc-label">Проба</span>
+        <div className="rl-seg rl-seg--wrap">
+          {PROBA_OPTIONS.map((p) => (
+            <button key={p} type="button" className={p === proba ? 'is-active' : ''} onClick={() => setProba(p)}>{p}</button>
+          ))}
+          <button type="button" className={isUnknownProba ? 'is-active' : ''} onClick={() => setProba('unknown')}>не знаю</button>
+        </div>
+
+        <KurierPhotoField photoUrl={photoUrl} setPhotoUrl={setPhotoUrl} />
+
+        <div className="rl-price-range">
+          <span className="rl-price-range-val">
+            {priceLow != null && priceHigh != null ? `≈ ${formatMoney(roundTo100(priceLow))} – ${formatMoney(roundTo100(priceHigh))}` : '· · ·'}
+          </span>
+          <p>Точная сумма — после оценки веса и пробы курьером на месте. Курьер бесплатный<RuSbpBadge /></p>
+        </div>
+      </div>
+
+      <div className="rl-order-col rl-order-col--book">
+        <div className="rl-order-divider"><span>Бронирование</span></div>
+
+        <span className="rl-calc-label">Куда приехать</span>
+        <KurierLocationField
+          city={city}
+          setCity={setCity}
+          address={address}
+          setAddress={setAddress}
+          lat={lat}
+          lng={lng}
+          setCoords={setCoords}
+        />
+
+        <div className="rl-book-when">
+          <label className="rl-book-select">
+            <span>Дата</span>
+            <select
+              className="rl-input"
+              aria-label="Дата визита"
+              value={day}
+              onChange={(e) => { setDay(e.target.value); setError(''); }}
+            >
+              {days.map((d) => (
+                <option key={d.iso} value={d.iso}>{d.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="rl-book-select">
+            <span>Время</span>
+            {quickTimes.length > 0 ? (
+              <select
+                className="rl-input"
+                aria-label="Время приезда"
+                value={time}
+                onChange={(e) => { setTime(e.target.value); setError(''); }}
+              >
+                <option value="">Выберите время</option>
                 {quickTimes.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    className={`rl-book-slot${time === t ? ' is-active' : ''}`}
-                    onClick={() => { setTime(t); setError(''); }}
-                  >
-                    {t}
-                  </button>
+                  <option key={t} value={t}>{t}</option>
                 ))}
-              </div>
-              <div className="rl-book-time-custom">
-                <span>Своё время</span>
-                <input
-                  type="time"
-                  className="rl-input"
-                  min={minTime || undefined}
-                  max={maxTime}
-                  step={300}
-                  value={time}
-                  onChange={(e) => { setTime(e.target.value); setError(''); }}
-                />
-              </div>
-              <p className="rl-book-note">Курьеры работают с {minTime} до {maxTime} — можно указать любую минуту.</p>
-            </>
-          ) : (
-            <p className="rl-book-note">На эту дату времени уже нет — выберите другой день.</p>
-          )}
+              </select>
+            ) : (
+              <p className="rl-book-note">На эту дату времени уже нет — выберите другой день.</p>
+            )}
+          </label>
         </div>
+
+        <span className="rl-calc-label">Контакты</span>
+        <div className="rl-book-contacts">
+          <input className="rl-input" name="name" placeholder="Ваше имя" maxLength={120} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
+          <input className="rl-input" name="phone" placeholder="+7 (900) 000-00-00" maxLength={120} inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </div>
+
+        <input className="rl-hp" type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" value={website} onChange={(e) => setWebsite(e.target.value)} />
+
+        <label className="rl-consent">
+          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+          <span>Согласен на <a href="/privacy" target="_blank" rel="noreferrer">обработку персональных данных</a> для оформления заявки</span>
+        </label>
+
+        <motion.button type="submit" className="il-btn il-btn--primary il-btn--lg" style={{ width: '100%' }} disabled={phase === 'sending'} whileTap={{ scale: 0.97 }}>
+          {phase === 'sending' ? (<><span className="rl-btn-spin" aria-hidden /> Отправляем…</>) : 'Забронировать'}
+        </motion.button>
+        <p className="rl-book-note rl-order-hint">За 1 час до визита курьер позвонит вам, чтобы подтвердить время.</p>
+
+        <AnimatePresence>
+          {error && (
+            <motion.p className="rl-form-error" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              {error}
+            </motion.p>
+          )}
+        </AnimatePresence>
       </div>
-
-      <span className="rl-calc-label">Контакты</span>
-      <input className="rl-input" name="name" placeholder="Ваше имя" maxLength={120} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
-      <input className="rl-input" name="phone" placeholder="+7 (900) 000-00-00" maxLength={120} inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-
-      <input className="rl-hp" type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" value={website} onChange={(e) => setWebsite(e.target.value)} />
-
-      <label className="rl-consent">
-        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-        <span>Согласен на <a href="/privacy" target="_blank" rel="noreferrer">обработку персональных данных</a> для оформления заявки</span>
-      </label>
-
-      <motion.button type="submit" className="il-btn il-btn--primary il-btn--lg" style={{ width: '100%' }} disabled={phase === 'sending'} whileTap={{ scale: 0.97 }}>
-        {phase === 'sending' ? (<><span className="rl-btn-spin" aria-hidden /> Отправляем…</>) : 'Оформить заявку'}
-      </motion.button>
-      <p className="rl-book-note">За 1–2 часа до визита позвоним, чтобы подтвердить время.</p>
-
-      <AnimatePresence>
-        {error && (
-          <motion.p className="rl-form-error" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
     </motion.form>
   );
 }
@@ -640,8 +623,8 @@ export function RuKurier() {
           imgLight="/ru/courier-light.jpg"
           imgPos="50% 40%"
           kicker="Вызов курьера"
-          title={<>Назначьте время <br /><span className="il-accent-text">сами</span> — мы приедем</>}
-          sub="Укажите вес, пробу, адрес и удобное время в одной форме — курьер приедет с проверкой пробы при вас и оплатой сразу. Бесплатно в Москве, Санкт-Петербурге и Калининграде."
+          title={<>Продать золото —<br />это просто <span className="il-accent-text">выбрать время</span></>}
+          sub="Никакого «приедем с 9 до 21» наугад. Выбираете день и время сами — за 1 час до визита курьер позвонит, чтобы подтвердить выезд."
           primary={{ href: '#order', label: 'Оформить заявку', onClick: goToOrder }}
           secondary={{ href: '#protsess', label: 'Как это работает' }}
         />
@@ -651,7 +634,7 @@ export function RuKurier() {
             зажата в узкую колонку. Ниже она получает свою ширину и не гаснет. */}
         <section className="il-section rl-order-section" id="order">
           <div className="il-section-inner">
-            <Reveal><KurierOrderCard quote={quote} pulseKey={calcPulse} /></Reveal>
+            <Reveal className="rl-order-wrap"><KurierOrderCard quote={quote} pulseKey={calcPulse} /></Reveal>
           </div>
         </section>
 
@@ -746,8 +729,30 @@ const KURIER_CSS = `
 /* Карточка «расчёт + запись» — отдельный блок под хиро, не в боковой колонке:
    там она попадала в scroll-fade хиро (тускнела при скролле формы) и была
    зажата в узкую колонку. */
-.rl-order-section .il-section-inner { display: flex; justify-content: center; }
-.rl-calc-card.rl-order-card { max-width: 560px; width: 100%; }
+.rl-order-section .il-section-inner { display: block; }
+.rl-order-wrap { width: 100%; }
+.rl-calc-card.rl-order-card {
+  max-width: none; width: 100%;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px 56px; align-items: stretch;
+  padding: 36px 40px 32px;
+}
+.rl-order-col { min-width: 0; }
+.rl-order-col--book {
+  padding-left: 40px;
+  border-left: 1px solid var(--stroke);
+}
+.rl-calc-card.rl-order-card.rl-order-sent {
+  display: block; max-width: 560px; margin: 0 auto; padding: 36px 32px;
+}
+
+@media (max-width: 960px) {
+  .rl-calc-card.rl-order-card {
+    display: flex; flex-direction: column; gap: 0;
+    max-width: 640px; margin: 0 auto; padding: 26px;
+  }
+  .rl-order-col--book { padding-left: 0; border-left: 0; }
+}
 
 /* На мобильном карточка идёт во всю ширину экрана, без «рамки» — без полей
    секции, скруглений и бордера, как нативный полноэкранный блок, а не форма
@@ -756,12 +761,11 @@ const KURIER_CSS = `
   .rl-order-section { padding: 40px 0; }
   .rl-order-section .il-section-inner { max-width: none; padding: 0; }
   .rl-calc-card.rl-order-card {
-    max-width: none; width: 100%; border-radius: 0; border-left: 0; border-right: 0;
+    max-width: none; width: 100%; border-radius: 0; border: 0;
     box-shadow: none; padding: 24px 18px;
   }
 }
 
-.rl-order-card { gap: 0; }
 .rl-order-card .rl-calc-label { display: block; margin-top: 20px; margin-bottom: 0; }
 .rl-order-card .rl-seg--wrap { flex-wrap: wrap; }
 .rl-order-card .rl-seg--wrap button { flex: 1 1 auto; min-width: 54px; }
@@ -777,28 +781,46 @@ const KURIER_CSS = `
   margin-top: 18px; padding: 16px 18px; border-radius: 16px;
   background: var(--stroke-soft); text-align: left;
 }
-.rl-price-range-val { display: block; font-size: clamp(1.3rem, 2.6vw, 1.6rem); font-weight: 800; letter-spacing: -0.01em; color: var(--accent); font-variant-numeric: tabular-nums; }
+.rl-price-range-val { display: block; font-size: clamp(1.3rem, 2.6vw, 1.6rem); font-weight: 800; letter-spacing: -0.01em; color: #fff; font-variant-numeric: tabular-nums; }
+:root[data-theme='light'] .rl-price-range-val { color: var(--text-strong); }
 .rl-price-range p { margin: 6px 0 0; font-size: 0.78rem; color: var(--text-dim); line-height: 1.4; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 
-.rl-photo { margin-top: 14px; }
+.rl-photo-field { margin-top: 14px; }
 .rl-photo-cta {
+  position: relative; overflow: hidden; box-sizing: border-box;
   width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
   padding: 12px 16px; border-radius: 12px; font: inherit; font-size: 0.86rem; font-weight: 700;
   color: var(--text-dim); background: transparent; border: 1px dashed var(--stroke); cursor: pointer; transition: 0.2s;
 }
 .rl-photo-cta:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--stroke)); color: var(--text-strong); }
-.rl-photo-cta:disabled { opacity: 0.7; cursor: wait; }
+.rl-photo-cta.is-busy { opacity: 0.7; cursor: wait; }
+.rl-photo-input {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer; font-size: 32px; /* iOS иначе сжимает hit-area */
+  border: 0; margin: 0; padding: 0;
+}
+.rl-photo-cta.is-busy .rl-photo-input { pointer-events: none; }
 .rl-photo-preview { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 12px; border: 1px solid var(--stroke); background: var(--stroke-soft); }
 .rl-photo-preview img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
 .rl-photo-preview div { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .rl-photo-preview span { font-size: 0.8rem; font-weight: 600; color: var(--text-strong); }
 .rl-photo-preview button { font: inherit; font-size: 0.76rem; font-weight: 700; color: var(--accent); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; }
-.rl-photo-hint { margin: 6px 0 0; font-size: 0.72rem; color: var(--text-dim); }
+.rl-photo-hint { margin: 8px 0 0; font-size: 0.82rem; line-height: 1.45; color: var(--text-dim); white-space: nowrap; }
 
 .rl-order-divider { display: flex; align-items: center; gap: 10px; margin: 26px 0 4px; }
+.rl-order-col--calc > .rl-order-divider:first-child { margin-top: 0; }
 .rl-order-divider::before,
 .rl-order-divider::after { content: ''; flex: 1; height: 1px; background: var(--stroke); }
 .rl-order-divider span { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); white-space: nowrap; }
+@media (min-width: 961px) {
+  .rl-order-col .rl-order-divider { margin: 2px 0 8px; }
+  .rl-order-col .rl-order-divider::before,
+  .rl-order-col .rl-order-divider::after { display: none; }
+  .rl-order-card .rl-book-when { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .rl-order-col--book > .rl-calc-label:first-of-type { margin-top: 8px; }
+  .rl-order-col--calc { display: flex; flex-direction: column; }
+  .rl-order-col--calc .rl-price-range { margin-top: auto; }
+}
 
 .rl-order-card .rl-input { font-size: 0.95rem; }
 .rl-order-card textarea.rl-input { min-height: 76px; resize: vertical; }
@@ -810,18 +832,43 @@ const KURIER_CSS = `
 .rl-loc-geo-btn {
   width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
   padding: 12px 16px; border-radius: 12px; font: inherit; font-size: 0.88rem; font-weight: 700;
-  color: var(--accent); background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: #fff; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   cursor: pointer; transition: 0.2s;
 }
+/* Светлая тема: белый на бледно-красном плохо читается — тёмный текст, булавка остаётся красной. */
+:root[data-theme='light'] .rl-loc-geo-btn { color: var(--text-strong); }
+.rl-loc-geo-pin { flex-shrink: 0; line-height: 1; filter: none; }
 .rl-loc-geo-btn:hover { transform: translateY(-1px); }
 .rl-loc-geo-btn:disabled { opacity: 0.7; cursor: wait; }
 .rl-order-card .rl-loc-fields { display: grid; gap: 10px; margin-top: 10px; }
-.rl-order-card .rl-book-when { margin-top: 14px; }
+.rl-order-card .rl-book-when {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.rl-book-select { display: grid; gap: 6px; min-width: 0; }
+.rl-book-select > span {
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.rl-book-select select.rl-input {
+  appearance: none; -webkit-appearance: none;
+  width: 100%; cursor: pointer;
+  background-color: var(--bg-panel-solid);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%238a8f96' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1.5 1.5 6 6l4.5-4.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 12px 8px;
+  padding-right: 36px;
+}
 
 .rl-consent { display: flex; align-items: flex-start; gap: 10px; margin: 16px 0; cursor: pointer; }
 .rl-consent input[type=checkbox] { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
 .rl-consent span { font-size: 0.76rem; color: var(--text-dim); line-height: 1.4; }
 .rl-consent a { color: var(--text-strong); text-decoration: underline; }
+.rl-order-card .rl-order-hint { margin: 16px 0 0; line-height: 1.45; }
 
 .rl-sticky-cta { display: none; }
 @media (max-width: 900px) {
