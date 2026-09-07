@@ -92,6 +92,17 @@ function parseGrossG(v) {
   return parseFloat(String(v || '').replace(/\s/g, '').replace(',', '.')) || 0;
 }
 
+/** Цифры → ДД.ММ.ГГГГ. Точки ставятся сами, вводить их не нужно. */
+function formatBirthDateInput(raw) {
+  const s = String(raw || '').trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return `${iso[3]}.${iso[2]}.${iso[1]}`;
+  const d = s.replace(/\D/g, '').slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}.${d.slice(2)}`;
+  return `${d.slice(0, 2)}.${d.slice(2, 4)}.${d.slice(4)}`;
+}
+
 export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast, price, user }) {
   const [lastContractNo, setLastContractNo] = useState('');
   const [sellerName, setSellerName] = useState('');
@@ -266,7 +277,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     setSellerName(c?.full_name || '');
     setPhone(phoneValue);
     setPassportLine(c?.passport_line || '');
-    setBirthDate(c?.birth_date || '');
+    setBirthDate(formatBirthDateInput(c?.birth_date || ''));
     setAddress(c?.address || '');
     setValidityResult(null);
   }
@@ -465,7 +476,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         filled += 1;
       }
       if (out.birthDate) {
-        setBirthDate(out.birthDate);
+        setBirthDate(formatBirthDateInput(out.birthDate));
         filled += 1;
       }
       if (filled > 0) {
@@ -828,9 +839,12 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
             <input
               value={birthDate}
               onChange={(e) => {
-                setBirthDate(e.target.value);
+                setBirthDate(formatBirthDateInput(e.target.value));
                 setValidityResult(null);
               }}
+              inputMode="numeric"
+              autoComplete="bday"
+              maxLength={10}
               placeholder="ДД.ММ.ГГГГ"
             />
           </label>
