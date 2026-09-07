@@ -507,6 +507,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       setValidityResult(out);
       if (out.normalized === 'invalid') toast?.('Паспорт недействителен по базе МВД!', 'error');
       else if (out.normalized === 'valid') toast?.('Паспорт действителен', 'success');
+      else if (out.normalized === 'unavailable') toast?.(out.rawStatus, 'error');
       else toast?.(`Ответ МВД: ${out.rawStatus}`, 'error');
     } catch (e) {
       toast?.(e?.message || 'Не удалось проверить паспорт', 'error');
@@ -803,10 +804,15 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
               Для проверки нужны: ФИО (фамилия и имя обязательны) и серия + номер паспорта. Отчество и дата рождения — если заполнены, проверка точнее.
             </p>
             {validityResult && (
-              <p className={`contract-validity-badge contract-validity-badge--${validityResult.normalized === 'valid' ? 'valid' : 'bad'}`}>
+              <p className={`contract-validity-badge contract-validity-badge--${
+                validityResult.normalized === 'valid' ? 'valid'
+                  : validityResult.normalized === 'unavailable' ? 'wait'
+                    : 'bad'
+              }`}>
                 {validityResult.normalized === 'valid' && '✓ Паспорт действителен (МВД)'}
                 {validityResult.normalized === 'invalid' && '✕ Паспорт недействителен — не принимайте документ'}
                 {validityResult.normalized === 'not_found' && '✕ Паспорт не найден в базе МВД — проверьте данные'}
+                {validityResult.normalized === 'unavailable' && `⏳ ${validityResult.rawStatus}`}
                 {validityResult.normalized === 'unknown' && `✕ МВД: ${validityResult.rawStatus}`}
               </p>
             )}
@@ -1187,6 +1193,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         }
         .contract-validity-badge--valid { background: var(--emerald-soft); color: var(--emerald); }
         .contract-validity-badge--bad { background: var(--crimson-soft); color: var(--crimson); }
+        .contract-validity-badge--wait { background: rgba(201, 162, 39, 0.16); color: #b8860b; }
         .contract-balance-low { color: var(--crimson); font-weight: 600; }
 
         /* Positions */

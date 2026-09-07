@@ -824,7 +824,7 @@ export const api = {
     request('/passport-validity-check', {
       method: 'POST',
       body: JSON.stringify(body),
-      timeout: 45_000,
+      timeout: 70_000,
     }),
   /** Баланс NewDB (₽) — только для суперадмина, реестр платных подписок. */
   newDbBalance: () => request('/admin/newdb-balance'),

@@ -4154,16 +4154,23 @@ app.post(
   '/api/passport-validity-check',
   passportValidityLimiter,
   asyncHandler(async (req, res) => {
-    const body = req.body || {};
-    const out = await checkPassportValidity({
-      seria: body.seria,
-      number: body.number,
-      firstname: body.firstname,
-      lastname: body.lastname,
-      secondname: body.secondname,
-      dob: body.dob,
-    });
-    res.json(out);
+    try {
+      const body = req.body || {};
+      const out = await checkPassportValidity({
+        seria: body.seria,
+        number: body.number,
+        firstname: body.firstname,
+        lastname: body.lastname,
+        secondname: body.secondname,
+        dob: body.dob,
+      });
+      res.json(out);
+    } catch (e) {
+      const st = Number.isInteger(e?.status) ? e.status : 502;
+      res.status(st).json({
+        error: e.publicMessage || e.message || 'Не удалось проверить паспорт в МВД',
+      });
+    }
   })
 );
 
@@ -4175,8 +4182,15 @@ app.get(
   '/api/admin/newdb-balance',
   requireSuperAdmin,
   asyncHandler(async (req, res) => {
-    const out = await getNewDbBalance();
-    res.json(out);
+    try {
+      const out = await getNewDbBalance();
+      res.json(out);
+    } catch (e) {
+      const st = Number.isInteger(e?.status) ? e.status : 502;
+      res.status(st).json({
+        error: e.publicMessage || e.message || 'Не удалось получить баланс NewDB',
+      });
+    }
   })
 );
 
@@ -4757,9 +4771,14 @@ app.use((err, _req, res, _next) => {
   }
   const status = Number.isInteger(err?.status) ? err.status : 500;
   const safeStatus = status >= 400 && status < 600 ? status : 500;
+  const hideDetails = safeStatus === 500 && !err?.publicMessage;
   const publicMessage =
     err?.publicMessage ||
-    (safeStatus >= 500 ? (isDev ? `Внутренняя ошибка сервиса: ${err?.message || 'unknown'}` : 'Внутренняя ошибка сервиса') : err?.message || 'Ошибка');
+    (hideDetails
+      ? isDev
+        ? `Внутренняя ошибка сервиса: ${err?.message || 'unknown'}`
+        : 'Внутренняя ошибка сервиса'
+      : err?.message || 'Ошибка');
   console.error('[API ERROR]', err?.stack || err);
   res.status(safeStatus).json({ error: publicMessage });
 });
