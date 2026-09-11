@@ -69,7 +69,7 @@ const COMPANY = {
   inn: '9710095927',
   ogrn: '1227700089627',
   site: 'www.Reaktivo.ru',
-  phone: '8 (916) 500-97-77',
+  phone: '8 (800) 555-18-48',
 };
 
 function parseMoney(v) {
@@ -196,6 +196,20 @@ function drawFit(page, text, x, yFromTop, options = {}) {
   drawTop(page, text, x, yFromTop, { size: fitted, font, color });
 }
 
+/** В шаблоне зашит 8(993) 633 01 01 — закрываем цифры и ставим 8 800. Иконку трубки не трогаем. */
+function overlayHeaderPhone(page, font) {
+  const pageH = page.getHeight();
+  page.drawRectangle({
+    x: 468,
+    y: pageH - 167.5,
+    width: 108,
+    height: 15.5,
+    color: rgb(1, 1, 1),
+    borderWidth: 0,
+  });
+  drawTop(page, COMPANY.phone, 470.5, 164.2, { size: 10, font, maxWidth: 105 });
+}
+
 export function passportLineWithBirthDate(line, birthDate) {
   const l = String(line || '').trim();
   const d = String(birthDate || '').trim();
@@ -212,6 +226,7 @@ export async function buildScrapContractPdfBuffer(body) {
   const regularFont = await pdfDoc.embedFont(readFileSync(FONT_REGULAR_PATH), { subset: true });
   const boldFont = await pdfDoc.embedFont(readFileSync(FONT_BOLD_PATH), { subset: true });
   const page = pdfDoc.getPages()[0];
+  overlayHeaderPhone(page, regularFont);
 
   const contractNo = String(body.contractNo || '').trim() || '—';
   const sellerName = String(body.sellerName || '').trim() || '—';
