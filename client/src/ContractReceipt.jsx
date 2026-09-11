@@ -103,6 +103,35 @@ function formatBirthDateInput(raw) {
   return `${d.slice(0, 2)}.${d.slice(2, 4)}.${d.slice(4)}`;
 }
 
+const MVD_STORE_PREFIX = 'cg-mvd-check:';
+const MVD_CLIENT_WAIT_MS = 4 * 60_000;
+const MVD_POLL_MS = 3_000;
+
+function mvdFingerprint({ seria, number, firstname, lastname, secondname, dob }) {
+  return [seria, number, firstname, lastname, secondname || '', dob || ''].join('|').toLowerCase();
+}
+
+function readStoredMvdRequestId(fp) {
+  try {
+    return sessionStorage.getItem(MVD_STORE_PREFIX + fp) || '';
+  } catch {
+    return '';
+  }
+}
+
+function writeStoredMvdRequestId(fp, requestId) {
+  if (!fp || !requestId) return;
+  try {
+    sessionStorage.setItem(MVD_STORE_PREFIX + fp, requestId);
+  } catch {
+    /* private mode */
+  }
+}
+
+function sleepMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast, price, user }) {
   const [lastContractNo, setLastContractNo] = useState('');
   const [sellerName, setSellerName] = useState('');
@@ -115,7 +144,8 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   const [customerId, setCustomerId] = useState(null);
   const [scanBusy, setScanBusy] = useState(false);
   const [validityBusy, setValidityBusy] = useState(false);
-  const [validityResult, setValidityResult] = useState(null); // { normalized, rawStatus } | null
+  const [validityResult, setValidityResult] = useState(null); // { normalized, rawStatus, requestId? } | null
+  const validityGen = useRef(0);
   const [newDbBalance, setNewDbBalance] = useState(null); // number | null
 
   useEffect(() => {
@@ -132,6 +162,10 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   useEffect(() => {
     if (boundAppraiserName) setAppraiserName(boundAppraiserName);
   }, [boundAppraiserName]);
+
+  useEffect(() => () => {
+    validityGen.current += 1;
+  }, []);
 
   const [searchQ, setSearchQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -491,7 +525,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     }
   }
 
-  /** Проверка действительности паспорта по базе МВД (посредник NewDB) — платный запрос, до ~40 сек. */
+  /** Проверка действительности паспорта по базе МВД (посредник NewDB). */
   async function handleCheckPassportValidity() {
     const nameParts = sellerName.trim().split(/\s+/).filter(Boolean);
     const [lastname, firstname, secondname] = nameParts;
@@ -504,26 +538,51 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       toast?.('Не нашёл серию и номер в строке паспорта — укажите в формате «1234 567890»', 'error');
       return;
     }
+    const payload = {
+      seria: seriesMatch[1].replace(/\s/g, ''),
+      number: seriesMatch[2],
+      firstname,
+      lastname,
+      secondname,
+      dob: birthDate.trim() || undefined,
+    };
+    const fp = mvdFingerprint(payload);
+    const storedId = readStoredMvdRequestId(fp);
+    const gen = ++validityGen.current;
     setValidityBusy(true);
     setValidityResult(null);
     try {
-      const out = await api.passportValidityCheck({
-        seria: seriesMatch[1].replace(/\s/g, ''),
-        number: seriesMatch[2],
-        firstname,
-        lastname,
-        secondname,
-        dob: birthDate.trim() || undefined,
+      let out = await api.passportValidityCheck({
+        ...payload,
+        requestId: storedId || undefined,
       });
+      if (out.requestId) writeStoredMvdRequestId(fp, out.requestId);
+      const deadline = Date.now() + MVD_CLIENT_WAIT_MS;
+      while (out.normalized === 'pending' && Date.now() < deadline) {
+        if (gen !== validityGen.current) return;
+        setValidityResult(out);
+        await sleepMs(MVD_POLL_MS);
+        if (gen !== validityGen.current) return;
+        if (!out.requestId) break;
+        out = await api.passportValidityPoll(out.requestId);
+        if (out.requestId) writeStoredMvdRequestId(fp, out.requestId);
+      }
+      if (gen !== validityGen.current) return;
       setValidityResult(out);
       if (out.normalized === 'invalid') toast?.('Паспорт недействителен по базе МВД!', 'error');
       else if (out.normalized === 'valid') toast?.('Паспорт действителен', 'success');
-      else if (out.normalized === 'unavailable') toast?.(out.rawStatus, 'error');
+      else if (out.normalized === 'pending') {
+        toast?.(
+          'МВД отвечает дольше обычного. Можно нажать «Проверить в МВД» ещё раз — заберём тот же запрос, без повторной оплаты.',
+          'error'
+        );
+      } else if (out.normalized === 'unavailable') toast?.(out.rawStatus, 'error');
       else toast?.(`Ответ МВД: ${out.rawStatus}`, 'error');
     } catch (e) {
+      if (gen !== validityGen.current) return;
       toast?.(e?.message || 'Не удалось проверить паспорт', 'error');
     } finally {
-      setValidityBusy(false);
+      if (gen === validityGen.current) setValidityBusy(false);
     }
   }
 
@@ -808,21 +867,24 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
                 onClick={handleCheckPassportValidity}
                 title="Проверить действительность по базе МВД"
               >
-                {validityBusy ? 'Проверяем…' : 'Проверить в МВД'}
+                {validityBusy
+                  ? (validityResult?.normalized === 'pending' ? 'Ждём МВД…' : 'Проверяем…')
+                  : 'Проверить в МВД'}
               </button>
             </div>
             <p className="muted small" style={{ margin: '6px 0 0' }}>
-              Для проверки нужны: ФИО (фамилия и имя обязательны) и серия + номер паспорта. Отчество и дата рождения — если заполнены, проверка точнее.
+              Для проверки нужны: ФИО (фамилия и имя обязательны) и серия + номер паспорта. Отчество и дата рождения — если заполнены, проверка точнее. Ответ МВД в часы пик может идти несколько минут — статус обновится сам, форму не закрывайте.
             </p>
             {validityResult && (
               <p className={`contract-validity-badge contract-validity-badge--${
                 validityResult.normalized === 'valid' ? 'valid'
-                  : validityResult.normalized === 'unavailable' ? 'wait'
+                  : validityResult.normalized === 'unavailable' || validityResult.normalized === 'pending' ? 'wait'
                     : 'bad'
               }`}>
                 {validityResult.normalized === 'valid' && '✓ Паспорт действителен (МВД)'}
                 {validityResult.normalized === 'invalid' && '✕ Паспорт недействителен — не принимайте документ'}
                 {validityResult.normalized === 'not_found' && '✕ Паспорт не найден в базе МВД — проверьте данные'}
+                {validityResult.normalized === 'pending' && `⏳ ${validityResult.rawStatus}`}
                 {validityResult.normalized === 'unavailable' && `⏳ ${validityResult.rawStatus}`}
                 {validityResult.normalized === 'unknown' && `✕ МВД: ${validityResult.rawStatus}`}
               </p>

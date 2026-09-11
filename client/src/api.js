@@ -817,14 +817,20 @@ export const api = {
     }),
   /**
    * Проверка действительности паспорта РФ по базе МВД (посредник NewDB).
-   * { seria, number, firstname, lastname, secondname?, dob? } → { normalized, rawStatus, state }.
-   * Запрос может занимать до ~40 секунд — МВД отвечает не мгновенно.
+   * { seria, number, firstname, lastname, secondname?, dob?, requestId? }
+   * → { normalized, rawStatus, state, requestId }.
+   * МВД может отвечать минутами: если normalized === 'pending', опрашивайте
+   * passportValidityPoll(requestId) — новая платная проверка не создаётся.
    */
   passportValidityCheck: (body) =>
     request('/passport-validity-check', {
       method: 'POST',
       body: JSON.stringify(body),
-      timeout: 70_000,
+      timeout: 25_000,
+    }),
+  passportValidityPoll: (requestId) =>
+    request(`/passport-validity-check/${encodeURIComponent(requestId)}`, {
+      timeout: 20_000,
     }),
   /** Баланс NewDB (₽) — только для суперадмина, реестр платных подписок. */
   newDbBalance: () => request('/admin/newdb-balance'),

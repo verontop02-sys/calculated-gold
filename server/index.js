@@ -11,7 +11,11 @@ import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
 import { buildScrapContractPdfBuffer } from './scrapContractPdf.js';
 import { recognizePassportImage } from './passportOcr.js';
-import { checkPassportValidity, getNewDbBalance } from './passportValidityCheck.js';
+import {
+  checkPassportValidity,
+  pollPassportValidity,
+  getNewDbBalance,
+} from './passportValidityCheck.js';
 import { computeAnalyticsSummaryData } from './analyticsSummaryData.js';
 import { buildAnalyticsReportPdfBuffer } from './analyticsReportPdf.js';
 import { buildDashboardReportPdf } from './dashboardReportPdf.js';
@@ -447,14 +451,21 @@ const passportOcrLimiter = rateLimit({
   message: { error: 'Слишком много сканирований подряд. Подождите пару минут.' },
 });
 
-// Проверка действительности паспорта — тоже платный запрос (внешний посредник NewDB),
-// плюс сам запрос к МВД может держать соединение до минуты — лимит уже, чем у OCR.
+// Старт проверки — платный запрос NewDB. Повтор с тем же requestId новой проверки не создаёт.
 const passportValidityLimiter = rateLimit({
   windowMs: 10 * 60_000,
   limit: 15,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много проверок подряд. Подождите несколько минут.' },
+});
+// Опрос статуса уже запущенной проверки — дешёвый GET, МВД может отвечать минутами.
+const passportValidityPollLimiter = rateLimit({
+  windowMs: 5 * 60_000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком частый опрос проверки. Подождите несколько секунд.' },
 });
 
 app.use('/api', apiLimiter);
@@ -4149,6 +4160,9 @@ app.post(
  * Только подсказка оператору/курьеру перед сделкой — юридическую ответственность
  * за приём документа это не заменяет, но отсекает явно недействительные паспорта
  * (утеряны, заменены, в розыске у МВД) до того, как деньги уже переданы.
+ *
+ * POST ставит задачу и коротко ждёт. Если МВД ещё считает — { normalized: 'pending', requestId }.
+ * GET по requestId забирает результат без новой платной проверки.
  */
 app.post(
   '/api/passport-validity-check',
@@ -4163,12 +4177,29 @@ app.post(
         lastname: body.lastname,
         secondname: body.secondname,
         dob: body.dob,
+        requestId: body.requestId,
       });
       res.json(out);
     } catch (e) {
       const st = Number.isInteger(e?.status) ? e.status : 502;
       res.status(st).json({
         error: e.publicMessage || e.message || 'Не удалось проверить паспорт в МВД',
+      });
+    }
+  })
+);
+
+app.get(
+  '/api/passport-validity-check/:requestId',
+  passportValidityPollLimiter,
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await pollPassportValidity(req.params.requestId);
+      res.json(out);
+    } catch (e) {
+      const st = Number.isInteger(e?.status) ? e.status : 502;
+      res.status(st).json({
+        error: e.publicMessage || e.message || 'Не удалось получить статус проверки МВД',
       });
     }
   })

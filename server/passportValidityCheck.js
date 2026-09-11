@@ -3,17 +3,33 @@ import crypto from 'crypto';
 /**
  * Проверка действительности паспорта РФ по данным МВД через СМЭВ.
  * Прямого публичного сервиса МВД с 2023 года нет — используем коммерческого
- * посредника NewDB (метод passport_mvd, синхронный режим /run: держит соединение
- * до готовности ответа МВД).
+ * посредника NewDB (метод passport_mvd).
+ *
+ * МВД в часы пик отвечает от ~30 секунд до нескольких минут. Синхронный /run
+ * плюс короткий abort на нашей стороне рвали проверку раньше ответа. Асинхронный
+ * POST + опрос /v2/data по одному requestId: задача на стороне NewDB дорабатывает,
+ * повторный клик не создаёт новую платную проверку.
  *
  * Нужна переменная окружения NEWDB_API_KEY (токен из личного кабинета newdb.net).
  * Тариф на момент написания — 2 ₽ за проверку.
  */
 
 const BASE_URL = 'https://api.newdb.net/v2';
-const ATTEMPT_TIMEOUT_MS = 22_000;
-const MAX_ATTEMPTS = 3;
-const RETRY_PAUSE_MS = 1_200;
+/** Один HTTP-вызов к NewDB. Должен укладываться в лимит Render free (~30 с). */
+const HTTP_TIMEOUT_MS = 12_000;
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const PENDING_STATES = new Set([
+  'queued',
+  'in_progress',
+  'restart',
+  'processing',
+  'pending',
+  'timeout',
+  'running',
+]);
 
 const TRANSIENT_RE =
   /внутренн|unavailable|недоступ|ошибка сервиса|service error|try again|повторит|timeout|таймаут|временно/i;
@@ -22,15 +38,15 @@ export function passportValidityCheckConfigured() {
   return Boolean(process.env.NEWDB_API_KEY);
 }
 
+export function isPassportCheckRequestId(raw) {
+  return UUID_RE.test(String(raw || '').trim());
+}
+
 function fail(status, message) {
   const err = new Error(message);
   err.status = status;
   err.publicMessage = message;
   return err;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** NewDB ждёт YYYY-MM-DD. Форма и OCR отдают ДД.ММ.ГГГГ — иначе СМЭВ отвечает ошибкой. */
@@ -52,6 +68,64 @@ function isTransientRaw(raw) {
   return TRANSIENT_RE.test(String(raw || ''));
 }
 
+function apiHeaders() {
+  return {
+    'X-API-KEY': process.env.NEWDB_API_KEY,
+    Accept: 'application/json',
+  };
+}
+
+async function newdbFetch(url, opts = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(url, {
+      ...opts,
+      signal: controller.signal,
+      headers: { ...apiHeaders(), ...(opts.headers || {}) },
+    });
+  } catch (e) {
+    if (e?.name === 'AbortError') {
+      const err = fail(504, 'Сервис проверки паспортов не ответил. Повторите через минуту');
+      err.transient = true;
+      throw err;
+    }
+    const err = fail(502, 'Не удалось связаться с сервисом проверки паспортов. Попробуйте ещё раз');
+    err.transient = true;
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const text = await res.text();
+  let json;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    throw fail(502, `Сервис проверки паспортов вернул не-JSON (${res.status})`);
+  }
+  if (!res.ok) {
+    const msg = String(json?.error || json?.message || '');
+    if (res.status === 401 || res.status === 403) {
+      throw fail(502, 'Ключ NewDB отклонён. Проверьте NEWDB_API_KEY на сервере');
+    }
+    if (res.status === 402 || /balance|баланс|insufficient|недостаточн/i.test(msg)) {
+      throw fail(502, 'Закончился баланс NewDB — пополните кабинет, иначе проверка МВД не работает');
+    }
+    if (res.status === 404) {
+      return { json: { state: 'queued' }, http: 404 };
+    }
+    if (res.status >= 500 || isTransientRaw(msg)) {
+      const err = fail(502, msg || `Сервис МВД временно недоступен (${res.status})`);
+      err.transient = true;
+      throw err;
+    }
+    throw fail(502, msg || `Ошибка проверки паспорта (${res.status})`);
+  }
+  return { json, http: res.status };
+}
+
 /**
  * Баланс аккаунта NewDB (₽). Проверки платные (≈2₽/шт) — виджет для админа,
  * чтобы пополнить заранее и не остаться без проверки посреди ключевой сделки.
@@ -60,9 +134,7 @@ export async function getNewDbBalance() {
   if (!passportValidityCheckConfigured()) {
     throw fail(503, 'NEWDB_API_KEY не настроен на сервере');
   }
-  const res = await fetch(`${BASE_URL}/balance`, {
-    headers: { 'X-API-KEY': process.env.NEWDB_API_KEY },
-  });
+  const res = await fetch(`${BASE_URL}/balance`, { headers: apiHeaders() });
   const text = await res.text();
   let json;
   try {
@@ -76,7 +148,7 @@ export async function getNewDbBalance() {
   return { balance: Number(json?.balance) || 0 };
 }
 
-function interpretPayload(json) {
+export function interpretPassportMvdPayload(json) {
   const methodResult = json?.results?.passport_mvd?.result || {};
   const resultHttp = Number(methodResult.status) || 0;
   const data = Array.isArray(methodResult.data) ? methodResult.data[0] || {} : {};
@@ -84,18 +156,27 @@ function interpretPayload(json) {
     data.status || data.doc_status || data.error || json?.error || json?.message || ''
   ).trim();
   const state = String(json?.state || '').toLowerCase();
+  const hasResultData = Boolean(rawStatus) && Array.isArray(methodResult.data) && methodResult.data.length > 0;
+  const finished = Number(json?.finished) === 1 || state === 'complete' || hasResultData;
 
-  if (state === 'timeout') return { kind: 'timeout', rawStatus, state };
-  if (
-    state === 'error' ||
-    resultHttp >= 500 ||
-    isTransientRaw(rawStatus)
-  ) {
-    return { kind: 'transient', rawStatus: rawStatus || 'внутренняя ошибка сервиса МВД', state };
+  if (!finished && (PENDING_STATES.has(state) || !state)) {
+    return {
+      kind: 'pending',
+      rawStatus: rawStatus || 'Ждём ответ МВД…',
+      state: state || 'queued',
+    };
+  }
+
+  if (state === 'failed' || state === 'error' || resultHttp >= 500 || isTransientRaw(rawStatus)) {
+    return {
+      kind: 'transient',
+      rawStatus: rawStatus || 'внутренняя ошибка сервиса МВД',
+      state: state || 'error',
+    };
   }
 
   let normalized = 'unknown';
-  if (/недействительн/i.test(rawStatus)) normalized = 'invalid';
+  if (/не\s*действительн/i.test(rawStatus)) normalized = 'invalid';
   else if (/действительн/i.test(rawStatus)) normalized = 'valid';
   else if (/не\s*найден/i.test(rawStatus)) normalized = 'not_found';
 
@@ -103,83 +184,85 @@ function interpretPayload(json) {
     kind: 'ok',
     normalized,
     rawStatus: rawStatus || 'нет данных',
-    state: state || 'unknown',
+    state: state || 'complete',
   };
 }
 
-async function runOnce({ seria, number, firstname, lastname, secondname, dob }) {
-  const requestId = crypto.randomUUID();
-  const q = new URLSearchParams({
+function buildParams({ seria, number, firstname, lastname, secondname, dob }) {
+  const params = {
     method: 'passport_mvd',
+    country: 'ru',
     seria,
     number,
-    country: 'ru',
     firstname,
     lastname,
-    token: process.env.NEWDB_API_KEY,
-    requestId,
-  });
-  if (secondname) q.set('secondname', secondname);
-  if (dob) q.set('dob', dob);
+  };
+  if (secondname) params.secondname = secondname;
+  if (dob) params.dob = dob;
+  return params;
+}
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS);
-  let res;
-  try {
-    res = await fetch(`${BASE_URL}/run?${q.toString()}`, {
-      signal: controller.signal,
-      headers: { 'X-API-KEY': process.env.NEWDB_API_KEY },
-    });
-  } catch (e) {
-    if (e?.name === 'AbortError') {
-      throw fail(504, 'МВД не ответило за отведённое время. Нажмите «Проверить в МВД» ещё раз через минуту');
-    }
-    throw fail(502, 'Не удалось связаться с сервисом проверки паспортов. Попробуйте ещё раз через минуту');
-  } finally {
-    clearTimeout(timer);
-  }
-
-  const text = await res.text();
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    throw fail(502, `Сервис проверки паспортов вернул не-JSON (${res.status})`);
-  }
-  if (!res.ok) {
-    const msg = String(json?.error || json?.message || '');
-    if (res.status === 401 || res.status === 403) {
-      throw fail(502, 'Ключ NewDB отклонён. Проверьте NEWDB_API_KEY на сервере');
-    }
-    if (res.status === 402 || /balance|баланс|insufficient|недостаточн/i.test(msg)) {
-      throw fail(502, 'Закончился баланс NewDB — пополните кабинет, иначе проверка МВД не работает');
-    }
-    if (res.status >= 500 || isTransientRaw(msg)) {
-      const err = fail(502, msg || `Сервис МВД временно недоступен (${res.status})`);
-      err.transient = true;
-      throw err;
-    }
-    throw fail(502, msg || `Ошибка проверки паспорта (${res.status})`);
-  }
-
-  const parsed = interpretPayload(json);
+function logCheck(requestId, parsed, extra = {}) {
   console.warn(
     '[passport-mvd]',
     JSON.stringify({
       requestId,
-      http: res.status,
-      state: parsed.state || json?.state,
       kind: parsed.kind,
+      state: parsed.state,
       raw: String(parsed.rawStatus || '').slice(0, 80),
+      ...extra,
     })
   );
-  return parsed;
 }
 
-export async function checkPassportValidity({ seria, number, firstname, lastname, secondname, dob }) {
-  if (!passportValidityCheckConfigured()) {
-    throw fail(503, 'Проверка действительности паспорта не настроена (нет ключа NewDB на сервере)');
+function toClientResult(parsed, requestId) {
+  if (parsed.kind === 'pending') {
+    return {
+      normalized: 'pending',
+      rawStatus: 'Ждём ответ МВД — в часы пик это может занять несколько минут',
+      state: parsed.state || 'queued',
+      requestId,
+    };
   }
+  if (parsed.kind === 'transient') {
+    return {
+      normalized: 'unavailable',
+      rawStatus:
+        'База МВД сейчас не отвечает (сбой сервиса, не статус паспорта). Нажмите «Проверить в МВД» ещё раз',
+      state: parsed.state || 'error',
+      requestId,
+    };
+  }
+  return {
+    normalized: parsed.normalized,
+    rawStatus: parsed.rawStatus,
+    state: parsed.state,
+    requestId,
+  };
+}
+
+async function submitTask(args, requestId) {
+  const { json } = await newdbFetch(BASE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      params: buildParams(args),
+      requestId,
+    }),
+  });
+  return json;
+}
+
+async function fetchTask(requestId) {
+  const q = new URLSearchParams({
+    requestId,
+    token: process.env.NEWDB_API_KEY,
+  });
+  const { json } = await newdbFetch(`${BASE_URL}/data?${q.toString()}`);
+  return json;
+}
+
+function cleanArgs({ seria, number, firstname, lastname, secondname, dob }) {
   const seriaClean = String(seria || '').replace(/\D/g, '');
   const numberClean = String(number || '').replace(/\D/g, '');
   if (seriaClean.length !== 4 || numberClean.length !== 6) {
@@ -190,60 +273,40 @@ export async function checkPassportValidity({ seria, number, firstname, lastname
   if (!lastnameClean || !firstnameClean) {
     throw fail(400, 'Укажите фамилию и имя продавца для проверки');
   }
-  const secondnameClean = String(secondname || '').trim();
-  const dobClean = toIsoDob(dob);
-
-  const args = {
+  return {
     seria: seriaClean,
     number: numberClean,
     firstname: firstnameClean,
     lastname: lastnameClean,
-    secondname: secondnameClean,
-    dob: dobClean,
+    secondname: String(secondname || '').trim(),
+    dob: toIsoDob(dob),
   };
+}
 
-  let lastTransient = '';
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    try {
-      const parsed = await runOnce(args);
-      if (parsed.kind === 'timeout') {
-        throw fail(504, 'МВД не ответило вовремя. Нажмите «Проверить в МВД» ещё раз через минуту');
-      }
-      if (parsed.kind === 'transient') {
-        lastTransient = parsed.rawStatus;
-        if (attempt < MAX_ATTEMPTS) {
-          await sleep(RETRY_PAUSE_MS);
-          continue;
-        }
-        return {
-          normalized: 'unavailable',
-          rawStatus:
-            'База МВД сейчас не отвечает (сбой сервиса, не статус паспорта). Нажмите «Проверить в МВД» ещё раз через минуту',
-          state: parsed.state || 'error',
-        };
-      }
-      return {
-        normalized: parsed.normalized,
-        rawStatus: parsed.rawStatus,
-        state: parsed.state,
-      };
-    } catch (e) {
-      // Повторяем только быстрый сбой NewDB/СМЭВ. Таймаут 22с не крутим ещё раз —
-      // иначе оператор будет ждать минуту, а клиентский запрос уже оборвётся.
-      if (e?.transient && attempt < MAX_ATTEMPTS) {
-        lastTransient = e.message;
-        await sleep(RETRY_PAUSE_MS);
-        continue;
-      }
-      throw e;
-    }
+export async function checkPassportValidity(body) {
+  if (!passportValidityCheckConfigured()) {
+    throw fail(503, 'Проверка действительности паспорта не настроена (нет ключа NewDB на сервере)');
   }
+  const args = cleanArgs(body);
+  const incoming = String(body.requestId || '').trim();
+  const requestId = isPassportCheckRequestId(incoming) ? incoming : crypto.randomUUID();
 
-  return {
-    normalized: 'unavailable',
-    rawStatus:
-      lastTransient ||
-      'База МВД сейчас не отвечает. Нажмите «Проверить в МВД» ещё раз через минуту',
-    state: 'error',
-  };
+  const json = await submitTask(args, requestId);
+  const parsed = interpretPassportMvdPayload(json);
+  logCheck(requestId, parsed, { phase: 'start' });
+  return toClientResult(parsed, requestId);
+}
+
+export async function pollPassportValidity(requestIdRaw) {
+  if (!passportValidityCheckConfigured()) {
+    throw fail(503, 'Проверка действительности паспорта не настроена (нет ключа NewDB на сервере)');
+  }
+  const requestId = String(requestIdRaw || '').trim();
+  if (!isPassportCheckRequestId(requestId)) {
+    throw fail(400, 'Некорректный идентификатор проверки');
+  }
+  const json = await fetchTask(requestId);
+  const parsed = interpretPassportMvdPayload(json);
+  logCheck(requestId, parsed, { phase: 'poll' });
+  return toClientResult(parsed, requestId);
 }
