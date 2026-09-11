@@ -3,6 +3,7 @@ import { firstFilledContractRow } from './scrapDealFirstRow.js';
 import { buildScrapContractPdfBuffer } from './scrapContractPdf.js';
 import { sendDealConfirmationSms } from './smsSend.js';
 import { sendDealReceiptEmailIfConfigured, sendDealReceiptTextEmailIfConfigured } from './emailDealReceipt.js';
+import { isCompleteBirthDate, formatBirthDateDotted } from './passportValidityCheck.js';
 
 function normalizeScrapPhoneDigits(v) {
   const digits = String(v || '').replace(/\D/g, '');
@@ -297,6 +298,12 @@ export async function createFieldDealSession(supabase, { reqUser, requesterRole,
     err.status = 400;
     throw err;
   }
+  const birthDate = formatBirthDateDotted(body?.birthDate || body?.birth_date || '');
+  if (!isCompleteBirthDate(birthDate)) {
+    const err = new Error('Укажите дату рождения продавца (ДД.ММ.ГГГГ), как в паспорте. Без неё договор не сформируется');
+    err.status = 400;
+    throw err;
+  }
   const rows = Array.isArray(body?.rows) ? body.rows : [];
   let totalRub = body?.totalRub != null ? Math.round(Number(body.totalRub)) : NaN;
   if (!Number.isFinite(totalRub)) {
@@ -353,6 +360,7 @@ export async function createFieldDealSession(supabase, { reqUser, requesterRole,
     address: String(body?.address || '').trim(),
     phone,
     appraiserName: String(body?.appraiserName || '').trim(),
+    birthDate,
     customerId: customerId || undefined,
     rows: rows.map((r) => ({
       itemName: String(r?.itemName || '').trim(),
@@ -592,10 +600,11 @@ export async function verifyFieldDealSession(supabase, { token, code, clientIp }
       let passportLine = '—';
       let address = '—';
       let sellerName = (deal.seller_name && String(deal.seller_name).trim()) || '—';
+      let birthDate = String(s.payload?.birthDate || '').trim();
       if (deal.customer_id) {
         const { data: cu } = await supabase
           .from('scrap_customers')
-          .select('full_name, passport_line, address, phone')
+          .select('full_name, passport_line, address, phone, birth_date')
           .eq('id', deal.customer_id)
           .maybeSingle();
         if (cu) {
@@ -603,6 +612,7 @@ export async function verifyFieldDealSession(supabase, { token, code, clientIp }
           passportLine = (cu.passport_line && String(cu.passport_line).trim()) || '—';
           address = (cu.address && String(cu.address).trim()) || '—';
           customerEmail = null;
+          if (cu.birth_date) birthDate = String(cu.birth_date).trim();
         }
       }
       const rows = Array.isArray(deal.rows) ? deal.rows : [];
@@ -627,6 +637,7 @@ export async function verifyFieldDealSession(supabase, { token, code, clientIp }
         rows,
         totalRub: deal.total_rub,
         issueDate: issueFromDeal,
+        birthDate,
       });
       const { data: uWrap, error: uErr } = await supabase.auth.admin.getUserById(s.created_by);
       if (uErr) console.warn('[field deal email]', uErr.message);

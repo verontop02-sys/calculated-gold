@@ -2,14 +2,38 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   toIsoDob,
+  isCompleteBirthDate,
+  formatBirthDateDotted,
   isPassportCheckRequestId,
   interpretPassportMvdPayload,
 } from './passportValidityCheck.js';
+import { passportLineWithBirthDate } from './scrapContractPdf.js';
 
 test('toIsoDob accepts dotted and ISO dates', () => {
   assert.equal(toIsoDob('15.03.1990'), '1990-03-15');
   assert.equal(toIsoDob('1990-03-15'), '1990-03-15');
+  assert.equal(toIsoDob('15031990'), '1990-03-15');
   assert.equal(toIsoDob(''), '');
+});
+
+test('isCompleteBirthDate requires a real DD.MM.YYYY', () => {
+  assert.equal(isCompleteBirthDate(''), false);
+  assert.equal(isCompleteBirthDate('15.03'), false);
+  assert.equal(isCompleteBirthDate('99.99.1990'), false);
+  assert.equal(isCompleteBirthDate('15.03.1990'), true);
+  assert.equal(isCompleteBirthDate('15031990'), true);
+  assert.equal(formatBirthDateDotted('15031990'), '15.03.1990');
+});
+
+test('passport line gets date of birth appended once', () => {
+  assert.equal(
+    passportLineWithBirthDate('4510 123456 выдан 01.01.2015', '15.03.1990'),
+    '4510 123456 выдан 01.01.2015, дата рождения 15.03.1990'
+  );
+  assert.equal(
+    passportLineWithBirthDate('4510 123456, дата рождения 15.03.1990', '15.03.1990'),
+    '4510 123456, дата рождения 15.03.1990'
+  );
 });
 
 test('requestId accepts UUID v4', () => {

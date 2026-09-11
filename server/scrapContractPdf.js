@@ -196,6 +196,14 @@ function drawFit(page, text, x, yFromTop, options = {}) {
   drawTop(page, text, x, yFromTop, { size: fitted, font, color });
 }
 
+export function passportLineWithBirthDate(line, birthDate) {
+  const l = String(line || '').trim();
+  const d = String(birthDate || '').trim();
+  if (!d) return l;
+  if (l.includes(d) || /дата\s*рожд/i.test(l)) return l;
+  return l ? `${l}, дата рождения ${d}` : `дата рождения ${d}`;
+}
+
 export async function buildScrapContractPdfBuffer(body) {
   const templateBytes = readFileSync(TEMPLATE_PATH);
   const pdfDoc = await PDFDocument.load(templateBytes);
@@ -207,7 +215,9 @@ export async function buildScrapContractPdfBuffer(body) {
 
   const contractNo = String(body.contractNo || '').trim() || '—';
   const sellerName = String(body.sellerName || '').trim() || '—';
-  const passportLine = String(body.passportLine || '').trim() || '—';
+  const birthDate = String(body.birthDate || body.birth_date || '').trim();
+  const passportLine =
+    passportLineWithBirthDate(String(body.passportLine || '').trim(), birthDate) || '—';
   const address = String(body.address || '').trim() || '—';
   const appraiserName = String(body.appraiserName || '').trim() || '________________';
 

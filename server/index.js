@@ -15,6 +15,8 @@ import {
   checkPassportValidity,
   pollPassportValidity,
   getNewDbBalance,
+  isCompleteBirthDate,
+  formatBirthDateDotted,
 } from './passportValidityCheck.js';
 import { computeAnalyticsSummaryData } from './analyticsSummaryData.js';
 import { buildAnalyticsReportPdfBuffer } from './analyticsReportPdf.js';
@@ -3811,16 +3813,18 @@ app.get(
     let passportLine = '—';
     let address = '—';
     let sellerName = (deal.seller_name && String(deal.seller_name).trim()) || '—';
+    let birthDate = '';
     if (deal.customer_id) {
       const { data: cu } = await supabase
         .from('scrap_customers')
-        .select('full_name, passport_line, address, phone')
+        .select('full_name, passport_line, address, phone, birth_date')
         .eq('id', deal.customer_id)
         .maybeSingle();
       if (cu) {
         if (cu.full_name) sellerName = String(cu.full_name).trim();
         passportLine = (cu.passport_line && String(cu.passport_line).trim()) || '—';
         address = (cu.address && String(cu.address).trim()) || '—';
+        birthDate = cu.birth_date || '';
       }
     }
 
@@ -3843,6 +3847,7 @@ app.get(
       rows,
       totalRub: deal.total_rub,
       issueDate: issueFromDeal,
+      birthDate,
     });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="dogovor-${id.slice(0, 8)}.pdf"`);
@@ -4231,6 +4236,12 @@ app.post(
     const body = req.body || {};
     const sellerName = String(body.sellerName || '').trim();
     if (!sellerName) return res.status(400).json({ error: 'Укажите ФИО продавца' });
+    const birthDate = formatBirthDateDotted(body.birthDate || body.birth_date || '');
+    if (!isCompleteBirthDate(birthDate)) {
+      return res.status(400).json({
+        error: 'Укажите дату рождения продавца (ДД.ММ.ГГГГ), как в паспорте. Без неё договор не сформируется',
+      });
+    }
     const rows = Array.isArray(body.rows) ? body.rows : [];
     let total = body.totalRub != null ? Math.round(Number(body.totalRub)) : NaN;
     if (!Number.isFinite(total)) {
@@ -4252,7 +4263,7 @@ app.post(
     let dealId = null;
     let contractNo = '';
     try {
-      const inserted = await recordScrapDealFromPdf({ req, body, totalRub: total });
+      const inserted = await recordScrapDealFromPdf({ req, body: { ...body, birthDate }, totalRub: total });
       dealId = inserted.id;
       contractNo = inserted.contractNo || '';
       cacheInvalidate('analytics:');
@@ -4260,7 +4271,7 @@ app.post(
     } catch (e) {
       console.error('[scrap_deals insert]', e?.message || e);
     }
-    const buf = await buildScrapContractPdfBuffer({ ...body, contractNo, totalRub: total });
+    const buf = await buildScrapContractPdfBuffer({ ...body, contractNo, totalRub: total, birthDate });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="dogovor-kvitanciya.pdf"');
     if (dealId) res.setHeader('X-Deal-Id', dealId);

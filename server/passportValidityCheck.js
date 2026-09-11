@@ -61,7 +61,32 @@ export function toIsoDob(raw) {
     const mm = m[2].padStart(2, '0');
     return `${m[3]}-${mm}-${dd}`;
   }
+  const digits = s.replace(/\D/g, '');
+  if (digits.length === 8) {
+    return `${digits.slice(4, 8)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`;
+  }
   return '';
+}
+
+export function formatBirthDateDotted(raw) {
+  const iso = toIsoDob(raw);
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  return `${m[3]}.${m[2]}.${m[1]}`;
+}
+
+/** Полная дата ДД.ММ.ГГГГ — без неё договор не формируем. */
+export function isCompleteBirthDate(raw) {
+  const dotted = formatBirthDateDotted(raw);
+  const m = dotted.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!m) return false;
+  const dd = Number(m[1]);
+  const mm = Number(m[2]);
+  const yyyy = Number(m[3]);
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return false;
+  const yearNow = new Date().getFullYear();
+  if (yyyy < 1900 || yyyy > yearNow) return false;
+  return true;
 }
 
 function isTransientRaw(raw) {

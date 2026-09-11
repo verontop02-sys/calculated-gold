@@ -51,6 +51,7 @@ function buildContractPayloadForSession({
   rows,
   totalRub,
   courierId,
+  birthDate,
 }) {
   const base = {
     customerId: customerId || undefined,
@@ -59,6 +60,7 @@ function buildContractPayloadForSession({
     address: String(address || '').trim(),
     phone: String(phone || '').trim(),
     appraiserName: String(appraiserName || '').trim(),
+    birthDate: String(birthDate || '').trim() || undefined,
     rows: rows.map((r) => ({
       itemName: r.itemName.trim(),
       metal: r.metal.trim(),
@@ -101,6 +103,19 @@ function formatBirthDateInput(raw) {
   if (d.length <= 2) return d;
   if (d.length <= 4) return `${d.slice(0, 2)}.${d.slice(2)}`;
   return `${d.slice(0, 2)}.${d.slice(2, 4)}.${d.slice(4)}`;
+}
+
+function isCompleteBirthDate(raw) {
+  const s = formatBirthDateInput(raw);
+  const m = s.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!m) return false;
+  const dd = Number(m[1]);
+  const mm = Number(m[2]);
+  const yyyy = Number(m[3]);
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return false;
+  const yearNow = new Date().getFullYear();
+  if (yyyy < 1900 || yyyy > yearNow) return false;
+  return true;
 }
 
 const MVD_STORE_PREFIX = 'cg-mvd-check:';
@@ -621,6 +636,10 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       toast?.('Укажите ФИО эксперта-оценщика', 'error');
       return;
     }
+    if (!isCompleteBirthDate(birthDate)) {
+      toast?.('Укажите дату рождения продавца (ДД.ММ.ГГГГ) — как в паспорте. Без неё договор не сформируется', 'error');
+      return;
+    }
     if (!rowTotal || rowTotal <= 0) {
       toast?.('Укажите стоимость хотя бы в одной строке', 'error');
       return;
@@ -647,6 +666,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         phone: phone.trim(),
         appraiserName: appraiserName.trim(),
         issueDate,
+        birthDate: formatBirthDateInput(birthDate),
         rows: rows.map((r) => ({
           itemName: r.itemName.trim(),
           metal: r.metal.trim(),
@@ -669,6 +689,16 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       URL.revokeObjectURL(url);
       setLastContractNo(contractNo || '');
       toast?.(contractNo ? `PDF сформирован, договор № ${contractNo}` : 'PDF сформирован', 'success');
+      api.saveScrapCustomer({
+        id: customerId || undefined,
+        full_name: fn,
+        phone: phone.trim() || null,
+        passport_line: passportLine.trim() || null,
+        address: address.trim() || null,
+        birth_date: formatBirthDateInput(birthDate),
+      }).then((out) => {
+        if (out?.customer?.id) setCustomerId(out.customer.id);
+      }).catch(() => {});
 
       // Асинхронно загружаем фотографии изделий (не блокируем PDF-скачивание)
       if (dealId) {
@@ -718,6 +748,10 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       toast?.('Укажите ФИО эксперта-оценщика', 'error');
       return;
     }
+    if (!isCompleteBirthDate(birthDate)) {
+      toast?.('Укажите дату рождения продавца (ДД.ММ.ГГГГ) — как в паспорте. Без неё договор не сформируется', 'error');
+      return;
+    }
     if (!rowTotal || rowTotal <= 0) {
       toast?.('Укажите стоимость хотя бы в одной строке', 'error');
       return;
@@ -739,6 +773,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         rows,
         totalRub: rowTotal,
         courierId: isUserManagerRole(user?.role) ? fieldCourierUid : undefined,
+        birthDate: formatBirthDateInput(birthDate),
       });
       const r = await api.fieldDealSessionCreate(body);
       setSmsLink(r.confirmUrl || '');
@@ -773,7 +808,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       </div>
 
       <PageHint id="contract" title="Как оформить договор">
-        Найдите клиента по телефону или заполните вручную. Для золота укажите пробу и вес — стоимость подставится сама. К каждой позиции можно приложить <b>фото изделия</b>. Кнопка <b>«Скачать PDF»</b> сохраняет сделку в учёт и клиента в базу.
+        Найдите клиента по телефону или заполните вручную. Обязательно перепишите <b>дату рождения</b> из паспорта — без неё договор не сформируется. Для золота укажите пробу и вес — стоимость подставится сама. К каждой позиции можно приложить <b>фото изделия</b>. Кнопка <b>«Скачать PDF»</b> сохраняет сделку в учёт и клиента в базу.
       </PageHint>
 
       <div className="contract-card" ref={searchBoxRef}>
@@ -872,8 +907,27 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
                   : 'Проверить в МВД'}
               </button>
             </div>
+            <label className="field contract-birth-field">
+              <span className="field-label">
+                Дата рождения <span className="field-required" aria-hidden>*</span>
+              </span>
+              <input
+                value={birthDate}
+                onChange={(e) => {
+                  setBirthDate(formatBirthDateInput(e.target.value));
+                  setValidityResult(null);
+                }}
+                inputMode="numeric"
+                autoComplete="bday"
+                maxLength={10}
+                required
+                placeholder="ДД.ММ.ГГГГ"
+                className={!isCompleteBirthDate(birthDate) ? 'contract-birth-empty' : undefined}
+                aria-required="true"
+              />
+            </label>
             <p className="muted small" style={{ margin: '6px 0 0' }}>
-              Для проверки нужны: ФИО (фамилия и имя обязательны) и серия + номер паспорта. Отчество и дата рождения — если заполнены, проверка точнее. Ответ МВД в часы пик может идти несколько минут — статус обновится сам, форму не закрывайте.
+              Смотрите в паспорте строку «Дата рождения» — без полной даты договор не сформируется. Для проверки МВД нужны ФИО (фамилия и имя) и серия + номер; отчество и дата рождения делают проверку точнее. В часы пик ответ МВД может идти несколько минут — статус обновится сам, форму не закрывайте.
             </p>
             {validityResult && (
               <p className={`contract-validity-badge contract-validity-badge--${
@@ -896,20 +950,6 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
               </p>
             )}
           </div>
-          <label className="field">
-            <span className="field-label">Дата рождения</span>
-            <input
-              value={birthDate}
-              onChange={(e) => {
-                setBirthDate(formatBirthDateInput(e.target.value));
-                setValidityResult(null);
-              }}
-              inputMode="numeric"
-              autoComplete="bday"
-              maxLength={10}
-              placeholder="ДД.ММ.ГГГГ"
-            />
-          </label>
           <label className="field contract-span-2">
             <span className="field-label">Адрес регистрации</span>
             <textarea
@@ -1106,7 +1146,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       )}
 
       <div className="contract-actions">
-        <button type="button" className="btn-primary contract-pdf-btn" disabled={pdfBusy || smsBusy} onClick={handlePdf}>
+        <button type="button" className="btn-primary contract-pdf-btn" disabled={pdfBusy || smsBusy} onClick={handlePdf} title="Без даты рождения PDF не сформируется">
           {pdfBusy ? 'Формируем PDF…' : 'Скачать PDF'}
         </button>
         <button
@@ -1259,6 +1299,9 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         /* Passport scan + validity check */
         .contract-passport-row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
         .contract-passport-row input { flex: 1 1 160px; min-width: 0; }
+        .contract-birth-field { margin: 12px 0 0; max-width: 280px; }
+        .contract-birth-field input { font-variant-numeric: tabular-nums; letter-spacing: 0.06em; }
+        .contract-birth-field input.contract-birth-empty { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.55); }
         .contract-scan-btn {
           flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
           white-space: nowrap; cursor: pointer; font-size: 0.82rem; padding: 0 14px;
