@@ -13,6 +13,7 @@ import officeWorkPhoto from '../assets/office/work.jpg';
 
 export { ruHref, isReaktivoRuHost, staffHref } from './ruSite.js';
 export { officeHallPhoto, officeWaitingPhoto, officeWorkPhoto };
+export { quotePerGram, quotePayout, quotePayoutRange, quoteBuybackPctLabel } from '../calc.js';
 
 export const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -1293,6 +1294,21 @@ export const RL_CSS = `
 .rl-cta-panel .rl-seg { background: rgba(255, 255, 255, 0.16); }
 .rl-cta-panel .rl-seg button { color: rgba(255, 255, 255, 0.78); }
 .rl-cta-panel .rl-seg button.is-active { background: #fff; color: var(--accent); }
+.rl-cta-panel .rl-photo-cta {
+  color: rgba(255, 255, 255, 0.92);
+  border-color: rgba(255, 255, 255, 0.42);
+}
+.rl-cta-panel .rl-photo-cta:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.72);
+}
+.rl-cta-panel .rl-photo-hint { color: rgba(255, 255, 255, 0.78); }
+.rl-cta-panel .rl-photo-preview {
+  background: rgba(0, 0, 0, 0.18);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.rl-cta-panel .rl-photo-preview span { color: #fff; }
+.rl-cta-panel .rl-photo-preview button { color: #fff; }
 
 /* ── Сравнительная таблица: украшение vs слиток Reaktivo ── */
 .rl-compare {
@@ -1490,9 +1506,13 @@ export const RL_CSS = `
   width: 100%; margin-top: 10px; accent-color: var(--accent);
   height: 28px; cursor: pointer;
 }
-.rl-calc-out { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--stroke-soft); display: flex; flex-direction: column; gap: 4px; }
-.rl-calc-out-label { font-size: 0.78rem; color: var(--text-dim); }
-.rl-calc-out-val { font-size: clamp(1.7rem, 3vw, 2.1rem); font-weight: 800; letter-spacing: -0.02em; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.rl-calc-out {
+  margin-top: 20px; padding: 18px 20px 16px; border-radius: 18px;
+  background: var(--stroke-soft);
+  display: flex; flex-direction: column; justify-content: center; gap: 6px;
+}
+.rl-calc-out-label { font-size: 0.82rem; color: var(--text-dim); line-height: 1.35; }
+.rl-calc-out-val { font-size: clamp(1.85rem, 3.4vw, 2.35rem); font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong); font-variant-numeric: tabular-nums; line-height: 1.1; }
 /* Светлая тема: сумма красным — как в калькуляторе заказа курьера */
 :root[data-theme='light'] .rl-calc-out-val { color: var(--accent); }
 .rl-calc-cta { display: block; width: 100%; text-align: center; margin-top: 18px; }
@@ -1873,7 +1893,17 @@ textarea.rl-input { resize: vertical; min-height: 52px; }
   display: flex; flex-direction: column; border-radius: 26px;
 }
 .rl-fhero-aside .rl-calc-foot { margin-top: auto; }
-.rl-fhero-aside .rl-calc-out { margin-top: 12px; }
+.rl-fhero-aside .rl-calc-out {
+  flex: 1 1 auto; min-height: 128px; margin-top: 18px;
+  padding: 22px 22px 18px;
+}
+.rl-fhero-aside .rl-calc-out + .rl-calc-note {
+  margin: 0; padding: 0 22px 18px; background: var(--stroke-soft);
+  border-radius: 0 0 18px 18px;
+}
+.rl-fhero-aside .rl-calc-out:has(+ .rl-calc-note) {
+  border-radius: 18px 18px 0 0; padding-bottom: 8px;
+}
 .rl-fhero-aside .rl-lot-stage,
 .rl-fhero-aside .rl-branch-stage,
 .rl-fhero-aside .rl-b2b-stage,

@@ -4,6 +4,7 @@ import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../Inv
 import {
   RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuMarketTiles, RuMarquee, RuPhotoCard, RuSbpBadge, RuStatement, RuThemedImg, RuTiltCard,
   GramsSlider, formatMoney, officeHallPhoto, ruHref, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
+  quotePayout, quoteBuybackPctLabel,
 } from './RuShared.jsx';
 
 const DIRECTIONS = [
@@ -46,14 +47,14 @@ const STEPS = [
   { n: '04', title: 'Деньги и документы', text: 'Наличные на месте или перевод. Договор — в приложении, без бумажной волокиты.' },
 ];
 
-const ADVANTAGES = [
+const ADVANTAGES_BASE = [
   { title: 'Курс с двух бирж', text: 'Собственная программа берёт котировки Москвы и Лондона и пересчитывает цену грамма каждые три секунды.' },
-  { title: 'Наценка видна', text: 'Клиент получает до 90% биржевой стоимости. Мы показываем, из чего складывается цена, а не прячем её.' },
+  { title: 'Наценка видна', key: 'pct' },
   { title: 'Одна цена для всех', text: 'Единственное, что влияет на курс выкупа, — это биржа. Один и тот же курс на сайте, в отделениях и у курьера.' },
 ];
 
-const FAQ = [
-  { q: 'Почему цена выше, чем в ломбарде?', a: 'Ломбарды закладывают риск невыкупа и расходы на хранение. При залоге вы получаете не более 50% стоимости изделия, а затем вынуждены выкупать его обратно. Мы платим сразу до 90% и не зарабатываем на клиенте за счёт разницы.' },
+const FAQ_BASE = [
+  { q: 'Почему цена выше, чем в ломбарде?', key: 'pct' },
   { q: 'Что если клеймо стёрлось?', a: 'Проба определяется пробирным реактивом и, при необходимости, спектральным анализом — всё при вас. Мы не вычитаем никаких комиссий из-за состояния изделий.' },
   { q: 'Что если я не соглашусь с оценкой?', a: 'Продажа не является обязательной: вы всегда можете отказаться или передумать — это бесплатно.' },
   { q: 'Нужны ли документы на изделие?', a: 'Нет, достаточно паспорта — это требование закона к самой сделке, а не проверка происхождения вещи.' },
@@ -63,7 +64,7 @@ function LiveCalcCard({ quote }) {
   const [proba, setProba] = useState(585);
   const [grams, setGrams] = useState(12);
   const perGram = quote?.goldRubPerGram || null;
-  const sum = perGram ? perGram * (proba / 1000) * grams * 0.9 : null;
+  const sum = quotePayout(quote, proba, grams);
   const sumDisplay = useAnimatedNumber(sum);
 
   return (
@@ -93,6 +94,20 @@ export function RuHome() {
   const lenisRef = useRuLenis();
   const { scrollYProgress } = useScroll();
   const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
+  const pct = quoteBuybackPctLabel(quote);
+  const advantages = ADVANTAGES_BASE.map((a) => (
+    a.key === 'pct'
+      ? { title: a.title, text: `Клиент получает ${pct} биржевой стоимости. Мы показываем, из чего складывается цена, а не прячем её.` }
+      : a
+  ));
+  const faq = FAQ_BASE.map((item) => (
+    item.key === 'pct'
+      ? {
+        q: item.q,
+        a: `Ломбарды закладывают риск невыкупа и расходы на хранение. При залоге вы получаете не более 50% стоимости изделия, а затем вынуждены выкупать его обратно. Мы платим сразу ${pct} и не зарабатываем на клиенте за счёт разницы.`,
+      }
+      : item
+  ));
 
   useEffect(() => { setDraftMeta('Reaktivo — выкуп золота без ломбардной логики'); }, []);
 
@@ -123,14 +138,14 @@ export function RuHome() {
         />
 
         <RuMarquee items={[
-          'Курс каждые 3 секунды', 'До 90% от биржи', 'Курьер бесплатно', 'Ювелирные слитки',
+          'Курс каждые 3 секунды', `${pct} от биржи`, 'Курьер бесплатно', 'Ювелирные слитки',
           'Resale в Telegram', 'Агенты по всей стране', 'Франшиза', 'Партнёрам',
         ]} />
 
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
             <RuKpis items={[
-              { val: 'до 90%', label: 'от биржевой стоимости', icon: 'percent', imgDark: '/ru/kpi-percent-dark.jpg', imgLight: '/ru/kpi-percent-light.jpg' },
+              { val: pct, label: 'от биржевой стоимости', icon: 'percent', imgDark: '/ru/kpi-percent-dark.jpg', imgLight: '/ru/kpi-percent-light.jpg' },
               { val: '45 мин', label: 'курьер приезжает', icon: 'clock', imgDark: '/ru/kpi-parcel-dark.jpg', imgLight: '/ru/kpi-parcel-light.jpg' },
               { val: '5 мин', label: 'время сделки', icon: 'bolt', imgDark: '/ru/kpi-watch-dark.jpg', imgLight: '/ru/kpi-watch-light.jpg' },
               { val: '3 города', label: 'Москва · Калининград · СПб', icon: 'pin', imgDark: '/ru/kpi-cities-dark.jpg', imgLight: '/ru/kpi-cities-light.jpg' },
@@ -193,7 +208,7 @@ export function RuHome() {
             </div>
             <div className="rl-media-split rl-media-split--even">
               <motion.div className="il-cards rl-media-split-cards" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
-                {ADVANTAGES.map((a) => (
+                {advantages.map((a) => (
                   <motion.div className="il-card" key={a.title} variants={staggerChild} whileHover={{ y: -8 }} transition={{ duration: 0.35, ease: EASE }}>
                     <h3 className="il-card-title">{a.title}</h3>
                     <p className="il-card-text">{a.text}</p>
@@ -226,7 +241,7 @@ export function RuHome() {
               <Reveal><span className="il-pill">Вопросы</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Отвечаем честно</h2></Reveal>
             </div>
-            <RuFaq items={FAQ} />
+            <RuFaq items={faq} />
           </div>
         </section>
 

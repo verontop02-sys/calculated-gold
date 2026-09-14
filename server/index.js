@@ -79,6 +79,14 @@ import {
   logLoginEvent,
 } from './deviceTrust.js';
 import {
+  formatStaffPhonePretty,
+  maskStaffPhone,
+  normalizeStaffPhone,
+  parseStaffPhone,
+  readStaffPhoneNormalized,
+  saveStaffPhone,
+} from './staffPhone.js';
+import {
   requestFintechCode,
   verifyFintechCode,
   verifyFintechToken,
@@ -1805,7 +1813,7 @@ app.get(
     const settings = await getSettings();
 
     // Какие пробы отдаём: ходовые + всё, что настроено в системе.
-    const probes = [...new Set([585, 750, 999, ...(settings.purityOrder || [])].map(Number))]
+    const probes = [...new Set([375, 585, 750, 999, ...(settings.purityOrder || [])].map(Number))]
       .filter((p) => Number.isFinite(p) && p > 0 && p <= 1000)
       .sort((a, b) => a - b);
 
@@ -3009,7 +3017,16 @@ app.get(
       return res.json(hit);
     }
     const { data: prof } = await supabase.from('profiles').select('display_name').eq('id', uid).maybeSingle();
-    const result = { user: { uid, email: req.user.email, role, displayName: prof?.display_name || null } };
+    const phoneNormalized = await readStaffPhoneNormalized(supabase, req.user);
+    const result = {
+      user: {
+        uid,
+        email: req.user.email,
+        role,
+        displayName: prof?.display_name || null,
+        phoneMasked: phoneNormalized ? maskStaffPhone(phoneNormalized) : null,
+      },
+    };
     cacheSet(cacheKey, result, 60_000);
     res.setHeader('Cache-Control', 'no-store');
     res.json(result);
@@ -3037,6 +3054,7 @@ app.get(
     const role = await getRequesterRole(req);
     const uid = req.user.id;
     const { data: prof } = await supabase.from('profiles').select('display_name').eq('id', uid).maybeSingle();
+    const phoneNormalized = await readStaffPhoneNormalized(supabase, req.user);
     const sel = 'id, contract_no, total_rub, seller_name, first_probe, first_weight_gross, first_weight_net, created_at, rows';
     const { data: deals, error } = await supabase
       .from('scrap_deals')
@@ -3055,7 +3073,15 @@ app.get(
     const firstDealAt = dealsCount > 0 ? list[list.length - 1].created_at : null;
     const lastDealAt = dealsCount > 0 ? list[0].created_at : null;
     res.json({
-      user: { uid, email: req.user.email, role, displayName: prof?.display_name || null },
+      user: {
+        uid,
+        email: req.user.email,
+        role,
+        displayName: prof?.display_name || null,
+        phone: phoneNormalized ? `+7${phoneNormalized}` : null,
+        phonePretty: phoneNormalized ? formatStaffPhonePretty(phoneNormalized) : null,
+        phoneMasked: phoneNormalized ? maskStaffPhone(phoneNormalized) : null,
+      },
       stats: { dealsCount, totalRub, totalGross, totalNet, avg, firstDealAt, lastDealAt, maxDealRub: maxDeal?.total_rub || 0 },
       recent: list.slice(0, 12),
     });
@@ -3087,10 +3113,27 @@ async function saveProfileDisplayName(uid, displayName) {
 app.patch(
   '/api/profile/me',
   asyncHandler(async (req, res) => {
-    const parsed = parseStaffDisplayName(req.body?.displayName);
-    if (parsed.error) return res.status(400).json({ error: parsed.error });
-    await saveProfileDisplayName(req.user.id, parsed.displayName);
-    res.json({ ok: true, displayName: parsed.displayName });
+    const body = req.body || {};
+    const out = { ok: true };
+    if ('displayName' in body) {
+      const parsed = parseStaffDisplayName(body.displayName);
+      if (parsed.error) return res.status(400).json({ error: parsed.error });
+      await saveProfileDisplayName(req.user.id, parsed.displayName);
+      out.displayName = parsed.displayName;
+    }
+    if ('phone' in body) {
+      const parsed = parseStaffPhone(body.phone);
+      if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+      await saveStaffPhone(supabase, req.user.id, parsed.normalized);
+      out.phone = `+7${parsed.normalized}`;
+      out.phonePretty = formatStaffPhonePretty(parsed.normalized);
+      out.phoneMasked = maskStaffPhone(parsed.normalized);
+    }
+    if (!('displayName' in body) && !('phone' in body)) {
+      return res.status(400).json({ error: 'Нечего сохранять' });
+    }
+    cacheInvalidate(`auth-me:${req.user.id}`);
+    res.json(out);
   })
 );
 
@@ -4302,6 +4345,10 @@ app.put(
   })
 );
 
+function staffPhoneFromAuthUser(u) {
+  return normalizeStaffPhone(u?.phone) || normalizeStaffPhone(u?.user_metadata?.phone);
+}
+
 app.get(
   '/api/users',
   asyncHandler(requireUserManager),
@@ -4309,17 +4356,26 @@ app.get(
     const { data: listData, error: listErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
     if (listErr) throw listErr;
     const users = listData?.users || [];
-    const { data: profiles, error: pErr } = await supabase.from('profiles').select('id, role, display_name');
-    if (pErr) throw pErr;
-    const byId = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
+    const { data: profiles, error: pErr } = await supabase.from('profiles').select('id, role, display_name, phone_normalized');
+    const profilesSafe = pErr
+      ? (await supabase.from('profiles').select('id, role, display_name')).data
+      : profiles;
+    if (pErr) console.warn('[users profiles phone]', pErr.message);
+    const byId = Object.fromEntries((profilesSafe || []).map((p) => [p.id, p]));
     res.json(
-      users.map((u) => ({
-        uid: u.id,
-        email: u.email,
-        disabled: !!u.banned_until,
-        role: byId[u.id]?.role || 'courier',
-        displayName: byId[u.id]?.display_name || null,
-      }))
+      users.map((u) => {
+        const phoneNormalized = staffPhoneFromAuthUser(u) || normalizeStaffPhone(byId[u.id]?.phone_normalized);
+        return {
+          uid: u.id,
+          email: u.email,
+          disabled: !!u.banned_until,
+          role: byId[u.id]?.role || 'courier',
+          displayName: byId[u.id]?.display_name || null,
+          phone: phoneNormalized ? `+7${phoneNormalized}` : null,
+          phonePretty: phoneNormalized ? formatStaffPhonePretty(phoneNormalized) : null,
+          phoneMasked: phoneNormalized ? maskStaffPhone(phoneNormalized) : null,
+        };
+      })
     );
   })
 );
@@ -4328,10 +4384,12 @@ app.post(
   '/api/users',
   asyncHandler(requireUserManager),
   asyncHandler(async (req, res) => {
-    const { email, password, role, displayName: rawName } = req.body || {};
+    const { email, password, role, displayName: rawName, phone: rawPhone } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'Email и пароль обязательны' });
     const parsedName = parseStaffDisplayName(rawName);
     if (parsedName.error) return res.status(400).json({ error: parsedName.error });
+    const parsedPhone = parseStaffPhone(rawPhone);
+    if (!parsedPhone.ok) return res.status(400).json({ error: parsedPhone.error });
     const me = await getRequesterRole(req);
     const ALL = ['courier', 'seller', 'admin', 'super_admin'];
     const requested = String(role || 'courier').toLowerCase();
@@ -4357,6 +4415,12 @@ app.post(
       { onConflict: 'id' }
     );
     if (uErr) console.error('[profiles upsert after create]', uErr);
+    try {
+      await saveStaffPhone(supabase, newId, parsedPhone.normalized);
+    } catch (phoneErr) {
+      console.error('[staff phone after create]', phoneErr?.message || phoneErr);
+      return res.status(500).json({ error: 'Пользователь создан, но телефон не сохранился. Укажите его в карточке сотрудника.' });
+    }
     res.json({ ok: true, uid: newId });
   })
 );
@@ -4398,6 +4462,25 @@ app.patch(
     if (!existing) return res.status(404).json({ error: 'Пользователь не найден' });
     await saveProfileDisplayName(uid, parsed.displayName);
     res.json({ ok: true, uid, displayName: parsed.displayName });
+  })
+);
+
+app.patch(
+  '/api/users/:uid/phone',
+  asyncHandler(requireUserManager),
+  asyncHandler(async (req, res) => {
+    const uid = req.params.uid;
+    const parsed = parseStaffPhone(req.body?.phone);
+    if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+    await saveStaffPhone(supabase, uid, parsed.normalized);
+    cacheInvalidate(`auth-me:${uid}`);
+    res.json({
+      ok: true,
+      uid,
+      phone: `+7${parsed.normalized}`,
+      phonePretty: formatStaffPhonePretty(parsed.normalized),
+      phoneMasked: maskStaffPhone(parsed.normalized),
+    });
   })
 );
 

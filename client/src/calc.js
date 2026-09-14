@@ -43,3 +43,54 @@ export function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubP
     rangeHalfWidthPercent: half,
   };
 }
+
+function numOrNull(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Цена выкупа ₽/г по пробе — тот же mid, что в отделении и кабинете. */
+export function quotePerGram(quote, purityPerThousand) {
+  if (!quote) return null;
+  const p = Number(purityPerThousand);
+  if (!Number.isFinite(p) || p <= 0) return null;
+  const direct = numOrNull(quote.perGram?.[p] ?? quote.perGram?.[String(p)]);
+  if (direct != null && direct > 0) return direct;
+  const spot = numOrNull(quote.goldRubPerGram);
+  const pct = numOrNull(quote.buybackPercentOfScrap);
+  if (spot == null || spot <= 0 || pct == null || pct <= 0) return null;
+  return spot * (p / 1000) * (pct / 100);
+}
+
+/** Сумма выкупа по политике офиса (не «90% от спота»). */
+export function quotePayout(quote, purityPerThousand, weightGrams) {
+  const perG = quotePerGram(quote, purityPerThousand);
+  const w = Number(weightGrams);
+  if (perG == null || !Number.isFinite(w) || w <= 0) return null;
+  return perG * w;
+}
+
+/** Коридор выкупа: известная проба — mid ± rangeHalfWidth; неизвестная — 375…999. */
+export function quotePayoutRange(quote, purityPerThousand, weightGrams) {
+  const w = Number(weightGrams);
+  if (!quote || !Number.isFinite(w) || w <= 0) return { low: null, high: null, mid: null };
+  if (purityPerThousand === 'unknown' || purityPerThousand == null || purityPerThousand === '') {
+    const low = quotePayout(quote, 375, w);
+    const high = quotePayout(quote, 999, w);
+    return { low, high, mid: null };
+  }
+  const mid = quotePayout(quote, purityPerThousand, w);
+  if (mid == null) return { low: null, high: null, mid: null };
+  const half = Math.min(50, Math.max(0, Number(quote.rangeHalfWidthPercent) || 0));
+  return {
+    mid,
+    low: mid * (1 - half / 100),
+    high: mid * (1 + half / 100),
+  };
+}
+
+export function quoteBuybackPctLabel(quote) {
+  const pct = numOrNull(quote?.buybackPercentOfScrap);
+  if (pct == null || pct <= 0) return 'по курсу выкупа';
+  return `до ${Math.round(pct)}%`;
+}

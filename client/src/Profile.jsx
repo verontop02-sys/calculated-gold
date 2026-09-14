@@ -42,8 +42,14 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
   const [nameVal, setNameVal] = useState('');
   const [nameBusy, setNameBusy] = useState(false);
   const [nameErr, setNameErr] = useState('');
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneVal, setPhoneVal] = useState('');
+  const [phoneBusy, setPhoneBusy] = useState(false);
+  const [phoneErr, setPhoneErr] = useState('');
 
   const displayName = data?.user?.displayName || null;
+  const phonePretty = data?.user?.phonePretty || data?.user?.phone || null;
+  const phoneMasked = data?.user?.phoneMasked || null;
 
   useEffect(() => {
     if (!open) return;
@@ -52,6 +58,8 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
     setData(null);
     setEditingName(false);
     setNameErr('');
+    setEditingPhone(false);
+    setPhoneErr('');
     api
       .profileMe()
       .then((d) => { if (alive) setData(d); })
@@ -99,6 +107,30 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
       setNameErr(e?.message || 'Не удалось сохранить');
     } finally {
       setNameBusy(false);
+    }
+  }
+
+  async function savePhone() {
+    setPhoneErr('');
+    const val = phoneVal.trim();
+    if (!val) { setPhoneErr('Укажите мобильный — на него придёт код входа'); return; }
+    setPhoneBusy(true);
+    try {
+      const out = await api.updateStaffPhone(val);
+      setData((prev) => prev ? {
+        ...prev,
+        user: {
+          ...prev.user,
+          phone: out.phone || val,
+          phonePretty: out.phonePretty || null,
+          phoneMasked: out.phoneMasked || null,
+        },
+      } : prev);
+      setEditingPhone(false);
+    } catch (e) {
+      setPhoneErr(e?.message || 'Не удалось сохранить');
+    } finally {
+      setPhoneBusy(false);
     }
   }
 
@@ -162,8 +194,51 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
               </div>
             )}
             <div className="pf-email">{user?.email || '—'}</div>
+            {editingPhone ? (
+              <div className="pf-name-edit" style={{ marginTop: 8 }}>
+                <input
+                  className="pf-name-input"
+                  value={phoneVal}
+                  onChange={(e) => setPhoneVal(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') savePhone(); if (e.key === 'Escape') setEditingPhone(false); }}
+                  placeholder="+7 9XX XXX-XX-XX"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  autoFocus
+                  disabled={phoneBusy}
+                />
+                <div className="pf-name-btns">
+                  <button type="button" className="pf-name-save" onClick={savePhone} disabled={phoneBusy}>
+                    {phoneBusy ? '…' : 'Сохранить'}
+                  </button>
+                  <button type="button" className="pf-name-cancel" onClick={() => setEditingPhone(false)} disabled={phoneBusy}>
+                    Отмена
+                  </button>
+                </div>
+                {phoneErr && <span className="pf-name-err">{phoneErr}</span>}
+              </div>
+            ) : (
+              <div className="pf-name-row" style={{ marginTop: 4 }}>
+                <span className="pf-email">{phonePretty || phoneMasked || 'Телефон не указан'}</span>
+                <button
+                  type="button"
+                  className="pf-name-pencil"
+                  title="На этот номер придёт SMS с кодом при входе с нового устройства"
+                  onClick={() => { setPhoneVal(phonePretty || data?.user?.phone || ''); setEditingPhone(true); setPhoneErr(''); }}
+                  aria-label="Изменить телефон"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+              </div>
+            )}
             {!displayName && !editingName && (
               <span className="pf-name-hint">Укажите ФИО — оно подставится в договор как эксперт-оценщик</span>
+            )}
+            {!phonePretty && !editingPhone && (
+              <span className="pf-name-hint">Укажите мобильный — код подтверждения входа придёт SMS, не на почту</span>
             )}
             <span className="pf-role">{roleLabel(user?.role)}</span>
           </div>

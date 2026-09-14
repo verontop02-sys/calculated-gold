@@ -17,7 +17,7 @@ export function SettingsPanel({ user }) {
   const [users, setUsers] = useState([]);
   const [usersNote, setUsersNote] = useState('');
   const [userListStatus, setUserListStatus] = useState('loading');
-  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'courier', displayName: '' });
+  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'courier', displayName: '', phone: '' });
   const [saving, setSaving] = useState(false);
   const [savedSection, setSavedSection] = useState(null);
   const [err, setErr] = useState('');
@@ -28,6 +28,9 @@ export function SettingsPanel({ user }) {
   const [editingNameUid, setEditingNameUid] = useState(null);
   const [nameDraft, setNameDraft] = useState('');
   const [nameBusy, setNameBusy] = useState(null);
+  const [editingPhoneUid, setEditingPhoneUid] = useState(null);
+  const [phoneDraft, setPhoneDraft] = useState('');
+  const [phoneBusy, setPhoneBusy] = useState(null);
   /** String drafts so users can clear fields and type new numbers (parseFloat('')||0 was snapping to 0). */
   const [buybackStr, setBuybackStr] = useState('');
   const [rangeStr, setRangeStr] = useState('');
@@ -148,8 +151,8 @@ export function SettingsPanel({ user }) {
     }
     setErr('');
     try {
-      await api.createUser(newUser.email, newUser.password, newUser.role, newUser.displayName);
-      setNewUser({ email: '', password: '', role: 'courier', displayName: '' });
+      await api.createUser(newUser.email, newUser.password, newUser.role, newUser.displayName, newUser.phone);
+      setNewUser({ email: '', password: '', role: 'courier', displayName: '', phone: '' });
       await load();
       toast('Пользователь создан', 'success');
     } catch (ex) {
@@ -172,6 +175,24 @@ export function SettingsPanel({ user }) {
       toast(ex.message, 'error');
     } finally {
       setNameBusy(null);
+    }
+  }
+
+  async function applyPhone(uid) {
+    setPhoneBusy(uid);
+    setErr('');
+    try {
+      const out = await api.updateUserPhone(uid, phoneDraft);
+      setUsers((prev) => prev.map((u) => (u.uid === uid
+        ? { ...u, phone: out.phone || null, phonePretty: out.phonePretty || null, phoneMasked: out.phoneMasked || null }
+        : u)));
+      setEditingPhoneUid(null);
+      toast('Телефон сохранён — код входа будет приходить SMS', 'success');
+    } catch (ex) {
+      setErr(ex.message);
+      toast(ex.message, 'error');
+    } finally {
+      setPhoneBusy(null);
     }
   }
 
@@ -270,7 +291,7 @@ export function SettingsPanel({ user }) {
               <h2 className="block-title">Политика выкупа</h2>
             </div>
             <p className="muted small block-desc">
-              Процент от стоимости чистого золота по курсу в верхней панели. Коридор — симметричный разброс вокруг ориентира.
+              Процент от стоимости чистого золота по курсу в верхней панели. Этот же процент видят клиенты на сайте reaktivo.ru — не завышайте его относительно того, что называете по телефону. Коридор — симметричный разброс вокруг ориентира.
             </p>
             <label className="field">
               <span className="field-label">Выкуп, % от биржевой стоимости</span>
@@ -371,6 +392,7 @@ export function SettingsPanel({ user }) {
             </>
           )}
           <strong>Продавец</strong> и <strong>курьер</strong> видят только калькулятор. ФИО в профиле подставляется в договор как эксперт-оценщик — его может указать сам сотрудник или супер-администратор здесь.
+          Код подтверждения входа с нового устройства уходит <strong>SMS на телефон</strong> сотрудника — укажите мобильный в карточке ниже.
         </p>
         {usersNote && <p className="users-note muted small block-desc">{usersNote}</p>}
 
@@ -444,6 +466,58 @@ export function SettingsPanel({ user }) {
                           }}
                         >
                           имя ✎
+                        </button>
+                      )}
+                    </span>
+                  )}
+                  {canManageRow(u) && editingPhoneUid === u.uid ? (
+                    <span className="user-name-edit">
+                      <input
+                        className="user-name-input"
+                        value={phoneDraft}
+                        onChange={(e) => setPhoneDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') applyPhone(u.uid);
+                          if (e.key === 'Escape') setEditingPhoneUid(null);
+                        }}
+                        placeholder="+7 9XX XXX-XX-XX"
+                        inputMode="tel"
+                        autoFocus
+                        disabled={phoneBusy === u.uid}
+                      />
+                      <button
+                        type="button"
+                        className="btn-ghost small"
+                        disabled={phoneBusy === u.uid}
+                        onClick={() => applyPhone(u.uid)}
+                      >
+                        {phoneBusy === u.uid ? '…' : 'Ок'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-ghost small"
+                        disabled={phoneBusy === u.uid}
+                        onClick={() => setEditingPhoneUid(null)}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="user-display-row">
+                      <span className={`user-display-name${u.phonePretty || u.phone ? '' : ' is-empty'}`}>
+                        {u.phonePretty || u.phoneMasked || 'телефон не указан'}
+                      </span>
+                      {canManageRow(u) && (
+                        <button
+                          type="button"
+                          className="user-name-btn"
+                          title="На этот номер придёт SMS с кодом при входе с нового устройства"
+                          onClick={() => {
+                            setEditingPhoneUid(u.uid);
+                            setPhoneDraft(u.phonePretty || u.phone || '');
+                          }}
+                        >
+                          тел. ✎
                         </button>
                       )}
                     </span>
@@ -543,6 +617,14 @@ export function SettingsPanel({ user }) {
             autoComplete="off"
           />
           <input
+            placeholder="Мобильный +7 9XX… (код входа SMS)"
+            value={newUser.phone}
+            onChange={(e) => setNewUser((x) => ({ ...x, phone: e.target.value }))}
+            disabled={!canManageUsers}
+            inputMode="tel"
+            autoComplete="off"
+          />
+          <input
             type="password"
             placeholder="Пароль (мин. 6 символов)"
             value={newUser.password}
@@ -561,7 +643,7 @@ export function SettingsPanel({ user }) {
               </option>
             ))}
           </select>
-          <button type="submit" className="btn-primary" disabled={!canManageUsers || !newUser.email || !newUser.password}>
+          <button type="submit" className="btn-primary" disabled={!canManageUsers || !newUser.email || !newUser.password || !newUser.phone}>
             Добавить пользователя
           </button>
         </form>

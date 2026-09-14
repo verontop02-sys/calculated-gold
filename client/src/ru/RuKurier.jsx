@@ -6,6 +6,7 @@ import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../Inv
 import {
   RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuMarquee, RuPhotoField, RuSbpBadge, RuThemedImg, RuTiltCard,
   GramsSlider, formatMoney, isLeadName, isRuPhone, setDraftMeta, useGoldQuote, useRuLenis,
+  quotePayoutRange, quoteBuybackPctLabel,
 } from './RuShared.jsx';
 import { clientApi } from '../api.js';
 import { ymReachGoal } from '../yandexMetrika.js';
@@ -269,18 +270,11 @@ function KurierOrderCard({ quote, pulseKey }) {
 
   const perGram = quote?.goldRubPerGram || null;
   const isUnknownProba = proba === 'unknown';
-  let priceLow = null;
-  let priceHigh = null;
-  if (perGram != null) {
-    if (isUnknownProba) {
-      priceLow = perGram * (grams * 0.375) * 0.9;
-      priceHigh = perGram * (grams * 0.999) * 0.9;
-    } else {
-      const center = perGram * (grams * (proba / 1000)) * 0.9;
-      priceLow = center * 0.97;
-      priceHigh = center * 1.03;
-    }
-  }
+  const { low: priceLow, high: priceHigh } = quotePayoutRange(
+    quote,
+    isUnknownProba ? 'unknown' : proba,
+    grams,
+  );
 
   useEffect(() => {
     if (!pulseKey) return;
@@ -508,6 +502,7 @@ export function RuKurier() {
   const { scrollYProgress } = useScroll();
   const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
   const [calcPulse, setCalcPulse] = useState(0);
+  const pct = quoteBuybackPctLabel(quote);
 
   const goToOrder = (e) => {
     e.preventDefault();
@@ -559,7 +554,7 @@ export function RuKurier() {
             <RuKpis items={[
               { val: '0 ₽', label: 'вызов курьера — без скрытых доплат', icon: 'zerofee', imgDark: '/ru/kpi-zerofee-dark.jpg', imgLight: '/ru/kpi-zerofee-light.jpg' },
               { val: 'При вас', label: 'проба и вес проверяются на глазах у клиента', icon: 'shield', imgDark: '/ru/kpi-shield-dark.jpg', imgLight: '/ru/kpi-shield-light.jpg' },
-              { val: 'до 90%', label: 'от биржевой стоимости — курс фиксирован заранее', icon: 'percent', imgDark: '/ru/kpi-percent-dark.jpg', imgLight: '/ru/kpi-percent-light.jpg' },
+              { val: pct, label: 'от биржевой стоимости — курс фиксирован заранее', icon: 'percent', imgDark: '/ru/kpi-percent-dark.jpg', imgLight: '/ru/kpi-percent-light.jpg' },
               { val: 'Любое', label: 'время приезда — вы указываете его сами, а не диапазон', icon: 'time', imgDark: '/ru/kpi-time-dark.jpg', imgLight: '/ru/kpi-time-light.jpg' },
             ]} />
           </div>
@@ -685,12 +680,13 @@ const KURIER_CSS = `
 .rl-weight-quick button.is-active { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 
 .rl-price-range {
-  margin-top: 18px; padding: 16px 18px; border-radius: 16px;
+  margin-top: 18px; padding: 22px 22px 20px; border-radius: 18px;
   background: var(--stroke-soft); text-align: left;
+  display: flex; flex-direction: column; justify-content: center; gap: 8px;
 }
-.rl-price-range-val { display: block; font-size: clamp(1.3rem, 2.6vw, 1.6rem); font-weight: 800; letter-spacing: -0.01em; color: #fff; font-variant-numeric: tabular-nums; }
+.rl-price-range-val { display: block; font-size: clamp(1.55rem, 3vw, 2.05rem); font-weight: 800; letter-spacing: -0.02em; color: #fff; font-variant-numeric: tabular-nums; line-height: 1.15; }
 :root[data-theme='light'] .rl-price-range-val { color: var(--accent); }
-.rl-price-range p { margin: 6px 0 0; font-size: 0.78rem; color: var(--text-dim); line-height: 1.4; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.rl-price-range p { margin: 0; font-size: 0.86rem; color: var(--text-dim); line-height: 1.45; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 
 .rl-order-divider { display: flex; align-items: center; gap: 10px; margin: 26px 0 4px; }
 .rl-order-col--calc > .rl-order-divider:first-child { margin-top: 0; }
@@ -704,7 +700,7 @@ const KURIER_CSS = `
   .rl-order-card .rl-book-when { grid-template-columns: 1fr 1fr; gap: 12px; }
   .rl-order-col--book > .rl-calc-label:first-of-type { margin-top: 8px; }
   .rl-order-col--calc { display: flex; flex-direction: column; }
-  .rl-order-col--calc .rl-price-range { margin-top: auto; }
+  .rl-order-col--calc .rl-price-range { flex: 1 1 auto; min-height: 140px; margin-top: 18px; }
 }
 
 .rl-order-card .rl-input { font-size: 0.95rem; }

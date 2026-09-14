@@ -4,6 +4,7 @@ import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../Inv
 import {
   RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuPhotoCard, RuStatement, RuTiltCard, RuTimeline,
   formatMoney, officeHallPhoto, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis, useShowcaseCycle,
+  quotePayout,
 } from './RuShared.jsx';
 
 const INCLUDES = [
@@ -89,7 +90,7 @@ export function FranshizaOsMock({ quote }) {
   }, []);
 
   const deal = OS_DEALS[di];
-  const payout = perGram ? perGram * (deal.proba / 1000) * deal.grams * 0.9 : null;
+  const payout = quotePayout(quote, deal.proba, deal.grams);
   const payoutDisplay = useAnimatedNumber(payout);
 
   return (
@@ -127,7 +128,7 @@ export function FranshizaOsMock({ quote }) {
         <span className="rl-os-log-title">Завершено сегодня</span>
         {OS_LOG_TIMES.map((t, i) => {
           const d = OS_DEALS[(di + i + 1) % OS_DEALS.length];
-          const sum = perGram ? perGram * (d.proba / 1000) * d.grams * 0.9 : null;
+          const sum = quotePayout(quote, d.proba, d.grams);
           return (
             <span className="rl-os-log-row" key={t}>
               <b>{t}</b>

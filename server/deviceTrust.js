@@ -2,13 +2,17 @@
  * Доверенные устройства сотрудников панели.
  *
  * Пароль знает Supabase Auth, но при первом входе с незнакомого устройства
- * дополнительно требуем одноразовый код из письма (Resend). Устройство
- * запоминается (panel_trusted_devices), дальше вход как обычно.
+ * дополнительно требуем одноразовый код в SMS на телефон сотрудника.
+ * Устройство запоминается (panel_trusted_devices), дальше вход как обычно.
+ *
+ * Почта — только запасной канал, если телефон ещё не указан.
  *
  * OTP — в app_kv (ключ panel_device_otp:<userId>:<deviceHash>), как у клиентского кабинета.
  * Все события пишутся в panel_login_events — журнал входов (задел под этап 9).
  */
 import crypto from 'crypto';
+import { sendDealConfirmationSms } from './smsSend.js';
+import { maskStaffPhone, readStaffPhoneNormalized, staffPhoneE164 } from './staffPhone.js';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
@@ -192,6 +196,18 @@ function emailConfigured() {
   return Boolean((process.env.RESEND_API_KEY || '').trim() && (process.env.DEAL_RECEIPT_EMAIL_FROM || '').trim());
 }
 
+export function isSmsProviderReady() {
+  return Boolean((process.env.SMSRU_API_ID || '').trim());
+}
+
+/** Куда слать OTP: SMS на телефон сотрудника, почта только если номера нет. */
+export function resolveDeviceOtpDelivery({ phoneNormalized, smsReady, emailReady }) {
+  if (phoneNormalized && smsReady) return { mode: 'sms' };
+  if (emailReady) return { mode: 'email' };
+  if (phoneNormalized) return { mode: 'sms-stub' };
+  return { mode: 'auto-trust' };
+}
+
 async function sendCodeEmail({ toEmail, code, userAgent }) {
   const key = (process.env.RESEND_API_KEY || '').trim();
   const from = (process.env.DEAL_RECEIPT_EMAIL_FROM || '').trim();
@@ -230,17 +246,35 @@ export async function checkDeviceAndMaybeSendCode(supabase, { user, deviceHash, 
     return { trusted: true };
   }
 
-  // Без настроенной почты коды слать некуда — не запираем сотрудников,
-  // просто доверяем устройству и фиксируем это в журнале.
-  if (!emailConfigured()) {
-    await trustDevice(supabase, { user, deviceHash, ip, userAgent, detail: { auto: 'email_not_configured' } });
+  const phoneNormalized = await readStaffPhoneNormalized(supabase, user);
+  const delivery = resolveDeviceOtpDelivery({
+    phoneNormalized,
+    smsReady: isSmsProviderReady(),
+    emailReady: emailConfigured(),
+  });
+
+  if (delivery.mode === 'auto-trust') {
+    await trustDevice(supabase, { user, deviceHash, ip, userAgent, detail: { auto: 'otp_channel_not_configured' } });
     return { trusted: true, autoTrusted: true };
   }
+
+  const destMasked = delivery.mode === 'email'
+    ? maskEmail(user.email)
+    : maskStaffPhone(phoneNormalized);
+  const channel = delivery.mode === 'email' ? 'email' : 'sms';
 
   const key = otpKey(user.id, deviceHash);
   const existing = await kvGet(supabase, key);
   if (existing?.sentAt && Date.now() - new Date(existing.sentAt).getTime() < OTP_RESEND_COOLDOWN_MS) {
-    return { trusted: false, codeSent: true, emailMasked: maskEmail(user.email), cooldown: true };
+    return {
+      trusted: false,
+      codeSent: true,
+      channel,
+      destMasked,
+      emailMasked: destMasked,
+      cooldown: true,
+      needPhone: channel === 'email',
+    };
   }
 
   const code = generateOtp6();
@@ -249,15 +283,28 @@ export async function checkDeviceAndMaybeSendCode(supabase, { user, deviceHash, 
     expiresAt: new Date(Date.now() + OTP_TTL_MS).toISOString(),
     attempts: 0,
     sentAt: new Date().toISOString(),
+    channel,
   });
 
   try {
-    await sendCodeEmail({ toEmail: user.email, code, userAgent });
+    if (channel === 'sms') {
+      await sendDealConfirmationSms({
+        to: staffPhoneE164(phoneNormalized),
+        text: `REAKTIVO PRO: ${code} — код входа. Никому не сообщайте. 10 мин.`,
+      });
+    } else {
+      await sendCodeEmail({ toEmail: user.email, code, userAgent });
+    }
   } catch (e) {
-    console.error('[device trust email]', e?.message || e);
+    console.error('[device trust otp]', e?.message || e);
     await kvDel(supabase, key);
-    const err = new Error('Не удалось отправить письмо с кодом. Попробуйте ещё раз через минуту.');
-    err.status = 502;
+    const err = new Error(
+      e?.publicMessage
+      || (channel === 'sms'
+        ? 'Не удалось отправить SMS с кодом. Попробуйте ещё раз через минуту.'
+        : 'Не удалось отправить письмо с кодом. Попробуйте ещё раз через минуту.')
+    );
+    err.status = e?.status || 502;
     throw err;
   }
 
@@ -268,10 +315,17 @@ export async function checkDeviceAndMaybeSendCode(supabase, { user, deviceHash, 
     ip,
     userAgent,
     deviceHash,
+    detail: { channel, destMasked },
   });
 
-  const out = { trusted: false, codeSent: true, emailMasked: maskEmail(user.email) };
-  // Только для локальной приёмки: DEVICE_TRUST_RETURN_CODE=1 возвращает код в ответе.
+  const out = {
+    trusted: false,
+    codeSent: true,
+    channel,
+    destMasked,
+    emailMasked: destMasked,
+    needPhone: channel === 'email',
+  };
   if (process.env.DEVICE_TRUST_RETURN_CODE === '1') out.debugCode = code;
   return out;
 }
@@ -285,7 +339,7 @@ export async function verifyDeviceCode(supabase, { user, deviceHash, code, ip, u
   }
   const codeDigits = String(code || '').replace(/\D/g, '');
   if (codeDigits.length !== 6) {
-    const err = new Error('Введите 6 цифр из письма');
+    const err = new Error('Введите 6 цифр из СМС');
     err.status = 400;
     throw err;
   }

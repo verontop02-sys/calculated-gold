@@ -4,6 +4,7 @@ import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../Inv
 import {
   RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuStatement, RuThemedImg, RuTiltCard, RuTimeline,
   formatMoney, ruHref, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
+  quotePayout, quoteBuybackPctLabel,
 } from './RuShared.jsx';
 
 const PERKS = [
@@ -57,11 +58,8 @@ const FAQ = [
   { q: 'Как оформляется мой статус юридически?', a: 'Вы работаете как представитель Reaktivo по агентскому договору, а не покупаете золото от своего имени. Стороной сделки с клиентом остаётся компания, вы получаете агентское вознаграждение официально.' },
 ];
 
-// Клиент получает ≈90% от биржевой стоимости (как и везде на сайте), доход агента —
-// 8% сверху от суммы, выплаченной клиенту: именно с такой наценкой Reaktivo принимает
-// золото у агента, если сделку агент нашёл сам. По заказам, которые распределяет сам
-// сервис, комиссия агента — 5%.
-const AGENT_BUY_PCT = 0.9;
+// Клиент получает процент выкупа из настроек офиса (тот же, что на сайте).
+// Доход агента — 8% сверху от суммы клиенту (свои сделки) или 5% (заказы сервиса).
 const AGENT_MARKUP = 0.08;
 const AGENT_MARKUP_SERVICE = 0.05;
 
@@ -71,14 +69,14 @@ function AgentCalc({ quote }) {
   const [source, setSource] = useState('self');
   const markup = source === 'self' ? AGENT_MARKUP : AGENT_MARKUP_SERVICE;
   const spot = quote?.goldRubPerGram || null;
+  const buyPricePerGram = quotePayout(quote, 585, 1);
   const { income, turnover, gramsMonth, perDeal } = useMemo(() => {
-    if (!spot) return {};
+    if (!buyPricePerGram) return {};
     const gMonth = deals * weight;
-    const buyPricePerGram = spot * 0.585 * AGENT_BUY_PCT;
     const turn = gMonth * buyPricePerGram;
     const inc = gMonth * buyPricePerGram * markup;
     return { income: inc, turnover: turn, gramsMonth: gMonth, perDeal: inc / deals };
-  }, [deals, weight, spot, markup]);
+  }, [deals, weight, buyPricePerGram, markup]);
   const incomeDisplay = useAnimatedNumber(income);
   const turnoverDisplay = useAnimatedNumber(turnover);
   const perDealDisplay = useAnimatedNumber(perDeal);
@@ -137,10 +135,10 @@ export function RuAgenty() {
 
   useEffect(() => { setDraftMeta('Работа с Reaktivo — агентская программа'); }, []);
 
-  const rate585 = quote?.goldRubPerGram ? quote.goldRubPerGram * 0.585 : null;
-  const oldPay = rate585 ? rate585 * 12 * 0.6 : null;
-  const agentBuyPay = rate585 ? rate585 * 12 * AGENT_BUY_PCT : null;
+  const oldPay = quote?.goldRubPerGram ? quote.goldRubPerGram * 0.585 * 12 * 0.6 : null;
+  const agentBuyPay = quotePayout(quote, 585, 12);
   const agentCut = agentBuyPay ? agentBuyPay * AGENT_MARKUP : null;
+  const pct = quoteBuybackPctLabel(quote);
 
   return (
     <div className="il-root rl-root">
@@ -203,7 +201,7 @@ export function RuAgenty() {
                   <li>Курс такой же, как на сайте Reaktivo</li>
                   <li>Проба и вес проверяются при клиенте</li>
                   <li>Расчёт виден в приложении на экране</li>
-                  <li>Выплата ≈ 90% от биржевой стоимости</li>
+                  <li>Выплата {pct} от биржевой стоимости</li>
                 </ul>
                 <div className="rl-vs-fig">{agentBuyPay ? formatMoney(agentBuyPay) : '· · ·'}</div>
                 <div className="rl-vs-figl">Клиент получает · Вам ≈ {agentCut ? formatMoney(agentCut) : '· · ·'}</div>

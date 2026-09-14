@@ -769,9 +769,9 @@ function fetchMeOnce() {
 
 export const api = {
   me: () => fetchMeOnce(),
-  /** Проверка устройства после входа: доверено или отправлен код на почту. */
+  /** Проверка устройства после входа: доверено или отправлен код в SMS. */
   deviceCheck: () => request('/auth/device/check', { method: 'POST', body: JSON.stringify({}) }),
-  /** Подтверждение устройства 6-значным кодом из письма. */
+  /** Подтверждение устройства 6-значным кодом из SMS. */
   deviceVerify: (code) =>
     request('/auth/device/verify', { method: 'POST', body: JSON.stringify({ code }) }),
   prefetchMe: () => {
@@ -795,12 +795,14 @@ export const api = {
   settings: () => request('/settings'),
   saveSettings: (body) => request('/settings', { method: 'PUT', body: JSON.stringify(body) }),
   users: () => request('/users'),
-  createUser: (email, password, role, displayName) =>
-    request('/users', { method: 'POST', body: JSON.stringify({ email, password, role, displayName }) }),
+  createUser: (email, password, role, displayName, phone) =>
+    request('/users', { method: 'POST', body: JSON.stringify({ email, password, role, displayName, phone }) }),
   deleteUser: (uid) => request(`/users/${uid}`, { method: 'DELETE' }),
   changeRole: (uid, role) => request(`/users/${uid}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   updateUserDisplayName: (uid, displayName) =>
     request(`/users/${uid}/name`, { method: 'PATCH', body: JSON.stringify({ displayName }) }),
+  updateUserPhone: (uid, phone) =>
+    request(`/users/${uid}/phone`, { method: 'PATCH', body: JSON.stringify({ phone }) }),
   scrapCustomersSearch: (q) =>
     request(`/scrap-customers/search?q=${encodeURIComponent(q)}`),
   saveScrapCustomer: (body) => request('/scrap-customers', { method: 'POST', body: JSON.stringify(body) }),
@@ -866,6 +868,8 @@ export const api = {
   profileMe: () => request('/profile/me'),
   updateDisplayName: (displayName) =>
     request('/profile/me', { method: 'PATCH', body: JSON.stringify({ displayName }) }),
+  updateStaffPhone: (phone) =>
+    request('/profile/me', { method: 'PATCH', body: JSON.stringify({ phone }) }),
   /** Все сделки конкретного сотрудника (только руководитель). operatorId | 'none'. */
   operatorDeals: (operatorId, limit = 200) =>
     request(`/operator-deals?operatorId=${encodeURIComponent(String(operatorId || ''))}&limit=${limit}`),

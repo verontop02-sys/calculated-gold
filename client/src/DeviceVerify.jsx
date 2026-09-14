@@ -4,12 +4,14 @@ import { api } from './api.js';
 const RESEND_COOLDOWN_SEC = 60;
 
 /**
- * Первый вход с нового устройства: пароль уже проверен, теперь код с почты.
+ * Первый вход с нового устройства: пароль уже проверен, теперь код из SMS.
  * После подтверждения устройство запоминается — дальше вход как обычно.
  */
 export function DeviceVerify({ onVerified, onSignOut }) {
   const [stage, setStage] = useState('sending'); // sending | code | error
-  const [emailMasked, setEmailMasked] = useState('');
+  const [channel, setChannel] = useState('sms');
+  const [destMasked, setDestMasked] = useState('');
+  const [needPhone, setNeedPhone] = useState(false);
   const [code, setCode] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -25,7 +27,10 @@ export function DeviceVerify({ onVerified, onSignOut }) {
         onVerified?.();
         return;
       }
-      setEmailMasked(out?.emailMasked || '');
+      const nextChannel = out?.channel === 'email' ? 'email' : 'sms';
+      setChannel(nextChannel);
+      setDestMasked(out?.destMasked || out?.emailMasked || '');
+      setNeedPhone(Boolean(out?.needPhone));
       setStage('code');
       setCooldown(RESEND_COOLDOWN_SEC);
       setTimeout(() => inputRef.current?.focus(), 60);
@@ -51,7 +56,7 @@ export function DeviceVerify({ onVerified, onSignOut }) {
     e.preventDefault();
     const digits = code.replace(/\D/g, '');
     if (digits.length !== 6) {
-      setErr('Введите 6 цифр из письма');
+      setErr(channel === 'sms' ? 'Введите 6 цифр из СМС' : 'Введите 6 цифр кода');
       return;
     }
     setErr('');
@@ -70,20 +75,22 @@ export function DeviceVerify({ onVerified, onSignOut }) {
     }
   }
 
+  const destLabel = destMasked || (channel === 'sms' ? 'ваш телефон' : 'вашу почту');
+
   return (
     <div className="dv-wrap">
       <div className="dv-card">
         <div className="dv-icon" aria-hidden>
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            <rect x="5" y="2" width="14" height="20" rx="2"/>
+            <path d="M12 18h.01"/>
           </svg>
         </div>
         <h2 className="dv-title">Подтвердите вход</h2>
 
         {stage === 'sending' && (
           <p className="dv-sub">
-            <span className="spinner inline" /> Отправляем код на почту…
+            <span className="spinner inline" /> Отправляем код на телефон…
           </p>
         )}
 
@@ -91,9 +98,14 @@ export function DeviceVerify({ onVerified, onSignOut }) {
           <>
             <p className="dv-sub">
               Вы входите с нового устройства. Мы отправили 6-значный код на
-              {' '}<b>{emailMasked || 'вашу почту'}</b>. Введите его — и это устройство
+              {' '}<b>{destLabel}</b>. Введите его — и это устройство
               больше не будет спрашивать код.
             </p>
+            {needPhone && (
+              <p className="dv-hint">
+                Укажите мобильный в профиле или в «Настройки → Доступы» — следующие коды будут приходить SMS, не на почту.
+              </p>
+            )}
             <form onSubmit={handleSubmit} className="dv-form">
               <input
                 ref={inputRef}
@@ -174,6 +186,10 @@ const CSS = `
   font-size: 0.87rem; color: var(--text-muted); line-height: 1.55;
 }
 .dv-sub b { color: var(--text); }
+.dv-hint {
+  margin: 10px 0 0;
+  font-size: 0.78rem; color: var(--text-dim); line-height: 1.45;
+}
 .dv-form { width: 100%; margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }
 .dv-code-input {
   width: 100%;
