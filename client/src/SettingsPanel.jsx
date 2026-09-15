@@ -17,7 +17,10 @@ export function SettingsPanel({ user }) {
   const [users, setUsers] = useState([]);
   const [usersNote, setUsersNote] = useState('');
   const [userListStatus, setUserListStatus] = useState('loading');
-  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'courier', displayName: '', phone: '' });
+  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'courier', displayName: '', phone: '', code: '' });
+  const [newUserCodeSent, setNewUserCodeSent] = useState(false);
+  const [newUserDest, setNewUserDest] = useState('');
+  const [newUserCodeBusy, setNewUserCodeBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedSection, setSavedSection] = useState(null);
   const [err, setErr] = useState('');
@@ -30,6 +33,9 @@ export function SettingsPanel({ user }) {
   const [nameBusy, setNameBusy] = useState(null);
   const [editingPhoneUid, setEditingPhoneUid] = useState(null);
   const [phoneDraft, setPhoneDraft] = useState('');
+  const [phoneCode, setPhoneCode] = useState('');
+  const [phoneCodeSent, setPhoneCodeSent] = useState(false);
+  const [phoneDest, setPhoneDest] = useState('');
   const [phoneBusy, setPhoneBusy] = useState(null);
   /** String drafts so users can clear fields and type new numbers (parseFloat('')||0 was snapping to 0). */
   const [buybackStr, setBuybackStr] = useState('');
@@ -143,6 +149,23 @@ export function SettingsPanel({ user }) {
     }
   }
 
+  async function sendNewUserPhoneCode() {
+    setErr('');
+    setNewUserCodeBusy(true);
+    try {
+      const out = await api.requestStaffPhoneCode(newUser.phone);
+      setNewUserCodeSent(true);
+      setNewUserDest(out.destMasked || out.phoneMasked || '');
+      setNewUser((x) => ({ ...x, code: '' }));
+      toast('Код отправлен SMS на этот номер', 'success');
+    } catch (ex) {
+      setErr(ex.message);
+      toast(ex.message, 'error');
+    } finally {
+      setNewUserCodeBusy(false);
+    }
+  }
+
   async function addUser(e) {
     e.preventDefault();
     if (!canManageUsers) {
@@ -150,14 +173,63 @@ export function SettingsPanel({ user }) {
       return;
     }
     setErr('');
+    const codeDigits = String(newUser.code || '').replace(/\D/g, '');
+    if (codeDigits.length !== 6) {
+      setErr('Сначала отправьте SMS и введите 6-значный код с телефона');
+      return;
+    }
     try {
-      await api.createUser(newUser.email, newUser.password, newUser.role, newUser.displayName, newUser.phone);
-      setNewUser({ email: '', password: '', role: 'courier', displayName: '', phone: '' });
+      await api.createUser(newUser.email, newUser.password, newUser.role, newUser.displayName, newUser.phone, codeDigits);
+      setNewUser({ email: '', password: '', role: 'courier', displayName: '', phone: '', code: '' });
+      setNewUserCodeSent(false);
+      setNewUserDest('');
       await load();
-      toast('Пользователь создан', 'success');
+      toast('Пользователь создан, номер подтверждён SMS', 'success');
     } catch (ex) {
       setErr(ex.message);
       toast(ex.message, 'error');
+    }
+  }
+
+  async function sendRowPhoneCode(uid) {
+    setPhoneBusy(uid);
+    setErr('');
+    try {
+      const out = await api.requestStaffPhoneCode(phoneDraft);
+      setPhoneCodeSent(true);
+      setPhoneDest(out.destMasked || out.phoneMasked || '');
+      setPhoneCode('');
+      toast('Код отправлен SMS на этот номер', 'success');
+    } catch (ex) {
+      setErr(ex.message);
+      toast(ex.message, 'error');
+    } finally {
+      setPhoneBusy(null);
+    }
+  }
+
+  async function applyPhone(uid) {
+    const codeDigits = String(phoneCode || '').replace(/\D/g, '');
+    if (codeDigits.length !== 6) {
+      setErr('Введите 6 цифр из СМС');
+      return;
+    }
+    setPhoneBusy(uid);
+    setErr('');
+    try {
+      const out = await api.updateUserPhone(uid, phoneDraft, codeDigits);
+      setUsers((prev) => prev.map((u) => (u.uid === uid
+        ? { ...u, phone: out.phone || null, phonePretty: out.phonePretty || null, phoneMasked: out.phoneMasked || null }
+        : u)));
+      setEditingPhoneUid(null);
+      setPhoneCodeSent(false);
+      setPhoneCode('');
+      toast('Телефон подтверждён SMS — код входа тоже будет приходить сюда', 'success');
+    } catch (ex) {
+      setErr(ex.message);
+      toast(ex.message, 'error');
+    } finally {
+      setPhoneBusy(null);
     }
   }
 
@@ -175,24 +247,6 @@ export function SettingsPanel({ user }) {
       toast(ex.message, 'error');
     } finally {
       setNameBusy(null);
-    }
-  }
-
-  async function applyPhone(uid) {
-    setPhoneBusy(uid);
-    setErr('');
-    try {
-      const out = await api.updateUserPhone(uid, phoneDraft);
-      setUsers((prev) => prev.map((u) => (u.uid === uid
-        ? { ...u, phone: out.phone || null, phonePretty: out.phonePretty || null, phoneMasked: out.phoneMasked || null }
-        : u)));
-      setEditingPhoneUid(null);
-      toast('Телефон сохранён — код входа будет приходить SMS', 'success');
-    } catch (ex) {
-      setErr(ex.message);
-      toast(ex.message, 'error');
-    } finally {
-      setPhoneBusy(null);
     }
   }
 
@@ -475,9 +529,16 @@ export function SettingsPanel({ user }) {
                       <input
                         className="user-name-input"
                         value={phoneDraft}
-                        onChange={(e) => setPhoneDraft(e.target.value)}
+                        onChange={(e) => {
+                          setPhoneDraft(e.target.value);
+                          setPhoneCodeSent(false);
+                          setPhoneCode('');
+                        }}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') applyPhone(u.uid);
+                          if (e.key === 'Enter') {
+                            if (phoneCodeSent) applyPhone(u.uid);
+                            else sendRowPhoneCode(u.uid);
+                          }
                           if (e.key === 'Escape') setEditingPhoneUid(null);
                         }}
                         placeholder="+7 9XX XXX-XX-XX"
@@ -485,19 +546,31 @@ export function SettingsPanel({ user }) {
                         autoFocus
                         disabled={phoneBusy === u.uid}
                       />
+                      {phoneCodeSent && (
+                        <input
+                          className="user-name-input"
+                          value={phoneCode}
+                          onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          onKeyDown={(e) => { if (e.key === 'Enter') applyPhone(u.uid); }}
+                          placeholder={phoneDest ? `Код SMS ${phoneDest}` : 'Код из SMS'}
+                          inputMode="numeric"
+                          maxLength={6}
+                          disabled={phoneBusy === u.uid}
+                        />
+                      )}
                       <button
                         type="button"
                         className="btn-ghost small"
                         disabled={phoneBusy === u.uid}
-                        onClick={() => applyPhone(u.uid)}
+                        onClick={() => (phoneCodeSent ? applyPhone(u.uid) : sendRowPhoneCode(u.uid))}
                       >
-                        {phoneBusy === u.uid ? '…' : 'Ок'}
+                        {phoneBusy === u.uid ? '…' : phoneCodeSent ? 'Ок' : 'SMS'}
                       </button>
                       <button
                         type="button"
                         className="btn-ghost small"
                         disabled={phoneBusy === u.uid}
-                        onClick={() => setEditingPhoneUid(null)}
+                        onClick={() => { setEditingPhoneUid(null); setPhoneCodeSent(false); setPhoneCode(''); }}
                       >
                         ✕
                       </button>
@@ -515,6 +588,9 @@ export function SettingsPanel({ user }) {
                           onClick={() => {
                             setEditingPhoneUid(u.uid);
                             setPhoneDraft(u.phonePretty || u.phone || '');
+                            setPhoneCode('');
+                            setPhoneCodeSent(false);
+                            setPhoneDest('');
                           }}
                         >
                           тел. ✎
@@ -617,13 +693,46 @@ export function SettingsPanel({ user }) {
             autoComplete="off"
           />
           <input
-            placeholder="Мобильный +7 9XX… (код входа SMS)"
+            placeholder="Мобильный +7 9XX… (придёт SMS)"
             value={newUser.phone}
-            onChange={(e) => setNewUser((x) => ({ ...x, phone: e.target.value }))}
+            onChange={(e) => {
+              setNewUser((x) => ({ ...x, phone: e.target.value, code: '' }));
+              setNewUserCodeSent(false);
+            }}
             disabled={!canManageUsers}
             inputMode="tel"
             autoComplete="off"
           />
+          {newUserCodeSent ? (
+            <>
+              <input
+                placeholder={newUserDest ? `Код SMS на ${newUserDest}` : 'Код из SMS'}
+                value={newUser.code}
+                onChange={(e) => setNewUser((x) => ({ ...x, code: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                disabled={!canManageUsers}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+              />
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={!canManageUsers || newUserCodeBusy}
+                onClick={sendNewUserPhoneCode}
+              >
+                {newUserCodeBusy ? 'Отправляем…' : 'Отправить ещё раз'}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={!canManageUsers || !newUser.phone || newUserCodeBusy}
+              onClick={sendNewUserPhoneCode}
+            >
+              {newUserCodeBusy ? 'Отправляем…' : 'Отправить код на телефон'}
+            </button>
+          )}
           <input
             type="password"
             placeholder="Пароль (мин. 6 символов)"
@@ -643,7 +752,7 @@ export function SettingsPanel({ user }) {
               </option>
             ))}
           </select>
-          <button type="submit" className="btn-primary" disabled={!canManageUsers || !newUser.email || !newUser.password || !newUser.phone}>
+          <button type="submit" className="btn-primary" disabled={!canManageUsers || !newUser.email || !newUser.password || !newUser.phone || String(newUser.code || '').replace(/\D/g, '').length !== 6}>
             Добавить пользователя
           </button>
         </form>

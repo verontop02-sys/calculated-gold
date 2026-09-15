@@ -44,6 +44,9 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
   const [nameErr, setNameErr] = useState('');
   const [editingPhone, setEditingPhone] = useState(false);
   const [phoneVal, setPhoneVal] = useState('');
+  const [phoneCode, setPhoneCode] = useState('');
+  const [phoneCodeSent, setPhoneCodeSent] = useState(false);
+  const [phoneDest, setPhoneDest] = useState('');
   const [phoneBusy, setPhoneBusy] = useState(false);
   const [phoneErr, setPhoneErr] = useState('');
 
@@ -60,6 +63,9 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
     setNameErr('');
     setEditingPhone(false);
     setPhoneErr('');
+    setPhoneCode('');
+    setPhoneCodeSent(false);
+    setPhoneDest('');
     api
       .profileMe()
       .then((d) => { if (alive) setData(d); })
@@ -110,13 +116,32 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
     }
   }
 
+  async function sendPhoneCode() {
+    setPhoneErr('');
+    const val = phoneVal.trim();
+    if (!val) { setPhoneErr('Укажите мобильный — на него придёт код'); return; }
+    setPhoneBusy(true);
+    try {
+      const out = await api.requestStaffPhoneCode(val);
+      setPhoneCodeSent(true);
+      setPhoneDest(out.destMasked || out.phoneMasked || '');
+      setPhoneCode('');
+    } catch (e) {
+      setPhoneErr(e?.message || 'Не удалось отправить SMS');
+    } finally {
+      setPhoneBusy(false);
+    }
+  }
+
   async function savePhone() {
     setPhoneErr('');
     const val = phoneVal.trim();
-    if (!val) { setPhoneErr('Укажите мобильный — на него придёт код входа'); return; }
+    if (!val) { setPhoneErr('Укажите мобильный — на него придёт код'); return; }
+    const digits = phoneCode.replace(/\D/g, '');
+    if (digits.length !== 6) { setPhoneErr('Введите 6 цифр из СМС'); return; }
     setPhoneBusy(true);
     try {
-      const out = await api.updateStaffPhone(val);
+      const out = await api.updateStaffPhone(val, digits);
       setData((prev) => prev ? {
         ...prev,
         user: {
@@ -127,6 +152,8 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
         },
       } : prev);
       setEditingPhone(false);
+      setPhoneCode('');
+      setPhoneCodeSent(false);
     } catch (e) {
       setPhoneErr(e?.message || 'Не удалось сохранить');
     } finally {
@@ -199,18 +226,50 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
                 <input
                   className="pf-name-input"
                   value={phoneVal}
-                  onChange={(e) => setPhoneVal(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') savePhone(); if (e.key === 'Escape') setEditingPhone(false); }}
+                  onChange={(e) => {
+                    setPhoneVal(e.target.value);
+                    setPhoneCodeSent(false);
+                    setPhoneCode('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (phoneCodeSent) savePhone();
+                      else sendPhoneCode();
+                    }
+                    if (e.key === 'Escape') setEditingPhone(false);
+                  }}
                   placeholder="+7 9XX XXX-XX-XX"
                   inputMode="tel"
                   autoComplete="tel"
                   autoFocus
                   disabled={phoneBusy}
                 />
+                {phoneCodeSent && (
+                  <>
+                    <span className="pf-name-hint">Код отправлен на {phoneDest || 'ваш номер'}</span>
+                    <input
+                      className="pf-name-input"
+                      value={phoneCode}
+                      onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onKeyDown={(e) => { if (e.key === 'Enter') savePhone(); }}
+                      placeholder="Код из SMS"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      disabled={phoneBusy}
+                    />
+                  </>
+                )}
                 <div className="pf-name-btns">
-                  <button type="button" className="pf-name-save" onClick={savePhone} disabled={phoneBusy}>
-                    {phoneBusy ? '…' : 'Сохранить'}
-                  </button>
+                  {phoneCodeSent ? (
+                    <button type="button" className="pf-name-save" onClick={savePhone} disabled={phoneBusy}>
+                      {phoneBusy ? '…' : 'Подтвердить'}
+                    </button>
+                  ) : (
+                    <button type="button" className="pf-name-save" onClick={sendPhoneCode} disabled={phoneBusy}>
+                      {phoneBusy ? '…' : 'Отправить SMS'}
+                    </button>
+                  )}
                   <button type="button" className="pf-name-cancel" onClick={() => setEditingPhone(false)} disabled={phoneBusy}>
                     Отмена
                   </button>
@@ -238,7 +297,7 @@ export function Profile({ open, onClose, user, formatMoney, onSignOut, onReplayI
               <span className="pf-name-hint">Укажите ФИО — оно подставится в договор как эксперт-оценщик</span>
             )}
             {!phonePretty && !editingPhone && (
-              <span className="pf-name-hint">Укажите мобильный — код подтверждения входа придёт SMS, не на почту</span>
+              <span className="pf-name-hint">Укажите мобильный — пришлём SMS с кодом, дальше вход с нового устройства тоже будет на этот номер</span>
             )}
             <span className="pf-role">{roleLabel(user?.role)}</span>
           </div>

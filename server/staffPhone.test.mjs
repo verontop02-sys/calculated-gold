@@ -6,6 +6,9 @@ import {
   maskStaffPhone,
   formatStaffPhonePretty,
   staffPhoneE164,
+  evaluateStaffPhoneBindAttempt,
+  staffPhoneOtpHash,
+  staffPhoneBindOtpKey,
 } from './staffPhone.js';
 import { resolveDeviceOtpDelivery, channelFromExistingOtp } from './deviceTrust.js';
 
@@ -58,4 +61,30 @@ test('cooldown reuse tolerates older OTP records without destMasked/phoneNormali
   const out = channelFromExistingOtp(legacySms, { userEmail: 'staff@reaktivo.ru' });
   assert.equal(out.channel, 'sms');
   assert.equal(out.destMasked, 'телефон');
+});
+
+test('phone bind OTP key is scoped to requester + number', () => {
+  assert.equal(
+    staffPhoneBindOtpKey('admin-1', '9161234567'),
+    'staff_phone_bind:admin-1:9161234567'
+  );
+});
+
+test('phone bind OTP accepts the SMS code and rejects a wrong one', () => {
+  const stored = {
+    codeHash: staffPhoneOtpHash('123456'),
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    attempts: 0,
+  };
+  assert.equal(evaluateStaffPhoneBindAttempt(stored, '123456').ok, true);
+  const bad = evaluateStaffPhoneBindAttempt(stored, '000000');
+  assert.equal(bad.ok, false);
+  assert.match(bad.message, /Неверный код/);
+  assert.equal(bad.nextStored.attempts, 1);
+});
+
+test('phone bind OTP requires a prior SMS request', () => {
+  const missing = evaluateStaffPhoneBindAttempt(null, '123456');
+  assert.equal(missing.ok, false);
+  assert.match(missing.message, /не запрашивался/i);
 });

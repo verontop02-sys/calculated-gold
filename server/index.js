@@ -85,6 +85,8 @@ import {
   parseStaffPhone,
   readStaffPhoneNormalized,
   saveStaffPhone,
+  requestStaffPhoneBindCode,
+  consumeStaffPhoneBindCode,
 } from './staffPhone.js';
 import {
   requestFintechCode,
@@ -3124,15 +3126,31 @@ app.patch(
     if ('phone' in body) {
       const parsed = parseStaffPhone(body.phone);
       if (!parsed.ok) return res.status(400).json({ error: parsed.error });
-      await saveStaffPhone(supabase, req.user.id, parsed.normalized);
-      out.phone = `+7${parsed.normalized}`;
-      out.phonePretty = formatStaffPhonePretty(parsed.normalized);
-      out.phoneMasked = maskStaffPhone(parsed.normalized);
+      const normalized = await consumeStaffPhoneBindCode(supabase, {
+        requesterId: req.user.id,
+        phone: body.phone,
+        code: body.code,
+      });
+      await saveStaffPhone(supabase, req.user.id, normalized);
+      out.phone = `+7${normalized}`;
+      out.phonePretty = formatStaffPhonePretty(normalized);
+      out.phoneMasked = maskStaffPhone(normalized);
     }
     if (!('displayName' in body) && !('phone' in body)) {
       return res.status(400).json({ error: 'Нечего сохранять' });
     }
     cacheInvalidate(`auth-me:${req.user.id}`);
+    res.json(out);
+  })
+);
+
+app.post(
+  '/api/staff-phone/code',
+  asyncHandler(async (req, res) => {
+    const out = await requestStaffPhoneBindCode(supabase, {
+      requesterId: req.user.id,
+      phone: req.body?.phone,
+    });
     res.json(out);
   })
 );
@@ -4384,12 +4402,17 @@ app.post(
   '/api/users',
   asyncHandler(requireUserManager),
   asyncHandler(async (req, res) => {
-    const { email, password, role, displayName: rawName, phone: rawPhone } = req.body || {};
+    const { email, password, role, displayName: rawName, phone: rawPhone, code: rawCode } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'Email и пароль обязательны' });
     const parsedName = parseStaffDisplayName(rawName);
     if (parsedName.error) return res.status(400).json({ error: parsedName.error });
     const parsedPhone = parseStaffPhone(rawPhone);
     if (!parsedPhone.ok) return res.status(400).json({ error: parsedPhone.error });
+    await consumeStaffPhoneBindCode(supabase, {
+      requesterId: req.user.id,
+      phone: rawPhone,
+      code: rawCode,
+    });
     const me = await getRequesterRole(req);
     const ALL = ['courier', 'seller', 'admin', 'super_admin'];
     const requested = String(role || 'courier').toLowerCase();
@@ -4472,14 +4495,19 @@ app.patch(
     const uid = req.params.uid;
     const parsed = parseStaffPhone(req.body?.phone);
     if (!parsed.ok) return res.status(400).json({ error: parsed.error });
-    await saveStaffPhone(supabase, uid, parsed.normalized);
+    const normalized = await consumeStaffPhoneBindCode(supabase, {
+      requesterId: req.user.id,
+      phone: req.body?.phone,
+      code: req.body?.code,
+    });
+    await saveStaffPhone(supabase, uid, normalized);
     cacheInvalidate(`auth-me:${uid}`);
     res.json({
       ok: true,
       uid,
-      phone: `+7${parsed.normalized}`,
-      phonePretty: formatStaffPhonePretty(parsed.normalized),
-      phoneMasked: maskStaffPhone(parsed.normalized),
+      phone: `+7${normalized}`,
+      phonePretty: formatStaffPhonePretty(normalized),
+      phoneMasked: maskStaffPhone(normalized),
     });
   })
 );

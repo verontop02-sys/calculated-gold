@@ -795,14 +795,16 @@ export const api = {
   settings: () => request('/settings'),
   saveSettings: (body) => request('/settings', { method: 'PUT', body: JSON.stringify(body) }),
   users: () => request('/users'),
-  createUser: (email, password, role, displayName, phone) =>
-    request('/users', { method: 'POST', body: JSON.stringify({ email, password, role, displayName, phone }) }),
+  createUser: (email, password, role, displayName, phone, code) =>
+    request('/users', { method: 'POST', body: JSON.stringify({ email, password, role, displayName, phone, code }) }),
   deleteUser: (uid) => request(`/users/${uid}`, { method: 'DELETE' }),
   changeRole: (uid, role) => request(`/users/${uid}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   updateUserDisplayName: (uid, displayName) =>
     request(`/users/${uid}/name`, { method: 'PATCH', body: JSON.stringify({ displayName }) }),
-  updateUserPhone: (uid, phone) =>
-    request(`/users/${uid}/phone`, { method: 'PATCH', body: JSON.stringify({ phone }) }),
+  requestStaffPhoneCode: (phone) =>
+    request('/staff-phone/code', { method: 'POST', body: JSON.stringify({ phone }) }),
+  updateUserPhone: (uid, phone, code) =>
+    request(`/users/${uid}/phone`, { method: 'PATCH', body: JSON.stringify({ phone, code }) }),
   scrapCustomersSearch: (q) =>
     request(`/scrap-customers/search?q=${encodeURIComponent(q)}`),
   saveScrapCustomer: (body) => request('/scrap-customers', { method: 'POST', body: JSON.stringify(body) }),
@@ -868,8 +870,8 @@ export const api = {
   profileMe: () => request('/profile/me'),
   updateDisplayName: (displayName) =>
     request('/profile/me', { method: 'PATCH', body: JSON.stringify({ displayName }) }),
-  updateStaffPhone: (phone) =>
-    request('/profile/me', { method: 'PATCH', body: JSON.stringify({ phone }) }),
+  updateStaffPhone: (phone, code) =>
+    request('/profile/me', { method: 'PATCH', body: JSON.stringify({ phone, code }) }),
   /** Все сделки конкретного сотрудника (только руководитель). operatorId | 'none'. */
   operatorDeals: (operatorId, limit = 200) =>
     request(`/operator-deals?operatorId=${encodeURIComponent(String(operatorId || ''))}&limit=${limit}`),
