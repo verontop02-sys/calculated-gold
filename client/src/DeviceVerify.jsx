@@ -90,7 +90,7 @@ export function DeviceVerify({ onVerified, onSignOut }) {
 
         {stage === 'sending' && (
           <p className="dv-sub">
-            <span className="spinner inline" /> Отправляем код на телефон…
+            <span className="spinner inline" /> Проверяем устройство и отправляем код подтверждения…
           </p>
         )}
 

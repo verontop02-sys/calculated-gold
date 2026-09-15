@@ -208,6 +208,24 @@ export function resolveDeviceOtpDelivery({ phoneNormalized, smsReady, emailReady
   return { mode: 'auto-trust' };
 }
 
+/**
+ * Пока код из предыдущей отправки ещё действует, канал/адрес берём из него,
+ * а не пересчитываем заново — иначе повторный запрос (двойной клик, обновление
+ * страницы, повторный рендер) может «переехать» на другой канал (например,
+ * если проверка телефона на секунду замешкалась), и экран покажет почту, хотя
+ * код на самом деле уехал в SMS. Именно так родился баг «просит то телефон, то почту».
+ */
+export function channelFromExistingOtp(existing, { userEmail }) {
+  const channel = existing?.channel === 'sms' ? 'sms' : 'email';
+  const destMasked = existing?.destMasked
+    || (channel === 'sms' ? maskStaffPhone(existing?.phoneNormalized || '') : maskEmail(userEmail));
+  return {
+    channel,
+    destMasked,
+    needPhone: channel === 'email' && !existing?.phoneNormalized,
+  };
+}
+
 async function sendCodeEmail({ toEmail, code, userAgent }) {
   const key = (process.env.RESEND_API_KEY || '').trim();
   const from = (process.env.DEAL_RECEIPT_EMAIL_FROM || '').trim();
@@ -246,6 +264,19 @@ export async function checkDeviceAndMaybeSendCode(supabase, { user, deviceHash, 
     return { trusted: true };
   }
 
+  const key = otpKey(user.id, deviceHash);
+  const existing = await kvGet(supabase, key);
+  const stillValid = Boolean(
+    existing?.codeHash && existing?.expiresAt && Date.now() < new Date(existing.expiresAt).getTime()
+  );
+
+  // Код ещё не истёк и отправлен меньше минуты назад — отдаём тот же канал/адрес,
+  // который реально получил код, а не пересчитываем заново (см. комментарий выше).
+  if (stillValid && existing.sentAt && Date.now() - new Date(existing.sentAt).getTime() < OTP_RESEND_COOLDOWN_MS) {
+    const reused = channelFromExistingOtp(existing, { userEmail: user.email });
+    return { trusted: false, codeSent: true, ...reused, emailMasked: reused.destMasked, cooldown: true };
+  }
+
   const phoneNormalized = await readStaffPhoneNormalized(supabase, user);
   const delivery = resolveDeviceOtpDelivery({
     phoneNormalized,
@@ -258,24 +289,8 @@ export async function checkDeviceAndMaybeSendCode(supabase, { user, deviceHash, 
     return { trusted: true, autoTrusted: true };
   }
 
-  const destMasked = delivery.mode === 'email'
-    ? maskEmail(user.email)
-    : maskStaffPhone(phoneNormalized);
   const channel = delivery.mode === 'email' ? 'email' : 'sms';
-
-  const key = otpKey(user.id, deviceHash);
-  const existing = await kvGet(supabase, key);
-  if (existing?.sentAt && Date.now() - new Date(existing.sentAt).getTime() < OTP_RESEND_COOLDOWN_MS) {
-    return {
-      trusted: false,
-      codeSent: true,
-      channel,
-      destMasked,
-      emailMasked: destMasked,
-      cooldown: true,
-      needPhone: channel === 'email',
-    };
-  }
+  const destMasked = channel === 'email' ? maskEmail(user.email) : maskStaffPhone(phoneNormalized);
 
   const code = generateOtp6();
   await kvSet(supabase, key, {
@@ -284,6 +299,8 @@ export async function checkDeviceAndMaybeSendCode(supabase, { user, deviceHash, 
     attempts: 0,
     sentAt: new Date().toISOString(),
     channel,
+    destMasked,
+    phoneNormalized: channel === 'sms' ? phoneNormalized : null,
   });
 
   try {
@@ -324,7 +341,7 @@ export async function checkDeviceAndMaybeSendCode(supabase, { user, deviceHash, 
     channel,
     destMasked,
     emailMasked: destMasked,
-    needPhone: channel === 'email',
+    needPhone: channel === 'email' && !phoneNormalized,
   };
   if (process.env.DEVICE_TRUST_RETURN_CODE === '1') out.debugCode = code;
   return out;

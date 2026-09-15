@@ -7,7 +7,7 @@ import {
   formatStaffPhonePretty,
   staffPhoneE164,
 } from './staffPhone.js';
-import { resolveDeviceOtpDelivery } from './deviceTrust.js';
+import { resolveDeviceOtpDelivery, channelFromExistingOtp } from './deviceTrust.js';
 
 test('staff phone accepts +7 / 8 / 10-digit mobile', () => {
   assert.equal(normalizeStaffPhone('+7 (916) 123-45-67'), '9161234567');
@@ -36,4 +36,26 @@ test('device OTP prefers SMS when phone is set', () => {
     resolveDeviceOtpDelivery({ phoneNormalized: '', smsReady: false, emailReady: false }).mode,
     'auto-trust'
   );
+});
+
+// Регресс: повторный запрос кода в течение окна отправки (кулдаун) не должен
+// «переезжать» на другой канал — иначе экран расходится с тем, куда реально уехал код.
+test('cooldown response reuses the channel the code was actually sent on', () => {
+  const sentBySms = { channel: 'sms', destMasked: '+7 ••• •••-45-67', phoneNormalized: '9161234567' };
+  const reused = channelFromExistingOtp(sentBySms, { userEmail: 'staff@reaktivo.ru' });
+  assert.equal(reused.channel, 'sms');
+  assert.equal(reused.destMasked, '+7 ••• •••-45-67');
+  assert.equal(reused.needPhone, false);
+
+  const sentByEmail = { channel: 'email', destMasked: 's•••@r•••.ru', phoneNormalized: null };
+  const reusedEmail = channelFromExistingOtp(sentByEmail, { userEmail: 'staff@reaktivo.ru' });
+  assert.equal(reusedEmail.channel, 'email');
+  assert.equal(reusedEmail.needPhone, true);
+});
+
+test('cooldown reuse tolerates older OTP records without destMasked/phoneNormalized', () => {
+  const legacySms = { channel: 'sms' };
+  const out = channelFromExistingOtp(legacySms, { userEmail: 'staff@reaktivo.ru' });
+  assert.equal(out.channel, 'sms');
+  assert.equal(out.destMasked, 'телефон');
 });
