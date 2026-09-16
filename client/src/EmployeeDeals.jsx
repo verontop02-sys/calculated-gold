@@ -85,7 +85,7 @@ export function EmployeeDeals({ formatMoney, toast, user }) {
   return (
     <div className="ed-root">
       <PageHint id="employees" title="Сделки сотрудников">
-        Выберите сотрудника слева — справа появятся все его сделки с суммами, фотографиями изделий и кнопкой скачать договор. Удобно для контроля и разбора.
+        Выберите сотрудника слева — справа появятся все его сделки с суммами, фотографиями изделий и кнопкой скачать договор. Ошибочную сделку супер-администратор удаляет из карточки: открыть сделку → «Удалить сделку».
       </PageHint>
 
       <div className="ed-layout">
@@ -247,6 +247,20 @@ export function EmployeeDeals({ formatMoney, toast, user }) {
               };
             });
             setOpenDeal((prev) => (prev?.id === next.id ? { ...prev, ...next } : prev));
+          }}
+          onDeleted={(gone) => {
+            if (!gone?.id) return;
+            setData((prev) => {
+              if (!prev?.deals) return prev;
+              const deals = prev.deals.filter((x) => x.id !== gone.id);
+              const totalRub = deals.reduce((s, x) => s + (Number(x.total_rub) || 0), 0);
+              return {
+                ...prev,
+                deals,
+                stats: { ...(prev.stats || {}), dealsCount: deals.length, totalRub },
+              };
+            });
+            setOpenDeal(null);
           }}
         />
       )}

@@ -412,6 +412,19 @@ export function ScrapCustomerDirectory({ open, onClose, formatMoney, onPick, onC
             });
             setOpenDeal((prev) => (prev?.id === next.id ? { ...prev, ...next } : prev));
           }}
+          onDeleted={(gone) => {
+            if (!gone?.id) return;
+            setDealsById((prev) => {
+              const out = { ...prev };
+              for (const [cid, h] of Object.entries(out)) {
+                if (!h?.deals) continue;
+                const nextDeals = h.deals.filter((x) => x.id !== gone.id);
+                out[cid] = { ...h, deals: nextDeals, total: nextDeals.length };
+              }
+              return out;
+            });
+            setOpenDeal(null);
+          }}
         />
       )}
       <style>{`

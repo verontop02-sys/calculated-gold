@@ -416,6 +416,11 @@ export function Clients({ formatMoney, toast, user }) {
             setDeals((prev) => (prev || []).map((x) => (x.id === next.id ? { ...x, ...next } : x)));
             setOpenDeal((prev) => (prev?.id === next.id ? { ...prev, ...next } : prev));
           }}
+          onDeleted={(gone) => {
+            if (!gone?.id) return;
+            setDeals((prev) => (prev || []).filter((x) => x.id !== gone.id));
+            setOpenDeal(null);
+          }}
         />
       )}
 

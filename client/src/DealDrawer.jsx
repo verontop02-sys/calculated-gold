@@ -43,7 +43,7 @@ function emptyEditRow() {
  * Дравер деталей сделки. Открывается по preview (минимум id), подгружает полные данные.
  * Режим «Исправить» — правка на месте; PDF при следующем скачивании уже с новыми данными.
  */
-export function DealDrawer({ deal, onClose, formatMoney, toast, onUpdated, canEdit = false }) {
+export function DealDrawer({ deal, onClose, formatMoney, toast, onUpdated, onDeleted, canEdit = false }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -52,6 +52,8 @@ export function DealDrawer({ deal, onClose, formatMoney, toast, onUpdated, canEd
   const [saving, setSaving] = useState(false);
   const [editErr, setEditErr] = useState('');
   const [form, setForm] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!deal?.id) return;
@@ -61,6 +63,7 @@ export function DealDrawer({ deal, onClose, formatMoney, toast, onUpdated, canEd
     setEditing(false);
     setForm(null);
     setEditErr('');
+    setConfirmDelete(false);
     api
       .scrapDealDetail(deal.id)
       .then((r) => { if (alive) setDetail(r.deal); })
@@ -173,6 +176,22 @@ export function DealDrawer({ deal, onClose, formatMoney, toast, onUpdated, canEd
       toast?.(e?.message || 'Не удалось скачать PDF', 'error');
     } finally {
       setPdfBusy(false);
+    }
+  }
+
+  async function removeDeal() {
+    if (!deal?.id) return;
+    setDeleting(true);
+    try {
+      await api.deleteScrapDeal(deal.id);
+      toast?.('Сделка удалена', 'success');
+      onDeleted?.(deal);
+      onClose?.();
+    } catch (e) {
+      toast?.(e?.message || 'Не удалось удалить сделку', 'error');
+      setConfirmDelete(false);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -345,14 +364,33 @@ export function DealDrawer({ deal, onClose, formatMoney, toast, onUpdated, canEd
 
             <div className="ddw-edit-actions">
               {canEdit && (
-                <button type="button" className="ddw-pdf ddw-pdf--primary" onClick={startEdit} disabled={loading}>
+                <button type="button" className="ddw-pdf ddw-pdf--primary" onClick={startEdit} disabled={loading || deleting}>
                   Исправить
                 </button>
               )}
-              <button type="button" className="ddw-pdf" onClick={downloadPdf} disabled={pdfBusy}>
+              <button type="button" className="ddw-pdf" onClick={downloadPdf} disabled={pdfBusy || deleting}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5 5-5"/><path d="M12 16V4"/></svg>
                 {pdfBusy ? 'Формируем PDF…' : 'Скачать договор (PDF)'}
               </button>
+              {canEdit && (
+                confirmDelete ? (
+                  <div className="ddw-del-confirm">
+                    <p className="ddw-err">Удалить сделку из учёта? Восстановить нельзя.</p>
+                    <div className="ddw-del-confirm__row">
+                      <button type="button" className="ddw-pdf ddw-pdf--danger" onClick={removeDeal} disabled={deleting}>
+                        {deleting ? 'Удаляем…' : 'Да, удалить'}
+                      </button>
+                      <button type="button" className="ddw-pdf" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+                        Отмена
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" className="ddw-pdf ddw-pdf--ghost-danger" onClick={() => setConfirmDelete(true)} disabled={loading || deleting}>
+                    Удалить сделку
+                  </button>
+                )
+              )}
             </div>
           </>
         )}
@@ -432,6 +470,12 @@ export function DealDrawer({ deal, onClose, formatMoney, toast, onUpdated, canEd
         .ddw-pdf:disabled { opacity: 0.5; }
         .ddw-pdf--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
         .ddw-pdf--primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #000); color: #fff; border-color: transparent; }
+        .ddw-pdf--ghost-danger { color: var(--crimson); }
+        .ddw-pdf--ghost-danger:hover:not(:disabled) { border-color: var(--crimson); background: var(--crimson-soft); color: var(--crimson); }
+        .ddw-pdf--danger { background: var(--crimson); border-color: var(--crimson); color: #fff; }
+        .ddw-pdf--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--crimson) 88%, #000); color: #fff; border-color: transparent; }
+        .ddw-del-confirm { display: flex; flex-direction: column; gap: 8px; }
+        .ddw-del-confirm__row { display: flex; flex-direction: column; gap: 8px; }
 
         .ddw-edit { display: flex; flex-direction: column; gap: 12px; }
         .ddw-field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
