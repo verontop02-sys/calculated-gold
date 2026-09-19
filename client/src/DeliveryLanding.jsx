@@ -487,7 +487,10 @@ export function DeliveryLanding() {
               </svg>
             </a>
             <Magnetic>
-              <a href="#order" className="il-btn il-btn--primary il-btn--header-buy">Вызвать курьера</a>
+              <a href="#order" className="il-btn il-btn--primary il-btn--header-buy">
+                <span className="dl2-cta-full">Вызвать курьера</span>
+                <span className="dl2-cta-short">Курьер</span>
+              </a>
             </Magnetic>
           </div>
         </div>
@@ -531,7 +534,7 @@ export function DeliveryLanding() {
           <div className="il-section-inner">
             <div className="il-section-head">
               <Reveal><span className="il-pill">Прозрачный расчёт</span></Reveal>
-              <Reveal delay={0.08}><h2 className="il-h2">Биржа, выплата, разница —<br /><span className="il-accent-text">без «мутной» скупки»</span></h2></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Биржа, выплата, разница —<br /><span className="il-accent-text">без «мутной» скупки</span></h2></Reveal>
             </div>
             <motion.div className="il-cards" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
               <motion.div className="il-card" variants={staggerChild}>
@@ -746,14 +749,25 @@ const DL2_CSS = `
   background: var(--accent-grad); color: #fff; font-weight: 800; text-decoration: none;
   box-shadow: 0 16px 40px -14px color-mix(in srgb, var(--accent) 55%, transparent);
 }
+.dl2-cta-short { display: none; }
+.dl2-root .il-header-phone { display: flex !important; }
+.dl2-root .il-btn--header-buy { display: inline-flex !important; }
 @media (min-width: 768px) {
   .dl2-sticky { display: none; }
 }
+@media (max-width: 900px) {
+  .dl2-root .il-header-inner { gap: 10px; padding: 12px 16px; }
+  .dl2-root .il-logo-text { font-size: 1.05rem; }
+}
 @media (max-width: 520px) {
-  .il-header-inner { padding: 12px 16px; }
-  .il-btn--header-buy { padding: 9px 14px; font-size: 0.8rem; }
+  .dl2-cta-full { display: none; }
+  .dl2-cta-short { display: inline; }
+  .dl2-root .il-btn--header-buy { padding: 9px 12px; font-size: 0.8rem; }
   .dl2-probe { min-height: 84px; padding: 10px 8px; }
   .dl2-probe-s { font-size: 0.86rem; }
   .dl2-probe-g { font-size: 0.72rem; }
+}
+@media (max-width: 360px) {
+  .dl2-root .il-header-phone { display: none !important; }
 }
 `;
