@@ -918,7 +918,7 @@ export function DeliveryLanding() {
         <section className="il-section" id="faq">
           <div className="il-section-inner">
             <div className="dl2-split">
-              <div>
+              <div className="dl2-split-col">
                 <span className="il-pill">Дома или в отделении</span>
                 <h2 className="il-h2">Курс один. Разница — <span className="il-accent-text">куда ехать</span></h2>
                 <div className="dl2-compare">
@@ -932,7 +932,7 @@ export function DeliveryLanding() {
                   ))}
                 </div>
               </div>
-              <div>
+              <div className="dl2-split-col">
                 <span className="il-pill">Вопросы</span>
                 <h2 className="il-h2">Коротко <span className="il-accent-text">по делу</span></h2>
                 <RuFaq items={FAQ} />
@@ -1105,11 +1105,11 @@ export function DeliveryLanding() {
 
 const DL2_CSS = `
 .dl2-root { --font-display: 'Geometria', system-ui, sans-serif; }
-.dl2-root .il-section { padding: 48px 0; }
-.dl2-root .il-section-head { margin-bottom: 24px; }
-.dl2-root .rl-kpis-section { padding: 24px 0 4px; }
-.dl2-root .rl-statement { padding: 40px 0 32px; }
-.dl2-root .il-section--cta { padding: 32px 0 48px; }
+.dl2-root .il-section { padding: 88px 0; }
+.dl2-root .il-section-head { margin-bottom: 48px; }
+.dl2-root .rl-kpis-section { padding: 56px 0 28px; }
+.dl2-root .rl-statement { padding: 88px 0 72px; }
+.dl2-root .il-section--cta { padding: 64px 0 80px; }
 .dl2-root .il-header-actions { align-items: center; }
 .mono-nums { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
 .dl2-order { display: flex; width: 100%; height: 100%; }
@@ -1161,7 +1161,7 @@ const DL2_CSS = `
 .dl2-hp { position: absolute; left: -9999px; height: 0; width: 0; opacity: 0; pointer-events: none; }
 .dl2-fine { margin: 0; color: var(--text-dim); font-size: 0.75rem; line-height: 1.45; }
 .dl2-fine a { color: var(--text-strong); }
-.dl2-calc-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--stroke-soft); }
+.dl2-calc-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--stroke-soft); }
 .dl2-calc-note .il-p { max-width: 46ch; }
 .dl2-sticky {
   position: fixed; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom));
@@ -1185,7 +1185,7 @@ const DL2_CSS = `
   width: 8px; height: 8px; border-radius: 99px; background: var(--text-dim); flex-shrink: 0;
 }
 .dl2-duty-dot.is-on { background: #3dff8a; box-shadow: 0 0 10px rgba(61, 255, 138, 0.5); }
-.dl2-path { position: relative; padding: 36px 0 24px; }
+.dl2-path { position: relative; padding: 72px 0 56px; }
 .dl2-path--static { height: auto; }
 .dl2-path-sticky {
   position: relative; top: auto;
@@ -1225,7 +1225,7 @@ const DL2_CSS = `
 }
 .dl2-track-step {
   display: flex; flex-direction: column; gap: 6px; min-height: 0;
-  padding: 14px 14px 16px; border-radius: 18px; text-align: left;
+  padding: 18px 18px 20px; border-radius: 18px; text-align: left;
   border: 1px solid var(--stroke); background: var(--bg-panel-solid);
   color: inherit; font: inherit; cursor: pointer;
 }
@@ -1244,21 +1244,28 @@ const DL2_CSS = `
 .dl2-log-row b { font-size: 0.78rem; color: var(--accent); letter-spacing: 0.1em; }
 .dl2-log-row h3 { margin: 0; font-size: 1.05rem; letter-spacing: -0.03em; line-height: 1.3; }
 .dl2-log-row p { margin: 0; color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; }
-.dl2-split { display: grid; gap: 32px; }
-.dl2-split .il-h2 { font-size: clamp(1.45rem, 3vw, 2.05rem); margin: 10px 0 18px; text-align: left; }
-.dl2-compare { display: grid; gap: 10px; }
+.dl2-split { display: grid; gap: 28px; }
+.dl2-split-col { display: flex; flex-direction: column; min-width: 0; }
+.dl2-split .il-pill { align-self: flex-start; }
+.dl2-split .il-h2 {
+  font-size: clamp(1.55rem, 3vw, 2.15rem); margin: 12px 0 20px; text-align: left;
+  text-wrap: balance;
+}
+.dl2-compare { display: grid; gap: 12px; flex: 1; }
 .dl2-compare-card {
-  padding: 16px 18px; border-radius: 18px;
+  display: flex; flex-direction: column; justify-content: flex-start; gap: 10px;
+  padding: 22px 22px; border-radius: 18px;
   border: 1px solid var(--stroke); background: var(--bg-panel-solid);
 }
 .dl2-compare-card.is-on {
   border-color: color-mix(in srgb, var(--accent) 48%, var(--stroke));
   background: var(--accent-soft);
 }
-.dl2-compare-card h3 { margin: 0 0 10px; font-size: 1.05rem; }
-.dl2-compare-card ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
-.dl2-compare-card li { position: relative; padding-left: 1.15em; color: var(--text-muted); font-size: 0.9rem; line-height: 1.4; }
+.dl2-compare-card h3 { margin: 0; font-size: 1.08rem; }
+.dl2-compare-card ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
+.dl2-compare-card li { position: relative; padding-left: 1.15em; color: var(--text-muted); font-size: 0.92rem; line-height: 1.45; }
 .dl2-compare-card li::before { content: '→'; position: absolute; left: 0; color: var(--accent); font-weight: 800; }
+.dl2-split .il-faq { flex: 1; }
 .dl2-forms { display: grid; gap: 16px; align-items: stretch; }
 .dl2-forms > * { min-width: 0; display: flex; }
 .dl2-forms .il-cta-panel,
@@ -1318,7 +1325,20 @@ const DL2_CSS = `
   .dl2-path-inner { grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); align-items: center; }
   .dl2-progress { grid-column: 1 / -1; }
   .dl2-route-svg { height: 240px; }
-  .dl2-split { grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); align-items: start; }
+  .dl2-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    column-gap: 40px;
+    row-gap: 12px;
+    align-items: stretch;
+  }
+  .dl2-split-col { display: contents; }
+  .dl2-split-col:first-child > .il-pill { grid-column: 1; grid-row: 1; }
+  .dl2-split-col:first-child > .il-h2 { grid-column: 1; grid-row: 2; margin: 0; }
+  .dl2-split-col:first-child > .dl2-compare { grid-column: 1; grid-row: 3; grid-template-rows: 1fr 1fr; min-height: 0; }
+  .dl2-split-col:last-child > .il-pill { grid-column: 2; grid-row: 1; }
+  .dl2-split-col:last-child > .il-h2 { grid-column: 2; grid-row: 2; margin: 0; }
+  .dl2-split-col:last-child > .il-faq { grid-column: 2; grid-row: 3; min-height: 0; }
   .dl2-forms { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
 }
 @media (max-width: 900px) {
@@ -1338,8 +1358,8 @@ const DL2_CSS = `
   .dl2-probe-s { font-size: 0.86rem; }
   .dl2-probe-g { font-size: 0.72rem; }
   .dl2-track { grid-template-columns: 1fr; }
-  .dl2-root .il-section { padding: 36px 0; }
-  .dl2-path { padding: 28px 0 16px; }
+  .dl2-root .il-section { padding: 64px 0; }
+  .dl2-path { padding: 52px 0 40px; }
 }
 @media (max-width: 360px) {
   .dl2-root .il-header-phone { display: none !important; }
