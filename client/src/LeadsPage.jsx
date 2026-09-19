@@ -21,6 +21,7 @@ const SOURCE_META = {
   'pismo-ceo': { label: 'Письмо CEO', color: '#be123c' },
   pro: { label: 'reaktivo.pro', color: '#64748b' },
   delivery: { label: 'Доставка .pro', color: '#fe0000' },
+  waitlist: { label: 'Лист ожидания', color: '#c2410c' },
 };
 
 const STATUS_TABS = [

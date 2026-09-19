@@ -1326,6 +1326,7 @@ const LANDING_LEAD_SOURCES = {
   'pismo-ceo': 'Письмо CEO',
   pro: 'Консультация (reaktivo.pro)',
   delivery: 'Доставка (reaktivo.pro)',
+  waitlist: 'Лист ожидания (регион)',
 };
 
 /** Доп. поля формы: оставляем только непустые строки, режем длину и количество. */
