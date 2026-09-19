@@ -1299,7 +1299,8 @@ const DL2_CSS = `
 .dl2-courier-qr p { margin: 0; font-size: 0.84rem; color: var(--text-muted); line-height: 1.45; }
 .dl2-courier-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: auto; }
 .dl2-root .il-header-phone { display: flex !important; }
-.dl2-root .il-btn--header-buy { display: inline-flex !important; }
+.dl2-root .il-btn--header-buy { display: inline-flex !important; white-space: nowrap; flex-shrink: 0; }
+.dl2-root .il-header-actions .il-magnetic { display: inline-flex; flex-shrink: 0; }
 .dl2-root .il-header:not(.il-header--scrolled) .theme-toggle-track {
   background: rgba(255,255,255,0.16);
   border-color: rgba(255,255,255,0.28);
@@ -1342,27 +1343,49 @@ const DL2_CSS = `
   .dl2-forms { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
 }
 @media (max-width: 900px) {
-  .dl2-root .il-header-inner { gap: 10px; padding: 12px 16px; }
-  .dl2-root .il-logo-text { font-size: 1.05rem; }
+  .dl2-root .il-header-inner { gap: 8px; padding: 10px 14px; }
+  .dl2-root .il-logo-text { font-size: 1.02rem; }
+  .dl2-root .il-header-actions { gap: 8px; }
   .dl2-courier { grid-template-columns: 1fr; }
   .dl2-courier-photo img { min-height: 220px; max-height: 320px; }
   .dl2-track { grid-template-columns: 1fr 1fr; }
   .dl2-log { grid-template-columns: 1fr; }
   .dl2-route-svg { height: 260px; max-width: 140px; margin: 0 auto; }
+  .dl2-path-title { font-size: clamp(1.7rem, 8vw, 2.4rem); }
+  .dl2-path-text { min-height: 0; }
 }
-@media (max-width: 520px) {
+@media (max-width: 767px) {
+  .dl2-root .rl-fhero {
+    min-height: 0;
+    height: auto;
+    padding: 92px 16px 28px;
+    align-items: stretch;
+  }
+  .dl2-root .rl-fhero-inner { gap: 16px; }
+  .dl2-root .dl2-calc.rl-calc-card,
+  .dl2-root .rl-fhero-aside .rl-calc-card {
+    background: var(--bg-panel-solid);
+    isolation: isolate;
+  }
+  .dl2-root .il-header-phone { display: none !important; }
   .dl2-cta-full { display: none; }
   .dl2-cta-short { display: inline; }
-  .dl2-root .il-btn--header-buy { padding: 9px 12px; font-size: 0.8rem; }
+  .dl2-root .il-btn--header-buy { padding: 8px 12px; font-size: 0.8rem; }
+  .dl2-root .il-logo { gap: 8px; }
+  .dl2-root .il-logo-mark { width: 34px; height: 34px; }
+}
+@media (max-width: 520px) {
+  .dl2-root .il-logo-text > span { display: none; }
+  .dl2-root .il-header-inner { padding: 10px 12px; gap: 8px; }
+  .dl2-root .theme-toggle-track { width: 42px; height: 24px; }
+  .dl2-root .theme-toggle-thumb { width: 18px; height: 18px; }
+  .dl2-root .theme-toggle-thumb.is-dark { transform: translateY(-50%) translateX(18px); }
   .dl2-probe { min-height: 84px; padding: 10px 8px; }
   .dl2-probe-s { font-size: 0.86rem; }
   .dl2-probe-g { font-size: 0.72rem; }
   .dl2-track { grid-template-columns: 1fr; }
   .dl2-root .il-section { padding: 64px 0; }
   .dl2-path { padding: 52px 0 40px; }
-}
-@media (max-width: 360px) {
-  .dl2-root .il-header-phone { display: none !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   .dl2-skel { animation: none; }

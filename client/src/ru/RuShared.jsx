@@ -461,9 +461,20 @@ export function RuFullHero({ img, imgDark, imgLight, imgPos = '50% 42%', kicker,
   const theme = useRlTheme();
   const src = themedSrc(theme, imgDark || img, imgLight);
   const reduced = prefersReducedMotion();
+  const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = () => setCompact(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+  const quiet = reduced || compact;
+  const enterY = quiet ? 8 : 18;
+  const enterDur = quiet ? 0.38 : 0.8;
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end start'] });
-  const imgY = useTransform(scrollYProgress, [0, 1], ['0%', reduced ? '0%' : '6%']);
-  const copyOpacity = useTransform(scrollYProgress, [0, 0.82], [1, 0]);
+  const imgY = useTransform(scrollYProgress, [0, 1], ['0%', quiet ? '0%' : '6%']);
+  const copyOpacity = useTransform(scrollYProgress, [0, 0.82], [1, quiet ? 1 : 0]);
 
   return (
     <section className={`rl-fhero${aside ? ' rl-fhero--aside' : ''}`} ref={ref}>
@@ -472,30 +483,30 @@ export function RuFullHero({ img, imgDark, imgLight, imgPos = '50% 42%', kicker,
           src={src}
           alt=""
           style={{ y: imgY, objectPosition: imgPos }}
-          initial={reduced ? false : { scale: 1.14, opacity: 0.4 }}
-          animate={{ scale: 1.04, opacity: 1 }}
-          transition={{ duration: 2.2, ease: EASE }}
+          initial={quiet ? false : { scale: 1.14, opacity: 0.4 }}
+          animate={{ scale: quiet ? 1 : 1.04, opacity: 1 }}
+          transition={{ duration: quiet ? 0.55 : 2.2, ease: EASE }}
         />
         <span className="rl-fhero-scrim" />
         <span className="rl-fhero-scrim-b" />
         <span className="rl-fhero-glow" />
       </div>
-      <motion.div className="rl-fhero-inner" style={{ opacity: copyOpacity }}>
+      <motion.div className="rl-fhero-inner" style={quiet ? undefined : { opacity: copyOpacity }}>
         <div className="il-hero-copy rl-fhero-copy-panel">
           {kicker && (
-            <motion.span className="il-badge" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}>
+            <motion.span className="il-badge" initial={quiet ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: enterDur, ease: EASE }}>
               {kicker}
             </motion.span>
           )}
-          <motion.h1 className="il-hero-title rl-hero-title" initial={{ opacity: 0, y: 26 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.85, delay: 0.1, ease: EASE }}>
+          <motion.h1 className="il-hero-title rl-hero-title" initial={quiet ? false : { opacity: 0, y: 26 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: quiet ? 0.42 : 0.85, delay: quiet ? 0.04 : 0.1, ease: EASE }}>
             {title}
           </motion.h1>
           {sub && (
-            <motion.p className="il-hero-sub" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.3, ease: EASE }}>
+            <motion.p className="il-hero-sub" initial={quiet ? false : { opacity: 0, y: enterY }} animate={{ opacity: 1, y: 0 }} transition={{ duration: enterDur, delay: quiet ? 0.08 : 0.3, ease: EASE }}>
               {sub}
             </motion.p>
           )}
-          <motion.div className="il-hero-cta" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.42, ease: EASE }}>
+          <motion.div className="il-hero-cta" initial={quiet ? false : { opacity: 0, y: enterY }} animate={{ opacity: 1, y: 0 }} transition={{ duration: enterDur, delay: quiet ? 0.12 : 0.42, ease: EASE }}>
             {primary && (
               <Magnetic>
                 <motion.a href={primary.href} onClick={primary.onClick} className="il-btn il-btn--primary il-btn--lg" whileTap={{ scale: 0.96 }}>
@@ -505,7 +516,7 @@ export function RuFullHero({ img, imgDark, imgLight, imgPos = '50% 42%', kicker,
               </Magnetic>
             )}
             {secondary && (
-              <motion.a href={secondary.href} onClick={secondary.onClick} className="il-btn il-btn--outline il-btn--lg" whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }}>
+              <motion.a href={secondary.href} onClick={secondary.onClick} className="il-btn il-btn--outline il-btn--lg" whileHover={quiet ? undefined : { y: -2 }} whileTap={{ scale: 0.96 }}>
                 {secondary.label}
               </motion.a>
             )}

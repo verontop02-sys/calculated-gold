@@ -206,13 +206,22 @@ function OfficeGallery() {
 /* ═══════════════ Анимационные примитивы ═══════════════ */
 
 export function Reveal({ children, className = '', delay = 0, y = 34, ...rest }) {
+  const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = () => setCompact(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+  const dist = compact ? Math.min(12, y) : y;
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y }}
+      initial={{ opacity: 0, y: dist }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-10% 0px' }}
-      transition={{ duration: 0.85, delay, ease: EASE }}
+      viewport={{ once: true, margin: compact ? '-4% 0px' : '-10% 0px' }}
+      transition={{ duration: compact ? 0.4 : 0.85, delay: compact ? Math.min(delay, 0.06) : delay, ease: EASE }}
       {...rest}
     >
       {children}
