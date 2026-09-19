@@ -20,6 +20,7 @@ const SOURCE_META = {
   komanda: { label: 'Команда', color: '#ea580c' },
   'pismo-ceo': { label: 'Письмо CEO', color: '#be123c' },
   pro: { label: 'reaktivo.pro', color: '#64748b' },
+  delivery: { label: 'Доставка .pro', color: '#fe0000' },
 };
 
 const STATUS_TABS = [

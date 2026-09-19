@@ -1325,6 +1325,7 @@ const LANDING_LEAD_SOURCES = {
   komanda: 'Попасть в команду',
   'pismo-ceo': 'Письмо CEO',
   pro: 'Консультация (reaktivo.pro)',
+  delivery: 'Доставка (reaktivo.pro)',
 };
 
 /** Доп. поля формы: оставляем только непустые строки, режем длину и количество. */

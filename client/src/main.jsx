@@ -6,6 +6,7 @@ import { FieldDealConfirm } from './FieldDealConfirm.jsx';
 import { ClientPortal } from './ClientPortal.jsx';
 import { ClientDisplay } from './ClientDisplay.jsx';
 import { InvestLanding } from './InvestLanding.jsx';
+import { DeliveryLanding } from './DeliveryLanding.jsx';
 import { RuHome } from './ru/RuHome.jsx';
 import { RuProdat } from './ru/RuProdat.jsx';
 import { RuKurier } from './ru/RuKurier.jsx';
@@ -45,9 +46,9 @@ const isClientPortal = /^\/kabinet\/?$/.test(path);
 const isClientDisplay = /^\/display\/?$/.test(path);
 const isPrivacy = /^\/privacy\/?$/.test(path);
 const ruRoute = matchRuRoute(path);
-// Публичный лендинг Invest: корень домена + /invest (оба ведут на одну страницу).
-// На reaktivo.ru корень — сайт выкупа, не Invest.
-const isInvestLanding = !isReaktivoRuHost() && /^\/(?:invest\/?)?$/.test(path);
+// Витрина изделий — только /invest. Корень reaktivo.pro — промо доставки.
+const isInvestLanding = !isReaktivoRuHost() && /^\/invest\/?$/.test(path);
+const isDeliveryLanding = !isReaktivoRuHost() && /^\/$/.test(path);
 // Панель сотрудников (оценка/выкуп) — отдельный путь, чтобы корень был маркетинговым.
 const isStaffApp = /^\/pro\/?$/.test(path);
 
@@ -82,9 +83,10 @@ if (token) {
   inner = <RuHome />;
 } else if (isInvestLanding) {
   inner = <InvestLanding />;
+} else if (isDeliveryLanding) {
+  inner = <DeliveryLanding />;
 } else {
-  // Неизвестный путь → лендинг (удобнее для клиента, чем пустая 404 SPA).
-  inner = <InvestLanding />;
+  inner = <DeliveryLanding />;
 }
 
 const tree = (

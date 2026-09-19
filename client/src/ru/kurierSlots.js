@@ -179,3 +179,13 @@ export function formatKurierTimeLabel(time) {
   const minutes = parseTimeToMinutes(time);
   return minutes == null ? '' : minutesToTimeStr(minutes);
 }
+
+/** Ближайший доступный слот курьера — для промо-заявки без выбора даты. */
+export function pickNextCourierSlot(now = new Date()) {
+  const days = getAvailableDays(now);
+  for (const d of days) {
+    const times = getQuickTimes(d.iso, now);
+    if (times.length) return { date: d.iso, time: times[0], label: d.label };
+  }
+  return null;
+}
