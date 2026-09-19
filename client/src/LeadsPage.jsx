@@ -22,6 +22,7 @@ const SOURCE_META = {
   pro: { label: 'reaktivo.pro', color: '#64748b' },
   delivery: { label: 'Доставка .pro', color: '#fe0000' },
   waitlist: { label: 'Лист ожидания', color: '#c2410c' },
+  referral: { label: 'Реферал', color: '#0f766e' },
 };
 
 const STATUS_TABS = [

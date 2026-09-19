@@ -9,10 +9,12 @@ import {
   staggerChild,
   staggerParent,
 } from './InvestLanding.jsx';
+import { ThemeToggle } from './ThemeToggle.jsx';
 import {
   RL_CSS,
   RuAtmosphere,
   RuCtaPanel,
+  RuFaq,
   RuFullHero,
   RuGoldTicker,
   RuKpis,
@@ -20,6 +22,7 @@ import {
   RuMarquee,
   RuSbpBadge,
   RuStatement,
+  RuThemedImg,
   formatMoney,
   isRuPhone,
   useAnimatedNumber,
@@ -44,6 +47,40 @@ const TRACK = [
   { title: 'Курьер выехал', text: 'Красная сумка уже в пути к вам.' },
   { title: 'На месте', text: 'Проба и вес определяются при вас.' },
   { title: 'Деньги у вас', text: 'Наличные или СБП — сразу после оценки.' },
+];
+
+const EVOLUTION = [
+  { n: '01', title: 'Живой курс на первом экране', text: 'Цифра офиса тикает сразу в пробах 585, 750 и 999 — не «перезвоним и оценим».' },
+  { n: '02', title: 'Фиксация на 15 минут', text: 'Нажали «вызвать» — сумму держим, пока вводите город, адрес и телефон.' },
+  { n: '03', title: 'Выплата дома', text: 'Наличные или СБП при вас. Паспорт нужен по закону, не «для галочки».' },
+];
+
+const STORIES = [
+  { k: '90 минут', t: 'Заявка утром — деньги в тот же визит', d: 'Без поездки в отделение: курьер приезжает, проверяет пробу при вас и платит сразу.' },
+  { k: 'При вас', t: 'Проба на столе, не «в лаборатории»', d: 'Реактив и, если нужно, спектр. Вы видите тот же результат, что и эксперт.' },
+  { k: 'Один курс', t: 'Сайт, курьер и офис считают одинаково', d: 'Зафиксировали сумму на сайте — это та выплата, которую привезёт курьер.' },
+];
+
+const COMPARE = [
+  {
+    title: 'Курьер домой',
+    on: true,
+    points: ['Никуда не едете', 'Курс тот же, что на сайте', 'Проверка и выплата при вас', 'Вызов бесплатный в зоне'],
+  },
+  {
+    title: 'Отделение',
+    on: false,
+    points: ['Курс точно такой же', 'Можно прийти без записи', 'Подходит, если офис рядом', 'Те же лицензия и паспорт'],
+  },
+];
+
+const FAQ = [
+  { q: 'Курьер правда бесплатный?', a: 'Да. За выезд в зоне Москва и МО вы ничего не платите — ни за дорогу, ни «за оценку».' },
+  { q: 'Это та сумма, которую я увижу дома?', a: 'Да, если проба и вес совпали с тем, что вы указали. Мы фиксируем курс на 15 минут. Точная выплата — после проверки при вас.' },
+  { q: 'Что если клеймо стёрлось?', a: 'Проба определяется реактивом и, если нужно, спектром. Всё при вас. Из-за состояния изделия мы ничего не вычитаем.' },
+  { q: 'Нужен ли паспорт?', a: 'Да — это требование закона к сделке скупки, а не проверка, откуда вещь. Без паспорта сделку оформить нельзя.' },
+  { q: 'Что если я передумаю?', a: 'Продажа не обязательна. Можно отказаться на месте или перенести визит — это бесплатно.' },
+  { q: 'А если я не в Москве?', a: 'Оставьте город в листе ожидания внизу страницы — так мы видим, куда везти доставку и агентов дальше.' },
 ];
 
 const DESK_PATH = 'M48 132 C 150 36, 250 188, 340 96 S 500 28, 592 140';
@@ -219,20 +256,20 @@ function PathStory() {
 
           <div className="dl2-route">
             <svg className="dl2-route-svg" viewBox={viewBox} fill="none" aria-hidden>
-              <path d={d} stroke="rgba(255,255,255,0.16)" strokeWidth={mobile ? 3 : 3.5} strokeDasharray="6 9" strokeLinecap="round" />
-              <path ref={pathRef} d={d} stroke="#dc2a2e" strokeWidth={mobile ? 3.6 : 4.2} strokeLinecap="round" />
+              <path className="dl2-route-ghost" d={d} strokeWidth={mobile ? 3 : 3.5} strokeDasharray="6 9" strokeLinecap="round" />
+              <path ref={pathRef} className="dl2-route-draw" d={d} strokeWidth={mobile ? 3.6 : 4.2} strokeLinecap="round" />
               {stops.map((p, i) => (
                 <g key={STEPS[i].title}>
                   <circle
                     cx={p.x}
                     cy={p.y}
                     r={reduced || i <= step ? 8 : 5.5}
-                    fill={reduced || i <= step ? '#dc2a2e' : '#16171c'}
-                    stroke="#f3f1ee"
+                    fill={reduced || i <= step ? 'var(--accent)' : 'var(--bg-panel-solid)'}
+                    stroke="var(--text-strong)"
                     strokeWidth="1.6"
                   />
                   {!mobile && (
-                    <text x={p.x} y={p.y + 26} textAnchor="middle" fill={reduced || i <= step ? '#fff' : 'rgba(255,255,255,0.45)'} fontSize="12" fontWeight="700">{STEPS[i].title}</text>
+                    <text className={`dl2-stop-label${reduced || i <= step ? ' is-on' : ''}`} x={p.x} y={p.y + 26} textAnchor="middle" fontSize="12" fontWeight="700">{STEPS[i].title}</text>
                   )}
                 </g>
               ))}
@@ -285,9 +322,44 @@ function DemoTracker({ freezeAt }) {
         >
           <b>{String(i + 1).padStart(2, '0')}</b>
           <span>{s.title}</span>
-          {i === idx && <em>{s.text}</em>}
+          <em>{s.text}</em>
         </button>
       ))}
+    </div>
+  );
+}
+
+function moscowHour(d) {
+  const hour = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Moscow',
+    hour: 'numeric',
+    hourCycle: 'h23',
+  }).format(d);
+  return Number(hour);
+}
+
+function DutyBar() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const onDuty = (() => {
+    const h = moscowHour(now);
+    return h >= 9 && h < 21;
+  })();
+  const time = new Intl.DateTimeFormat('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(now);
+  return (
+    <div className="dl2-duty" role="status">
+      <span className={`dl2-duty-dot${onDuty ? ' is-on' : ''}`} aria-hidden />
+      <b>{onDuty ? 'Курьеры на линии' : 'Заявки принимаем — перезвоним утром'}</b>
+      <span>Москва {time}</span>
+      <span>Вызов 0 ₽</span>
+      <span>Фиксация 15 мин</span>
     </div>
   );
 }
@@ -375,12 +447,6 @@ export function DeliveryLanding() {
       'content',
       'Скупка золота с выездом курьера. Живой курс, мгновенная оценка, выплата дома. Вызвать курьера Reaktivo.'
     );
-    const html = document.documentElement;
-    const prevTheme = html.getAttribute('data-theme');
-    html.setAttribute('data-theme', 'dark');
-    return () => {
-      if (prevTheme) html.setAttribute('data-theme', prevTheme);
-    };
   }, []);
 
   useEffect(() => {
@@ -678,6 +744,7 @@ export function DeliveryLanding() {
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.35a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.75.32 1.54.55 2.35.68A2 2 0 0 1 22 16.92z" />
               </svg>
             </a>
+            <ThemeToggle />
             <Magnetic>
               <a href="#order" className="il-btn il-btn--primary il-btn--header-buy">
                 <span className="dl2-cta-full">Вызвать курьера</span>
@@ -710,6 +777,8 @@ export function DeliveryLanding() {
           'Наличные или СБП',
           'Москва и МО',
         ]} />
+
+        <DutyBar />
 
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
@@ -768,7 +837,7 @@ export function DeliveryLanding() {
             </div>
             <div className="dl2-courier">
               <div className="dl2-courier-photo">
-                <img src="/ru/courier.jpg" alt="Курьер Reaktivo с красной сумкой" />
+                <RuThemedImg dark="/ru/courier.jpg" light="/ru/courier-light.jpg" alt="Курьер Reaktivo с красной сумкой" />
               </div>
               <div className="dl2-courier-card">
                 <span className="il-card-label">Курьер доставки</span>
@@ -802,11 +871,73 @@ export function DeliveryLanding() {
             <div className="il-section-head">
               <Reveal><span className="il-pill">Трекер заказа</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Принята → выехал → на месте → <span className="il-accent-text">деньги у вас</span></h2></Reveal>
-              <Reveal delay={0.12}><p className="il-p" style={{ margin: '0 auto', maxWidth: '38rem' }}>Демо, как будет выглядеть статус после заявки. Настоящий трекер подключим к заказу следующим этапом.</p></Reveal>
+              <Reveal delay={0.12}><p className="il-p">Демо статуса. Настоящий трекер подключим к заказу следующим этапом — нажмите карточку, чтобы посмотреть шаг.</p></Reveal>
             </div>
-            <Reveal delay={0.08}>
-              <DemoTracker />
-            </Reveal>
+            <DemoTracker />
+          </div>
+        </section>
+
+        <section className="il-section" id="stories">
+          <div className="il-section-inner">
+            <div className="il-section-head">
+              <Reveal><span className="il-pill">Как это выглядит</span></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Три сцены без поездки <span className="il-accent-text">в отделение</span></h2></Reveal>
+            </div>
+            <motion.div className="il-cards" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
+              {STORIES.map((s) => (
+                <motion.div className="il-card" key={s.t} variants={staggerChild}>
+                  <span className="il-card-label">{s.k}</span>
+                  <h3 className="il-card-title">{s.t}</h3>
+                  <p className="il-card-text">{s.d}</p>
+                </motion.div>
+              ))}
+            </motion.div>
+          </div>
+        </section>
+
+        <section className="il-section il-section--alt" id="log">
+          <div className="il-section-inner">
+            <div className="il-section-head">
+              <Reveal><span className="il-pill">Эволюция доставки</span></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Что уже работает <span className="il-accent-text">на этой странице</span></h2></Reveal>
+            </div>
+            <div className="dl2-log">
+              {EVOLUTION.map((row) => (
+                <article className="dl2-log-row" key={row.n}>
+                  <b className="mono-nums">{row.n}</b>
+                  <div>
+                    <h3>{row.title}</h3>
+                    <p>{row.text}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="il-section" id="faq">
+          <div className="il-section-inner">
+            <div className="dl2-split">
+              <div>
+                <span className="il-pill">Дома или в отделении</span>
+                <h2 className="il-h2">Курс один. Разница — <span className="il-accent-text">куда ехать</span></h2>
+                <div className="dl2-compare">
+                  {COMPARE.map((c) => (
+                    <article className={`dl2-compare-card${c.on ? ' is-on' : ''}`} key={c.title}>
+                      <h3>{c.title}</h3>
+                      <ul>
+                        {c.points.map((p) => <li key={p}>{p}</li>)}
+                      </ul>
+                    </article>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <span className="il-pill">Вопросы</span>
+                <h2 className="il-h2">Коротко <span className="il-accent-text">по делу</span></h2>
+                <RuFaq items={FAQ} />
+              </div>
+            </div>
           </div>
         </section>
 
@@ -886,21 +1017,38 @@ export function DeliveryLanding() {
         </section>
 
         <section className="il-section il-section--cta" id="waitlist">
-          <div className="il-section-inner il-section-inner--narrow">
-            <Reveal>
-              <RuCtaPanel>
-                <h2 className="il-h2">Нет курьера в вашем городе?</h2>
-                <p>Оставьте город и телефон — так мы видим, куда везти доставку и запускать агентов. Москва и МО — вызывайте курьера сразу.</p>
-                <RuLeadForm
-                  source="waitlist"
-                  title="Хочу Reaktivo в моём городе"
-                  note="Имя, телефон и город. Это лист ожидания, не заявка на выезд."
-                  cta="Записать город"
-                  successNote="Город записан. Когда откроем доставку — свяжемся."
-                  fields={[{ key: 'city', label: 'Город', placeholder: 'Ваш город', required: true, full: true }]}
-                />
-              </RuCtaPanel>
-            </Reveal>
+          <div className="il-section-inner">
+            <div className="dl2-forms">
+              <Reveal>
+                <RuCtaPanel>
+                  <h2 className="il-h2">Нет курьера в вашем городе?</h2>
+                  <p>Оставьте город и телефон — так мы видим, куда везти доставку и запускать агентов. Москва и МО — вызывайте курьера сразу.</p>
+                  <RuLeadForm
+                    source="waitlist"
+                    title="Хочу Reaktivo в моём городе"
+                    note="Имя, телефон и город. Это лист ожидания, не заявка на выезд."
+                    cta="Записать город"
+                    successNote="Город записан. Когда откроем доставку — свяжемся."
+                    fields={[{ key: 'city', label: 'Город', placeholder: 'Ваш город', required: true, full: true }]}
+                  />
+                </RuCtaPanel>
+              </Reveal>
+              <Reveal delay={0.08}>
+                <div className="dl2-ref" id="referral">
+                  <span className="il-pill">Реферальная программа</span>
+                  <h2 className="il-h2">Приведите знакомого</h2>
+                  <p>Оба получите повышенный курс на следующую сделку. Оставьте контакт — перезвоним с условиями, без автосписаний.</p>
+                  <RuLeadForm
+                    source="referral"
+                    title="Хочу привести знакомого"
+                    note="Имя и телефон. Если есть контакт друга — укажите, это ускорит разговор."
+                    cta="Оставить контакт"
+                    successNote="Записали. Перезвоним и расскажем, как засчитать рекомендацию."
+                    fields={[{ key: 'friend', label: 'Контакт знакомого', placeholder: 'Имя или телефон друга — необязательно', full: true }]}
+                  />
+                </div>
+              </Reveal>
+            </div>
           </div>
         </section>
       </main>
@@ -919,7 +1067,7 @@ export function DeliveryLanding() {
               <span className="il-footer-col-title">На этой странице</span>
               <a href="#order" className="il-nav-link">Вызвать курьера</a>
               <a href="#steps" className="il-nav-link">Путь красного R</a>
-              <a href="#courier" className="il-nav-link">Курьер</a>
+              <a href="#faq" className="il-nav-link">Вопросы</a>
               <a href="#docs" className="il-nav-link">Документы</a>
             </div>
             <div className="il-footer-col">
@@ -957,6 +1105,12 @@ export function DeliveryLanding() {
 
 const DL2_CSS = `
 .dl2-root { --font-display: 'Geometria', system-ui, sans-serif; }
+.dl2-root .il-section { padding: 48px 0; }
+.dl2-root .il-section-head { margin-bottom: 24px; }
+.dl2-root .rl-kpis-section { padding: 24px 0 4px; }
+.dl2-root .rl-statement { padding: 40px 0 32px; }
+.dl2-root .il-section--cta { padding: 32px 0 48px; }
+.dl2-root .il-header-actions { align-items: center; }
 .mono-nums { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
 .dl2-order { display: flex; width: 100%; height: 100%; }
 .dl2-calc form { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
@@ -1007,7 +1161,7 @@ const DL2_CSS = `
 .dl2-hp { position: absolute; left: -9999px; height: 0; width: 0; opacity: 0; pointer-events: none; }
 .dl2-fine { margin: 0; color: var(--text-dim); font-size: 0.75rem; line-height: 1.45; }
 .dl2-fine a { color: var(--text-strong); }
-.dl2-calc-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--stroke-soft); }
+.dl2-calc-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--stroke-soft); }
 .dl2-calc-note .il-p { max-width: 46ch; }
 .dl2-sticky {
   position: fixed; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom));
@@ -1019,7 +1173,19 @@ const DL2_CSS = `
 .dl2-cta-short { display: none; }
 .dl2-live-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .dl2-sent { display: flex; flex-direction: column; gap: 14px; }
-.dl2-path { position: relative; padding: 72px 0 56px; }
+.dl2-duty {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+  gap: 8px 18px; padding: 12px 16px;
+  border-bottom: 1px solid var(--stroke-soft);
+  font-size: 0.8rem; color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-panel-solid) 72%, transparent);
+}
+.dl2-duty b { color: var(--text-strong); font-weight: 800; }
+.dl2-duty-dot {
+  width: 8px; height: 8px; border-radius: 99px; background: var(--text-dim); flex-shrink: 0;
+}
+.dl2-duty-dot.is-on { background: #3dff8a; box-shadow: 0 0 10px rgba(61, 255, 138, 0.5); }
+.dl2-path { position: relative; padding: 36px 0 24px; }
 .dl2-path--static { height: auto; }
 .dl2-path-sticky {
   position: relative; top: auto;
@@ -1041,6 +1207,10 @@ const DL2_CSS = `
 .dl2-path-text { margin: 0 0 18px; max-width: 34rem; color: var(--text-muted); line-height: 1.55; min-height: 3.2em; }
 .dl2-route { display: flex; justify-content: center; min-width: 0; }
 .dl2-route-svg { width: 100%; height: 220px; overflow: visible; display: block; }
+.dl2-route-ghost { stroke: var(--stroke); fill: none; }
+.dl2-route-draw { stroke: var(--accent); fill: none; }
+.dl2-stop-label { fill: var(--text-dim); }
+.dl2-stop-label.is-on { fill: var(--text-strong); }
 .dl2-progress {
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
   list-style: none; margin: 0; padding: 0;
@@ -1054,8 +1224,8 @@ const DL2_CSS = `
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
 }
 .dl2-track-step {
-  display: flex; flex-direction: column; gap: 6px; min-height: 128px;
-  padding: 16px; border-radius: 18px; text-align: left;
+  display: flex; flex-direction: column; gap: 6px; min-height: 0;
+  padding: 14px 14px 16px; border-radius: 18px; text-align: left;
   border: 1px solid var(--stroke); background: var(--bg-panel-solid);
   color: inherit; font: inherit; cursor: pointer;
 }
@@ -1064,6 +1234,42 @@ const DL2_CSS = `
 .dl2-track-step em { font-style: normal; font-size: 0.82rem; line-height: 1.45; color: var(--text-muted); }
 .dl2-track-step.is-on { border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke)); }
 .dl2-track-step.is-now { background: var(--accent-soft); }
+.dl2-track-step.is-now em { color: var(--text-strong); }
+.dl2-log { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.dl2-log-row {
+  display: grid; gap: 8px;
+  padding: 18px 18px 20px; border-radius: 18px;
+  border: 1px solid var(--stroke); background: var(--bg-panel-solid);
+}
+.dl2-log-row b { font-size: 0.78rem; color: var(--accent); letter-spacing: 0.1em; }
+.dl2-log-row h3 { margin: 0; font-size: 1.05rem; letter-spacing: -0.03em; line-height: 1.3; }
+.dl2-log-row p { margin: 0; color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; }
+.dl2-split { display: grid; gap: 32px; }
+.dl2-split .il-h2 { font-size: clamp(1.45rem, 3vw, 2.05rem); margin: 10px 0 18px; text-align: left; }
+.dl2-compare { display: grid; gap: 10px; }
+.dl2-compare-card {
+  padding: 16px 18px; border-radius: 18px;
+  border: 1px solid var(--stroke); background: var(--bg-panel-solid);
+}
+.dl2-compare-card.is-on {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--stroke));
+  background: var(--accent-soft);
+}
+.dl2-compare-card h3 { margin: 0 0 10px; font-size: 1.05rem; }
+.dl2-compare-card ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.dl2-compare-card li { position: relative; padding-left: 1.15em; color: var(--text-muted); font-size: 0.9rem; line-height: 1.4; }
+.dl2-compare-card li::before { content: '→'; position: absolute; left: 0; color: var(--accent); font-weight: 800; }
+.dl2-forms { display: grid; gap: 16px; align-items: stretch; }
+.dl2-forms > * { min-width: 0; display: flex; }
+.dl2-forms .il-cta-panel,
+.dl2-forms .dl2-ref { flex: 1; width: 100%; }
+.dl2-forms .il-cta-panel { padding: 28px 24px; }
+.dl2-ref {
+  padding: 28px 24px; border-radius: 28px;
+  border: 1px solid var(--stroke); background: var(--bg-panel-solid);
+}
+.dl2-ref .il-h2 { font-size: clamp(1.45rem, 3vw, 2.1rem); margin: 10px 0 10px; text-align: left; }
+.dl2-ref > p { margin: 0 0 16px; color: var(--text-muted); line-height: 1.5; }
 .dl2-courier {
   display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 22px; align-items: stretch;
 }
@@ -1071,8 +1277,8 @@ const DL2_CSS = `
   border-radius: 24px; overflow: hidden; border: 1px solid var(--stroke);
   background: var(--bg-panel-solid);
 }
-.dl2-courier-photo img { display: block; width: 100%; height: 100%; min-height: 280px; max-height: 520px; object-fit: cover; object-position: 50% 30%; }
-.dl2-courier-card { padding: 28px 26px; display: flex; flex-direction: column; gap: 12px; }
+.dl2-courier-photo img { display: block; width: 100%; height: 100%; min-height: 280px; max-height: 420px; object-fit: cover; object-position: 50% 30%; }
+.dl2-courier-card { padding: 24px 22px; display: flex; flex-direction: column; gap: 12px; }
 .dl2-courier-card h3 { margin: 0; font-size: 1.8rem; letter-spacing: -0.03em; }
 .dl2-courier-card > p { margin: 0; color: var(--text-muted); line-height: 1.55; }
 .dl2-courier-meta { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1080,13 +1286,31 @@ const DL2_CSS = `
   font-size: 0.78rem; font-weight: 700; padding: 6px 10px; border-radius: 999px;
   background: var(--accent-soft); color: var(--text-strong);
 }
-.dl2-courier-qr { display: flex; gap: 14px; align-items: center; padding: 12px 0; }
+.dl2-courier-qr { display: flex; gap: 14px; align-items: center; padding: 8px 0; }
 .dl2-courier-qr img { width: 84px; height: 84px; border-radius: 12px; background: #fff; }
 .dl2-courier-qr b { display: block; margin-bottom: 4px; }
 .dl2-courier-qr p { margin: 0; font-size: 0.84rem; color: var(--text-muted); line-height: 1.45; }
 .dl2-courier-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: auto; }
 .dl2-root .il-header-phone { display: flex !important; }
 .dl2-root .il-btn--header-buy { display: inline-flex !important; }
+.dl2-root .il-header:not(.il-header--scrolled) .theme-toggle-track {
+  background: rgba(255,255,255,0.16);
+  border-color: rgba(255,255,255,0.28);
+}
+.dl2-root .il-header:not(.il-header--scrolled) .il-header-phone {
+  color: #fff;
+  border-color: rgba(255,255,255,0.28);
+  background: rgba(0,0,0,0.18);
+}
+:root[data-theme='light'] .dl2-root .il-header:not(.il-header--scrolled) .theme-toggle-track {
+  background: rgba(255,255,255,0.78);
+  border-color: rgba(13,14,15,0.18);
+}
+:root[data-theme='light'] .dl2-root .il-header:not(.il-header--scrolled) .il-header-phone {
+  color: #161310;
+  border-color: rgba(13,14,15,0.18);
+  background: rgba(255,255,255,0.55);
+}
 @media (min-width: 768px) {
   .dl2-sticky { display: none; }
 }
@@ -1094,13 +1318,16 @@ const DL2_CSS = `
   .dl2-path-inner { grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); align-items: center; }
   .dl2-progress { grid-column: 1 / -1; }
   .dl2-route-svg { height: 240px; }
+  .dl2-split { grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); align-items: start; }
+  .dl2-forms { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
 }
 @media (max-width: 900px) {
   .dl2-root .il-header-inner { gap: 10px; padding: 12px 16px; }
   .dl2-root .il-logo-text { font-size: 1.05rem; }
   .dl2-courier { grid-template-columns: 1fr; }
-  .dl2-courier-photo img { min-height: 240px; }
+  .dl2-courier-photo img { min-height: 220px; max-height: 320px; }
   .dl2-track { grid-template-columns: 1fr 1fr; }
+  .dl2-log { grid-template-columns: 1fr; }
   .dl2-route-svg { height: 260px; max-width: 140px; margin: 0 auto; }
 }
 @media (max-width: 520px) {
@@ -1111,7 +1338,8 @@ const DL2_CSS = `
   .dl2-probe-s { font-size: 0.86rem; }
   .dl2-probe-g { font-size: 0.72rem; }
   .dl2-track { grid-template-columns: 1fr; }
-  .dl2-track-step { min-height: 0; }
+  .dl2-root .il-section { padding: 36px 0; }
+  .dl2-path { padding: 28px 0 16px; }
 }
 @media (max-width: 360px) {
   .dl2-root .il-header-phone { display: none !important; }
