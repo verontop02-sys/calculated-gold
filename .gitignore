@@ -16,6 +16,7 @@ scripts/_ssh_tmp/
 
 # Черновики и разовые выгрузки: превью вёрстки, QA-скриншоты, логи прогонов, исходники фото.
 .tmp_*
+.tmp-shots/
 docs/_*
 scripts/_vps_out.txt
 images/
