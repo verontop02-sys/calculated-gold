@@ -88,18 +88,17 @@ function extractFromEntities(entities) {
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
     .join(' ');
 
-  // У модели passport номер часто лежит в number / passport_number / document_number
-  let seriesNumber = entityText(
-    entities,
-    /passport.*number|document.*number|series.*number|^(number|серия|номер)$/i
-  );
-  // Иногда серия и номер отдельными entities
-  if (!seriesNumber) {
-    const seria = entityText(entities, /^(seria|series|серия)$/i);
-    const number = entityText(entities, /^(number|номер)$/i);
-    if (seria || number) seriesNumber = normSpaces(`${seria} ${number}`);
+  // Серия и номер на паспорте РФ напечатаны красным и часто приходят
+  // разными полями (series + number) или одной строкой number.
+  const numberParts = [];
+  for (const e of entities || []) {
+    const name = String(e?.name || '');
+    if (/number|seria|series|номер|серия/i.test(name)) numberParts.push(normSpaces(e?.text));
   }
-  seriesNumber = normalizeSeriesNumber(seriesNumber);
+  let seriesNumber = extractSeriesNumberFromText(numberParts.join('\n'));
+  if (!seriesNumber) {
+    seriesNumber = extractSeriesNumberFromText((entities || []).map((e) => normSpaces(e?.text)).join('\n'));
+  }
 
   const issueDate = normalizeDate(
     entityText(entities, /issue.?date|date.?issue|дата.?выдач/i)
@@ -118,12 +117,51 @@ function extractFromEntities(entities) {
   return { fullName, seriesNumber, issueDate, deptCode, issuedBy, birthDate };
 }
 
+function formatTenDigits(digits) {
+  if (!/^\d{10}$/.test(digits)) return '';
+  return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+}
+
+/** Серия и номер паспорта РФ: 4 + 6 цифр. Пустая строка, если собрать их нельзя. */
+export function extractSeriesNumberFromText(raw) {
+  let text = String(raw || '').replace(/\u00a0/g, ' ');
+  text = text.replace(/\d{2}[.\-/]\d{2}[.\-/]\d{4}/g, ' ');
+  text = text.replace(/\d{3}-\d{3}/g, ' ');
+
+  const spaced = text.match(/\b(\d{2})\s*(\d{2})\s+(\d{6})\b/)
+    || text.match(/\b(\d{4})\s+(\d{6})\b/)
+    || text.match(/\b(\d{2})\s*(\d{2})\s*№\s*(\d{6})\b/i);
+  if (spaced) {
+    const formatted = formatTenDigits(spaced.slice(1).join('').replace(/\D/g, ''));
+    if (formatted) return formatted;
+  }
+
+  const lines = text.split(/\n+/);
+  for (let i = 0; i < lines.length - 1; i += 1) {
+    const a = lines[i].trim();
+    const b = lines[i + 1].replace(/\s/g, '');
+    const aCompact = a.replace(/\s/g, '');
+    if ((/^\d{4}$/.test(aCompact) || /^\d{2}\s\d{2}$/.test(a)) && /^\d{6}$/.test(b)) {
+      return `${aCompact} ${b}`;
+    }
+  }
+
+  const singles = text.match(/(?:^|[^\d])((?:\d\s+){9}\d)(?=[^\d]|$)/);
+  if (singles) {
+    const formatted = formatTenDigits(singles[1].replace(/\s/g, ''));
+    if (formatted) return formatted;
+  }
+
+  const ten = text.match(/(?:^|\D)(\d{10})(?=\D|$)/);
+  return ten ? formatTenDigits(ten[1]) : '';
+}
+
+function isSeriesNumber(s) {
+  return /^\d{4} \d{6}$/.test(String(s || '').trim());
+}
+
 function normalizeSeriesNumber(raw) {
-  const digits = String(raw || '').replace(/\D/g, '');
-  if (digits.length === 10) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
-  const m = String(raw || '').match(/\b(\d{2}\s?\d{2})\s+(\d{6})\b/);
-  if (m) return `${m[1].replace(/\s/g, '')} ${m[2]}`;
-  return normSpaces(raw);
+  return extractSeriesNumberFromText(raw);
 }
 
 function normalizeDate(raw) {
@@ -132,12 +170,8 @@ function normalizeDate(raw) {
 }
 
 function extractFromLines(lines) {
+  const seriesNumber = extractSeriesNumberFromText(lines.join('\n'));
   const joined = lines.join(' ');
-  const seriesMatch =
-    joined.match(/\b(\d{2}\s?\d{2})\s+(\d{6})\b/) || joined.match(/\b(\d{4})\s+(\d{6})\b/);
-  const seriesNumber = seriesMatch
-    ? `${seriesMatch[1].replace(/\s/g, '')} ${seriesMatch[2]}`
-    : '';
   const deptMatch = joined.match(/\b(\d{3}-\d{3})\b/);
   const deptCode = deptMatch ? deptMatch[1] : '';
 
@@ -219,10 +253,41 @@ function mergeFields(...parts) {
         if (nameWordCount(p[k]) > nameWordCount(out[k])) out[k] = p[k];
         continue;
       }
+      if (k === 'seriesNumber') {
+        const next = normalizeSeriesNumber(p[k]);
+        if (isSeriesNumber(next) && !isSeriesNumber(out[k])) out[k] = next;
+        else if (!out[k] && next) out[k] = next;
+        continue;
+      }
       if (!out[k]) out[k] = p[k];
     }
   }
   return out;
+}
+
+/** Красная серия и номер на фото часто не читаются обычным OCR. Затемняем красные штрихи. */
+async function emphasizeRedInk(base64Image) {
+  const { createCanvas, loadImage } = await import('@napi-rs/canvas');
+  const img = await loadImage(Buffer.from(base64Image, 'base64'));
+  const canvas = createCanvas(img.width, img.height);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const imageData = ctx.getImageData(0, 0, img.width, img.height);
+  const px = imageData.data;
+  for (let i = 0; i < px.length; i += 4) {
+    const r = px[i];
+    const g = px[i + 1];
+    const b = px[i + 2];
+    const redness = r - Math.max(g, b);
+    const gray = 0.3 * r + 0.59 * g + 0.11 * b;
+    const v = redness > 28 && r > 80 ? 0 : gray;
+    const out = Math.max(0, Math.min(255, Math.round(v)));
+    px[i] = out;
+    px[i + 1] = out;
+    px[i + 2] = out;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return canvas.toBuffer('image/jpeg').toString('base64');
 }
 
 function hasUsefulFields(f) {
@@ -245,13 +310,35 @@ export async function recognizePassportImage(base64Image) {
   let merged = mergeFields(fromEntities, fromLines);
   let rawText = passport.fullText;
 
-  // Если модель passport недодала серию/номер или ФИО — добираем общим OCR page
-  if (!merged.seriesNumber || !merged.fullName) {
-    const page = await callYandexVisionOcr(base64Image, 'page');
+  async function fillFromPage(image) {
+    const page = await callYandexVisionOcr(image, 'page');
     const pageFields = extractFromLines(page.lines.length ? page.lines : page.fullText.split(/\n+/));
     merged = mergeFields(merged, pageFields);
     if (!rawText) rawText = page.fullText;
     else if (page.fullText && page.fullText.length > rawText.length) rawText = page.fullText;
+  }
+
+  async function fillFromRedInk() {
+    try {
+      const red = await emphasizeRedInk(base64Image);
+      const again = await callYandexVisionOcr(red, 'passport');
+      merged = mergeFields(
+        merged,
+        extractFromEntities(again.entities),
+        extractFromLines(again.lines.length ? again.lines : again.fullText.split(/\n+/)),
+      );
+      if (again.fullText && again.fullText.length > (rawText || '').length) rawText = again.fullText;
+    } catch (e) {
+      console.warn('[passport ocr] red-ink pass', e?.message || e);
+    }
+  }
+
+  // ФИО уже есть, а серии нет: красные цифры, не гоняем общий OCR ещё раз.
+  if (merged.fullName && !isSeriesNumber(merged.seriesNumber)) {
+    await fillFromRedInk();
+  } else if (!merged.fullName || !isSeriesNumber(merged.seriesNumber)) {
+    await fillFromPage(base64Image);
+    if (!isSeriesNumber(merged.seriesNumber)) await fillFromRedInk();
   }
 
   if (!hasUsefulFields(merged) && !rawText) {

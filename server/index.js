@@ -4220,6 +4220,17 @@ app.post(
     if (!base64) return res.status(400).json({ error: 'Не передано изображение' });
     if (base64.length > 14_000_000) return res.status(413).json({ error: 'Файл слишком большой' });
     const out = await recognizePassportImage(base64);
+    try {
+      const buf = Buffer.from(base64, 'base64');
+      const fileName = `passport-scans/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+      const { error: upErr } = await supabase.storage
+        .from('courier-photos')
+        .upload(fileName, buf, { contentType: 'image/jpeg', upsert: false });
+      if (upErr) console.warn('[passport ocr] photo save', upErr.message);
+      else out.scanPath = fileName;
+    } catch (e) {
+      console.warn('[passport ocr] photo save', e?.message || e);
+    }
     res.json(out);
   })
 );

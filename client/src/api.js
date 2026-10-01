@@ -1,7 +1,8 @@
 import { supabase } from './supabase.js';
 
-// Прод: VITE_API_BASE (Supabase Edge proxy или same-origin /api). Dev: Vite → localhost.
+// Прод: VITE_API_BASE. Dev: Vite → localhost. Если московский прокси молчит, fetch уходит на Render.
 const API_BASE = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_BASE || '/api');
+export { API_BASE };
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const USES_SUPABASE_FN = /supabase\.co\/functions\//i.test(API_BASE);
 
@@ -817,7 +818,7 @@ export const api = {
     request('/passport-ocr', {
       method: 'POST',
       body: JSON.stringify({ imageBase64 }),
-      timeout: 30_000,
+      timeout: 55_000,
     }),
   /**
    * Проверка действительности паспорта РФ по базе МВД (посредник NewDB).
@@ -836,8 +837,6 @@ export const api = {
     request(`/passport-validity-check/${encodeURIComponent(requestId)}`, {
       timeout: 20_000,
     }),
-  /** Баланс NewDB (₽) — только для суперадмина, реестр платных подписок. */
-  newDbBalance: () => request('/admin/newdb-balance'),
   /** PDF договора: возвращает { blob, dealId, contractNo } — номер назначает сервер. */
   scrapContractPdf: async (body) => {
     const { blob, headers } = await requestBlob('/scrap-contract/pdf', { method: 'POST', body, returnHeaders: true });
