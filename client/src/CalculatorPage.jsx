@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Calculator } from './Calculator.jsx';
 import { ClientPresentation } from './ClientPresentation.jsx';
 import { api } from './api.js';
-import { calculateBuybackRange, mergeSettings } from './calc.js';
+import { buybackChannelForRole, calculateBuybackRange, mergeSettings, readBuybackCoeff } from './calc.js';
 import { computeClientView } from './clientView.js';
 
 const DISPLAY_CODE_KEY = 'cg_display_operator_code';
@@ -30,7 +30,7 @@ function getDisplayCode() {
  * Слева — сам Calculator (без изменений).
  * Справа — правая «приборная панель»: курс, политика выкупа, сегодня, экран клиента.
  */
-export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, toast }) {
+export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToContract, toast }) {
   const [settings, setSettings] = useState(null);
   const [todayStats, setTodayStats] = useState(null);
   const [clientView, setClientView] = useState({ open: false, weight: null, purity: null });
@@ -72,8 +72,10 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, to
     window.open(url, 'cg-client-display', 'width=1280,height=800');
   }, [displayCode]);
 
+  const channel = buybackChannelForRole(userRole);
+
   const pushToDisplay = useCallback(async ({ weight, purity }) => {
-    const view = computeClientView({ settings, price, summary, cityId, weight, purity });
+    const view = computeClientView({ settings, price, summary, cityId, weight, purity, channel });
     if (!view.ready) {
       toast?.('Сначала введите вес и пробу', 'info');
       return;
@@ -91,7 +93,7 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, to
     } finally {
       setDisplayBusy(false);
     }
-  }, [settings, price, summary, cityId, displayCode, toast]);
+  }, [settings, price, summary, cityId, displayCode, toast, channel]);
 
   const clearDisplay = useCallback(async () => {
     setDisplayBusy(true);
@@ -121,7 +123,8 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, to
   const buyPct = settings?.buybackPercentOfScrap != null ? Number(settings.buybackPercentOfScrap) : null;
   const corridor = settings?.rangeHalfWidthPercent != null ? Number(settings.rangeHalfWidthPercent) : null;
   const goldRub = price?.goldRubPerGram;
-  const buybackRub = goldRub && buyPct ? Math.round(goldRub * (buyPct / 100)) : null;
+  const channelCoeff = settings ? readBuybackCoeff(settings, channel) : 1;
+  const buybackRub = goldRub && buyPct ? Math.round(goldRub * (buyPct / 100) * channelCoeff) : null;
 
   // Выкуп за 1 грамм изделия указанной пробы (с учётом политики и поправок по пробе).
   const perGram = useMemo(() => {
@@ -132,11 +135,12 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, to
         purityPerThousand: purity,
         goldRubPerGram: goldRub,
         settings: mergeSettings(settings),
+        channel,
       });
       return r.ok ? Math.round(r.midRub) : null;
     };
     return { 585: calc(585), 750: calc(750) };
-  }, [goldRub, settings]);
+  }, [goldRub, settings, channel]);
 
   const todaySum = todayStats?.totals?.sumRub ?? null;
   const todayDeals = todayStats?.totals?.deals ?? null;
@@ -148,6 +152,7 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, to
           formatMoney={formatMoney}
           price={price}
           userUid={userUid}
+          channel={channel}
           onGoToContract={onGoToContract}
           onShowClient={pushToDisplay}
         />
@@ -212,7 +217,7 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, to
             <span className="cg-side-card__per"> / г</span>
           </div>
           <div className="cg-side-card__sub">
-            {buyPct != null ? `${buyPct}% от ${goldRub ? formatMoney(goldRub) : '—'} (биржа)` : 'Настройте политику в «Настройки»'}
+            {buyPct != null ? `${buyPct}% от ${goldRub ? formatMoney(goldRub) : '—'} (биржа)${channelCoeff !== 1 ? ` × ${channelCoeff}` : ''}` : 'Настройте политику в «Настройки»'}
           </div>
 
           {/* Выкуп за грамм по ходовым пробам */}
@@ -247,6 +252,14 @@ export function CalculatorPage({ formatMoney, price, userUid, onGoToContract, to
             <div className="cg-side-row">
               <span className="cg-side-row__k">Коридор</span>
               <span className="cg-side-row__v">{corridor != null ? `±${corridor}%` : '—'}</span>
+            </div>
+            <div className="cg-side-row">
+              <span className="cg-side-row__k">Коэффициент отделения</span>
+              <span className="cg-side-row__v">{settings ? readBuybackCoeff(settings, 'office') : '—'}</span>
+            </div>
+            <div className="cg-side-row">
+              <span className="cg-side-row__k">Коэффициент курьера</span>
+              <span className="cg-side-row__v">{settings ? readBuybackCoeff(settings, 'courier') : '—'}</span>
             </div>
             <div className="cg-side-row">
               <span className="cg-side-row__k">Источник курса</span>

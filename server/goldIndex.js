@@ -66,9 +66,11 @@ export function referenceRubPerGramJewelry({ goldRubPerGram, probe, settings }) 
   if (!Number.isFinite(goldRubPerGram) || goldRubPerGram <= 0) return null;
   const adjPct = settings.purityAdjustments[String(Math.round(purity))] ?? 0;
   const buybackPct = Math.min(100, Math.max(0, Number(settings.buybackPercentOfScrap) || 0));
+  const coeffRaw = Number(settings?.buybackCoeffOffice);
+  const coeff = Number.isFinite(coeffRaw) && coeffRaw > 0 ? Math.min(2, Math.max(0.5, coeffRaw)) : 1;
   const fineFrac = purity / 1000;
   const scrapRub = fineFrac * goldRubPerGram;
-  return scrapRub * (buybackPct / 100) * (1 + adjPct / 100);
+  return scrapRub * (buybackPct / 100) * (1 + adjPct / 100) * coeff;
 }
 
 function competitorProbeRatios(probesObj, goldRubPerGram, settings) {

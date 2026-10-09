@@ -40,6 +40,8 @@ export function SettingsPanel({ user }) {
   /** String drafts so users can clear fields and type new numbers (parseFloat('')||0 was snapping to 0). */
   const [buybackStr, setBuybackStr] = useState('');
   const [rangeStr, setRangeStr] = useState('');
+  const [coeffOfficeStr, setCoeffOfficeStr] = useState('1');
+  const [coeffCourierStr, setCoeffCourierStr] = useState('1');
   const [adjStr, setAdjStr] = useState(null);
   const [fieldLog, setFieldLog] = useState(null);
   const [fieldLogErr, setFieldLogErr] = useState('');
@@ -106,6 +108,8 @@ export function SettingsPanel({ user }) {
     if (!settings) return;
     setBuybackStr(String(settings.buybackPercentOfScrap ?? ''));
     setRangeStr(String(settings.rangeHalfWidthPercent ?? ''));
+    setCoeffOfficeStr(String(settings.buybackCoeffOffice ?? 1));
+    setCoeffCourierStr(String(settings.buybackCoeffCourier ?? 1));
     const o = {};
     for (const p of (settings.purityOrder || []).map(String)) {
       o[p] = String(settings.purityAdjustments[p] ?? 0);
@@ -116,6 +120,12 @@ export function SettingsPanel({ user }) {
   function parseNum(raw, fallback = 0) {
     const n = parseFloat(String(raw ?? '').trim().replace(',', '.'));
     return Number.isFinite(n) ? n : fallback;
+  }
+
+  function parseCoeff(raw) {
+    const n = parseNum(raw, 1);
+    if (!Number.isFinite(n) || n <= 0) return 1;
+    return Math.round(Math.min(2, Math.max(0.5, n)) * 1000) / 1000;
   }
 
   async function save(section) {
@@ -133,6 +143,8 @@ export function SettingsPanel({ user }) {
       const patch = {
         buybackPercentOfScrap: parseNum(buybackStr, 0),
         rangeHalfWidthPercent: parseNum(rangeStr, 0),
+        buybackCoeffOffice: parseCoeff(coeffOfficeStr),
+        buybackCoeffCourier: parseCoeff(coeffCourierStr),
         purityAdjustments,
       };
       const next = await api.saveSettings(patch);
@@ -345,7 +357,7 @@ export function SettingsPanel({ user }) {
               <h2 className="block-title">Политика выкупа</h2>
             </div>
             <p className="muted small block-desc">
-              Процент от стоимости чистого золота по курсу в верхней панели. Этот же процент видят клиенты на сайте reaktivo.ru — не завышайте его относительно того, что называете по телефону. Коридор — симметричный разброс вокруг ориентира.
+              Процент от стоимости чистого золота по курсу в верхней панели. Биржевой курс общий. Коэффициенты умножают уже посчитанную выплату: отделение и курьер по своим. 1 оставляет сумму как сейчас. Меняет только супер-администратор.
             </p>
             <label className="field">
               <span className="field-label">Выкуп, % от биржевой стоимости</span>
@@ -377,6 +389,37 @@ export function SettingsPanel({ user }) {
                 }}
               />
             </label>
+            <label className="field">
+              <span className="field-label">Коэффициент отделения</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={coeffOfficeStr}
+                onChange={(e) => { setSavedSection(null); setCoeffOfficeStr(e.target.value); }}
+                onBlur={() => {
+                  const n = parseCoeff(coeffOfficeStr);
+                  setCoeffOfficeStr(String(n));
+                  setSettings((s) => ({ ...s, buybackCoeffOffice: n }));
+                }}
+              />
+            </label>
+            <label className="field">
+              <span className="field-label">Коэффициент курьера</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={coeffCourierStr}
+                onChange={(e) => { setSavedSection(null); setCoeffCourierStr(e.target.value); }}
+                onBlur={() => {
+                  const n = parseCoeff(coeffCourierStr);
+                  setCoeffCourierStr(String(n));
+                  setSettings((s) => ({ ...s, buybackCoeffCourier: n }));
+                }}
+              />
+            </label>
+            <p className="muted small block-desc">От 0,5 до 2. Например 0,97 снижает выплату на 3%. Курьерские калькуляторы берут коэффициент курьера, расчёт в отделении — коэффициент отделения.</p>
             <button
               type="button"
               className={`btn-primary save-btn${savedSection === 'policy' ? ' save-btn--ok' : ''}`}

@@ -4,18 +4,18 @@ import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../Inv
 import {
   RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuSbpBadge, RuThemedImg, RuTiltCard,
   GramsSlider, formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
-  quotePerGram, quotePayout, quoteBuybackPctLabel,
+  quoteForChannel, quotePerGram, quotePayout, quoteBuybackPctLabel,
 } from './RuShared.jsx';
 
 const PRINCIPLES = [
-  { title: 'Курс с двух бирж', text: 'Программа берёт котировки с Московской и Лондонской бирж и пересчитывает цену за грамм каждые три секунды — курс на сайте, у курьера и в отделениях всегда одинаковый.' },
+  { title: 'Курс с двух бирж', text: 'Программа берёт котировки с Московской и Лондонской бирж и пересчитывает цену за грамм каждые три секунды. Выплата считается от этого курса.' },
   { title: 'Проба определяется при вас', text: 'Пробирным реактивом и, при необходимости, спектральным анализом. Вы видите тот же результат, что и эксперт — никаких сюрпризов.' },
   { title: 'Деньги сразу', text: 'Наличные на месте или перевод в течение минуты после подписания договора. Договор — в приложении, без бумажной волокиты.' },
 ];
 
 const STEPS = [
   { n: '01', title: 'Считаете сами', text: 'Укажите пробу и вес в калькуляторе. Ваш результат — точная сумма, которую вы получите, а не раздутая оценка.' },
-  { n: '02', title: 'Оставляете заявку', text: 'Адрес для курьера и удобное вам время — или приезжаете в отделение: курс будет таким же.' },
+  { n: '02', title: 'Оставляете заявку', text: 'Адрес для курьера и удобное вам время или визит в отделение. В калькуляторе выберите, как забираем: сумма посчитается под этот способ.' },
   { n: '03', title: 'Проверка при вас', text: 'Проба и вес определяются на ваших глазах, с объяснением каждого шага.' },
   { n: '04', title: 'Деньги и документы', text: 'Наличные или перевод сразу после подписания. Договор хранится в приложении.' },
 ];
@@ -37,13 +37,15 @@ const FAQ = [
 function BigCalcCard({ quote, pulseKey }) {
   const [proba, setProba] = useState(585);
   const [grams, setGrams] = useState(12);
+  const [channel, setChannel] = useState('courier');
   const [pulse, setPulse] = useState(false);
+  const priced = quoteForChannel(quote, channel);
   const perGram = quote?.goldRubPerGram || null;
-  const sum = quotePayout(quote, proba, grams);
-  const perGramOut = quotePerGram(quote, proba);
+  const sum = quotePayout(priced, proba, grams);
+  const perGramOut = quotePerGram(priced, proba);
   const sumDisplay = useAnimatedNumber(sum);
   const perGramDisplay = useAnimatedNumber(perGramOut);
-  const pct = quoteBuybackPctLabel(quote);
+  const pct = quoteBuybackPctLabel(quote, channel);
 
   useEffect(() => {
     if (!pulseKey) return;
@@ -63,6 +65,11 @@ function BigCalcCard({ quote, pulseKey }) {
         {[375, 585, 750, 999].map((p) => (
           <button key={p} type="button" className={p === proba ? 'is-active' : ''} onClick={() => setProba(p)}>{p}</button>
         ))}
+      </div>
+      <span className="rl-calc-label">Как забираем</span>
+      <div className="rl-seg" role="radiogroup" aria-label="Курьер или отделение">
+        <button type="button" className={channel === 'courier' ? 'is-active' : ''} onClick={() => setChannel('courier')}>Курьер</button>
+        <button type="button" className={channel === 'office' ? 'is-active' : ''} onClick={() => setChannel('office')}>Отделение</button>
       </div>
       <GramsSlider value={grams} onChange={setGrams} max={1000} allowType typeMax={5000} />
       <div className="rl-calc-mini">

@@ -802,6 +802,7 @@ export default function App() {
                 formatMoney={formatMoney}
                 price={price}
                 userUid={user.uid}
+                userRole={user.role}
                 toast={toast}
                 onGoToContract={(payload) => {
                   setContractMounted(true);

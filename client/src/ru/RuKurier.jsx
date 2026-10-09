@@ -6,7 +6,7 @@ import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../Inv
 import {
   RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuMarquee, RuPhotoField, RuSbpBadge, RuThemedImg, RuTiltCard,
   GramsSlider, formatMoney, isLeadName, isRuPhone, setDraftMeta, useGoldQuote, useRuLenis,
-  quotePayoutRange, quoteBuybackPctLabel,
+  quoteForChannel, quotePayoutRange, quoteBuybackPctLabel,
 } from './RuShared.jsx';
 import { clientApi } from '../api.js';
 import { ymReachGoal } from '../yandexMetrika.js';
@@ -242,7 +242,7 @@ function KurierLocationField({ city, setCity, address, setAddress, lat, lng, set
  * Единый блок: расчёт суммы и запись курьера — без разрыва на калькулятор и
  * отдельную форму с шагами. Всё видно сразу, скроллом сверху вниз.
  */
-function KurierOrderCard({ quote, pulseKey }) {
+export function KurierOrderCard({ quote, pulseKey }) {
   const now = useNowMinute();
   const days = useMemo(
     () => getAvailableDays(now).filter((d) => getQuickTimes(d.iso, now).length > 0),
@@ -269,9 +269,10 @@ function KurierOrderCard({ quote, pulseKey }) {
   const [photoPath, setPhotoPath] = useState('');
 
   const perGram = quote?.goldRubPerGram || null;
+  const priced = quoteForChannel(quote, 'courier');
   const isUnknownProba = proba === 'unknown';
   const { low: priceLow, high: priceHigh } = quotePayoutRange(
-    quote,
+    priced,
     isUnknownProba ? 'unknown' : proba,
     grams,
   );
@@ -502,7 +503,7 @@ export function RuKurier() {
   const { scrollYProgress } = useScroll();
   const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
   const [calcPulse, setCalcPulse] = useState(0);
-  const pct = quoteBuybackPctLabel(quote);
+  const pct = quoteBuybackPctLabel(quote, 'courier');
 
   const goToOrder = (e) => {
     e.preventDefault();
@@ -624,7 +625,7 @@ export function RuKurier() {
   );
 }
 
-const KURIER_CSS = `
+export const KURIER_CSS = `
 /* Фиксированный хедер (72–80px) иначе перекрывает заголовок при переходе по якорю. */
 #order, #protsess, #faq { scroll-margin-top: 96px; }
 

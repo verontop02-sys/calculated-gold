@@ -13,7 +13,7 @@ import officeWorkPhoto from '../assets/office/work.jpg';
 
 export { ruHref, isReaktivoRuHost, staffHref } from './ruSite.js';
 export { officeHallPhoto, officeWaitingPhoto, officeWorkPhoto };
-export { quotePerGram, quotePayout, quotePayoutRange, quoteBuybackPctLabel } from '../calc.js';
+export { quotePerGram, quotePayout, quotePayoutRange, quoteBuybackPctLabel, quoteForChannel } from '../calc.js';
 
 export const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -204,16 +204,26 @@ function RuStatementWord({ progress, range, children }) {
 export function RuStatement({ text }) {
   const ref = useRef(null);
   const words = useMemo(() => String(text || '').split(' '), [text]);
+  const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = () => setCompact(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.82', 'end 0.42'] });
   return (
     <section className="rl-statement" ref={ref}>
       <div className="il-section-inner">
         <p className="rl-statement-text">
-          {words.map((w, i) => (
-            <RuStatementWord key={i} progress={scrollYProgress} range={[i / words.length, (i + 1) / words.length]}>
-              {w}
-            </RuStatementWord>
-          ))}
+          {compact
+            ? text
+            : words.map((w, i) => (
+              <RuStatementWord key={`${i}-${w}`} progress={scrollYProgress} range={[i / words.length, (i + 1) / words.length]}>
+                {w}
+              </RuStatementWord>
+            ))}
         </p>
       </div>
     </section>
@@ -270,6 +280,10 @@ const KPI_ICONS = {
 /** Число, которое «докручивается» от нуля при появлении в зоне видимости; нечисловые
  *  значения (например «слабировано», «Telegram») отображаются как есть, без анимации. */
 function KpiValue({ val }) {
+  const quiet = typeof window !== 'undefined' && (
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    || window.matchMedia('(max-width: 767px)').matches
+  );
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-10% 0px' });
   const m = /^(\D*)(\d+)(\D*)$/.exec(String(val));
@@ -280,9 +294,9 @@ function KpiValue({ val }) {
     return unsub;
   }, [spring]);
   useEffect(() => {
-    if (inView && m) spring.set(Number(m[2]));
-  }, [inView, m, spring]);
-  if (!m) return <span ref={ref}>{val}</span>;
+    if (!quiet && inView && m) spring.set(Number(m[2]));
+  }, [quiet, inView, m, spring]);
+  if (!m || quiet) return <span ref={ref}>{val}</span>;
   return (
     <span ref={ref}>
       {m[1]}

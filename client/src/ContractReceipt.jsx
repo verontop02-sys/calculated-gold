@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from './api.js';
-import { mergeSettings, calculateBuybackRange } from './calc.js';
+import { mergeSettings, calculateBuybackRange, buybackChannelForRole } from './calc.js';
 import { ScrapCustomerDirectory } from './ScrapCustomerDirectory.jsx';
 import { isSuperAdminRole, isUserManagerRole } from './roles.js';
 import { PageHint } from './PageHint.jsx';
@@ -161,16 +161,6 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   const [validityBusy, setValidityBusy] = useState(false);
   const [validityResult, setValidityResult] = useState(null); // { normalized, rawStatus, requestId? } | null
   const validityGen = useRef(0);
-  const [newDbBalance, setNewDbBalance] = useState(null); // number | null
-
-  useEffect(() => {
-    if (!isSuperAdminRole(user?.role)) return;
-    api
-      .newDbBalance()
-      .then((out) => setNewDbBalance(out?.balance ?? null))
-      .catch(() => setNewDbBalance(null));
-  }, [user?.role]);
-
   // Оценщик = тот, кто сидит под аккаунтом — не переписывается руками каждый раз.
   // Экономит секунды на каждой сделке и убирает путаницу, когда сделку делают вдвоём.
   const boundAppraiserName = String(user?.displayName || '').trim();
@@ -254,6 +244,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           purityPerThousand: purity,
           goldRubPerGram: price.goldRubPerGram,
           settings,
+          channel: buybackChannelForRole(user?.role),
         });
         if (!r.ok) return prev;
         const pr = String(Math.round(r.midRub));
@@ -262,7 +253,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         return prev.map((x, j) => (j === i ? { ...x, priceRub: pr, weightNet: wn } : x));
       });
     },
-    [settings, price]
+    [settings, price, user?.role]
   );
 
   const scheduleRowCalc = useCallback(
@@ -943,12 +934,6 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
                 {validityResult.normalized === 'unknown' && `✕ МВД: ${validityResult.rawStatus}`}
               </p>
             )}
-            {isSuperAdminRole(user?.role) && newDbBalance != null && (
-              <p className={`muted small${newDbBalance < 100 ? ' contract-balance-low' : ''}`} style={{ margin: '4px 0 0' }}>
-                Баланс NewDB (проверка МВД): {newDbBalance} ₽
-                {newDbBalance < 100 && ' — пополните, иначе проверки перестанут проходить'}
-              </p>
-            )}
           </div>
           <label className="field contract-span-2">
             <span className="field-label">Адрес регистрации</span>
@@ -1313,7 +1298,6 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         .contract-validity-badge--valid { background: var(--emerald-soft); color: var(--emerald); }
         .contract-validity-badge--bad { background: var(--crimson-soft); color: var(--crimson); }
         .contract-validity-badge--wait { background: rgba(201, 162, 39, 0.16); color: #b8860b; }
-        .contract-balance-low { color: var(--crimson); font-weight: 600; }
 
         /* Positions */
         .contract-table-head { margin-bottom: 16px; }

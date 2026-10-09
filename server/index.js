@@ -513,9 +513,23 @@ app.use((req, res, next) => {
 const DEFAULT_SETTINGS = {
   buybackPercentOfScrap: 92,
   rangeHalfWidthPercent: 2,
+  buybackCoeffOffice: 1,
+  buybackCoeffCourier: 1,
   purityAdjustments: { 375: 0, 500: 0, 583: 0, 585: 0, 750: 0, 875: 0, 900: 0, 916: 0, 958: 0, 999: 0 },
   purityOrder: [375, 500, 583, 585, 750, 875, 900, 916, 958, 999],
 };
+
+/** Множитель поверх процента выкупа. Нет поля или мусор = 1, сумма как раньше. */
+function readBuybackCoeff(settings, channel) {
+  const key = channel === 'courier' ? 'buybackCoeffCourier' : 'buybackCoeffOffice';
+  const n = Number(String(settings?.[key] ?? '').trim().replace(',', '.'));
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  return Math.min(2, Math.max(0.5, n));
+}
+
+function normalizeBuybackCoeff(v) {
+  return Math.round(readBuybackCoeff({ buybackCoeffOffice: v, buybackCoeffCourier: v }, 'office') * 1000) / 1000;
+}
 
 function parseRussianNum(v) {
   if (v == null) return null;
@@ -828,6 +842,8 @@ async function getSettings() {
   return {
     ...DEFAULT_SETTINGS,
     ...value,
+    buybackCoeffOffice: normalizeBuybackCoeff(value.buybackCoeffOffice ?? 1),
+    buybackCoeffCourier: normalizeBuybackCoeff(value.buybackCoeffCourier ?? 1),
     purityAdjustments: { ...DEFAULT_SETTINGS.purityAdjustments, ...(value.purityAdjustments || {}) },
     purityOrder: uniqueOrder,
   };
@@ -840,11 +856,13 @@ async function saveSettings(partial) {
     ...partial,
     purityAdjustments: { ...current.purityAdjustments, ...(partial.purityAdjustments || {}) },
   };
+  if (partial.buybackCoeffOffice !== undefined) next.buybackCoeffOffice = normalizeBuybackCoeff(partial.buybackCoeffOffice);
+  if (partial.buybackCoeffCourier !== undefined) next.buybackCoeffCourier = normalizeBuybackCoeff(partial.buybackCoeffCourier);
   await setKv('settings', next);
   return next;
 }
 
-function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubPerGram, settings }) {
+function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubPerGram, settings, channel = 'office' }) {
   const w = Number(weightGrams);
   const purity = Number(purityPerThousand);
   if (!Number.isFinite(w) || w <= 0) return { ok: false, error: 'Укажите положительный вес, г' };
@@ -857,7 +875,9 @@ function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubPerGram,
   const scrapRub = fineGrams * goldRubPerGram;
   const adjPct = settings.purityAdjustments[String(Math.round(purity))] ?? 0;
   const buybackPct = Math.min(100, Math.max(0, Number(settings.buybackPercentOfScrap) || 0));
-  const midRub = scrapRub * (buybackPct / 100) * (1 + adjPct / 100);
+  const usedChannel = channel === 'courier' ? 'courier' : 'office';
+  const buybackCoeff = readBuybackCoeff(settings, usedChannel);
+  const midRub = scrapRub * (buybackPct / 100) * (1 + adjPct / 100) * buybackCoeff;
   const half = Math.min(50, Math.max(0, Number(settings.rangeHalfWidthPercent) || 0));
 
   return {
@@ -870,6 +890,8 @@ function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubPerGram,
     purityUsed: purity,
     adjPct,
     buybackPct,
+    buybackCoeff,
+    channel: usedChannel,
     rangeHalfWidthPercent: half,
   };
 }
@@ -1803,7 +1825,7 @@ app.get(
   '/api/public/buyback-quote',
   asyncHandler(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.setHeader('Cache-Control', 'public, max-age=15');
 
     const quote = String(req.query.quote || 'moex').toLowerCase();
     let cache;
@@ -1822,18 +1844,31 @@ app.get(
       .filter((p) => Number.isFinite(p) && p > 0 && p <= 1000)
       .sort((a, b) => a - b);
 
-    const perGram = {};
+    const perGramOffice = {};
+    const perGramCourier = {};
     if (goldRubPerGram) {
       for (const p of probes) {
-        const r = calculateBuybackRange({
+        const office = calculateBuybackRange({
           weightGrams: 1,
           purityPerThousand: p,
           goldRubPerGram,
           settings,
+          channel: 'office',
         });
-        if (r.ok) perGram[p] = Math.round(r.midRub);
+        const courier = calculateBuybackRange({
+          weightGrams: 1,
+          purityPerThousand: p,
+          goldRubPerGram,
+          settings,
+          channel: 'courier',
+        });
+        if (office.ok) perGramOffice[p] = Math.round(office.midRub);
+        if (courier.ok) perGramCourier[p] = Math.round(courier.midRub);
       }
     }
+
+    const channel = String(req.query.channel || 'office').toLowerCase() === 'courier' ? 'courier' : 'office';
+    const perGram = channel === 'courier' ? perGramCourier : perGramOffice;
 
     res.json({
       currency: 'RUB',
@@ -1842,7 +1877,12 @@ app.get(
       source: quote === 'xaut' ? 'xaut' : (cache?.source ?? 'cbr'),
       buybackPercentOfScrap: Number(settings.buybackPercentOfScrap) || null,
       rangeHalfWidthPercent: Number(settings.rangeHalfWidthPercent) || 0,
+      buybackCoeffOffice: readBuybackCoeff(settings, 'office'),
+      buybackCoeffCourier: readBuybackCoeff(settings, 'courier'),
+      channel,
       perGram,
+      perGramOffice,
+      perGramCourier,
       updatedAt: cache?.cachedAt ?? null,
       ...(quote === 'xaut' ? { xautUsdPerOz: Number.isFinite(Number(cache?.xautUsdPerOz)) ? Number(cache.xautUsdPerOz) : null } : {}),
     });
@@ -3505,6 +3545,7 @@ app.post(
   '/api/calculate',
   asyncHandler(async (req, res) => {
     const { weightGrams, purityPerThousand } = req.body || {};
+    const channel = String(req.body?.channel || 'office').toLowerCase() === 'courier' ? 'courier' : 'office';
     const quote = String(req.body?.quote || 'moex').toLowerCase();
     let cache;
     if (quote === 'xaut') {
@@ -3520,6 +3561,7 @@ app.post(
       purityPerThousand,
       goldRubPerGram: cache?.goldRubPerGram,
       settings,
+      channel,
     });
     if (!result.ok) return res.status(400).json(result);
     res.json(result);
@@ -4368,7 +4410,7 @@ app.put(
   asyncHandler(requireSuperAdmin),
   asyncHandler(async (req, res) => {
     const body = req.body || {};
-    const allowed = ['buybackPercentOfScrap', 'rangeHalfWidthPercent', 'purityAdjustments', 'purityOrder'];
+    const allowed = ['buybackPercentOfScrap', 'rangeHalfWidthPercent', 'purityAdjustments', 'purityOrder', 'buybackCoeffOffice', 'buybackCoeffCourier'];
     const patch = {};
     for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];
     const result = await saveSettings(patch);

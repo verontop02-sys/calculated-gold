@@ -1,9 +1,28 @@
 export const DEFAULT_SETTINGS = {
   buybackPercentOfScrap: 92,
   rangeHalfWidthPercent: 2,
+  buybackCoeffOffice: 1,
+  buybackCoeffCourier: 1,
   purityAdjustments: { 375: 0, 500: 0, 583: 0, 585: 0, 750: 0, 875: 0, 916: 0, 958: 0, 999: 0 },
   purityOrder: [375, 500, 583, 585, 750, 875, 916, 958, 999],
 };
+
+/** Множитель поверх процента выкупа. Пустое или нечисловое значение = 1, как раньше. */
+export function readBuybackCoeff(settings, channel) {
+  const key = channel === 'courier' ? 'buybackCoeffCourier' : 'buybackCoeffOffice';
+  const n = Number(settings?.[key]);
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  return Math.min(2, Math.max(0.5, n));
+}
+
+/** Курьер в панели считает по коэффициенту курьера, отделение и остальные роли — по отделению. */
+export function buybackChannelForRole(role) {
+  const r = String(role ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  return r === 'courier' ? 'courier' : 'office';
+}
 
 export function mergeSettings(value) {
   if (!value) return { ...DEFAULT_SETTINGS };
@@ -14,7 +33,7 @@ export function mergeSettings(value) {
   };
 }
 
-export function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubPerGram, settings }) {
+export function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubPerGram, settings, channel = 'office' }) {
   const w = Number(weightGrams);
   const purity = Number(purityPerThousand);
   if (!Number.isFinite(w) || w <= 0) return { ok: false, error: 'Укажите положительный вес, г' };
@@ -27,7 +46,9 @@ export function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubP
   const scrapRub = fineGrams * goldRubPerGram;
   const adjPct = settings.purityAdjustments[String(Math.round(purity))] ?? 0;
   const buybackPct = Math.min(100, Math.max(0, Number(settings.buybackPercentOfScrap) || 0));
-  const midRub = scrapRub * (buybackPct / 100) * (1 + adjPct / 100);
+  const buybackCoeff = readBuybackCoeff(settings, channel);
+  const usedChannel = channel === 'courier' ? 'courier' : 'office';
+  const midRub = scrapRub * (buybackPct / 100) * (1 + adjPct / 100) * buybackCoeff;
   const half = Math.min(50, Math.max(0, Number(settings.rangeHalfWidthPercent) || 0));
 
   return {
@@ -40,6 +61,8 @@ export function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubP
     purityUsed: purity,
     adjPct,
     buybackPct,
+    buybackCoeff,
+    channel: usedChannel,
     rangeHalfWidthPercent: half,
   };
 }
@@ -49,7 +72,28 @@ function numOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Цена выкупа ₽/г по пробе — тот же mid, что в отделении и кабинете. */
+/**
+ * Котировка с perGram нужного канала.
+ * perGram без суффикса остаётся отделенческим, чтобы старые экраны не сменили сумму.
+ */
+export function quoteForChannel(quote, channel) {
+  if (!quote) return quote;
+  const ch = channel === 'courier' ? 'courier' : 'office';
+  const bag = ch === 'courier' ? quote.perGramCourier : quote.perGramOffice;
+  if (bag && typeof bag === 'object') return { ...quote, perGram: bag };
+  if (ch === 'office') return quote;
+  const cc = readBuybackCoeff(quote, 'courier');
+  const oc = readBuybackCoeff(quote, 'office');
+  if (!quote.perGram || cc === oc) return quote;
+  const scaled = {};
+  for (const [k, v] of Object.entries(quote.perGram)) {
+    const n = Number(v);
+    if (Number.isFinite(n)) scaled[k] = Math.round((n * cc) / oc);
+  }
+  return { ...quote, perGram: scaled };
+}
+
+/** Цена выкупа ₽/г по пробе. По умолчанию карта отделения. */
 export function quotePerGram(quote, purityPerThousand) {
   if (!quote) return null;
   const p = Number(purityPerThousand);
@@ -89,8 +133,9 @@ export function quotePayoutRange(quote, purityPerThousand, weightGrams) {
   };
 }
 
-export function quoteBuybackPctLabel(quote) {
+export function quoteBuybackPctLabel(quote, channel) {
   const pct = numOrNull(quote?.buybackPercentOfScrap);
   if (pct == null || pct <= 0) return 'по курсу выкупа';
-  return `до ${Math.round(pct)}%`;
+  const coeff = channel ? readBuybackCoeff(quote, channel) : 1;
+  return `до ${Math.round(pct * coeff)}%`;
 }

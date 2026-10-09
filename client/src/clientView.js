@@ -14,7 +14,7 @@ import { calculateBuybackRange, mergeSettings } from './calc.js';
  * @param {number|string} p.weight  Вес изделия, г.
  * @param {number|string} p.purity  Проба (585, 750, …).
  */
-export function computeClientView({ settings, price, summary, cityId, weight, purity }) {
+export function computeClientView({ settings, price, summary, cityId, weight, purity, channel = 'office' }) {
   const purityNum = Number(purity) || 0;
   const weightNum = parseFloat(String(weight ?? '').replace(',', '.')) || 0;
   const goldRub = price?.goldRubPerGram;
@@ -29,6 +29,7 @@ export function computeClientView({ settings, price, summary, cityId, weight, pu
       purityPerThousand: purityNum,
       goldRubPerGram: goldRub,
       settings: merged,
+      channel,
     });
     if (r.ok) {
       ourSumRub = Math.round(r.midRub);

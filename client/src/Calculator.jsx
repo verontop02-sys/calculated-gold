@@ -19,7 +19,7 @@ function quoteRowLabel(price) {
   return 'По курсу ЦБ (чистое золото)';
 }
 
-export function Calculator({ formatMoney, price, userUid, onGoToContract, onShowClient }) {
+export function Calculator({ formatMoney, price, userUid, onGoToContract, onShowClient, channel = 'office' }) {
   const lsKeys = useMemo(() => calcLocalKeys(userUid), [userUid]);
 
   const [settings, setSettings] = useState(null);
@@ -127,6 +127,7 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
       purityPerThousand: p,
       goldRubPerGram: price.goldRubPerGram,
       settings,
+      channel,
     });
 
     if (!r.ok) {

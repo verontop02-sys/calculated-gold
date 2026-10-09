@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useMotionValueEvent, useScroll } from 'motion/react';
 import { clientApi } from './api.js';
-import { quotePerGram, quotePayout } from './calc.js';
+import { quoteForChannel, quotePerGram, quotePayout, quotePayoutRange } from './calc.js';
 import {
   CSS as IL_CSS,
   Magnetic,
@@ -15,8 +15,10 @@ import {
   RuAtmosphere,
   RuCtaPanel,
   RuFaq,
+  GramsSlider,
   RuFullHero,
   RuGoldTicker,
+  RuPhotoField,
   RuKpis,
   RuLeadForm,
   RuMarquee,
@@ -27,19 +29,21 @@ import {
   isRuPhone,
   useAnimatedNumber,
 } from './ru/RuShared.jsx';
+import { KURIER_CSS, KurierOrderCard } from './ru/RuKurier.jsx';
 import { pickNextCourierSlot } from './ru/kurierSlots.js';
 import { useToast } from './ToastContext.jsx';
 import { ymReachGoal } from './yandexMetrika.js';
 
 const PROBES = [585, 750, 999];
+const QUICK_PROBES = [375, 500, 585, 750, 999];
 const WEIGHT_CHIPS = [5, 10, 20, 50];
 const LOCK_MS = 15 * 60 * 1000;
 
 const STEPS = [
-  { n: '01', title: 'Заявка', text: 'Считаете сумму на сайте, фиксируете курс на 15 минут и вызываете курьера — без поездки в отделение.' },
-  { n: '02', title: 'Курьер', text: 'Красная сумка едет к вам. Проверка пробы и веса — при вас, дома или в офисе.' },
-  { n: '03', title: 'Проверка', text: 'Реактив и, если нужно, спектр. Вы видите тот же результат, что и эксперт.' },
-  { n: '04', title: 'Деньги', text: 'Выплата сразу: наличные или СБП. Золото становится деньгами, не выходя из дома.' },
+  { n: '01', title: 'Заявка', text: 'Считаете сумму в калькуляторе и вызываете курьера. Никуда ехать не нужно.' },
+  { n: '02', title: 'Курьер', text: 'Красная сумка едет по адресу. За час до визита курьер позвонит и подтвердит время.' },
+  { n: '03', title: 'Проверка', text: 'Специалист проверит изделие при вас и подтвердит оценку. Клеймо не обязательно.' },
+  { n: '04', title: 'Деньги', text: 'Наличные или СБП сразу после проверки. Сумма та, что вы видели на сайте.' },
 ];
 
 const TRACK = [
@@ -50,37 +54,34 @@ const TRACK = [
 ];
 
 const EVOLUTION = [
-  { n: '01', title: 'Живой курс на первом экране', text: 'Цифра офиса тикает сразу в пробах 585, 750 и 999 — не «перезвоним и оценим».' },
-  { n: '02', title: 'Фиксация на 15 минут', text: 'Нажали «вызвать» — сумму держим, пока вводите город, адрес и телефон.' },
-  { n: '03', title: 'Выплата дома', text: 'Наличные или СБП при вас. Паспорт нужен по закону, не «для галочки».' },
+  { n: '01', title: 'Живой курс золота', text: 'Моментальная оценка любой пробы золота.' },
+  { n: '02', title: 'Фиксация на 15 минут', text: 'Вы нажали «вызвать курьера» — и пока оформляете заказ, мы фиксируем вашу стоимость.' },
+  { n: '03', title: 'Выплата на месте', text: 'Наличные или СБП при вас. Всё, что нужно, — паспорт.' },
 ];
 
 const STORIES = [
-  { k: '90 минут', t: 'Заявка утром — деньги в тот же визит', d: 'Без поездки в отделение: курьер приезжает, проверяет пробу при вас и платит сразу.' },
-  { k: 'При вас', t: 'Проба на столе, не «в лаборатории»', d: 'Реактив и, если нужно, спектр. Вы видите тот же результат, что и эксперт.' },
-  { k: 'Один курс', t: 'Сайт, курьер и офис считают одинаково', d: 'Зафиксировали сумму на сайте — это та выплата, которую привезёт курьер.' },
+  { k: 'В тот же день', t: 'Заявка утром — деньги в тот же день', d: 'Курьер приезжает в день заявки. Проверка и выплата — в один визит, без отделения.' },
+  { k: 'При вас', t: 'Реактивная оценка', d: 'Специалист проверит изделие при вас и подтвердит оценку.' },
+  { k: 'Один курс', t: 'Сделали заказ — сумма зафиксирована', d: 'Сумма, которую вы увидели на сайте, — это та выплата, которую привезёт курьер.' },
 ];
 
 const COMPARE = [
   {
-    title: 'Курьер домой',
+    title: 'Курьер',
     on: true,
-    points: ['Никуда не едете', 'Курс тот же, что на сайте', 'Проверка и выплата при вас', 'Вызов бесплатный в зоне'],
+    points: ['Не нужно везти золото', 'Курс тот же, что и на сайте', 'Проверка и выплата при вас', 'Вызов бесплатный'],
   },
   {
     title: 'Отделение',
     on: false,
-    points: ['Курс точно такой же', 'Можно прийти без записи', 'Подходит, если офис рядом', 'Те же лицензия и паспорт'],
+    points: ['Комфортные условия', 'Можно приехать без записи', 'Удобно, если по дороге', 'Нужен только паспорт'],
   },
 ];
 
 const FAQ = [
-  { q: 'Курьер правда бесплатный?', a: 'Да. За выезд в зоне Москва и МО вы ничего не платите — ни за дорогу, ни «за оценку».' },
-  { q: 'Это та сумма, которую я увижу дома?', a: 'Да, если проба и вес совпали с тем, что вы указали. Мы фиксируем курс на 15 минут. Точная выплата — после проверки при вас.' },
-  { q: 'Что если клеймо стёрлось?', a: 'Проба определяется реактивом и, если нужно, спектром. Всё при вас. Из-за состояния изделия мы ничего не вычитаем.' },
-  { q: 'Нужен ли паспорт?', a: 'Да — это требование закона к сделке скупки, а не проверка, откуда вещь. Без паспорта сделку оформить нельзя.' },
-  { q: 'Что если я передумаю?', a: 'Продажа не обязательна. Можно отказаться на месте или перенести визит — это бесплатно.' },
-  { q: 'А если я не в Москве?', a: 'Оставьте город в листе ожидания внизу страницы — так мы видим, куда везти доставку и агентов дальше.' },
+  { q: 'Курьер правда бесплатный?', a: 'Да. Вы ничего не платите — ни за дорогу, ни «за оценку».' },
+  { q: 'Что если клеймо стёрлось?', a: 'Мы определяем пробу и состав металла приборами. Наличие клейма необязательно.' },
+  { q: 'А если в моём городе нет Reaktivo?', a: 'Оставьте город в листе ожидания внизу страницы — так мы видим, куда везти доставку и агентов дальше.' },
 ];
 
 const DESK_PATH = 'M48 132 C 150 36, 250 188, 340 96 S 500 28, 592 140';
@@ -177,6 +178,34 @@ function paintPath(pathEl, bagEl, progress, reduced) {
   bagEl.setAttribute('transform', `translate(${p.x} ${p.y}) rotate(${tilt}) scale(${scale})`);
 }
 
+function AfterOrder() {
+  const [step, setStep] = useState(0);
+  return (
+    <section className="il-section dl2-after" id="steps" aria-label="Что происходит после заявки">
+      <div className="il-section-inner">
+        <div className="il-section-head">
+          <Reveal><span className="il-pill">После заявки</span></Reveal>
+          <Reveal delay={0.06}><h2 className="il-h2">Четыре шага. Без поездки <span className="il-accent-text">в отделение</span></h2></Reveal>
+        </div>
+        <div className="dl2-after-grid">
+          {STEPS.map((s, i) => (
+            <button
+              key={s.title}
+              type="button"
+              className={`dl2-after-card${i === step ? ' is-on' : ''}`}
+              onClick={() => setStep(i)}
+            >
+              <b className="mono-nums">{s.n}</b>
+              <strong>{s.title}</strong>
+              <span>{s.text}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function PathStory() {
   const pinRef = useRef(null);
   const pathRef = useRef(null);
@@ -223,6 +252,7 @@ function PathStory() {
   }, [layoutPath, mobile]);
 
   useMotionValueEvent(scrollYProgress, 'change', (v) => {
+    if (mobile) return;
     latestV.current = v;
     if (rafRef.current) return;
     rafRef.current = requestAnimationFrame(() => {
@@ -233,6 +263,12 @@ function PathStory() {
       if (!reduced) paintPath(pathRef.current, bagRef.current, cur, false);
     });
   });
+
+  useEffect(() => {
+    if (!mobile) return;
+    const t = [0.02, 0.34, 0.66, 0.98][step] ?? 0.02;
+    paintPath(pathRef.current, bagRef.current, reduced ? 1 : t, reduced);
+  }, [mobile, step, reduced, stops]);
 
   useEffect(() => () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -283,8 +319,10 @@ function PathStory() {
           <ol className="dl2-progress" aria-label="Этапы доставки">
             {STEPS.map((s, i) => (
               <li key={s.title} className={reduced || i <= step ? 'is-on' : ''}>
-                <i />
-                <span>{s.title}</span>
+                <button type="button" onClick={() => setStep(i)}>
+                  <i />
+                  <span>{s.title}</span>
+                </button>
               </li>
             ))}
           </ol>
@@ -338,7 +376,26 @@ function moscowHour(d) {
   return Number(hour);
 }
 
+function useCompactMq() {
+  const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = () => setCompact(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+  return compact;
+}
+
+const MOB_STAGGER_PARENT = { hidden: {}, show: { transition: { staggerChildren: 0.05, delayChildren: 0 } } };
+const MOB_STAGGER_CHILD = {
+  hidden: { opacity: 0, y: 10 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] } },
+};
+
 function DutyBar() {
+  const compact = useCompactMq();
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30_000);
@@ -356,10 +413,10 @@ function DutyBar() {
   return (
     <div className="dl2-duty" role="status">
       <span className={`dl2-duty-dot${onDuty ? ' is-on' : ''}`} aria-hidden />
-      <b>{onDuty ? 'Курьеры на линии' : 'Заявки принимаем — перезвоним утром'}</b>
-      <span>Москва {time}</span>
-      <span>Вызов 0 ₽</span>
-      <span>Фиксация 15 мин</span>
+      <b>{onDuty ? (compact ? 'На линии' : 'Курьеры на линии') : (compact ? 'Перезвоним утром' : 'Заявки принимаем — перезвоним утром')}</b>
+      <span>{compact ? time : `Москва ${time}`}</span>
+      <span>{compact ? '0 ₽' : 'Вызов 0 ₽'}</span>
+      <span>{compact ? '15 мин' : 'Фиксация 15 мин'}</span>
     </div>
   );
 }
@@ -413,10 +470,203 @@ function LiveProbes({ quote, grams, purity, onPick, lockedAmount, lockedPurity, 
   );
 }
 
+function isCourierZone(city) {
+  const c = String(city || '').trim().toLowerCase();
+  return c === 'москва' || c === 'московская область' || c === 'мо' || c.includes('московск');
+}
+
+const CALL_MODES = [
+  ['courier', 'Курьер'],
+  ['branch', 'Отделение'],
+  ['photo', 'По фото'],
+];
+
+function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier' }) {
+  const toast = useToast();
+  const [mode, setMode] = useState(initialMode);
+  const [phone, setPhone] = useState('');
+  const [city, setCity] = useState('');
+  const [address, setAddress] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [photoPath, setPhotoPath] = useState('');
+  const [phase, setPhase] = useState('idle');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open) setMode(initialMode);
+  }, [open, initialMode]);
+
+  const priced = quoteForChannel(quote, mode === 'branch' ? 'office' : 'courier');
+  const ceiling = quotePayoutRange(priced, purity || 585, grams > 0 ? grams : 10).high;
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    if (phase === 'sending') return;
+    setError('');
+    if (!isRuPhone(phone)) {
+      setError('Укажите номер телефона, без него мы не сможем связаться');
+      return;
+    }
+    if (city.trim().length < 2) {
+      setError('Напишите город');
+      return;
+    }
+    if (mode === 'courier' && isCourierZone(city) && address.trim().length < 5) {
+      setError('Нужен адрес: улица, дом, подъезд');
+      return;
+    }
+    const inZone = isCourierZone(city);
+    const modeLabel = mode === 'branch' ? 'В филиале' : mode === 'photo' ? 'Оценка по фото' : 'Курьер к вам';
+    const fields = {
+      Режим: modeLabel,
+      Город: city,
+      ...(mode === 'courier' ? { Адрес: address.trim() } : {}),
+      Проба: String(purity || 585),
+      'Вес, г': String(grams || '—'),
+      'Предварительно до': ceiling != null ? formatMoney(Math.round(ceiling)) : '—',
+      ...(photoUrl ? { 'Фото изделия': photoUrl } : {}),
+      ...(photoPath ? { photoPath } : {}),
+      Источник: 'reaktivo.pro',
+    };
+    setPhase('sending');
+    try {
+      let sent = false;
+      if (mode === 'courier' && inZone) {
+        const slot = pickNextCourierSlot();
+        if (slot) {
+          try {
+            await clientApi.courierOrder({
+              name: 'Клиент доставки',
+              phone: phone.trim(),
+              city,
+              address: address.trim(),
+              date: slot.date,
+              time: slot.time,
+              fields,
+            });
+            sent = true;
+          } catch {
+            sent = false;
+          }
+        }
+      }
+      if (!sent) {
+        await clientApi.landingLead({
+          source: inZone ? 'delivery' : 'waitlist',
+          name: 'Клиент доставки',
+          phone: phone.trim(),
+          fields,
+        });
+      }
+      ymReachGoal('lead', { source: 'delivery-modal' });
+      setPhase('sent');
+      toast('Заявка ушла. Перезвоним и подтвердим визит.', 'success');
+    } catch (err) {
+      setPhase('idle');
+      setError(err?.message || 'Не получилось отправить. Позвоните: 8 800 555-18-48');
+    }
+  }
+
+  return (
+    <div className="dl2-modal" role="presentation" onMouseDown={onClose}>
+      <div
+        className="dl2-modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dl2-call-title"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <span className="dl2-modal-grip" aria-hidden />
+        <div className="dl2-modal-head">
+          <h2 id="dl2-call-title">{mode === 'branch' ? 'Продать в отделении' : mode === 'photo' ? 'Оценка по фото' : 'Вызвать курьера'}</h2>
+          <button type="button" className="dl2-modal-x" onClick={onClose} aria-label="Закрыть">×</button>
+        </div>
+        {phase === 'sent' ? (
+          <div className="dl2-modal-done">
+            <p className="dl2-modal-ok">Заявка принята. Перезвоним в течение 15 минут и подтвердим время.</p>
+            <button type="button" className="il-btn il-btn--outline dl2-modal-submit" onClick={onClose}>Закрыть</button>
+          </div>
+        ) : (
+          <form onSubmit={onSubmit}>
+            <div className="dl2-modal-tabs" role="tablist">
+              {CALL_MODES.map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === id}
+                  className={mode === id ? 'is-on' : ''}
+                  onClick={() => { setMode(id); setError(''); }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="dl2-modal-sum">
+              <span>Предварительно, до<small>Проба {purity || 585} · {grams || 10} г</small></span>
+              <b className="mono-nums">{ceiling != null ? formatMoney(Math.round(ceiling)) : '—'}</b>
+            </div>
+            <label className="dl2-modal-field">
+              <span>Телефон</span>
+              <input type="tel" inputMode="tel" autoComplete="tel" enterKeyHint="next" placeholder="+7 900 000-00-00" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </label>
+            <label className="dl2-modal-field">
+              <span>Город</span>
+              <input autoComplete="address-level2" enterKeyHint="next" placeholder="Москва" value={city} onChange={(e) => setCity(e.target.value)} />
+            </label>
+            {mode === 'courier' && (
+              <label className="dl2-modal-field">
+                <span>Адрес встречи</span>
+                <input autoComplete="street-address" enterKeyHint="done" placeholder="Улица, дом, подъезд" value={address} onChange={(e) => setAddress(e.target.value)} />
+              </label>
+            )}
+            {mode === 'photo' && (
+              <div className="dl2-modal-photo">
+                <RuPhotoField photoUrl={photoUrl} setPhotoUrl={setPhotoUrl} setPhotoPath={setPhotoPath} />
+              </div>
+            )}
+            <p className="dl2-modal-note">
+              {mode === 'branch'
+                ? 'Перезвоним и подскажем ближайшее отделение. Можно без записи. Сумма на экране уже по курсу отделения.'
+                : mode === 'photo'
+                  ? 'Прикрепите фото, оценим и перезвоним. Приезжать не нужно.'
+                  : !city.trim() || isCourierZone(city)
+                    ? 'Выезд и проверка бесплатно. Перезвоним и подтвердим время.'
+                    : 'Курьер сейчас в Москве и области. Ваш город запишем в лист ожидания.'}
+            </p>
+            {error && <p className="il-lead-err" role="alert">{error}</p>}
+            <button type="submit" className="il-btn il-btn--primary dl2-modal-submit" disabled={phase === 'sending'}>
+              {phase === 'sending' ? 'Отправляем…' : mode === 'branch' ? 'Записаться' : mode === 'photo' ? 'Отправить на оценку' : 'Вызвать курьера'}
+            </button>
+            <p className="dl2-modal-legal">Нажимая кнопку, вы соглашаетесь с <a href="/privacy">обработкой персональных данных</a>.</p>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function DeliveryLanding() {
   const toast = useToast();
+  const compact = useCompactMq();
   const scrolled = useHeaderScrolled();
   const { quote: liveQuote, status, reload } = useDeliveryQuote();
+  const listParent = compact ? MOB_STAGGER_PARENT : staggerParent;
+  const listChild = compact ? MOB_STAGGER_CHILD : staggerChild;
   const [gramsText, setGramsText] = useState('10');
   const [purity, setPurity] = useState(585);
   const [locked, setLocked] = useState(null);
@@ -428,6 +678,14 @@ export function DeliveryLanding() {
   const [error, setError] = useState('');
   const [fieldErr, setFieldErr] = useState({});
   const [sticky, setSticky] = useState(false);
+  const [callOpen, setCallOpen] = useState(false);
+  const [callMode, setCallMode] = useState('courier');
+  const openCallAs = (mode) => (e) => {
+    e?.preventDefault();
+    setCallMode(mode);
+    setCallOpen(true);
+  };
+  const openCall = openCallAs('courier');
   const left = useLockCountdown(locked?.until);
 
   const grams = useMemo(() => {
@@ -436,7 +694,7 @@ export function DeliveryLanding() {
   }, [gramsText]);
 
   useEffect(() => {
-    document.title = 'Reaktivo.pro — золото это деньги, не выходя из дома';
+    document.title = 'Reaktivo — золото это деньги, не выходя из дома';
     let meta = document.querySelector('meta[name="description"]');
     if (!meta) {
       meta = document.createElement('meta');
@@ -450,21 +708,35 @@ export function DeliveryLanding() {
   }, []);
 
   useEffect(() => {
-    const target = document.getElementById('order');
-    if (!target) return undefined;
-    let formInView = true;
-    const recompute = () => setSticky(!formInView && window.scrollY > 280);
-    const io = new IntersectionObserver(([entry]) => {
-      formInView = entry.isIntersecting;
+    const order = document.getElementById('order');
+    const footer = document.querySelector('.dl2-root .il-footer');
+    const waitlist = document.getElementById('waitlist');
+    const courierActions = document.querySelector('.dl2-courier-actions');
+    const ctas = [...document.querySelectorAll('.dl2-root .dl2-open-call')]
+      .filter((el) => !el.closest('.il-header'));
+    const watched = [order, footer, waitlist, courierActions, ...ctas].filter(Boolean);
+    if (!watched.length) return undefined;
+    const visible = new Set();
+    const recompute = () => setSticky(window.scrollY > 240 && visible.size === 0);
+    const io = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) visible.add(entry.target);
+        else visible.delete(entry.target);
+      }
       recompute();
-    }, { rootMargin: '0px 0px -18% 0px' });
-    io.observe(target);
+    }, { rootMargin: '-80px 0px 0px 0px', threshold: 0.01 });
+    watched.forEach((el) => io.observe(el));
     window.addEventListener('scroll', recompute, { passive: true });
-    return () => { io.disconnect(); window.removeEventListener('scroll', recompute); };
+    recompute();
+    return () => {
+      io.disconnect();
+      window.removeEventListener('scroll', recompute);
+    };
   }, []);
 
   const lockedAlive = Boolean(locked && left > 0);
-  const quote = lockedAlive ? locked.quote : liveQuote;
+  const courierQuote = useMemo(() => quoteForChannel(liveQuote, 'courier'), [liveQuote]);
+  const quote = lockedAlive ? locked.quote : courierQuote;
   const activePurity = lockedAlive ? locked.purity : purity;
   const activeGrams = lockedAlive ? locked.grams : grams;
   const payout = useMemo(() => quotePayout(quote, activePurity, activeGrams), [quote, activePurity, activeGrams]);
@@ -502,7 +774,7 @@ export function DeliveryLanding() {
       purity,
       grams: Number(grams),
       perGram: perG,
-      quote: liveQuote,
+      quote: courierQuote,
       until: Date.now() + LOCK_MS,
     });
     document.getElementById('order')?.scrollIntoView({
@@ -593,6 +865,42 @@ export function DeliveryLanding() {
         : waitingQuote
           ? 'Загружаем курс…'
           : 'Вызвать курьера на эту сумму';
+
+  const quickGrams = grams > 0 ? grams : 1;
+  const quickCeiling = quotePayoutRange(courierQuote, purity, quickGrams).high;
+  const quickCalc = (
+    <div className="dl2-quick">
+      <div className="dl2-quick-in">
+        <span className="dl2-quick-label">Проба</span>
+        <div className="dl2-quick-probes" role="radiogroup" aria-label="Проба">
+          {QUICK_PROBES.map((p) => (
+            <button key={p} type="button" role="radio" aria-checked={purity === p} className={purity === p ? 'is-on' : ''} onClick={() => setPurity(p)}>{p}</button>
+          ))}
+        </div>
+        <GramsSlider value={quickGrams} onChange={(g) => setGramsText(String(g))} max={200} allowType typeMax={5000} />
+        <p className="dl2-quick-hint">
+          Не знаете вес? <button type="button" onClick={openCallAs('photo')}>Оценим по фото</button>
+        </p>
+      </div>
+      <div className="dl2-quick-out">
+        <span className="dl2-quick-label">Вы получите до</span>
+        <b className="dl2-quick-sum mono-nums">
+          {waitingQuote ? <Skel wide /> : quickCeiling != null ? formatMoney(Math.round(quickCeiling)) : '—'}
+        </b>
+        <small>
+          {quoteFailed
+            ? 'Курс недоступен, перезвоним с точной суммой'
+            : spot > 0
+              ? `Проба ${purity} · курс ${formatPerGram(spot)} Au 999`
+              : 'Загружаем курс…'}
+        </small>
+        <div className="dl2-quick-actions">
+          <button type="button" className="il-btn il-btn--primary dl2-open-call" onClick={openCallAs('courier')}>Вызвать курьера</button>
+          <button type="button" className="il-btn il-btn--outline dl2-open-call" onClick={openCallAs('branch')}>Продать в отделении</button>
+        </div>
+      </div>
+    </div>
+  );
 
   const calcCard = (
     <div id="order" className="dl2-order">
@@ -734,9 +1042,9 @@ export function DeliveryLanding() {
 
       <header className={`il-header${scrolled ? ' il-header--scrolled' : ''}`}>
         <div className="il-header-inner">
-          <a href="/" className="il-logo" aria-label="Reaktivo.pro">
+          <a href="/" className="il-logo" aria-label="Reaktivo">
             <img className="il-logo-mark" src="/logo-reaktivo-mark.svg" alt="" width="40" height="40" />
-            <span className="il-logo-text">REAKTIVO<span>.PRO</span></span>
+            <span className="il-logo-text">REAKTIVO</span>
           </a>
           <div className="il-header-actions">
             <a href="tel:+78005551848" className="il-header-phone" title="8 800 555-18-48" aria-label="Позвонить: 8 800 555-18-48">
@@ -746,10 +1054,10 @@ export function DeliveryLanding() {
             </a>
             <ThemeToggle />
             <Magnetic>
-              <a href="#order" className="il-btn il-btn--primary il-btn--header-buy">
+              <button type="button" className="il-btn il-btn--primary il-btn--header-buy dl2-open-call" onClick={openCall}>
                 <span className="dl2-cta-full">Вызвать курьера</span>
                 <span className="dl2-cta-short">Курьер</span>
-              </a>
+              </button>
             </Magnetic>
           </div>
         </div>
@@ -762,11 +1070,19 @@ export function DeliveryLanding() {
           imgPos="50% 36%"
           kicker="Скупка золота с выездом курьера · Москва и МО"
           title={<>Золото — это деньги, <br />не выходя <span className="il-accent-text">из дома</span>.</>}
-          sub="Живой курс офиса, оценка за секунду, курьер приедет и оплатит сразу — сумма та же, что вы зафиксировали на сайте."
-          primary={{ href: '#order', label: 'Вызвать курьера' }}
-          secondary={{ href: '#steps', label: 'Как это работает' }}
-          aside={calcCard}
+          sub="Посчитайте сумму и выберите, как продать. Курьер приедет и заплатит сразу."
+          aside={quickCalc}
         />
+
+        <section className="il-section dl2-order-section" id="order">
+          <div className="il-section-inner">
+            <div className="il-section-head">
+              <Reveal><span className="il-pill">Вызвать курьера</span></Reveal>
+              <Reveal delay={0.06}><h2 className="il-h2">Посчитайте сумму и выберите <span className="il-accent-text">время визита</span></h2></Reveal>
+            </div>
+            <KurierOrderCard quote={liveQuote} />
+          </div>
+        </section>
 
         <RuMarquee items={[
           'Курс офиса на первом экране',
@@ -791,7 +1107,7 @@ export function DeliveryLanding() {
           </div>
         </section>
 
-        <PathStory />
+        <AfterOrder />
 
         <section className="il-section il-section--alt" id="calc">
           <div className="il-section-inner">
@@ -799,18 +1115,18 @@ export function DeliveryLanding() {
               <Reveal><span className="il-pill">Прозрачный расчёт</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Биржа, выплата, разница —<br /><span className="il-accent-text">без «мутной» скупки</span></h2></Reveal>
             </div>
-            <motion.div className="il-cards" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
-              <motion.div className="il-card" variants={staggerChild}>
+            <motion.div className="il-cards" variants={listParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: compact ? '-2% 0px' : '-8% 0px' }}>
+                <motion.div className="il-card" variants={listChild}>
                 <span className="il-card-label">Биржевой лом</span>
                 <div className="il-card-big mono-nums">{waitingQuote ? <Skel wide /> : scrapDisplay != null ? formatMoney(scrapDisplay) : '—'}</div>
                 <p className="il-card-text">Стоимость чистого золота по текущему биржевому курсу, без вычетов.</p>
               </motion.div>
-              <motion.div className="il-card" variants={staggerChild}>
+                <motion.div className="il-card" variants={listChild}>
                 <span className="il-card-label">Ваша выплата</span>
                 <div className="il-card-big mono-nums">{waitingQuote ? <Skel wide /> : payoutDisplay != null ? formatMoney(payoutDisplay) : '—'}</div>
                 <p className="il-card-text">Сумма, которую вы получите от курьера — наличными или через СБП.</p>
               </motion.div>
-              <motion.div className="il-card" variants={staggerChild}>
+                <motion.div className="il-card" variants={listChild}>
                 <span className="il-card-label">Разница</span>
                 <div className="il-card-big mono-nums">
                   {waitingQuote ? <Skel wide /> : gapDisplay != null ? formatMoney(gapDisplay) : '—'}
@@ -823,7 +1139,7 @@ export function DeliveryLanding() {
                 Выплата считается по официальному курсу выкупа офиса, не «от потолка». Точная сумма — после проверки пробы и веса курьером.
               </p>
               <Magnetic>
-                <a href="#order" className="il-btn il-btn--primary">Продать золото</a>
+                <button type="button" className="il-btn il-btn--primary dl2-open-call" onClick={openCall}>Продать золото</button>
               </Magnetic>
             </Reveal>
           </div>
@@ -849,17 +1165,16 @@ export function DeliveryLanding() {
                   <span>Наличные / СБП</span>
                 </div>
                 <div className="dl2-courier-qr">
-                  <a href="https://reaktivo.ru/kurier/" target="_blank" rel="noopener noreferrer" aria-label="Открыть страницу курьера на Reaktivo.ru">
-                    <img src="/yandex-review-qr.png" alt="" width="92" height="92" />
-                  </a>
+                  <img src="/yandex-review-qr.png" alt="QR отзыва о Reaktivo на Яндекс Картах" width="92" height="92" />
                   <div>
-                    <b>Отзывы и страница курьера</b>
-                    <p>QR ведёт на сервис доставки. После заявки курьер подтвердит визит звонком.</p>
+                    <b>Отзыв на Яндекс Картах</b>
+                    <p>Наведите камеру на QR. Как устроен сам выезд — на странице курьера.</p>
+                    <a href="https://reaktivo.ru/kurier/" target="_blank" rel="noopener noreferrer">Страница курьера на Reaktivo.ru</a>
                   </div>
                 </div>
                 <div className="dl2-courier-actions">
-                  <a href="#order" className="il-btn il-btn--primary">Вызвать курьера</a>
-                  <a href="https://t.me/Reaktivoai" className="il-btn il-btn--outline" target="_blank" rel="noopener noreferrer">Написать в Telegram</a>
+                  <button type="button" className="il-btn il-btn--primary dl2-open-call" onClick={openCall}>Вызвать курьера</button>
+                  <a href="https://t.me/Reaktivorussia" className="il-btn il-btn--outline" target="_blank" rel="noopener noreferrer">Написать в Telegram</a>
                 </div>
               </div>
             </div>
@@ -883,9 +1198,9 @@ export function DeliveryLanding() {
               <Reveal><span className="il-pill">Как это выглядит</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Три сцены без поездки <span className="il-accent-text">в отделение</span></h2></Reveal>
             </div>
-            <motion.div className="il-cards" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
+            <motion.div className="il-cards" variants={listParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: compact ? '-2% 0px' : '-8% 0px' }}>
               {STORIES.map((s) => (
-                <motion.div className="il-card" key={s.t} variants={staggerChild}>
+                <motion.div className="il-card" key={s.t} variants={listChild}>
                   <span className="il-card-label">{s.k}</span>
                   <h3 className="il-card-title">{s.t}</h3>
                   <p className="il-card-text">{s.d}</p>
@@ -915,33 +1230,40 @@ export function DeliveryLanding() {
           </div>
         </section>
 
-        <section className="il-section" id="faq">
+        <section className="il-section" id="compare">
           <div className="il-section-inner">
-            <div className="dl2-split">
-              <div className="dl2-split-col">
-                <span className="il-pill">Дома или в отделении</span>
-                <h2 className="il-h2">Курс один. Разница — <span className="il-accent-text">куда ехать</span></h2>
-                <div className="dl2-compare">
-                  {COMPARE.map((c) => (
-                    <article className={`dl2-compare-card${c.on ? ' is-on' : ''}`} key={c.title}>
-                      <h3>{c.title}</h3>
-                      <ul>
-                        {c.points.map((p) => <li key={p}>{p}</li>)}
-                      </ul>
-                    </article>
-                  ))}
-                </div>
-              </div>
-              <div className="dl2-split-col">
-                <span className="il-pill">Вопросы</span>
-                <h2 className="il-h2">Коротко <span className="il-accent-text">по делу</span></h2>
-                <RuFaq items={FAQ} />
-              </div>
+            <div className="il-section-head">
+              <Reveal><span className="il-pill">Дома или в отделении</span></Reveal>
+              <Reveal delay={0.06}><h2 className="il-h2">Курс один. Выбирайте, <span className="il-accent-text">как удобнее</span></h2></Reveal>
+            </div>
+            <div className="dl2-compare dl2-compare--pair">
+              {COMPARE.map((c) => (
+                <article className={`dl2-compare-card${c.on ? ' is-on' : ''}`} key={c.title}>
+                  <h3>{c.title}</h3>
+                  <ul>
+                    {c.points.map((p) => <li key={p}>{p}</li>)}
+                  </ul>
+                </article>
+              ))}
             </div>
           </div>
         </section>
 
-        <RuStatement text="Золото — это деньги, не выходя из дома. Курс, который вы зафиксировали, — это курс, который приедет курьер." />
+        <section className="il-section il-section--alt" id="faq">
+          <div className="il-section-inner il-section-inner--narrow">
+            <div className="il-section-head">
+              <Reveal><span className="il-pill">Вопросы</span></Reveal>
+              <Reveal delay={0.06}><h2 className="il-h2">Коротко <span className="il-accent-text">по делу</span></h2></Reveal>
+            </div>
+            <RuFaq items={FAQ} />
+          </div>
+        </section>
+
+        <section className="rl-statement">
+          <div className="il-section-inner">
+            <p className="rl-statement-text">Золото — это деньги, не выходя из дома. Сумма, которую вы зафиксировали, — это сумма, которую привезёт курьер.</p>
+          </div>
+        </section>
 
         <section className="il-section" id="docs">
           <div className="il-section-inner">
@@ -1044,7 +1366,7 @@ export function DeliveryLanding() {
                     note="Имя и телефон. Если есть контакт друга — укажите, это ускорит разговор."
                     cta="Оставить контакт"
                     successNote="Записали. Перезвоним и расскажем, как засчитать рекомендацию."
-                    fields={[{ key: 'friend', label: 'Контакт знакомого', placeholder: 'Имя или телефон друга — необязательно', full: true }]}
+                    fields={[{ key: 'friend', label: 'Контакт знакомого', placeholder: 'Телефон друга, если есть', full: true }]}
                   />
                 </div>
               </Reveal>
@@ -1065,8 +1387,8 @@ export function DeliveryLanding() {
             </div>
             <div className="il-footer-col">
               <span className="il-footer-col-title">На этой странице</span>
-              <a href="#order" className="il-nav-link">Вызвать курьера</a>
-              <a href="#steps" className="il-nav-link">Путь красного R</a>
+              <button type="button" className="il-nav-link dl2-open-call" onClick={openCall}>Вызвать курьера</button>
+              <a href="#steps" className="il-nav-link">После заявки</a>
               <a href="#faq" className="il-nav-link">Вопросы</a>
               <a href="#docs" className="il-nav-link">Документы</a>
             </div>
@@ -1080,7 +1402,7 @@ export function DeliveryLanding() {
             <div className="il-footer-col">
               <span className="il-footer-col-title">Контакты</span>
               <a href="tel:+78005551848" className="il-nav-link">8 800 555-18-48</a>
-              <a href="https://t.me/Reaktivoai" className="il-nav-link" target="_blank" rel="noopener noreferrer">Telegram</a>
+              <a href="https://t.me/Reaktivorussia" className="il-nav-link" target="_blank" rel="noopener noreferrer">Telegram</a>
               <a href="mailto:team@reaktivo.ru" className="il-nav-link">team@reaktivo.ru</a>
               <a href="/privacy" className="il-nav-link">Персональные данные</a>
             </div>
@@ -1093,18 +1415,93 @@ export function DeliveryLanding() {
       </footer>
 
       {sticky && (
-        <a href="#order" className="dl2-sticky">Вызвать курьера</a>
+        <div className="dl2-sticky">
+          <button type="button" className="il-btn il-btn--primary dl2-open-call" onClick={openCall}>Вызвать курьера</button>
+        </div>
       )}
+
+      <CallModal
+        open={callOpen}
+        onClose={() => setCallOpen(false)}
+        quote={liveQuote}
+        purity={purity}
+        grams={quickGrams}
+        initialMode={callMode}
+      />
 
       <style>{IL_CSS}</style>
       <style>{RL_CSS}</style>
       <style>{DL2_CSS}</style>
+      <style>{KURIER_CSS}</style>
     </div>
   );
 }
 
 const DL2_CSS = `
 .dl2-root { --font-display: 'Geometria', system-ui, sans-serif; }
+.dl2-modal {
+  position: fixed; inset: 0; z-index: 80;
+  display: grid; place-items: center; padding: 20px;
+  background: rgba(8, 8, 10, 0.62);
+  backdrop-filter: blur(8px);
+}
+.dl2-modal-card {
+  width: min(440px, 100%);
+  padding: 22px 22px 18px;
+  border-radius: 22px;
+  background: var(--bg-panel-solid);
+  border: 1px solid var(--stroke);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+}
+.dl2-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.dl2-modal-head h2 { margin: 0; font-size: 1.35rem; letter-spacing: -0.03em; }
+.dl2-modal-x {
+  width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--stroke);
+  background: transparent; color: var(--text-strong); font-size: 1.3rem; cursor: pointer;
+}
+.dl2-modal-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.dl2-modal-tabs button {
+  flex: 1; min-height: 40px; padding: 8px 8px; border-radius: 12px;
+  border: 1px solid transparent; background: transparent; color: var(--text-muted);
+  font: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer;
+}
+.dl2-modal-tabs button.is-on { color: var(--text-strong); border-color: var(--stroke); background: var(--bg); }
+.dl2-modal-sum {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 14px; padding: 14px 16px; border-radius: 14px; background: var(--bg);
+}
+.dl2-modal-sum span { color: var(--text-muted); font-size: 0.92rem; }
+.dl2-modal-sum b { font-size: 1.35rem; letter-spacing: -0.03em; }
+.dl2-modal-field { display: grid; gap: 6px; margin-bottom: 12px; font-size: 0.78rem; font-weight: 700; color: var(--text-dim); }
+.dl2-modal-field input, .dl2-modal-field select {
+  width: 100%; box-sizing: border-box; min-height: 48px; padding: 12px 14px;
+  border-radius: 12px; border: 1px solid var(--stroke); background: var(--bg);
+  color: var(--text-strong); font: inherit; font-size: 16px; font-weight: 600;
+}
+.dl2-modal-field input::placeholder {
+  color: var(--text-dim); -webkit-text-fill-color: var(--text-dim);
+  font-weight: 500; opacity: 0.7;
+}
+.dl2-modal-note { margin: 4px 0 14px; color: var(--text-dim); font-size: 0.8rem; line-height: 1.4; }
+.dl2-modal-submit { width: 100%; justify-content: center; min-height: 48px; }
+.dl2-modal-ok { margin: 8px 0 4px; font-size: 1.05rem; line-height: 1.45; }
+.dl2-root .il-footer .dl2-open-call {
+  border: 0; background: none; padding: 0; text-align: left; cursor: pointer;
+}
+.dl2-after-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.dl2-after-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  min-height: 180px; padding: 22px 18px; text-align: left;
+  border-radius: 20px; border: 1px solid var(--stroke); background: var(--bg-panel-solid);
+  color: inherit; font: inherit; cursor: pointer;
+}
+.dl2-after-card b { color: var(--accent); letter-spacing: 0.08em; font-size: 0.78rem; }
+.dl2-after-card strong { font-size: 1.2rem; letter-spacing: -0.03em; color: var(--text-strong); }
+.dl2-after-card span { color: var(--text-muted); line-height: 1.45; font-size: 0.92rem; }
+.dl2-after-card.is-on { border-color: color-mix(in srgb, var(--accent) 55%, var(--stroke)); background: var(--accent-soft); }
+.dl2-compare--pair { grid-template-columns: 1fr 1fr; }
+.dl2-order-section { padding-top: 28px; }
+.dl2-courier-qr a { color: var(--accent); font-weight: 700; }
 .dl2-root .il-section { padding: 88px 0; }
 .dl2-root .il-section-head { margin-bottom: 48px; }
 .dl2-root .rl-kpis-section { padding: 56px 0 28px; }
@@ -1112,7 +1509,7 @@ const DL2_CSS = `
 .dl2-root .il-section--cta { padding: 64px 0 80px; }
 .dl2-root .il-header-actions { align-items: center; }
 .mono-nums { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
-.dl2-order { display: flex; width: 100%; height: 100%; }
+.dl2-order { display: flex; width: 100%; height: auto; }
 .dl2-calc form { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
 .dl2-probes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
 .dl2-probe {
@@ -1163,13 +1560,7 @@ const DL2_CSS = `
 .dl2-fine a { color: var(--text-strong); }
 .dl2-calc-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--stroke-soft); }
 .dl2-calc-note .il-p { max-width: 46ch; }
-.dl2-sticky {
-  position: fixed; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom));
-  z-index: 60; display: flex; align-items: center; justify-content: center;
-  min-height: 52px; border-radius: 16px;
-  background: var(--accent-grad); color: #fff; font-weight: 800; text-decoration: none;
-  box-shadow: 0 16px 40px -14px color-mix(in srgb, var(--accent) 55%, transparent);
-}
+.dl2-sticky { display: none; }
 .dl2-cta-short { display: none; }
 .dl2-live-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .dl2-sent { display: flex; flex-direction: column; gap: 14px; }
@@ -1185,11 +1576,11 @@ const DL2_CSS = `
   width: 8px; height: 8px; border-radius: 99px; background: var(--text-dim); flex-shrink: 0;
 }
 .dl2-duty-dot.is-on { background: #3dff8a; box-shadow: 0 0 10px rgba(61, 255, 138, 0.5); }
-.dl2-path { position: relative; padding: 72px 0 56px; }
+.dl2-path { position: relative; height: auto; min-height: 0; padding: 72px 0 56px; }
 .dl2-path--static { height: auto; }
 .dl2-path-sticky {
   position: relative; top: auto;
-  min-height: 0;
+  height: auto; min-height: 0;
   display: flex; align-items: center;
   padding: 0;
   background:
@@ -1215,11 +1606,16 @@ const DL2_CSS = `
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
   list-style: none; margin: 0; padding: 0;
 }
-.dl2-progress li { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.dl2-progress li i { display: block; height: 4px; border-radius: 99px; background: var(--stroke); }
-.dl2-progress li span { font-size: 0.72rem; color: var(--text-dim); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dl2-progress li.is-on i { background: var(--accent); }
-.dl2-progress li.is-on span { color: var(--text-strong); }
+.dl2-progress li { min-width: 0; }
+.dl2-progress button {
+  display: flex; flex-direction: column; gap: 8px; width: 100%; min-width: 0;
+  padding: 0; border: 0; background: transparent; color: inherit; font: inherit;
+  text-align: left; cursor: pointer;
+}
+.dl2-progress button i { display: block; height: 4px; border-radius: 99px; background: var(--stroke); }
+.dl2-progress button span { font-size: 0.72rem; color: var(--text-dim); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl2-progress li.is-on i, .dl2-progress li.is-on button i { background: var(--accent); }
+.dl2-progress li.is-on span, .dl2-progress li.is-on button span { color: var(--text-strong); }
 .dl2-track {
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
 }
@@ -1320,7 +1716,7 @@ const DL2_CSS = `
   background: rgba(255,255,255,0.55);
 }
 @media (min-width: 768px) {
-  .dl2-sticky { display: none; }
+  .dl2-sticky { display: none !important; }
 }
 @media (min-width: 900px) {
   .dl2-path-inner { grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); align-items: center; }
@@ -1347,7 +1743,7 @@ const DL2_CSS = `
   .dl2-root .il-logo-text { font-size: 1.02rem; }
   .dl2-root .il-header-actions { gap: 8px; }
   .dl2-courier { grid-template-columns: 1fr; }
-  .dl2-courier-photo img { min-height: 220px; max-height: 320px; }
+  .dl2-courier-photo img { min-height: 200px; max-height: 280px; }
   .dl2-track { grid-template-columns: 1fr 1fr; }
   .dl2-log { grid-template-columns: 1fr; }
   .dl2-route-svg { height: 260px; max-width: 140px; margin: 0 auto; }
@@ -1355,17 +1751,43 @@ const DL2_CSS = `
   .dl2-path-text { min-height: 0; }
 }
 @media (max-width: 767px) {
+  html:has(.dl2-root) { scroll-padding-top: 88px; scroll-padding-bottom: 96px; }
+  .dl2-root { padding-bottom: 8px; }
+  .dl2-root section,
+  .dl2-root .dl2-path,
+  .dl2-root .rl-statement,
+  .dl2-root .il-footer { scroll-margin-top: 88px; }
+  .dl2-root .il-section { padding: 56px 0 80px; }
+  .dl2-after-grid, .dl2-compare--pair { grid-template-columns: 1fr; }
+  .dl2-after-card { min-height: 0; }
+  .dl2-root .il-section-head { margin-bottom: 28px; }
+  .dl2-root .il-section-inner { padding-left: 16px; padding-right: 16px; }
+  .dl2-root .il-h2 { font-size: clamp(1.55rem, 7vw, 2rem); }
+  .dl2-root .rl-kpis-section { padding: 28px 0 8px; }
+  .dl2-root .rl-kpi--photo { min-height: 148px; }
+  .dl2-root .rl-statement { padding: 48px 0 40px; }
+  .dl2-root .rl-statement-text { font-size: clamp(1.28rem, 6.4vw, 1.7rem); line-height: 1.35; }
+  .dl2-root .il-section--cta { padding: 48px 0 56px; }
+  .dl2-root .il-footer { padding: 40px 0 28px; }
+  .dl2-root .il-card { padding: 20px 18px; }
+  .dl2-root .il-hero-title { font-size: clamp(1.85rem, 8.4vw, 2.45rem); }
   .dl2-root .rl-fhero {
     min-height: 0;
     height: auto;
-    padding: 92px 16px 28px;
+    padding: 86px 16px 24px;
     align-items: stretch;
   }
-  .dl2-root .rl-fhero-inner { gap: 16px; }
+  .dl2-root .rl-fhero-inner { gap: 14px; }
+  .dl2-root .rl-fhero--aside .il-hero-copy.rl-fhero-copy-panel { padding: 18px 16px 16px; }
+  .dl2-root .rl-fhero-aside,
+  .dl2-root .rl-fhero-aside > *,
+  .dl2-root .rl-fhero-aside .rl-calc-card,
+  .dl2-root .dl2-order { height: auto; }
   .dl2-root .dl2-calc.rl-calc-card,
   .dl2-root .rl-fhero-aside .rl-calc-card {
     background: var(--bg-panel-solid);
     isolation: isolate;
+    padding: 18px 16px 16px;
   }
   .dl2-root .il-header-phone { display: none !important; }
   .dl2-cta-full { display: none; }
@@ -1373,6 +1795,74 @@ const DL2_CSS = `
   .dl2-root .il-btn--header-buy { padding: 8px 12px; font-size: 0.8rem; }
   .dl2-root .il-logo { gap: 8px; }
   .dl2-root .il-logo-mark { width: 34px; height: 34px; }
+  .dl2-duty {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 10px 14px;
+    padding: 10px 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .dl2-duty::-webkit-scrollbar { display: none; }
+  .dl2-duty span, .dl2-duty b { white-space: nowrap; font-size: 0.75rem; }
+  .dl2-path { padding: 36px 0 24px; height: auto; min-height: 0; }
+  .dl2-path-sticky { min-height: 0; height: auto; align-items: flex-start; }
+  .dl2-path-inner {
+    grid-template-columns: minmax(0, 1fr) 56px;
+    align-items: start; gap: 8px 12px;
+    width: min(1120px, calc(100% - 32px));
+  }
+  .dl2-path-copy .il-pill { margin-bottom: 10px; }
+  .dl2-progress { grid-column: 1 / -1; }
+  .dl2-progress button { gap: 6px; min-height: 44px; justify-content: flex-end; }
+  .dl2-progress button span { font-size: 0.68rem; }
+  .dl2-route-svg { height: 168px; max-width: 56px; margin: 0; }
+  .dl2-path-copy .il-btn,
+  .dl2-calc-note .il-btn,
+  .dl2-courier-actions .il-btn,
+  .dl2-forms .il-btn,
+  .dl2-root .rl-calc-cta { width: 100%; justify-content: center; min-height: 48px; }
+  .dl2-calc-note { flex-direction: column; align-items: stretch; gap: 14px; margin-top: 24px; padding-top: 20px; }
+  .dl2-courier-actions { flex-direction: column; }
+  .dl2-courier-card { padding: 18px 16px; }
+  .dl2-courier-photo img { min-height: 168px; max-height: 220px; }
+  .dl2-courier-qr { align-items: flex-start; gap: 12px; }
+  .dl2-courier-qr img { width: 72px; height: 72px; }
+  .dl2-track { grid-template-columns: 1fr; gap: 8px; }
+  .dl2-track-step { padding: 16px 16px; min-height: 76px; }
+  .dl2-compare-card { padding: 18px 16px; }
+  .dl2-log-row { padding: 16px 16px 18px; }
+  .dl2-split .il-h2 { font-size: clamp(1.4rem, 6.4vw, 1.8rem); margin: 10px 0 16px; }
+  .dl2-chips button { min-height: 40px; padding: 0 14px; }
+  .dl2-root .rl-input,
+  .dl2-root .il-lead-field input { font-size: 16px; min-height: 48px; }
+  .dl2-forms { gap: 12px; }
+  .dl2-ref { padding: 20px 16px; }
+  .dl2-forms .il-cta-panel { padding: 20px 16px; }
+  .dl2-forms .rl-form {
+    padding: 0; background: transparent; border: none; box-shadow: none; gap: 10px;
+  }
+  .dl2-forms .rl-form h3 { display: none; }
+  .dl2-forms .rl-form-note { margin-top: 0; }
+  .dl2-forms .rl-form .il-btn { width: 100%; justify-content: center; min-height: 48px; }
+  .dl2-sticky {
+    display: block;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, var(--bg-deep) 62%, transparent);
+    pointer-events: none;
+  }
+  .dl2-sticky .il-btn {
+    pointer-events: auto;
+    width: 100%;
+    justify-content: center;
+    min-height: 48px;
+    box-shadow: 0 12px 28px -10px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  .dl2-root .il-faq-q { min-height: 52px; padding: 16px; gap: 12px; text-align: left; }
+  .dl2-root .il-faq-a { padding: 0 16px 16px; }
+  .dl2-root .il-nav-link { min-height: 44px; display: inline-flex; align-items: center; }
 }
 @media (max-width: 520px) {
   .dl2-root .il-logo-text > span { display: none; }
@@ -1380,14 +1870,153 @@ const DL2_CSS = `
   .dl2-root .theme-toggle-track { width: 42px; height: 24px; }
   .dl2-root .theme-toggle-thumb { width: 18px; height: 18px; }
   .dl2-root .theme-toggle-thumb.is-dark { transform: translateY(-50%) translateX(18px); }
-  .dl2-probe { min-height: 84px; padding: 10px 8px; }
-  .dl2-probe-s { font-size: 0.86rem; }
-  .dl2-probe-g { font-size: 0.72rem; }
-  .dl2-track { grid-template-columns: 1fr; }
-  .dl2-root .il-section { padding: 64px 0; }
-  .dl2-path { padding: 52px 0 40px; }
+  .dl2-probe { min-height: 78px; padding: 10px 8px; }
+  .dl2-probe-s { font-size: 0.82rem; }
+  .dl2-probe-g { font-size: 0.7rem; }
+  .dl2-root .il-section { padding: 52px 0 80px; }
 }
+.dl2-quick {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px;
+  width: 100%; align-self: center;
+}
+.dl2-quick .rl-calc-num { width: 96px; min-width: 96px; text-align: right; }
+.dl2-quick-actions .il-btn { white-space: nowrap; font-size: 0.95rem; }
+.dl2-quick-in, .dl2-quick-out {
+  display: flex; flex-direction: column; gap: 12px; min-width: 0;
+  padding: 20px 20px 18px; border-radius: 22px;
+  background: var(--bg-panel-solid); border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-card);
+}
+.dl2-quick-out {
+  background:
+    radial-gradient(420px 220px at 90% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
+    var(--bg-panel-solid);
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--stroke));
+}
+.dl2-quick-label { font-size: 0.78rem; font-weight: 700; color: var(--text-dim); }
+.dl2-quick-probes {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px;
+  padding: 4px; border-radius: 14px; background: var(--bg);
+}
+.dl2-quick-probes button {
+  min-height: 42px; border: 0; border-radius: 10px; background: transparent;
+  color: var(--text-muted); font: inherit; font-weight: 700; font-size: 0.92rem; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.dl2-quick-probes button.is-on { background: var(--accent); color: #fff; box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--accent) 70%, transparent); }
+.dl2-quick .rl-calc-row { margin: 2px 0 0; }
+.dl2-quick-hint { margin: 0; font-size: 0.82rem; color: var(--text-dim); }
+.dl2-quick-hint button {
+  border: 0; padding: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; cursor: pointer;
+}
+.dl2-quick-sum {
+  font-size: clamp(2.3rem, 5vw, 3.2rem); line-height: 1; letter-spacing: -0.04em;
+  font-weight: 800; color: var(--text-strong);
+}
+.dl2-quick-out small { color: var(--text-dim); font-size: 0.8rem; }
+.dl2-quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.dl2-quick-actions .il-btn { justify-content: center; min-height: 50px; padding-left: 10px; padding-right: 10px; }
+.dl2-root .rl-fhero--aside .rl-fhero-aside > .dl2-quick { height: auto; }
+.dl2-modal-grip { display: none; }
+.dl2-modal-sum small { display: block; margin-top: 3px; font-size: 0.74rem; color: var(--text-dim); }
+.dl2-modal-photo { margin-bottom: 12px; }
+.dl2-modal-legal { margin: 10px 0 0; font-size: 0.72rem; line-height: 1.4; color: var(--text-dim); text-align: center; }
+.dl2-modal-legal a { color: inherit; }
+.dl2-modal-done { display: grid; gap: 14px; }
+@media (min-width: 901px) {
+  .dl2-root .rl-fhero--aside .rl-fhero-inner { align-items: center; }
+  .dl2-root .rl-fhero--aside .il-hero-copy.rl-fhero-copy-panel { height: auto; }
+}
+@media (max-width: 767px) {
+  .dl2-root .rl-fhero { padding: 80px 12px 16px; }
+  .dl2-root .rl-fhero--aside .il-hero-copy.rl-fhero-copy-panel {
+    padding: 16px 16px 14px; background: transparent; border: 0; box-shadow: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .dl2-root .rl-fhero .il-badge { display: none; }
+  .dl2-root .rl-fhero .il-hero-title { font-size: clamp(1.9rem, 9vw, 2.35rem); margin-bottom: 8px; }
+  .dl2-root .rl-fhero .il-hero-sub { font-size: 0.95rem; margin: 0; }
+  .dl2-root .rl-fhero-inner { gap: 10px; }
+  .dl2-quick { gap: 8px; }
+  .dl2-quick-in, .dl2-quick-out { padding: 16px 14px 14px; border-radius: 18px; gap: 10px; }
+  .dl2-quick-in { gap: 10px; }
+  .dl2-quick-probes button { min-height: 44px; font-size: 0.95rem; }
+  .dl2-quick-sum { font-size: 2.4rem; }
+  .dl2-quick-actions { grid-template-columns: 1fr; }
+  .dl2-quick-actions .il-btn { min-height: 52px; font-size: 1rem; }
+  .dl2-quick-hint { margin-top: 2px; }
+
+  .dl2-order-section,
+  .dl2-root .il-marquee,
+  .dl2-root .rl-kpis-section,
+  .dl2-root #calc,
+  .dl2-root #track,
+  .dl2-root #referral,
+  .dl2-root .il-license-qr-card,
+  .dl2-root .il-license-scope { display: none !important; }
+  .dl2-forms { grid-template-columns: 1fr; }
+
+  .dl2-after-grid {
+    position: relative; display: grid; grid-template-columns: 1fr; gap: 0;
+    padding: 4px 0;
+  }
+  .dl2-after-grid::before {
+    content: ''; position: absolute; left: 17px; top: 26px; bottom: 26px; width: 2px;
+    background: linear-gradient(var(--accent), color-mix(in srgb, var(--accent) 20%, transparent));
+    border-radius: 2px;
+  }
+  .dl2-after-card {
+    position: relative; display: grid; grid-template-columns: 36px 1fr; column-gap: 14px; row-gap: 3px;
+    align-items: start; min-height: 0; padding: 10px 0; border: 0; border-radius: 0;
+    background: transparent; box-shadow: none; cursor: default;
+  }
+  .dl2-after-card.is-on { background: transparent; }
+  .dl2-after-card b {
+    grid-row: 1 / span 2; display: grid; place-items: center;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 0.8rem; letter-spacing: 0;
+    box-shadow: 0 0 0 4px var(--bg-deep, #111);
+  }
+  .dl2-after-card strong { font-size: 1.05rem; padding-top: 7px; }
+  .dl2-after-card span { font-size: 0.9rem; }
+
+  .dl2-root #stories .il-cards,
+  .dl2-log { gap: 8px; }
+  .dl2-root #stories .il-card,
+  .dl2-log-row { padding: 14px 16px; min-height: 0; }
+  .dl2-root #stories .il-card-title { font-size: 1.02rem; margin: 4px 0; }
+
+  .dl2-root .il-section { padding: 44px 0 52px; }
+  .dl2-root .il-section-head { margin-bottom: 20px; }
+  .dl2-root .rl-statement { padding: 36px 0 32px; }
+  .dl2-root .rl-statement-text { font-size: 1.25rem; }
+
+  .dl2-root .il-license-grid { gap: 10px; }
+  .dl2-root .il-license-card { padding: 18px 16px; }
+
+  .dl2-root .il-footer-grid { grid-template-columns: 1fr 1fr; gap: 20px 14px; }
+  .dl2-root .il-footer-brand { grid-column: 1 / -1; }
+  .dl2-root .il-footer-col { gap: 2px; }
+  .dl2-root .il-footer .il-nav-link { min-height: 40px; font-size: 0.9rem; }
+
+  .dl2-modal { align-items: end; padding: 0; }
+  .dl2-modal-card {
+    width: 100%; max-height: 92svh; overflow-y: auto; overscroll-behavior: contain;
+    border-radius: 24px 24px 0 0; border-bottom: 0;
+    padding: 10px 16px calc(16px + env(safe-area-inset-bottom));
+    animation: dl2Sheet 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .dl2-modal-grip {
+    display: block; width: 40px; height: 4px; margin: 0 auto 10px;
+    border-radius: 99px; background: var(--stroke);
+  }
+  .dl2-modal-head h2 { font-size: 1.25rem; }
+  .dl2-modal-tabs button { min-height: 44px; font-size: 0.88rem; white-space: nowrap; }
+  .dl2-modal-sum b { font-size: 1.5rem; }
+}
+@keyframes dl2Sheet { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .dl2-skel { animation: none; }
+  .dl2-modal-card { animation: none; }
 }
 `;
