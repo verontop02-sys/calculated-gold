@@ -86,6 +86,11 @@ function calcPctOfExchange(ratioAvg, buybackPct) {
   return ratioAvg * Number(buybackPct);
 }
 
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function fmtPct(n) {
   if (n == null || !Number.isFinite(n)) return '—';
   return `${Math.round(n)}%`;
@@ -445,6 +450,7 @@ export function GoldIndex({ formatMoney, toast }) {
     const m = mapInstRef.current;
     layer.clearLayers();
     for (const c of filteredCities) {
+      if (!Number.isFinite(Number(c.lat)) || !Number.isFinite(Number(c.lng))) continue;
       const fill = COLOR_HEX[c.colorKey] || COLOR_HEX.neutral;
       const textOnFill = (c.colorKey === 'green' || c.colorKey === 'yellow') ? '#1a0e00' : '#fff';
       const competitors = c.competitors || [];
@@ -606,7 +612,13 @@ export function GoldIndex({ formatMoney, toast }) {
         coMk.addTo(layer);
       }
     }
-    if (filteredCities.length === 1) m.setView([filteredCities[0].lat, filteredCities[0].lng], 8);
+    if (
+      filteredCities.length === 1
+      && Number.isFinite(Number(filteredCities[0].lat))
+      && Number.isFinite(Number(filteredCities[0].lng))
+    ) {
+      m.setView([filteredCities[0].lat, filteredCities[0].lng], 8);
+    }
 
     requestAnimationFrame(() => { try { mapInstRef.current?.invalidateSize(); } catch { /* ignore */ } });
   }, [filteredCities, geoLoaded, data?.regions]);
@@ -627,26 +639,21 @@ export function GoldIndex({ formatMoney, toast }) {
       setShowCityForm(true);
       setCityDraft((d) => ({ ...d, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
       setMapAddMode(false);
-      // Auto reverse-geocode
       try {
-        const { default: axios } = await import('axios');
-        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ru`;
-        // Note: browsers block User-Agent header — omit it, Nominatim works fine without it
-        const { data: gd } = await axios.get(url, { timeout: 8000 });
-        const addr = gd?.address || {};
-        const city = addr.city || addr.town || addr.village || addr.municipality || '';
-        const region = addr.state || '';
-        const street = addr.road || '';
-        const building = addr.house_number || '';
+        const gd = await api.goldIndexReverseGeocode({ lat, lng });
+        const streetLine = String(gd?.street || '');
+        const [street, building] = streetLine.includes(',')
+          ? [streetLine.slice(0, streetLine.lastIndexOf(',')).trim(), streetLine.slice(streetLine.lastIndexOf(',') + 1).trim()]
+          : [streetLine, ''];
         setCityDraft((d) => ({
           ...d,
-          city_name: d.city_name || city,
-          region_name: d.region_name || region,
+          city_name: d.city_name || gd?.city || '',
+          region_name: d.region_name || gd?.region || '',
           street: d.street || street,
           building: d.building || building,
-          geocoded_label: gd?.display_name || '',
+          geocoded_label: gd?.displayName || '',
         }));
-      } catch { /* ignore reverse geocode errors */ }
+      } catch { /* координаты уже стоят, адрес можно вписать руками */ }
       // Scroll to form
       setTimeout(() => {
         document.querySelector('.gold-index__form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -663,12 +670,11 @@ export function GoldIndex({ formatMoney, toast }) {
           ...prev,
           [cityId]: { ...(prev[cityId] || {}), lat: latStr, lng: lngStr },
         }));
+        toast('Координаты точки подставлены', 'success');
       } else if (mode === 'edit') {
         setEditCompetitorDraft((d) => ({ ...(d || {}), lat: latStr, lng: lngStr }));
         setEditCompModal(true);
-        setTimeout(() => {
-          document.querySelector('.gold-index__map-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 120);
+        toast('Координаты обновлены, проверьте и сохраните', 'success');
       }
       setCompMapTarget(null);
       if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
@@ -1181,8 +1187,8 @@ export function GoldIndex({ formatMoney, toast }) {
     if (!editingCityId || !editDraft) return;
     const lat = parseFloat(String(editDraft.lat).replace(',', '.'));
     const lng = parseFloat(String(editDraft.lng).replace(',', '.'));
-    if (!editDraft.region_code?.trim() || !editDraft.region_name?.trim() || !editDraft.city_name?.trim()) {
-      toast('Укажите код региона, регион и город', 'error');
+    if (!editDraft.region_name?.trim() || !editDraft.city_name?.trim()) {
+      toast('Укажите регион и город', 'error');
       return;
     }
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -1191,7 +1197,7 @@ export function GoldIndex({ formatMoney, toast }) {
     }
     try {
       await api.goldIndexUpdateCity(editingCityId, {
-        region_code: editDraft.region_code,
+        region_code: editDraft.region_code?.trim() || editDraft.region_name.trim(),
         region_name: editDraft.region_name,
         city_name: editDraft.city_name,
         lat,
@@ -1226,19 +1232,42 @@ export function GoldIndex({ formatMoney, toast }) {
 
   async function submitCity(e) {
     e.preventDefault();
+    const regionName = String(cityDraft.region_name || '').trim();
+    const cityName = String(cityDraft.city_name || '').trim();
+    if (!regionName || !cityName) {
+      toast('Укажите регион и город', 'error');
+      return;
+    }
+    let lat = parseFloat(String(cityDraft.lat).replace(',', '.'));
+    let lng = parseFloat(String(cityDraft.lng).replace(',', '.'));
+    let geocodedLabel = cityDraft.geocoded_label?.trim() ? cityDraft.geocoded_label.trim() : null;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      setGeocodeBusy(true);
+      try {
+        const out = await api.goldIndexGeocode(buildGeocodePayload(cityDraft));
+        lat = out.lat;
+        lng = out.lng;
+        geocodedLabel = out.displayName || geocodedLabel;
+      } catch (geoErr) {
+        toast(geoErr?.message || 'Не удалось найти координаты. Укажите широту и долготу вручную.', 'error');
+        return;
+      } finally {
+        setGeocodeBusy(false);
+      }
+    }
     try {
       const { id: newCityId } = await api.goldIndexCreateCity({
-        region_code: cityDraft.region_code,
-        region_name: cityDraft.region_name,
-        city_name: cityDraft.city_name,
-        lat: parseFloat(String(cityDraft.lat).replace(',', '.')),
-        lng: parseFloat(String(cityDraft.lng).replace(',', '.')),
+        region_code: String(cityDraft.region_code || '').trim() || regionName,
+        region_name: regionName,
+        city_name: cityName,
+        lat,
+        lng,
         population: cityDraft.population === '' ? null : cityDraft.population,
         notes: cityDraft.notes || null,
         street: cityDraft.street?.trim() ? cityDraft.street.trim() : null,
         building: cityDraft.building?.trim() ? cityDraft.building.trim() : null,
         address_note: cityDraft.address_note?.trim() ? cityDraft.address_note.trim() : null,
-        geocoded_label: cityDraft.geocoded_label?.trim() ? cityDraft.geocoded_label.trim() : null,
+        geocoded_label: geocodedLabel,
       });
       toast('Город добавлен — теперь добавьте первого конкурента', 'success');
       setShowCityForm(false);
@@ -1262,11 +1291,16 @@ export function GoldIndex({ formatMoney, toast }) {
 
   async function submitCompetitor(cityId) {
     const d = compDraftByCity[cityId] || {};
+    const company = String(d.company_name || '').trim();
+    if (!company) {
+      toast('Укажите название компании', 'error');
+      return false;
+    }
     try {
       await api.goldIndexCreateCompetitor(cityId, {
-        company_name: d.company_name,
+        company_name: company,
         probes: d.probes || {},
-        measured_at: d.measured_at || null,
+        measured_at: d.measured_at || localToday(),
         address: d.address || null,
         comment: d.comment || null,
         notes: d.comment || d.notes || null,
@@ -1275,12 +1309,17 @@ export function GoldIndex({ formatMoney, toast }) {
       });
       toast('Конкурент добавлен', 'success');
       setCompDraft(cityId, { company_name: '', measured_at: '', probes: {}, address: '', comment: '', notes: '', lat: '', lng: '' });
-      // Remove temp GPS/map-click pin — it will be replaced by the real marker
       if (addPinRef.current) { addPinRef.current.remove(); addPinRef.current = null; }
-      await load();
-      await loadCityHistory(cityId);
+      try {
+        await load();
+        await loadCityHistory(cityId);
+      } catch {
+        toast('Запись сохранена, список обновится по кнопке «Обновить»', 'info');
+      }
+      return true;
     } catch (err2) {
       toast(err2?.message || 'Ошибка', 'error');
+      return false;
     }
   }
 
@@ -1754,20 +1793,17 @@ export function GoldIndex({ formatMoney, toast }) {
               <div className="gi-form-hint">
                 <span className="gi-form-hint-icon">📍</span>
                 <span>
-                  Введите регион и название города. Нажмите <strong>«Подставить координаты»</strong> — 
-                  система найдёт точку на карте автоматически. Или укажите координаты вручную 
-                  (<a href="https://www.openstreetmap.org/" target="_blank" rel="noreferrer">OpenStreetMap</a> → ПКМ по точке).
+                  Введите регион и город. Код региона можно не заполнять. Если широта и долгота пустые, при сохранении точка найдётся по адресу.
                 </span>
               </div>
               <div className="gold-index__grid">
                 <label className="field">
-                  <span className="field-label">Код региона</span>
+                  <span className="field-label">Код региона, если есть</span>
                   <input
                     className="input"
                     value={cityDraft.region_code}
                     onChange={(e) => setCityDraft((d) => ({ ...d, region_code: e.target.value }))}
-                    placeholder="например RU-KGD"
-                    required
+                    placeholder="можно не заполнять"
                   />
                 </label>
                 <label className="field">
@@ -1830,7 +1866,7 @@ export function GoldIndex({ formatMoney, toast }) {
                       className="input mono-nums"
                       value={cityDraft.lat}
                       onChange={(e) => setCityDraft((d) => ({ ...d, lat: e.target.value }))}
-                      required
+                      placeholder="подставится по адресу"
                     />
                   </label>
                   <label className="field" style={{ flex: 1 }}>
@@ -1839,7 +1875,7 @@ export function GoldIndex({ formatMoney, toast }) {
                       className="input mono-nums"
                       value={cityDraft.lng}
                       onChange={(e) => setCityDraft((d) => ({ ...d, lng: e.target.value }))}
-                      required
+                      placeholder="подставится по адресу"
                     />
                   </label>
                   <button
@@ -1907,8 +1943,8 @@ export function GoldIndex({ formatMoney, toast }) {
                   onChange={(e) => setCityDraft((d) => ({ ...d, notes: e.target.value }))}
                 />
               </label>
-              <button type="submit" className="btn-primary">
-                Сохранить город
+              <button type="submit" className="btn-primary" disabled={geocodeBusy}>
+                {geocodeBusy ? 'Ищем координаты…' : 'Сохранить город'}
               </button>
             </form>
           )}
@@ -2190,7 +2226,7 @@ export function GoldIndex({ formatMoney, toast }) {
                           </label>
                           <label className="field">
                             <span className="field-label">Дата замера</span>
-                            <input className="input" type="date" value={compDraftByCity[c.id]?.measured_at || new Date().toISOString().slice(0, 10)}
+                            <input className="input" type="date" value={compDraftByCity[c.id]?.measured_at || localToday()}
                               onChange={(e) => setCompDraft(c.id, { measured_at: e.target.value })} />
                           </label>
                         </div>
@@ -2262,7 +2298,8 @@ export function GoldIndex({ formatMoney, toast }) {
                           ))}
                         </div>
                         <button type="button" className="btn-primary" style={{ marginTop: 8 }} onClick={async () => {
-                          await submitCompetitor(c.id);
+                          const ok = await submitCompetitor(c.id);
+                          if (!ok) return;
                           setShowAddCompByCity((prev) => { const n = new Set(prev); n.delete(c.id); return n; });
                         }}>
                           Сохранить конкурента
@@ -2704,7 +2741,7 @@ export function GoldIndex({ formatMoney, toast }) {
         .gi-pct--orange { color: #9a3d0a; background: rgba(249,115,22,0.14); }
         .gi-pct--red    { color: #8c1c1c; background: rgba(239,68,68,0.14); }
         .gi-pct--neutral{ color: var(--accent-dim); background: rgba(139,124,255,0.14); }
-        .gi-city-head-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+        .gi-city-head-right { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
         .gi-city-pct { font-size: 0.8rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
         /* ── location section in competitor form ───────── */
         .gi-loc-section { margin-top: 8px; background: rgba(139,124,255,0.04); border: 1px solid var(--stroke); border-radius: 10px; padding: 10px 12px; }
@@ -2894,7 +2931,7 @@ export function GoldIndex({ formatMoney, toast }) {
           .gi-probe-val { font-size: 0.85rem; }
 
           /* Probe input grid */
-          .gold-index__probe-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 6px; }
+          .gold-index__probe-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 
           /* Competitor edit/add rows */
           .gi-comp-edit-row { flex-direction: column; }
@@ -3389,7 +3426,7 @@ export function GoldIndex({ formatMoney, toast }) {
                     <span className="field-label">Дата замера</span>
                     <input
                       className="input" type="date"
-                      value={draft.measured_at || new Date().toISOString().slice(0, 10)}
+                      value={draft.measured_at || localToday()}
                       onChange={(e) => setCompDraft(cityId, { measured_at: e.target.value })}
                     />
                   </label>
@@ -3445,7 +3482,8 @@ export function GoldIndex({ formatMoney, toast }) {
                   onClick={async () => {
                     setQuickModalSaving(true);
                     try {
-                      await submitCompetitor(cityId);
+                      const ok = await submitCompetitor(cityId);
+                      if (!ok) return;
                       closeQuickAddModal();
                       // Also expand the city card
                       setExpanded((prev) => { const n = new Set(prev); n.add(cityId); return n; });

@@ -14,7 +14,7 @@ const DEFAULT_SETTINGS = {
 
 async function logGoldIndexChange(supabase, payload) {
   const { error } = await supabase.from('gold_index_changes').insert(payload);
-  if (error) throw error;
+  if (error) console.warn('[gold index history]', error.message || error);
 }
 
 function parseThresholds() {
@@ -124,6 +124,24 @@ function buildLegacyCompetitorNotes({ address, comment, notes }) {
   return n || null;
 }
 
+function raiseDb(error) {
+  const msg = [error?.message, error?.details, error?.hint].filter(Boolean).join(' ').trim();
+  const e = new Error(msg || 'Не удалось сохранить запись индекса');
+  e.status = 400;
+  e.publicMessage = e.message;
+  throw e;
+}
+
+function isMissingCityAddressColumns(err) {
+  const hay = [err?.message, err?.details, err?.hint, err?.code, String(err || '')]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  const mentionsCity = hay.includes('gold_index_cities') || hay.includes('pgrst204') || hay.includes('column');
+  const mentionsCol = ['street', 'building', 'address_note', 'geocoded_label'].some((c) => hay.includes(c));
+  return mentionsCity && mentionsCol;
+}
+
 function isMissingCompetitorAddressColumns(err) {
   // Check all error fields — Supabase/PostgREST may use single or double quotes
   const haystack = [err?.message, err?.details, err?.hint, err?.code, String(err || '')]
@@ -141,6 +159,12 @@ function isMissingCompetitorAddressColumns(err) {
     haystack.includes('"comment"') ||
     haystack.includes('column address') ||
     haystack.includes('column comment') ||
+    haystack.includes("'lat'") ||
+    haystack.includes('"lat"') ||
+    haystack.includes('column lat') ||
+    haystack.includes("'lng'") ||
+    haystack.includes('"lng"') ||
+    haystack.includes('column lng') ||
     haystack.includes('pgrst204');
   return hasTable && hasCol;
 }
@@ -391,26 +415,31 @@ export async function createGoldIndexCity(supabase, body, createdBy) {
   const region_code = region_code_raw || region_name;
   // NB: `address` / `comment` here intentionally live only on competitors,
   // not on cities — the `gold_index_cities` table doesn't have those columns.
-  const { data, error } = await supabase
-    .from('gold_index_cities')
-    .insert({
-      region_code,
-      region_name,
-      city_name,
-      lat,
-      lng,
-      street,
-      building,
-      address_note,
-      geocoded_label,
-      population: Number.isFinite(population) ? population : null,
-      notes,
-      created_by: createdBy || null,
-      updated_at: now,
-    })
-    .select('id')
-    .maybeSingle();
-  if (error) throw error;
+  const insertRow = {
+    region_code,
+    region_name,
+    city_name,
+    lat,
+    lng,
+    street,
+    building,
+    address_note,
+    geocoded_label,
+    population: Number.isFinite(population) ? population : null,
+    notes,
+    created_by: createdBy || null,
+    updated_at: now,
+  };
+  let { data, error } = await supabase.from('gold_index_cities').insert(insertRow).select('id').maybeSingle();
+  if (error && isMissingCityAddressColumns(error)) {
+    const fallback = { ...insertRow };
+    delete fallback.street;
+    delete fallback.building;
+    delete fallback.address_note;
+    delete fallback.geocoded_label;
+    ({ data, error } = await supabase.from('gold_index_cities').insert(fallback).select('id').maybeSingle());
+  }
+  if (error) raiseDb(error);
   await logGoldIndexChange(supabase, {
     entity_type: 'city',
     entity_id: data?.id,
@@ -442,18 +471,37 @@ export async function updateGoldIndexCity(supabase, id, body, changedBy) {
     )
     .eq('id', id)
     .maybeSingle();
-  if (beforeErr) throw beforeErr;
+  if (beforeErr) raiseDb(beforeErr);
   const patch = {};
   if (body.region_code != null) patch.region_code = String(body.region_code).trim();
   if (body.region_name != null) patch.region_name = String(body.region_name).trim();
   if (body.city_name != null) patch.city_name = String(body.city_name).trim();
-  if (body.lat != null) patch.lat = parseFloat(body.lat);
-  if (body.lng != null) patch.lng = parseFloat(body.lng);
+  if (body.lat != null && String(body.lat).trim() !== '') {
+    const n = parseFloat(String(body.lat).replace(',', '.'));
+    if (!Number.isFinite(n)) {
+      const e = new Error('Некорректная широта');
+      e.status = 400;
+      e.publicMessage = e.message;
+      throw e;
+    }
+    patch.lat = n;
+  }
+  if (body.lng != null && String(body.lng).trim() !== '') {
+    const n = parseFloat(String(body.lng).replace(',', '.'));
+    if (!Number.isFinite(n)) {
+      const e = new Error('Некорректная долгота');
+      e.status = 400;
+      e.publicMessage = e.message;
+      throw e;
+    }
+    patch.lng = n;
+  }
   if (body.population !== undefined) {
-    patch.population =
-      body.population != null && body.population !== ''
-        ? Math.max(0, parseInt(String(body.population), 10))
-        : null;
+    if (body.population == null || body.population === '') patch.population = null;
+    else {
+      const n = parseInt(String(body.population), 10);
+      patch.population = Number.isFinite(n) ? Math.max(0, n) : null;
+    }
   }
   if (body.notes !== undefined) patch.notes = body.notes != null ? String(body.notes).trim() || null : null;
   if (body.street !== undefined) patch.street = body.street != null ? String(body.street).trim() || null : null;
@@ -465,8 +513,16 @@ export async function updateGoldIndexCity(supabase, id, body, changedBy) {
     patch.geocoded_label = body.geocoded_label != null ? String(body.geocoded_label).trim() || null : null;
   }
   patch.updated_at = new Date().toISOString();
-  const { error } = await supabase.from('gold_index_cities').update(patch).eq('id', id);
-  if (error) throw error;
+  let { error } = await supabase.from('gold_index_cities').update(patch).eq('id', id);
+  if (error && isMissingCityAddressColumns(error)) {
+    const fallback = { ...patch };
+    delete fallback.street;
+    delete fallback.building;
+    delete fallback.address_note;
+    delete fallback.geocoded_label;
+    ({ error } = await supabase.from('gold_index_cities').update(fallback).eq('id', id));
+  }
+  if (error) raiseDb(error);
   await logGoldIndexChange(supabase, {
     entity_type: 'city',
     entity_id: id,
@@ -485,9 +541,9 @@ export async function deleteGoldIndexCity(supabase, id, changedBy) {
     )
     .eq('id', id)
     .maybeSingle();
-  if (beforeErr) throw beforeErr;
+  if (beforeErr) raiseDb(beforeErr);
   const { error } = await supabase.from('gold_index_cities').delete().eq('id', id);
-  if (error) throw error;
+  if (error) raiseDb(error);
   // city_id = null because the city was just deleted (FK ON DELETE SET NULL)
   await logGoldIndexChange(supabase, {
     entity_type: 'city',
@@ -554,15 +610,18 @@ export async function createGoldIndexCompetitor(supabase, cityId, body, changedB
     .maybeSingle());
   if (error && isMissingCompetitorAddressColumns(error)) {
     const fallbackPayload = { ...insertPayload };
-    delete fallbackPayload.address;
-    delete fallbackPayload.comment;
+    const hay = String(error?.message || error?.details || '').toLowerCase();
+    if (hay.includes('address')) delete fallbackPayload.address;
+    if (hay.includes('comment')) delete fallbackPayload.comment;
+    if (hay.includes("'lat'") || hay.includes('"lat"') || hay.includes('column lat')) delete fallbackPayload.lat;
+    if (hay.includes("'lng'") || hay.includes('"lng"') || hay.includes('column lng')) delete fallbackPayload.lng;
     ({ data, error } = await supabase
       .from('gold_index_competitors')
       .insert(fallbackPayload)
       .select('id')
       .maybeSingle());
   }
-  if (error) throw error;
+  if (error) raiseDb(error);
   await logGoldIndexChange(supabase, {
     entity_type: 'competitor',
     entity_id: data?.id,
@@ -587,7 +646,7 @@ export async function updateGoldIndexCompetitor(supabase, id, body, changedBy) {
       .eq('id', id)
       .maybeSingle());
   }
-  if (beforeErr) throw beforeErr;
+  if (beforeErr) raiseDb(beforeErr);
   const patch = { updated_at: new Date().toISOString() };
   if (body.company_name != null) patch.company_name = String(body.company_name).trim();
   if (body.probes != null) patch.probes = normalizeProbes(body.probes);
@@ -615,11 +674,14 @@ export async function updateGoldIndexCompetitor(supabase, id, body, changedBy) {
   let { error } = await supabase.from('gold_index_competitors').update(patch).eq('id', id);
   if (error && isMissingCompetitorAddressColumns(error)) {
     const fallbackPatch = { ...patch };
-    delete fallbackPatch.address;
-    delete fallbackPatch.comment;
+    const hay = String(error?.message || error?.details || '').toLowerCase();
+    if (hay.includes('address')) delete fallbackPatch.address;
+    if (hay.includes('comment')) delete fallbackPatch.comment;
+    if (hay.includes("'lat'") || hay.includes('"lat"') || hay.includes('column lat')) delete fallbackPatch.lat;
+    if (hay.includes("'lng'") || hay.includes('"lng"') || hay.includes('column lng')) delete fallbackPatch.lng;
     ({ error } = await supabase.from('gold_index_competitors').update(fallbackPatch).eq('id', id));
   }
-  if (error) throw error;
+  if (error) raiseDb(error);
   await logGoldIndexChange(supabase, {
     entity_type: 'competitor',
     entity_id: id,
@@ -643,9 +705,9 @@ export async function deleteGoldIndexCompetitor(supabase, id, changedBy) {
       .eq('id', id)
       .maybeSingle());
   }
-  if (beforeErr) throw beforeErr;
+  if (beforeErr) raiseDb(beforeErr);
   const { error } = await supabase.from('gold_index_competitors').delete().eq('id', id);
-  if (error) throw error;
+  if (error) raiseDb(error);
   await logGoldIndexChange(supabase, {
     entity_type: 'competitor',
     entity_id: id,

@@ -3435,6 +3435,7 @@ app.post(
   asyncHandler(requireSuperAdmin),
   asyncHandler(async (req, res) => {
     const id = await createGoldIndexCity(supabase, req.body || {}, req.user.id);
+    cacheInvalidate('gold-index:');
     res.json({ id });
   })
 );
@@ -3446,6 +3447,7 @@ app.patch(
     const id = String(req.params.id || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Некорректный id' });
     await updateGoldIndexCity(supabase, id, req.body || {}, req.user.id);
+    cacheInvalidate('gold-index:');
     res.json({ ok: true });
   })
 );
@@ -3457,6 +3459,7 @@ app.delete(
     const id = String(req.params.id || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Некорректный id' });
     await deleteGoldIndexCity(supabase, id, req.user.id);
+    cacheInvalidate('gold-index:');
     res.json({ ok: true });
   })
 );
@@ -3468,6 +3471,7 @@ app.post(
     const cityId = String(req.params.cityId || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(cityId)) return res.status(400).json({ error: 'Некорректный id города' });
     const id = await createGoldIndexCompetitor(supabase, cityId, req.body || {}, req.user.id);
+    cacheInvalidate('gold-index:');
     res.json({ id });
   })
 );
@@ -3479,6 +3483,7 @@ app.patch(
     const id = String(req.params.id || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Некорректный id' });
     await updateGoldIndexCompetitor(supabase, id, req.body || {}, req.user.id);
+    cacheInvalidate('gold-index:');
     res.json({ ok: true });
   })
 );
@@ -3490,6 +3495,7 @@ app.delete(
     const id = String(req.params.id || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Некорректный id' });
     await deleteGoldIndexCompetitor(supabase, id, req.user.id);
+    cacheInvalidate('gold-index:');
     res.json({ ok: true });
   })
 );
