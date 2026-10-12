@@ -82,7 +82,7 @@ export function GramsSlider({ value, onChange, max = 500, allowType, typeMax }) 
   const sliderVal = Math.round(gramsToPos(Math.min(value, max), max) * 1000);
   return (
     <>
-      <div className="rl-calc-row">
+      <div className="rl-calc-row rl-calc-weight">
         <span>ВЕС, ГРАММ</span>
         {allowType ? (
           <input
@@ -821,6 +821,17 @@ export function RuSbpBadge({ className = '' }) {
   );
 }
 
+export const PAYOUT_DISCLAIMER = 'Выплата считается по официальному курсу выкупа офиса. Точная сумма — после проверки пробы и веса курьером.';
+
+export function PayoutDisclaimer() {
+  return (
+    <p className="rl-payout-note">
+      {PAYOUT_DISCLAIMER}
+      <RuSbpBadge className="rl-sbp--lg" />
+    </p>
+  );
+}
+
 export function RuFaq({ items }) {
   const [openFaq, setOpenFaq] = useState(-1);
   return (
@@ -1516,20 +1527,54 @@ export const RL_CSS = `
   color: var(--text-dim); background: none; border: none; cursor: pointer; transition: 0.2s;
 }
 .rl-seg button.is-active { background: var(--bg-panel-solid); color: var(--text-strong); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
-.rl-calc-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 18px; font-size: 0.76rem; color: var(--text-dim); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.rl-calc-row { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; font-size: 0.76rem; color: var(--text-dim); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .rl-calc-row b { font-size: 1rem; color: var(--text-strong); font-weight: 700; letter-spacing: 0; }
+.rl-calc-row.rl-calc-weight b {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 5.6rem; font-size: 1.85rem; font-weight: 800; line-height: 1;
+  padding: 10px 14px; letter-spacing: 0; text-transform: none;
+  color: #1a1408; background: #fff4cc; border: 2px solid #c9a227; border-radius: 14px;
+  box-shadow: 0 0 0 4px rgba(201, 162, 39, 0.28);
+}
 .rl-calc-num {
-  width: 74px; text-align: right; font: inherit; font-size: 1rem; font-weight: 700; letter-spacing: 0;
-  color: var(--text-strong); background: var(--bg-panel-solid); border: 1px solid var(--stroke);
-  border-radius: 8px; padding: 4px 8px;
+  width: 7.6rem; min-width: 7.6rem; text-align: center; font: inherit; font-size: 1.85rem; font-weight: 800; letter-spacing: 0; line-height: 1;
+  color: #1a1408; background: #fff4cc; border: 2px solid #c9a227;
+  border-radius: 14px; padding: 10px 12px;
+  box-shadow: 0 0 0 4px rgba(201, 162, 39, 0.28);
 }
 .rl-calc-num::-webkit-outer-spin-button,
 .rl-calc-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .rl-calc-num { -moz-appearance: textfield; appearance: textfield; }
-.rl-calc-card input[type=range],
-.rl-calc-range {
+.rl-calc-card input[type=range] {
   width: 100%; margin-top: 10px; accent-color: var(--accent);
   height: 28px; cursor: pointer;
+}
+.rl-calc-range {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 40px; margin: 12px 0 0; padding: 0;
+  background: transparent; cursor: pointer;
+}
+.rl-calc-range:focus { outline: none; }
+.rl-calc-range:focus-visible { outline: 2px solid #c9a227; outline-offset: 4px; border-radius: 8px; }
+.rl-calc-range::-webkit-slider-runnable-track {
+  height: 12px; border-radius: 99px;
+  background: linear-gradient(90deg, #8a6208, #f0c14a);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28);
+}
+.rl-calc-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 32px; height: 32px; margin-top: -10px; border-radius: 50%;
+  background: #c41e22; border: 3px solid #fff8e6;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
+}
+.rl-calc-range::-moz-range-track {
+  height: 12px; border-radius: 99px; border: 0;
+  background: linear-gradient(90deg, #8a6208, #f0c14a);
+}
+.rl-calc-range::-moz-range-thumb {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: #c41e22; border: 3px solid #fff8e6;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
 }
 .rl-calc-out {
   margin-top: 20px; padding: 18px 20px 16px; border-radius: 18px;
@@ -1537,9 +1582,14 @@ export const RL_CSS = `
   display: flex; flex-direction: column; justify-content: center; gap: 6px;
 }
 .rl-calc-out-label { font-size: 0.82rem; color: var(--text-dim); line-height: 1.35; }
-.rl-calc-out-val { font-size: clamp(1.85rem, 3.4vw, 2.35rem); font-weight: 800; letter-spacing: -0.03em; color: var(--text-strong); font-variant-numeric: tabular-nums; line-height: 1.1; }
-/* Светлая тема: сумма красным — как в калькуляторе заказа курьера */
-:root[data-theme='light'] .rl-calc-out-val { color: var(--accent); }
+.rl-calc-out-val,
+.rl-payout-sum { font-size: clamp(2.05rem, 4vw, 2.7rem); font-weight: 800; letter-spacing: -0.03em; color: #f0c14a; font-variant-numeric: tabular-nums; line-height: 1.1; }
+:root[data-theme='light'] .rl-calc-out-val,
+:root[data-theme='light'] .rl-payout-sum { color: #8a6208; }
+.rl-payout-note {
+  margin: 8px 0 0; font-size: 0.9rem; line-height: 1.45; color: var(--text-dim);
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+}
 .rl-calc-cta { display: block; width: 100%; text-align: center; margin-top: 18px; }
 .rl-photo-field { margin-top: 14px; }
 .rl-photo-cta {
@@ -1565,6 +1615,16 @@ export const RL_CSS = `
 .rl-sbp { display: inline-flex; align-items: center; gap: 3px; vertical-align: -3px; margin-left: 6px; }
 .rl-sbp img { height: 15px; width: auto; display: block; }
 .rl-sbp b { font-size: 0.72em; font-weight: 800; letter-spacing: 0.01em; color: var(--text-dim); }
+.rl-sbp--lg { margin-left: 0; gap: 6px; }
+.rl-sbp--lg img { height: 26px; }
+.rl-sbp--lg b { font-size: 0.95rem; color: var(--text-strong); }
+.rl-urgent-btn {
+  width: 100%; margin-top: 12px; min-height: 54px; border-radius: 14px;
+  border: 2px solid #c9a227; background: #fff4cc; color: #1a1408;
+  font: inherit; font-size: 1.02rem; font-weight: 800; cursor: pointer;
+}
+.rl-urgent-btn:hover { transform: translateY(-1px); }
+.rl-urgent-btn:disabled { opacity: 0.7; cursor: wait; transform: none; }
 .rl-calc-out-label { display: inline-flex; align-items: center; }
 .rl-calc-mini { display: flex; gap: 18px; margin-top: 14px; flex-wrap: wrap; }
 .rl-calc-mini div { font-size: 0.72rem; color: var(--text-dim); }

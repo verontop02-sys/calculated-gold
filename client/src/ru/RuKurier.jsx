@@ -4,7 +4,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuMarquee, RuPhotoField, RuSbpBadge, RuThemedImg, RuTiltCard,
+  PayoutDisclaimer,
+  RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuMarquee, RuPhotoField, RuThemedImg, RuTiltCard,
   GramsSlider, formatMoney, isLeadName, isRuPhone, setDraftMeta, useGoldQuote, useRuLenis,
   quoteForChannel, quotePayoutRange, quoteBuybackPctLabel,
 } from './RuShared.jsx';
@@ -129,7 +130,7 @@ function pinDivIcon() {
  * перетащить, если геокодер ошибся). Перетаскивание маркера ВСЕГДА
  * перезаписывает адрес — это явное «поправь точку», а не случайный ввод.
  */
-function KurierLocationField({ city, setCity, address, setAddress, lat, lng, setCoords }) {
+export function KurierLocationField({ city, setCity, address, setAddress, lat, lng, setCoords }) {
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState('');
   const mapElRef = useRef(null);
@@ -165,27 +166,42 @@ function KurierLocationField({ city, setCity, address, setAddress, lat, lng, set
     }
   }
 
-  function locate() {
+  function requestPosition(options) {
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, options);
+    });
+  }
+
+  async function locate() {
     if (!navigator.geolocation) {
       setError('Геолокация не поддерживается этим браузером — укажите адрес вручную');
       return;
     }
     setError('');
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const la = pos.coords.latitude;
-        const lo = pos.coords.longitude;
-        setCoords(la, lo);
-        setLocating(false);
-        reverseGeocode(la, lo);
-      },
-      () => {
-        setError('Не удалось определить местоположение — укажите адрес вручную');
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
-    );
+    try {
+      // На Mac нет GPS: режим высокой точности часто уходит в таймаут.
+      // Сначала место по сети, и только если не вышло — точный запрос.
+      let pos;
+      try {
+        pos = await requestPosition({ enableHighAccuracy: false, timeout: 10000, maximumAge: 120000 });
+      } catch (err) {
+        if (err?.code === 1) throw err;
+        pos = await requestPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+      }
+      const la = pos.coords.latitude;
+      const lo = pos.coords.longitude;
+      setCoords(la, lo);
+      await reverseGeocode(la, lo);
+    } catch (err) {
+      if (err?.code === 1) {
+        setError('Браузер не дал доступ к геолокации. На Mac: Системные настройки, Конфиденциальность и безопасность, Службы геолокации, и разрешите браузеру. Адрес можно написать вручную.');
+      } else {
+        setError('Не удалось определить место. Напишите город и адрес вручную, заявка уйдёт и так.');
+      }
+    } finally {
+      setLocating(false);
+    }
   }
 
   // Карта появляется, когда есть координаты; маркер можно перетащить, если геокодер ошибся.
@@ -311,7 +327,9 @@ export function KurierOrderCard({ quote, pulseKey }) {
     }
     if (!cityLabel || cityLabel.length < 2) return setError('Укажите город');
     if (address.trim().length < 5) return setError('Укажите адрес для курьера');
-    if (!isKurierDayAllowed(day, now) || !isKurierTimeAllowed(day, time, now)) {
+    const urgent = e.nativeEvent?.submitter?.dataset?.urgent === '1';
+    const visitTime = time || (urgent ? (quickTimes[0] || '') : '');
+    if (!isKurierDayAllowed(day, now) || !isKurierTimeAllowed(day, visitTime, now)) {
       return setError('Выберите дату и время визита');
     }
     if (!isLeadName(name)) return setError('Укажите имя');
@@ -328,11 +346,12 @@ export function KurierOrderCard({ quote, pulseKey }) {
         lat,
         lng,
         date: day,
-        time,
+        time: visitTime,
         website,
         fields: {
           'Проба (заявка)': isUnknownProba ? 'не знает' : String(proba),
           'Вес, г': String(grams),
+          ...(urgent ? { 'Срочный вызов': 'да, 0 ₽' } : {}),
           ...(photoUrl ? { 'Фото изделия': photoUrl } : {}),
           ...(photoPath ? { photoPath } : {}),
         },
@@ -412,10 +431,10 @@ export function KurierOrderCard({ quote, pulseKey }) {
         <RuPhotoField photoUrl={photoUrl} setPhotoUrl={setPhotoUrl} setPhotoPath={setPhotoPath} />
 
         <div className="rl-price-range">
-          <span className="rl-price-range-val">
+          <span className="rl-price-range-val rl-payout-sum">
             {priceLow != null && priceHigh != null ? `≈ ${formatMoney(roundTo100(priceLow))} – ${formatMoney(roundTo100(priceHigh))}` : '· · ·'}
           </span>
-          <p>Точная сумма — после оценки веса и пробы курьером на месте. Курьер бесплатный<RuSbpBadge /></p>
+          <PayoutDisclaimer />
         </div>
       </div>
 
@@ -480,6 +499,9 @@ export function KurierOrderCard({ quote, pulseKey }) {
           <span>Согласен на <a href="/privacy" target="_blank" rel="noreferrer">обработку персональных данных</a> для оформления заявки</span>
         </label>
 
+        <button type="submit" className="rl-urgent-btn" data-urgent="1" disabled={phase === 'sending'}>
+          Срочный вызов курьера · 0 ₽
+        </button>
         <motion.button type="submit" className="il-btn il-btn--primary il-btn--lg" style={{ width: '100%' }} disabled={phase === 'sending'} whileTap={{ scale: 0.97 }}>
           {phase === 'sending' ? (<><span className="rl-btn-spin" aria-hidden /> Отправляем…</>) : 'Забронировать'}
         </motion.button>
@@ -685,9 +707,9 @@ export const KURIER_CSS = `
   background: var(--stroke-soft); text-align: left;
   display: flex; flex-direction: column; justify-content: center; gap: 8px;
 }
-.rl-price-range-val { display: block; font-size: clamp(1.55rem, 3vw, 2.05rem); font-weight: 800; letter-spacing: -0.02em; color: #fff; font-variant-numeric: tabular-nums; line-height: 1.15; }
-:root[data-theme='light'] .rl-price-range-val { color: var(--accent); }
-.rl-price-range p { margin: 0; font-size: 0.86rem; color: var(--text-dim); line-height: 1.45; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.rl-price-range-val { display: block; font-size: clamp(1.85rem, 3.4vw, 2.45rem); font-weight: 800; letter-spacing: -0.02em; color: #f0c14a; font-variant-numeric: tabular-nums; line-height: 1.15; }
+:root[data-theme='light'] .rl-price-range-val { color: #8a6208; }
+.rl-price-range .rl-payout-note { margin: 0; }
 
 .rl-order-divider { display: flex; align-items: center; gap: 10px; margin: 26px 0 4px; }
 .rl-order-col--calc > .rl-order-divider:first-child { margin-top: 0; }
@@ -713,12 +735,12 @@ export const KURIER_CSS = `
 .rl-order-card .rl-loc { margin-top: 12px; }
 .rl-loc-geo-btn {
   width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 12px 16px; border-radius: 12px; font: inherit; font-size: 0.88rem; font-weight: 700;
-  color: #fff; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  padding: 16px 18px; border-radius: 14px; font: inherit; font-size: 1.02rem; font-weight: 800;
+  color: #fff; background: #c41e22; border: 0;
+  box-shadow: 0 12px 28px -14px rgba(196, 30, 34, 0.85);
   cursor: pointer; transition: 0.2s;
 }
-/* Светлая тема: белый на бледно-красном плохо читается — тёмный текст, булавка остаётся красной. */
-:root[data-theme='light'] .rl-loc-geo-btn { color: var(--text-strong); }
+:root[data-theme='light'] .rl-loc-geo-btn { color: #fff; background: #c41e22; }
 .rl-loc-geo-pin { flex-shrink: 0; line-height: 1; filter: none; }
 .rl-loc-geo-btn:hover { transform: translateY(-1px); }
 .rl-loc-geo-btn:disabled { opacity: 0.7; cursor: wait; }

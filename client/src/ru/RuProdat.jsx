@@ -3,7 +3,7 @@ import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
   RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuSbpBadge, RuThemedImg, RuTiltCard,
-  GramsSlider, formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
+  GramsSlider, PayoutDisclaimer, formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
   quoteForChannel, quotePerGram, quotePayout, quoteBuybackPctLabel,
 } from './RuShared.jsx';
 
@@ -78,9 +78,9 @@ function BigCalcCard({ quote, pulseKey }) {
       </div>
       <div className="rl-calc-out">
         <span className="rl-calc-out-label">Вы получите наличными или переводом<RuSbpBadge /></span>
-        <span className="rl-calc-out-val">{sumDisplay != null ? formatMoney(sumDisplay) : '· · ·'}</span>
+        <span className="rl-calc-out-val rl-payout-sum">{sumDisplay != null ? formatMoney(sumDisplay) : '· · ·'}</span>
+        <PayoutDisclaimer />
       </div>
-      <p className="rl-calc-note">Точная сумма определяется после проверки пробы на месте.</p>
       <a href="#zayavka" className="rl-btn rl-btn--primary rl-calc-cta">Продать золото</a>
     </motion.div>
   );

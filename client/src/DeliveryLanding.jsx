@@ -22,6 +22,7 @@ import {
   RuKpis,
   RuLeadForm,
   RuMarquee,
+  PayoutDisclaimer,
   RuSbpBadge,
   RuStatement,
   RuThemedImg,
@@ -29,7 +30,7 @@ import {
   isRuPhone,
   useAnimatedNumber,
 } from './ru/RuShared.jsx';
-import { KURIER_CSS, KurierOrderCard } from './ru/RuKurier.jsx';
+import { KURIER_CSS, KurierLocationField, KurierOrderCard } from './ru/RuKurier.jsx';
 import { pickNextCourierSlot } from './ru/kurierSlots.js';
 import { useToast } from './ToastContext.jsx';
 import { ymReachGoal } from './yandexMetrika.js';
@@ -394,29 +395,28 @@ const MOB_STAGGER_CHILD = {
   show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] } },
 };
 
-function DutyBar() {
-  const compact = useCompactMq();
+function DutyTicker() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(id);
   }, []);
-  const onDuty = (() => {
-    const h = moscowHour(now);
-    return h >= 9 && h < 21;
-  })();
+  const h = moscowHour(now);
+  const onDuty = h >= 9 && h < 22;
   const time = new Intl.DateTimeFormat('ru-RU', {
     timeZone: 'Europe/Moscow',
     hour: '2-digit',
     minute: '2-digit',
   }).format(now);
+  const line = onDuty
+    ? `Курьеры на линии · Москва ${time} · Срочный вызов курьера 0 ₽ · Фиксация курса 15 минут`
+    : `Заявки принимаем — перезвоним утром · Москва ${time} · Срочный вызов курьера 0 ₽ · Фиксация курса 15 минут`;
   return (
-    <div className="dl2-duty" role="status">
-      <span className={`dl2-duty-dot${onDuty ? ' is-on' : ''}`} aria-hidden />
-      <b>{onDuty ? (compact ? 'На линии' : 'Курьеры на линии') : (compact ? 'Перезвоним утром' : 'Заявки принимаем — перезвоним утром')}</b>
-      <span>{compact ? time : `Москва ${time}`}</span>
-      <span>{compact ? '0 ₽' : 'Вызов 0 ₽'}</span>
-      <span>{compact ? '15 мин' : 'Фиксация 15 мин'}</span>
+    <div className="dl2-ticker" role="status" aria-live="polite">
+      <div className="dl2-ticker-track">
+        <span>{line}</span>
+        <span aria-hidden="true">{line}</span>
+      </div>
     </div>
   );
 }
@@ -487,6 +487,8 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
   const [address, setAddress] = useState('');
+  const [lat, setLat] = useState(null);
+  const [lng, setLng] = useState(null);
   const [photoUrl, setPhotoUrl] = useState('');
   const [photoPath, setPhotoPath] = useState('');
   const [phase, setPhase] = useState('idle');
@@ -529,6 +531,7 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
       setError('Нужен адрес: улица, дом, подъезд');
       return;
     }
+    const urgent = e.nativeEvent?.submitter?.dataset?.urgent === '1';
     const inZone = isCourierZone(city);
     const modeLabel = mode === 'branch' ? 'В филиале' : mode === 'photo' ? 'Оценка по фото' : 'Курьер к вам';
     const fields = {
@@ -538,6 +541,7 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
       Проба: String(purity || 585),
       'Вес, г': String(grams || '—'),
       'Предварительно до': ceiling != null ? formatMoney(Math.round(ceiling)) : '—',
+      ...(urgent ? { 'Срочный вызов': 'да, 0 ₽' } : {}),
       ...(photoUrl ? { 'Фото изделия': photoUrl } : {}),
       ...(photoPath ? { photoPath } : {}),
       Источник: 'reaktivo.pro',
@@ -554,6 +558,8 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
               phone: phone.trim(),
               city,
               address: address.trim(),
+              lat,
+              lng,
               date: slot.date,
               time: slot.time,
               fields,
@@ -618,20 +624,27 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
             </div>
             <div className="dl2-modal-sum">
               <span>Предварительно, до<small>Проба {purity || 585} · {grams || 10} г</small></span>
-              <b className="mono-nums">{ceiling != null ? formatMoney(Math.round(ceiling)) : '—'}</b>
+              <b className="mono-nums rl-payout-sum">{ceiling != null ? formatMoney(Math.round(ceiling)) : '—'}</b>
             </div>
+            <PayoutDisclaimer />
             <label className="dl2-modal-field">
               <span>Телефон</span>
               <input type="tel" inputMode="tel" autoComplete="tel" enterKeyHint="next" placeholder="+7 900 000-00-00" value={phone} onChange={(e) => setPhone(e.target.value)} />
             </label>
-            <label className="dl2-modal-field">
-              <span>Город</span>
-              <input autoComplete="address-level2" enterKeyHint="next" placeholder="Москва" value={city} onChange={(e) => setCity(e.target.value)} />
-            </label>
-            {mode === 'courier' && (
+            {mode === 'courier' ? (
+              <KurierLocationField
+                city={city}
+                setCity={setCity}
+                address={address}
+                setAddress={setAddress}
+                lat={lat}
+                lng={lng}
+                setCoords={(la, lo) => { setLat(la); setLng(lo); }}
+              />
+            ) : (
               <label className="dl2-modal-field">
-                <span>Адрес встречи</span>
-                <input autoComplete="street-address" enterKeyHint="done" placeholder="Улица, дом, подъезд" value={address} onChange={(e) => setAddress(e.target.value)} />
+                <span>Город</span>
+                <input autoComplete="address-level2" enterKeyHint="next" placeholder="Москва" value={city} onChange={(e) => setCity(e.target.value)} />
               </label>
             )}
             {mode === 'photo' && (
@@ -649,6 +662,11 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
                     : 'Курьер сейчас в Москве и области. Ваш город запишем в лист ожидания.'}
             </p>
             {error && <p className="il-lead-err" role="alert">{error}</p>}
+            {mode === 'courier' && (
+              <button type="submit" className="rl-urgent-btn" data-urgent="1" disabled={phase === 'sending'}>
+                Срочный вызов курьера · 0 ₽
+              </button>
+            )}
             <button type="submit" className="il-btn il-btn--primary dl2-modal-submit" disabled={phase === 'sending'}>
               {phase === 'sending' ? 'Отправляем…' : mode === 'branch' ? 'Записаться' : mode === 'photo' ? 'Отправить на оценку' : 'Вызвать курьера'}
             </button>
@@ -884,9 +902,10 @@ export function DeliveryLanding() {
       </div>
       <div className="dl2-quick-out">
         <span className="dl2-quick-label">Вы получите до</span>
-        <b className="dl2-quick-sum mono-nums">
+        <b className="dl2-quick-sum rl-payout-sum mono-nums" key={quickGrams}>
           {waitingQuote ? <Skel wide /> : quickCeiling != null ? formatMoney(Math.round(quickCeiling)) : '—'}
         </b>
+        <PayoutDisclaimer />
         <small>
           {quoteFailed
             ? 'Курс недоступен, перезвоним с точной суммой'
@@ -1069,10 +1088,12 @@ export function DeliveryLanding() {
           imgLight="/ru/courier-light.jpg"
           imgPos="50% 36%"
           kicker="Скупка золота с выездом курьера · Москва и МО"
-          title={<>Золото — это деньги, <br />не выходя <span className="il-accent-text">из дома</span>.</>}
+          title={<>Золото — это деньги, <br />не выходя <span className="il-accent-text">из дома</span></>}
           sub="Посчитайте сумму и выберите, как продать. Курьер приедет и заплатит сразу."
           aside={quickCalc}
         />
+
+        <DutyTicker />
 
         <section className="il-section dl2-order-section" id="order">
           <div className="il-section-inner">
@@ -1093,8 +1114,6 @@ export function DeliveryLanding() {
           'Наличные или СБП',
           'Москва и МО',
         ]} />
-
-        <DutyBar />
 
         <section className="il-section rl-kpis-section">
           <div className="il-section-inner">
@@ -1135,12 +1154,10 @@ export function DeliveryLanding() {
               </motion.div>
             </motion.div>
             <Reveal delay={0.2} className="dl2-calc-note">
-              <p className="il-p">
-                Выплата считается по официальному курсу выкупа офиса, не «от потолка». Точная сумма — после проверки пробы и веса курьером.
-              </p>
               <Magnetic>
-                <button type="button" className="il-btn il-btn--primary dl2-open-call" onClick={openCall}>Продать золото</button>
+                <button type="button" className="il-btn il-btn--primary dl2-sell-main dl2-open-call" onClick={openCall}>Продать золото</button>
               </Magnetic>
+              <PayoutDisclaimer />
             </Reveal>
           </div>
         </section>
@@ -1471,7 +1488,8 @@ const DL2_CSS = `
   margin-bottom: 14px; padding: 14px 16px; border-radius: 14px; background: var(--bg);
 }
 .dl2-modal-sum span { color: var(--text-muted); font-size: 0.92rem; }
-.dl2-modal-sum b { font-size: 1.35rem; letter-spacing: -0.03em; }
+.dl2-modal-sum b { font-size: 1.7rem; letter-spacing: -0.03em; color: #f0c14a; }
+:root[data-theme='light'] .dl2-modal-sum b { color: #8a6208; }
 .dl2-modal-field { display: grid; gap: 6px; margin-bottom: 12px; font-size: 0.78rem; font-weight: 700; color: var(--text-dim); }
 .dl2-modal-field input, .dl2-modal-field select {
   width: 100%; box-sizing: border-box; min-height: 48px; padding: 12px 14px;
@@ -1558,24 +1576,29 @@ const DL2_CSS = `
 .dl2-hp { position: absolute; left: -9999px; height: 0; width: 0; opacity: 0; pointer-events: none; }
 .dl2-fine { margin: 0; color: var(--text-dim); font-size: 0.75rem; line-height: 1.45; }
 .dl2-fine a { color: var(--text-strong); }
-.dl2-calc-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--stroke-soft); }
-.dl2-calc-note .il-p { max-width: 46ch; }
+.dl2-calc-note { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--stroke-soft); }
+.dl2-calc-note .rl-payout-note { max-width: 62ch; margin: 0; }
+.dl2-sell-main { min-height: 68px; font-size: 1.25rem; padding: 18px 40px; width: min(440px, 100%); justify-content: center; }
+.dl2-ticker {
+  overflow: hidden; background: #1a1408; color: #f6e7c1;
+  border-top: 2px solid #c9a227; border-bottom: 2px solid #c9a227;
+}
+.dl2-ticker-track { display: flex; width: max-content; animation: dl2Tick 32s linear infinite; }
+.dl2-ticker span {
+  padding: 12px 48px 12px 0; font-weight: 800; font-size: 1rem; letter-spacing: 0.01em; white-space: nowrap;
+}
+@keyframes dl2Tick { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .dl2-ticker-track { animation: none; width: 100%; }
+  .dl2-ticker span[aria-hidden] { display: none; }
+  .dl2-ticker span { white-space: normal; padding: 12px 16px; }
+}
 .dl2-sticky { display: none; }
 .dl2-cta-short { display: none; }
 .dl2-live-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .dl2-sent { display: flex; flex-direction: column; gap: 14px; }
-.dl2-duty {
-  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
-  gap: 8px 18px; padding: 12px 16px;
-  border-bottom: 1px solid var(--stroke-soft);
-  font-size: 0.8rem; color: var(--text-muted);
-  background: color-mix(in srgb, var(--bg-panel-solid) 72%, transparent);
-}
-.dl2-duty b { color: var(--text-strong); font-weight: 800; }
-.dl2-duty-dot {
-  width: 8px; height: 8px; border-radius: 99px; background: var(--text-dim); flex-shrink: 0;
-}
-.dl2-duty-dot.is-on { background: #3dff8a; box-shadow: 0 0 10px rgba(61, 255, 138, 0.5); }
+.dl2-modal-sum b.rl-payout-sum { color: #f0c14a; font-size: 1.7rem; }
+:root[data-theme='light'] .dl2-modal-sum b.rl-payout-sum { color: #8a6208; }
 .dl2-path { position: relative; height: auto; min-height: 0; padding: 72px 0 56px; }
 .dl2-path--static { height: auto; }
 .dl2-path-sticky {
@@ -1795,17 +1818,7 @@ const DL2_CSS = `
   .dl2-root .il-btn--header-buy { padding: 8px 12px; font-size: 0.8rem; }
   .dl2-root .il-logo { gap: 8px; }
   .dl2-root .il-logo-mark { width: 34px; height: 34px; }
-  .dl2-duty {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    gap: 10px 14px;
-    padding: 10px 16px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .dl2-duty::-webkit-scrollbar { display: none; }
-  .dl2-duty span, .dl2-duty b { white-space: nowrap; font-size: 0.75rem; }
+  .dl2-ticker span { font-size: 0.95rem; padding-top: 11px; padding-bottom: 11px; }
   .dl2-path { padding: 36px 0 24px; height: auto; min-height: 0; }
   .dl2-path-sticky { min-height: 0; height: auto; align-items: flex-start; }
   .dl2-path-inner {
@@ -1879,7 +1892,7 @@ const DL2_CSS = `
   display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px;
   width: 100%; align-self: center;
 }
-.dl2-quick .rl-calc-num { width: 96px; min-width: 96px; text-align: right; }
+.dl2-quick .rl-calc-num { width: 7.6rem; min-width: 7.6rem; text-align: center; }
 .dl2-quick-actions .il-btn { white-space: nowrap; font-size: 0.95rem; }
 .dl2-quick-in, .dl2-quick-out {
   display: flex; flex-direction: column; gap: 12px; min-width: 0;
@@ -1910,9 +1923,12 @@ const DL2_CSS = `
   border: 0; padding: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; cursor: pointer;
 }
 .dl2-quick-sum {
-  font-size: clamp(2.3rem, 5vw, 3.2rem); line-height: 1; letter-spacing: -0.04em;
-  font-weight: 800; color: var(--text-strong);
+  font-size: clamp(2.6rem, 5.4vw, 3.6rem); line-height: 1; letter-spacing: -0.04em;
+  font-weight: 800; color: #f0c14a;
+  animation: dl2SumPop 0.28s ease;
 }
+:root[data-theme='light'] .dl2-quick-sum { color: #8a6208; }
+@keyframes dl2SumPop { from { transform: scale(1.06); } to { transform: scale(1); } }
 .dl2-quick-out small { color: var(--text-dim); font-size: 0.8rem; }
 .dl2-quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
 .dl2-quick-actions .il-btn { justify-content: center; min-height: 50px; padding-left: 10px; padding-right: 10px; }
@@ -1946,10 +1962,8 @@ const DL2_CSS = `
   .dl2-quick-actions .il-btn { min-height: 52px; font-size: 1rem; }
   .dl2-quick-hint { margin-top: 2px; }
 
-  .dl2-order-section,
   .dl2-root .il-marquee,
   .dl2-root .rl-kpis-section,
-  .dl2-root #calc,
   .dl2-root #track,
   .dl2-root #referral,
   .dl2-root .il-license-qr-card,

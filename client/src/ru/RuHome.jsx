@@ -3,7 +3,7 @@ import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
   RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuMarketTiles, RuMarquee, RuPhotoCard, RuSbpBadge, RuStatement, RuThemedImg, RuTiltCard,
-  GramsSlider, formatMoney, officeHallPhoto, ruHref, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
+  GramsSlider, PayoutDisclaimer, formatMoney, officeHallPhoto, ruHref, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
   quoteForChannel, quotePayout,
 } from './RuShared.jsx';
 
@@ -82,7 +82,8 @@ function LiveCalcCard({ quote }) {
       <GramsSlider value={grams} onChange={setGrams} max={500} />
       <div className="rl-calc-out">
         <span className="rl-calc-out-label">Вы получите наличными или переводом<RuSbpBadge /></span>
-        <span className="rl-calc-out-val">{sumDisplay != null ? formatMoney(sumDisplay) : '· · ·'}</span>
+        <span className="rl-calc-out-val rl-payout-sum">{sumDisplay != null ? formatMoney(sumDisplay) : '· · ·'}</span>
+        <PayoutDisclaimer />
       </div>
       <a href={ruHref('prodat', '#zayavka')} className="rl-btn rl-btn--primary rl-calc-cta">Точный расчёт и вызов курьера</a>
     </motion.div>
