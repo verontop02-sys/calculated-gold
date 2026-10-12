@@ -1619,7 +1619,8 @@ export const RL_CSS = `
 .rl-sbp--lg img { height: 26px; }
 .rl-sbp--lg b { font-size: 0.95rem; color: var(--text-strong); }
 .rl-urgent-btn {
-  width: 100%; margin-top: 12px; min-height: 54px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; margin: 16px 0 20px; min-height: 54px; border-radius: 14px;
   border: 2px solid #c9a227; background: #fff4cc; color: #1a1408;
   font: inherit; font-size: 1.02rem; font-weight: 800; cursor: pointer;
 }
