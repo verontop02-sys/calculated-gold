@@ -34,6 +34,10 @@ const STATUS_TABS = [
 
 const STATUS_LABEL = { new: 'Новая', in_progress: 'В работе', done: 'Обработана' };
 
+function isUrgentLead(lead) {
+  return /^да/i.test(String(lead?.fields?.['Срочный вызов'] || ''));
+}
+
 function leadDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -91,6 +95,7 @@ function LeadModal({ lead, busy, onClose, onSetStatus }) {
             {lead.status !== 'new' && (
               <span className={`cg-leads__status cg-leads__status--${lead.status}`}>{STATUS_LABEL[lead.status]}</span>
             )}
+            {isUrgentLead(lead) && <span className="cg-leads__urgent">Вперёд очереди</span>}
           </div>
           <button type="button" className="cg-leads__modal-close" onClick={onClose} aria-label="Закрыть">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -176,10 +181,14 @@ export function LeadsPage({ toast }) {
     return () => clearInterval(id);
   }, [load]);
 
-  const visibleLeads = useMemo(
-    () => (sourceFilter === 'all' ? leads : leads.filter((l) => l.source === sourceFilter)),
-    [leads, sourceFilter]
-  );
+  const visibleLeads = useMemo(() => {
+    const list = sourceFilter === 'all' ? leads : leads.filter((l) => l.source === sourceFilter);
+    return [...list].sort((a, b) => {
+      const rank = (isUrgentLead(b) ? 1 : 0) - (isUrgentLead(a) ? 1 : 0);
+      if (rank !== 0) return rank;
+      return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    });
+  }, [leads, sourceFilter]);
 
   // Источники строим из того, что реально встречается в текущей выборке — не показываем
   // пустые пункты фильтра для форм, с которых заявок ещё не было.
@@ -270,7 +279,7 @@ export function LeadsPage({ toast }) {
             return (
               <article
                 key={lead.id}
-                className={`cg-leads__card cg-leads__card--${lead.status}`}
+                className={`cg-leads__card cg-leads__card--${lead.status}${isUrgentLead(lead) ? ' cg-leads__card--urgent' : ''}`}
                 onClick={() => setOpenLeadId(lead.id)}
                 role="button"
                 tabIndex={0}
@@ -285,6 +294,7 @@ export function LeadsPage({ toast }) {
                     {lead.status !== 'new' && (
                       <span className={`cg-leads__status cg-leads__status--${lead.status}`}>{STATUS_LABEL[lead.status]}</span>
                     )}
+                    {isUrgentLead(lead) && <span className="cg-leads__urgent">Вперёд очереди</span>}
                   </div>
                   <div className="cg-leads__person">
                     <strong className="cg-leads__name">{lead.name}</strong>
@@ -355,6 +365,12 @@ const LEADS_CSS = `
 .cg-leads__status { font-size: 0.7rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
 .cg-leads__status--in_progress { color: #b45309; background: color-mix(in srgb, #f59e0b 14%, transparent); }
 .cg-leads__status--done { color: #15803d; background: color-mix(in srgb, #22c55e 14%, transparent); }
+.cg-leads__urgent {
+  font-size: 0.7rem; font-weight: 800; letter-spacing: 0.02em;
+  padding: 3px 9px; border-radius: 999px;
+  color: #9a3412; background: #fff4cc; border: 1px solid #e2b340;
+}
+.cg-leads__card--urgent { border-color: #e2b340; }
 
 .cg-leads__person { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .cg-leads__person--modal { margin-top: 4px; }

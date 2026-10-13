@@ -13,7 +13,7 @@ import { clientApi } from '../api.js';
 import { ymReachGoal } from '../yandexMetrika.js';
 import {
   formatKurierTimeLabel, getAvailableDays,
-  getQuickTimes, isKurierDayAllowed, isKurierTimeAllowed,
+  getQuickTimes, isKurierDayAllowed, isKurierTimeAllowed, isMoscowOffDuty,
 } from './kurierSlots.js';
 
 const STEPS = [
@@ -270,6 +270,7 @@ export function KurierOrderCard({ quote, pulseKey }) {
   const [grams, setGrams] = useState(12);
 
   const [phase, setPhase] = useState('idle'); // idle | sending | sent
+  const [sentUrgent, setSentUrgent] = useState(false);
   const [error, setError] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -351,12 +352,16 @@ export function KurierOrderCard({ quote, pulseKey }) {
         fields: {
           'Проба (заявка)': isUnknownProba ? 'не знает' : String(proba),
           'Вес, г': String(grams),
-          ...(urgent ? { 'Срочный вызов': 'да, 0 ₽' } : {}),
+          ...(urgent ? {
+            'Срочный вызов': 'да, вне очереди, 0 ₽',
+            'Очередь': 'вперёд всех',
+          } : {}),
           ...(photoUrl ? { 'Фото изделия': photoUrl } : {}),
           ...(photoPath ? { photoPath } : {}),
         },
       });
-      ymReachGoal('lead', { source: 'kurier' });
+      ymReachGoal('lead', { source: urgent ? 'kurier-urgent' : 'kurier' });
+      setSentUrgent(urgent);
       setPhase('sent');
     } catch (err) {
       setPhase('idle');
@@ -384,9 +389,11 @@ export function KurierOrderCard({ quote, pulseKey }) {
               />
             </svg>
           </motion.span>
-          <h3>Курьер забронирован</h3>
+          <h3>{sentUrgent ? 'Срочный вызов принят' : 'Курьер забронирован'}</h3>
           <p className="rl-form-note">
-            {dayLabel}, {formatKurierTimeLabel(time)}. За 1 час до визита курьер позвонит вам, чтобы подтвердить адрес и время.
+            {sentUrgent
+              ? 'Заявку поставили вперёд очереди. Перезвоним и отработаем срочно. Вызов 0 ₽.'
+              : `${dayLabel}, ${formatKurierTimeLabel(time)}. За 1 час до визита курьер позвонит вам, чтобы подтвердить адрес и время.`}
           </p>
           <ul className="rl-kurier-summary">
             {cityLabel && <li><span>Город</span><b>{cityLabel}</b></li>}
@@ -499,9 +506,6 @@ export function KurierOrderCard({ quote, pulseKey }) {
           <span>Согласен на <a href="/privacy" target="_blank" rel="noreferrer">обработку персональных данных</a> для оформления заявки</span>
         </label>
 
-        <button type="submit" className="rl-urgent-btn" data-urgent="1" disabled={phase === 'sending'}>
-          Срочный вызов курьера · 0 ₽
-        </button>
         <motion.button type="submit" className="il-btn il-btn--primary il-btn--lg" style={{ width: '100%' }} disabled={phase === 'sending'} whileTap={{ scale: 0.97 }}>
           {phase === 'sending' ? (<><span className="rl-btn-spin" aria-hidden /> Отправляем…</>) : 'Забронировать'}
         </motion.button>
@@ -515,6 +519,20 @@ export function KurierOrderCard({ quote, pulseKey }) {
           )}
         </AnimatePresence>
       </div>
+
+      <section className={`rl-urgent-block${isMoscowOffDuty(now) ? ' is-off' : ''}`} aria-labelledby="urgent-call-title">
+        <span className="rl-urgent-kicker">{isMoscowOffDuty(now) ? 'Сейчас нерабочее время' : 'Если уже нерабочее время'}</span>
+        <h3 id="urgent-call-title">Срочный вызов курьера</h3>
+        <p>
+          {isMoscowOffDuty(now)
+            ? 'Линия уже закрыта. Такую заявку ставим вперёд всех и отрабатываем срочно, не ждём общей очереди до утра. Вызов 0 ₽.'
+            : 'Это отдельная заявка, не обычная запись. Когда время уже нерабочее, её ставим вперёд всех и отрабатываем срочно. Вызов 0 ₽.'}
+        </p>
+        <p className="rl-urgent-hint">Заполните адрес и контакты выше, затем нажмите кнопку.</p>
+        <button type="submit" className="rl-urgent-btn" data-urgent="1" disabled={phase === 'sending'}>
+          {phase === 'sending' ? 'Отправляем…' : 'Срочный вызов курьера · 0 ₽'}
+        </button>
+      </section>
     </motion.form>
   );
 }
@@ -773,6 +791,27 @@ export const KURIER_CSS = `
 .rl-consent span { font-size: 0.76rem; color: var(--text-dim); line-height: 1.4; }
 .rl-consent a { color: var(--text-strong); text-decoration: underline; }
 .rl-order-card .rl-order-hint { margin: 16px 0 0; line-height: 1.45; }
+.rl-urgent-block {
+  grid-column: 1 / -1;
+  margin-top: 22px;
+  padding: 22px 22px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--stroke);
+  background: var(--stroke-soft);
+  display: grid;
+  gap: 8px;
+}
+.rl-urgent-block.is-off { border-color: #c41e22; }
+.rl-urgent-kicker {
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em;
+  text-transform: uppercase; color: #e2b340;
+}
+:root[data-theme='light'] .rl-urgent-kicker { color: #8a6208; }
+.rl-urgent-block.is-off .rl-urgent-kicker { color: #c41e22; }
+.rl-urgent-block h3 { margin: 0; font-size: 1.2rem; letter-spacing: -0.02em; }
+.rl-urgent-block p { margin: 0; font-size: 0.92rem; line-height: 1.5; color: var(--text-dim); }
+.rl-urgent-hint { font-size: 0.84rem !important; }
+.rl-urgent-block .rl-urgent-btn { margin: 8px 0 0; }
 
 .rl-sticky-cta { display: none; }
 @media (max-width: 900px) {

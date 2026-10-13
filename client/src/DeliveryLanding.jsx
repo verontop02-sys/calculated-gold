@@ -31,7 +31,7 @@ import {
   useAnimatedNumber,
 } from './ru/RuShared.jsx';
 import { KURIER_CSS, KurierLocationField, KurierOrderCard } from './ru/RuKurier.jsx';
-import { pickNextCourierSlot } from './ru/kurierSlots.js';
+import { isMoscowOffDuty, pickNextCourierSlot } from './ru/kurierSlots.js';
 import { useToast } from './ToastContext.jsx';
 import { ymReachGoal } from './yandexMetrika.js';
 
@@ -492,7 +492,14 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
   const [photoUrl, setPhotoUrl] = useState('');
   const [photoPath, setPhotoPath] = useState('');
   const [phase, setPhase] = useState('idle');
+  const [sentUrgent, setSentUrgent] = useState(false);
   const [error, setError] = useState('');
+  const [clock, setClock] = useState(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setClock(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (open) setMode(initialMode);
@@ -541,7 +548,10 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
       Проба: String(purity || 585),
       'Вес, г': String(grams || '—'),
       'Предварительно до': ceiling != null ? formatMoney(Math.round(ceiling)) : '—',
-      ...(urgent ? { 'Срочный вызов': 'да, 0 ₽' } : {}),
+      ...(urgent ? {
+        'Срочный вызов': 'да, вне очереди, 0 ₽',
+        'Очередь': 'вперёд всех',
+      } : {}),
       ...(photoUrl ? { 'Фото изделия': photoUrl } : {}),
       ...(photoPath ? { photoPath } : {}),
       Источник: 'reaktivo.pro',
@@ -578,9 +588,10 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
           fields,
         });
       }
-      ymReachGoal('lead', { source: 'delivery-modal' });
+      ymReachGoal('lead', { source: urgent ? 'delivery-urgent' : 'delivery-modal' });
+      setSentUrgent(urgent);
       setPhase('sent');
-      toast('Заявка ушла. Перезвоним и подтвердим визит.', 'success');
+      toast(urgent ? 'Срочный вызов принят. Поставим вперёд очереди.' : 'Заявка ушла. Перезвоним и подтвердим визит.', 'success');
     } catch (err) {
       setPhase('idle');
       setError(err?.message || 'Не получилось отправить. Позвоните: 8 800 555-18-48');
@@ -603,7 +614,11 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
         </div>
         {phase === 'sent' ? (
           <div className="dl2-modal-done">
-            <p className="dl2-modal-ok">Заявка принята. Перезвоним в течение 15 минут и подтвердим время.</p>
+            <p className="dl2-modal-ok">
+              {sentUrgent
+                ? 'Срочный вызов принят. Заявку поставили вперёд очереди и отработаем срочно. Вызов 0 ₽.'
+                : 'Заявка принята. Перезвоним в течение 15 минут и подтвердим время.'}
+            </p>
             <button type="button" className="il-btn il-btn--outline dl2-modal-submit" onClick={onClose}>Закрыть</button>
           </div>
         ) : (
@@ -662,15 +677,24 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
                     : 'Курьер сейчас в Москве и области. Ваш город запишем в лист ожидания.'}
             </p>
             {error && <p className="il-lead-err" role="alert">{error}</p>}
-            {mode === 'courier' && (
-              <button type="submit" className="rl-urgent-btn" data-urgent="1" disabled={phase === 'sending'}>
-                Срочный вызов курьера · 0 ₽
-              </button>
-            )}
             <button type="submit" className="il-btn il-btn--primary dl2-modal-submit" disabled={phase === 'sending'}>
               {phase === 'sending' ? 'Отправляем…' : mode === 'branch' ? 'Записаться' : mode === 'photo' ? 'Отправить на оценку' : 'Вызвать курьера'}
             </button>
             <p className="dl2-modal-legal">Нажимая кнопку, вы соглашаетесь с <a href="/privacy">обработкой персональных данных</a>.</p>
+            {mode === 'courier' && (
+              <section className={`rl-urgent-block${isMoscowOffDuty(clock) ? ' is-off' : ''}`}>
+                <span className="rl-urgent-kicker">{isMoscowOffDuty(clock) ? 'Сейчас нерабочее время' : 'Если уже нерабочее время'}</span>
+                <h3>Срочный вызов курьера</h3>
+                <p>
+                  {isMoscowOffDuty(clock)
+                    ? 'Линия уже закрыта. Такую заявку ставим вперёд всех и отрабатываем срочно, не ждём общей очереди до утра. Вызов 0 ₽.'
+                    : 'Это отдельная заявка, не обычная запись. Когда время уже нерабочее, её ставим вперёд всех и отрабатываем срочно. Вызов 0 ₽.'}
+                </p>
+                <button type="submit" className="rl-urgent-btn" data-urgent="1" disabled={phase === 'sending'}>
+                  {phase === 'sending' ? 'Отправляем…' : 'Срочный вызов курьера · 0 ₽'}
+                </button>
+              </section>
+            )}
           </form>
         )}
       </div>

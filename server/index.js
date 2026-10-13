@@ -1384,8 +1384,11 @@ async function notifyLandingLeadTelegram({ source, name, phone, fields = {} }) {
     console.warn('[landing-lead tg] skip: TELEGRAM_SUPPORT_CHAT_ID not set');
     return { sent: false, reason: 'not_configured' };
   }
+  const urgent = /^да/i.test(String(fields?.['Срочный вызов'] || ''));
   const lines = [
-    `📝 Заявка: ${LANDING_LEAD_SOURCES[source] || source}`,
+    urgent
+      ? `🚨 СРОЧНЫЙ вызов. Вперёд очереди (${LANDING_LEAD_SOURCES[source] || source})`
+      : `📝 Заявка: ${LANDING_LEAD_SOURCES[source] || source}`,
     `Имя: ${name}`,
     `Контакт: ${phone}`,
   ];
@@ -1518,8 +1521,9 @@ async function notifyCourierOrderTelegram({ name, phone, city, address, date, ti
   // как Telegram распарсит длинный signed URL с токеном как текст.
   const { 'Фото изделия': photoUrl, photoPath, ...restFields } = extraFields || {};
   const extraLines = Object.entries(restFields).map(([k, v]) => `${k}: ${v}`);
+  const urgent = /^да/i.test(String(restFields['Срочный вызов'] || ''));
   const lines = [
-    '🚚 Вызов курьера',
+    urgent ? '🚨 СРОЧНЫЙ вызов курьера. Вперёд очереди' : '🚚 Вызов курьера',
     `Дата: ${formatKurierDateRu(date)}`,
     `Время: ${time}`,
     `Город: ${city}`,

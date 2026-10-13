@@ -18,6 +18,20 @@ export const KURIER_MIN_LEAD_HOURS = 3;
 /** Шаг слотов времени в выпадающем списке. */
 export const KURIER_QUICK_STEP_MIN = 30;
 
+/** Линия на сайте: с 9:00 до 22:00 по Москве. После этого обычные заявки ждут утра. */
+export function moscowHour(date = new Date()) {
+  return Number(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Moscow',
+    hour: 'numeric',
+    hourCycle: 'h23',
+  }).format(date));
+}
+
+export function isMoscowOffDuty(date = new Date()) {
+  const h = moscowHour(date);
+  return h >= 22 || h < 9;
+}
+
 const WEEKDAY_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 const MONTH_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
