@@ -241,8 +241,8 @@ export function KurierLocationField({ city, setCity, address, setAddress, lat, l
       {error && <p className="rl-form-error" style={{ margin: '8px 0 0' }}>{error}</p>}
       {lat != null && lng != null && <div ref={mapElRef} className="rl-loc-map" />}
       <div className="rl-loc-fields">
-        <input className="rl-input" placeholder="Город" maxLength={120} value={city} onChange={(e) => setCity(e.target.value)} />
-        <textarea className="rl-input" placeholder="Адрес: улица, дом, квартира, этаж, домофон" rows={2} maxLength={300} value={address} onChange={(e) => setAddress(e.target.value)} />
+        <input className="rl-input" name="city" placeholder="Город" maxLength={120} value={city} onChange={(e) => setCity(e.target.value)} />
+        <textarea className="rl-input" name="address" placeholder="Адрес: улица, дом, квартира, этаж, домофон" rows={2} maxLength={300} value={address} onChange={(e) => setAddress(e.target.value)} />
       </div>
     </div>
   );
@@ -317,38 +317,62 @@ export function KurierOrderCard({ quote, pulseKey }) {
     setLng(lo);
   }
 
+  function updateCity(value) {
+    setCity(value);
+    setError('');
+  }
+
+  function updateAddress(value) {
+    setAddress(value);
+    setError('');
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     if (phase === 'sending') return;
     setError('');
 
-    if (String(website || '').trim()) {
+    // Берём значения из полей, а не только из state: браузер иногда подставляет
+    // город сам и рисует его в инпуте, не сообщая React. Иначе на экране уже
+    // «Москва», а проверка видит пустое поле и пишет «Укажите город».
+    const data = new FormData(e.currentTarget);
+    const cityNow = String(data.get('city') ?? city).trim();
+    const addressNow = String(data.get('address') ?? address).trim();
+    const nameNow = String(data.get('name') ?? name).trim();
+    const phoneNow = String(data.get('phone') ?? phone).trim();
+    const websiteNow = String(data.get('website') ?? website);
+    if (cityNow !== city) setCity(cityNow);
+    if (addressNow !== address) setAddress(addressNow);
+    if (nameNow !== name) setName(nameNow);
+    if (phoneNow !== phone) setPhone(phoneNow);
+
+    if (websiteNow.trim()) {
       setPhase('sent');
       return;
     }
-    if (!cityLabel || cityLabel.length < 2) return setError('Укажите город');
-    if (address.trim().length < 5) return setError('Укажите адрес для курьера');
+    if (cityNow.length < 2) return setError('Укажите город');
+    if (addressNow.length < 5) return setError('Укажите адрес для курьера');
     const urgent = e.nativeEvent?.submitter?.dataset?.urgent === '1';
     const visitTime = time || (urgent ? (quickTimes[0] || '') : '');
     if (!isKurierDayAllowed(day, now) || !isKurierTimeAllowed(day, visitTime, now)) {
       return setError('Выберите дату и время визита');
     }
-    if (!isLeadName(name)) return setError('Укажите имя');
-    if (!isRuPhone(phone)) return setError('Укажите номер телефона, без него мы не сможем связаться');
+    if (!isLeadName(nameNow)) return setError('Укажите имя');
+    if (!isRuPhone(phoneNow)) return setError('Укажите номер телефона, без него мы не сможем связаться');
     if (!consent) return setError('Нужно согласие на обработку персональных данных');
 
     setPhase('sending');
     try {
       await clientApi.courierOrder({
-        name: name.trim(),
-        phone: phone.trim(),
-        city: cityLabel,
-        address: address.trim(),
+        name: nameNow,
+        phone: phoneNow,
+        city: cityNow,
+        address: addressNow,
         lat,
         lng,
         date: day,
         time: visitTime,
-        website,
+        website: websiteNow,
         fields: {
           'Проба (заявка)': isUnknownProba ? 'не знает' : String(proba),
           'Вес, г': String(grams),
@@ -451,9 +475,9 @@ export function KurierOrderCard({ quote, pulseKey }) {
         <span className="rl-calc-label">Куда приехать</span>
         <KurierLocationField
           city={city}
-          setCity={setCity}
+          setCity={updateCity}
           address={address}
-          setAddress={setAddress}
+          setAddress={updateAddress}
           lat={lat}
           lng={lng}
           setCoords={setCoords}
@@ -495,14 +519,14 @@ export function KurierOrderCard({ quote, pulseKey }) {
 
         <span className="rl-calc-label">Контакты</span>
         <div className="rl-book-contacts">
-          <input className="rl-input" name="name" placeholder="Ваше имя" maxLength={120} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
-          <input className="rl-input" name="phone" placeholder="+7 (900) 000-00-00" maxLength={120} inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <input className="rl-input" name="name" placeholder="Ваше имя" maxLength={120} autoComplete="name" value={name} onChange={(e) => { setName(e.target.value); setError(''); }} />
+          <input className="rl-input" name="phone" placeholder="+7 (900) 000-00-00" maxLength={120} inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setError(''); }} />
         </div>
 
         <input className="rl-hp" type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" value={website} onChange={(e) => setWebsite(e.target.value)} />
 
         <label className="rl-consent">
-          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+          <input type="checkbox" checked={consent} onChange={(e) => { setConsent(e.target.checked); setError(''); }} />
           <span>Согласен на <a href="/privacy" target="_blank" rel="noreferrer">обработку персональных данных</a> для оформления заявки</span>
         </label>
 
