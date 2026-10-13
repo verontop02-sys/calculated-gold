@@ -1892,7 +1892,7 @@ const DL2_CSS = `
   display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px;
   width: 100%; align-self: center;
 }
-.dl2-quick .rl-calc-num { width: 7.6rem; min-width: 7.6rem; text-align: center; }
+.dl2-quick .rl-calc-num { width: 4.6rem; min-width: 0; text-align: right; background: transparent; border: 0; box-shadow: none; }
 .dl2-quick-actions .il-btn { white-space: nowrap; font-size: 0.95rem; }
 .dl2-quick-in, .dl2-quick-out {
   display: flex; flex-direction: column; gap: 12px; min-width: 0;

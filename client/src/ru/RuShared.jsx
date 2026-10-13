@@ -1530,17 +1530,25 @@ export const RL_CSS = `
 .rl-calc-row { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; font-size: 0.76rem; color: var(--text-dim); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .rl-calc-row b { font-size: 1rem; color: var(--text-strong); font-weight: 700; letter-spacing: 0; }
 .rl-calc-row.rl-calc-weight b {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 5.6rem; font-size: 1.85rem; font-weight: 800; line-height: 1;
-  padding: 10px 14px; letter-spacing: 0; text-transform: none;
-  color: #1a1408; background: #fff4cc; border: 2px solid #c9a227; border-radius: 14px;
-  box-shadow: 0 0 0 4px rgba(201, 162, 39, 0.28);
+  display: inline-flex; align-items: center; justify-content: flex-end;
+  min-width: 0; font-size: 1.85rem; font-weight: 800; line-height: 1;
+  padding: 0; letter-spacing: 0; text-transform: none;
+  color: #c41e22; background: transparent; border: 0; border-radius: 0;
+  box-shadow: none;
 }
+input[type='number'].rl-calc-num,
 .rl-calc-num {
-  width: 7.6rem; min-width: 7.6rem; text-align: center; font: inherit; font-size: 1.85rem; font-weight: 800; letter-spacing: 0; line-height: 1;
-  color: #1a1408; background: #fff4cc; border: 2px solid #c9a227;
-  border-radius: 14px; padding: 10px 12px;
-  box-shadow: 0 0 0 4px rgba(201, 162, 39, 0.28);
+  width: 4.6rem; min-width: 0; text-align: right; font: inherit; font-size: 1.85rem; font-weight: 800; letter-spacing: 0; line-height: 1;
+  color: #c41e22; -webkit-text-fill-color: #c41e22; caret-color: #c41e22;
+  background: transparent; background-color: transparent; border: 0; border-radius: 0; padding: 0;
+  box-shadow: none;
+}
+input[type='number'].rl-calc-num:hover,
+input[type='number'].rl-calc-num:focus,
+.rl-calc-num:hover,
+.rl-calc-num:focus {
+  border: 0; box-shadow: none; outline: none; background: transparent; background-color: transparent;
+  color: #c41e22; -webkit-text-fill-color: #c41e22;
 }
 .rl-calc-num::-webkit-outer-spin-button,
 .rl-calc-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
