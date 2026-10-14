@@ -898,6 +898,12 @@ export const api = {
       timeout: 120_000,
     }),
   /** Сводка для вкладки «Аналитика» (Y-M-D). */
+  analyticsTraffic: (from, to) => {
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    return request(`/analytics/traffic?${q.toString()}`);
+  },
   analyticsSummary: (from, to) => {
     const q = new URLSearchParams();
     if (from) q.set('from', from);

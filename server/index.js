@@ -19,6 +19,13 @@ import {
   formatBirthDateDotted,
 } from './passportValidityCheck.js';
 import { computeAnalyticsSummaryData } from './analyticsSummaryData.js';
+import {
+  buildHit,
+  insertHit,
+  isBotUserAgent,
+  isMissingHitsTable,
+  trafficReport,
+} from './siteTraffic.js';
 import { buildAnalyticsReportPdfBuffer } from './analyticsReportPdf.js';
 import { buildDashboardReportPdf } from './dashboardReportPdf.js';
 import { computeTeamPerformanceData } from './teamPerformanceData.js';
@@ -3052,6 +3059,34 @@ app.post(
   })
 );
 
+const pageviewLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много просмотров с одного адреса. Подождите минуту.' },
+});
+
+app.post(
+  '/api/public/pageview',
+  pageviewLimiter,
+  asyncHandler(async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const purpose = String(req.get('purpose') || req.get('sec-purpose') || '');
+    if (/prefetch/i.test(purpose) || isBotUserAgent(req.get('user-agent'))) {
+      return res.status(204).end();
+    }
+    const row = buildHit(req.body, req.get('origin'));
+    if (!row) return res.status(204).end();
+    try {
+      await insertHit(supabase, row);
+    } catch (e) {
+      if (!isMissingHitsTable(e)) console.warn('[pageview]', e?.message || e);
+    }
+    res.status(204).end();
+  })
+);
+
 app.use('/api', asyncHandler(authMiddleware));
 
 app.get(
@@ -4020,6 +4055,29 @@ app.delete(
     const { error: dErr } = await supabase.from('scrap_deals').delete().eq('id', id);
     if (dErr) throw dErr;
     res.json({ ok: true });
+  })
+);
+
+app.get(
+  '/api/analytics/traffic',
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    await analyticsScopeFromRequest(req);
+    const fromD = String(req.query.from || '').trim();
+    const toD = String(req.query.to || '').trim();
+    const cacheKey = `traffic:${fromD}:${toD}`;
+    const hit = cacheGet(cacheKey);
+    if (hit) return res.json(hit);
+    try {
+      const data = await trafficReport(supabase, fromD, toD);
+      cacheSet(cacheKey, data, 2 * 60_000);
+      res.json(data);
+    } catch (e) {
+      if (isMissingHitsTable(e)) {
+        return res.status(503).json({ error: 'Счётчик посещений ещё не подключён к базе' });
+      }
+      throw e;
+    }
   })
 );
 

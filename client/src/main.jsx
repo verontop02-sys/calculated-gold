@@ -22,6 +22,7 @@ import { initThemeFromStorage } from './theme.js';
 import { recoverAuthIfNeeded } from './supabase.js';
 import { pingApiHealth } from './api.js';
 import { isReaktivoRuHost, matchRuRoute } from './ru/ruSite.js';
+import { trackPageView } from './siteTraffic.js';
 
 initThemeFromStorage();
 // Прогрев Render с первой миллисекунды — пока грузится JS и восстанавливается сессия.
@@ -95,5 +96,6 @@ const tree = (
   </StrictMode>
 );
 createRoot(el).render(tree);
+if (!isStaffApp && !isClientPortal && !isClientDisplay && !token) trackPageView();
 // Восстановление сессии сотрудника только на /pro (не на лендинге / кабинете / display).
 if (isStaffApp) void recoverAuthIfNeeded().catch(() => {});

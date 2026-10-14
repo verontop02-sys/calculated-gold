@@ -119,6 +119,104 @@ function delta(now, prev) {
   return { pct, abs: n - p, tone };
 }
 
+function pluralRu(n, one, few, many) {
+  const a = Math.abs(Number(n) || 0) % 100;
+  const b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b === 1) return one;
+  if (b > 1 && b < 5) return few;
+  return many;
+}
+
+function SiteTrafficBlock({ traffic, loading, error }) {
+  const sites = traffic?.sites;
+  const series = traffic?.series || [];
+  const total = (sites?.pro?.visits || 0) + (sites?.ru?.visits || 0);
+  const started = traffic?.startedOn ? humanDate(traffic.startedOn) : '';
+  return (
+    <section className="glass analytics-chart-card an-traffic">
+      <div className="an-traffic__head">
+        <div>
+          <h3 className="analytics-h3">Посещаемость сайтов</h3>
+          <p className="muted small an-h3-sub">
+            reaktivo.pro и reaktivo.ru. Визит — одно открытие сайта в браузере, просмотр — каждая страница.
+            Яндекс Метрика сюда не входит{started ? `, считаем с ${started}` : ''}.
+          </p>
+        </div>
+        <div className="an-traffic__legend">
+          <span className="an-leg-pill an-leg-pill--pro">Pro</span>
+          <span className="an-leg-pill an-leg-pill--ru">Ru</span>
+        </div>
+      </div>
+      {error && <p className="analytics-err">{error}</p>}
+      {loading && !sites && <p className="muted small">Считаем посещаемость…</p>}
+      {sites && (
+        <>
+          <div className="an-traffic__sites">
+            {[
+              ['pro', 'reaktivo.pro', sites.pro],
+              ['ru', 'reaktivo.ru', sites.ru],
+            ].map(([key, host, row]) => (
+              <article key={key} className={`an-traffic__site an-traffic__site--${key}`}>
+                <span className="an-traffic__host">{host}</span>
+                <div className="an-traffic__metric">
+                  <b className="mono-nums">{row.visits}</b>
+                  <span>{pluralRu(row.visits, 'визит', 'визита', 'визитов')}</span>
+                  <DeltaBadge d={delta(row.visits, row.prevVisits)} />
+                </div>
+                <p className="an-traffic__views muted">
+                  {row.views} {pluralRu(row.views, 'просмотр', 'просмотра', 'просмотров')}
+                </p>
+                {row.pages?.length > 0 && (
+                  <ul className="an-traffic__pages">
+                    {row.pages.map((p) => (
+                      <li key={p.path}>
+                        <span>{p.path}</span>
+                        <b className="mono-nums">{p.views}</b>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </article>
+            ))}
+          </div>
+          <div className="analytics-chart-h an-traffic__chart">
+            {total === 0 ? (
+              <p className="muted small an-traffic__empty">
+                За этот период визитов нет. Новые откроются здесь по дням, как только кто-то зайдёт на сайт.
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={series} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--stroke-soft, #333)" opacity={0.5} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => humanDateShort(v)} stroke="var(--text-muted)" minTickGap={24} />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} stroke="var(--text-muted)" width={32} />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.[0]) return null;
+                      const p = payload[0].payload;
+                      return (
+                        <div className="an-tt">
+                          <div className="an-tt__label">{humanDateShort(p.date)}</div>
+                          <div className="an-tt__val">Pro: {p.proVisits} {pluralRu(p.proVisits, 'визит', 'визита', 'визитов')}</div>
+                          <div className="an-tt__sub">Ru: {p.ruVisits} {pluralRu(p.ruVisits, 'визит', 'визита', 'визитов')}</div>
+                          <div className="an-tt__sub muted">Просмотры {p.proViews} / {p.ruViews}</div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Line type="monotone" dataKey="proVisits" name="Pro" stroke="#c41e22" strokeWidth={2.4} dot={false} />
+                  <Line type="monotone" dataKey="ruVisits" name="Ru" stroke="#c9a227" strokeWidth={2.4} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 function DeltaBadge({ d, suffix = '' }) {
   if (!d) return <span className="an-delta an-delta--flat">—</span>;
   const sign = d.pct == null ? '' : d.pct > 0 ? '+' : d.pct < 0 ? '' : '';
@@ -140,6 +238,9 @@ export function Analytics({ formatMoney, toast }) {
   const [err, setErr] = useState('');
   const [data, setData] = useState(null);
   const [prevData, setPrevData] = useState(null);
+  const [traffic, setTraffic] = useState(null);
+  const [trafficErr, setTrafficErr] = useState('');
+  const [trafficLoading, setTrafficLoading] = useState(true);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfSec, setPdfSec] = useState({ summary: true, operators: true, probe: true, series: true });
   const reqIdRef = useRef(0);
@@ -172,13 +273,29 @@ export function Analytics({ formatMoney, toast }) {
     const myId = ++reqIdRef.current;
     setErr('');
     setLoading(true);
+    setTrafficLoading(true);
     try {
       const days = daysBetween(from, to);
       const prevTo = addDays(from, -1);
       const prevFrom = addDays(prevTo, -(days - 1));
+      const trafficPromise = api.analyticsTraffic(from, to)
+        .then((row) => {
+          if (myId !== reqIdRef.current) return;
+          setTraffic(row);
+          setTrafficErr('');
+        })
+        .catch((e) => {
+          if (myId !== reqIdRef.current) return;
+          setTraffic(null);
+          setTrafficErr(e?.message || 'Не удалось загрузить посещаемость');
+        })
+        .finally(() => {
+          if (myId === reqIdRef.current) setTrafficLoading(false);
+        });
       const [cur, prev] = await Promise.all([
         api.analyticsSummary(from, to),
         api.analyticsSummary(prevFrom, prevTo).catch(() => null),
+        trafficPromise,
       ]);
       if (myId !== reqIdRef.current) return; // устаревший запрос
       setData(cur);
@@ -485,7 +602,7 @@ export function Analytics({ formatMoney, toast }) {
   return (
     <div className="analytics-page">
       <PageHint id="analytics" title="Как читать аналитику">
-        Выберите период вверху — все цифры и графики пересчитаются. <b>Каналы оформления</b> показывают долю отделения и доставки. Кнопка <b>PDF-отчёт</b> выгрузит сводку с графиками. Строка <b>AI-аналитик</b> ответит на вопросы по данным периода.
+        Выберите период вверху — все цифры и графики пересчитаются. <b>Посещаемость сайтов</b> показывает визиты reaktivo.pro и reaktivo.ru по дням. <b>Каналы оформления</b> показывают долю отделения и доставки. Кнопка <b>PDF-отчёт</b> выгрузит сводку с графиками. Строка <b>AI-аналитик</b> ответит на вопросы по данным периода.
       </PageHint>
       {/* HERO: период, оборот, дельта */}
       <div className="an-hero">
@@ -623,6 +740,8 @@ export function Analytics({ formatMoney, toast }) {
           </div>
         </details>
       </div>
+
+      <SiteTrafficBlock traffic={traffic} loading={trafficLoading} error={trafficErr} />
 
       {err && <div className="glass analytics-err">{err}</div>}
 
@@ -1741,6 +1860,25 @@ const ANALYTICS_CSS = `
 }
 .an-leg-pill--gross::before { background: var(--emerald); box-shadow: 0 0 6px var(--emerald); }
 .an-leg-pill--net::before { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.an-leg-pill--pro::before { background: #c41e22; }
+.an-leg-pill--ru::before { background: #c9a227; }
+.an-traffic__head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.an-traffic__sites { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.an-traffic__site { border: 1px solid var(--stroke); border-radius: 14px; padding: 14px 14px 10px; min-width: 0; }
+.an-traffic__site--pro { border-top: 3px solid #c41e22; }
+.an-traffic__site--ru { border-top: 3px solid #c9a227; }
+.an-traffic__host { font-size: 0.78rem; font-weight: 700; color: var(--text-dim); }
+.an-traffic__metric { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.an-traffic__metric b { font-size: 1.8rem; letter-spacing: -0.03em; line-height: 1; }
+.an-traffic__views { margin: 4px 0 8px; font-size: 0.84rem; }
+.an-traffic__pages { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.an-traffic__pages li { display: flex; justify-content: space-between; gap: 10px; font-size: 0.8rem; }
+.an-traffic__pages span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
+.an-traffic__chart { margin-top: 14px; }
+.an-traffic__empty { margin: 28px 0; }
+@media (max-width: 720px) {
+  .an-traffic__head, .an-traffic__sites { display: grid; grid-template-columns: 1fr; }
+}
 
 .analytics-err { padding: 12px 16px; color: var(--crimson, #d63b3b); font-size: 0.9rem; }
 .small-digits { font-size: 0.95rem; }
