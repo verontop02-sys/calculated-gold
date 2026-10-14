@@ -128,89 +128,322 @@ function pluralRu(n, one, few, many) {
   return many;
 }
 
+const PAGE_TITLES = {
+  '/': 'Главная',
+  '/invest': 'Витрина изделий',
+  '/privacy': 'Политика данных',
+  '/prodat': 'Продать золото',
+  '/kurier': 'Вызов курьера',
+  '/slitki': 'Слитки',
+  '/resale': 'Проверенные украшения',
+  '/agenty': 'Агенты',
+  '/franshiza': 'Франшиза',
+  '/partneram': 'Партнёрам',
+  '/o-kompanii': 'О компании',
+};
+
+function pageInfo(path, site) {
+  const raw = String(path || '/');
+  const stripped = raw === '/ru' ? '/' : raw.startsWith('/ru/') ? `/${raw.slice(4)}` : raw;
+  let title = PAGE_TITLES[stripped] || stripped;
+  if (stripped === '/' && site === 'pro' && !raw.startsWith('/ru')) title = 'Главная, вызов курьера';
+  if (stripped === '/' && site === 'ru') title = 'Главная выкупа';
+  const viaPro = site === 'pro' && (raw === '/ru' || raw.startsWith('/ru/'));
+  return {
+    title,
+    path: raw,
+    note: viaPro ? 'Раздел Ru открыли на адресе reaktivo.pro' : '',
+  };
+}
+
+function fmtDepth(views, visits) {
+  if (!visits) return '—';
+  return (views / visits).toFixed(1).replace('.', ',');
+}
+
+function mergeHours(a = [], b = []) {
+  return Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    visits: (a[hour]?.visits || 0) + (b[hour]?.visits || 0),
+    views: (a[hour]?.views || 0) + (b[hour]?.views || 0),
+  }));
+}
+
+function peakHourText(hours, metric = 'visits') {
+  const key = metric === 'views' ? 'views' : 'visits';
+  const best = (hours || []).reduce((top, row) => (!top || (row[key] || 0) > (top[key] || 0) ? row : top), null);
+  if (!best || !best[key]) return '';
+  const hh = `${String(best.hour).padStart(2, '0')}:00`;
+  return key === 'views'
+    ? `Больше всего страниц открывают в ${hh} по Москве.`
+    : `Больше всего первых заходов в ${hh} по Москве.`;
+}
+
+function mergeSources(a = [], b = []) {
+  const map = new Map();
+  for (const row of [...a, ...b]) {
+    const key = row.group === 'direct' ? 'direct' : `${row.group}|${row.host || row.label}`;
+    const prev = map.get(key);
+    if (!prev) map.set(key, { ...row, visits: row.visits || 0 });
+    else prev.visits += row.visits || 0;
+  }
+  return [...map.values()].sort((x, y) => y.visits - x.visits || String(x.label).localeCompare(String(y.label), 'ru'));
+}
+
+function trafficReading(focus, sites, startedOn) {
+  const pro = sites?.pro || {};
+  const ru = sites?.ru || {};
+  const pack = focus === 'pro' ? pro : focus === 'ru' ? ru : {
+    visits: (pro.visits || 0) + (ru.visits || 0),
+    views: (pro.views || 0) + (ru.views || 0),
+    pages: [
+      ...(pro.pages || []).map((row) => ({ ...row, site: 'pro' })),
+      ...(ru.pages || []).map((row) => ({ ...row, site: 'ru' })),
+    ],
+    sources: mergeSources(pro.sources, ru.sources),
+    hours: mergeHours(pro.hours, ru.hours),
+  };
+  const who = focus === 'pro' ? 'На reaktivo.pro' : focus === 'ru' ? 'На reaktivo.ru' : 'На оба сайта';
+  if (!pack.visits) {
+    const since = startedOn ? ` Счётчик включён ${humanDate(startedOn)}.` : '';
+    return `За эти дни заходов нет.${since} Старые цифры Яндекса сюда не попадают: видны только визиты с момента включения счётчика.`;
+  }
+  const depth = pack.views / pack.visits;
+  const depthText = depth < 1.3
+    ? 'Обычно открывают одну страницу и уходят.'
+    : `В среднем ${fmtDepth(pack.views, pack.visits)} страницы за визит.`;
+  let compare = '';
+  if (focus === 'all' && pro.visits !== ru.visits) {
+    compare = ru.visits > pro.visits ? ' Ru открывают чаще, чем Pro.' : ' Pro открывают чаще, чем Ru.';
+  }
+  const topPage = [...(pack.pages || [])].sort((a, b) => b.views - a.views)[0];
+  const topSrc = [...(pack.sources || [])].sort((a, b) => b.visits - a.visits)[0];
+  const pageSite = topPage?.site || (focus === 'all' ? 'pro' : focus);
+  const pageWhere = focus === 'all' && topPage?.site ? (topPage.site === 'pro' ? ' на Pro' : ' на Ru') : '';
+  const pageBit = topPage ? ` Чаще всего смотрят «${pageInfo(topPage.path, pageSite).title}»${pageWhere}.` : '';
+  const srcBit = topSrc ? ` Чаще всего приходят так: ${topSrc.label}.` : '';
+  const when = peakHourText(pack.hours);
+  return `${who} ${pack.visits} ${pluralRu(pack.visits, 'визит', 'визита', 'визитов')} и ${pack.views} ${pluralRu(pack.views, 'просмотр', 'просмотра', 'просмотров')}. ${depthText}${compare}${pageBit}${srcBit}${when ? ` ${when}` : ''}`;
+}
+
+function TrafficRank({ title, hint, empty, rows }) {
+  const max = Math.max(1, ...rows.map((row) => row.value));
+  return (
+    <div className="an-traffic__panel">
+      <h4>{title}</h4>
+      <p className="muted small">{hint}</p>
+      {rows.length === 0 ? <p className="muted small an-traffic__none">{empty}</p> : (
+        <ul className="an-traffic__ranks">
+          {rows.map((row) => (
+            <li key={row.key}>
+              <div className="an-traffic__rank-top">
+                <div>
+                  <b>{row.title}</b>
+                  {row.note && <span>{row.note}</span>}
+                </div>
+                <strong className="mono-nums">{row.value}</strong>
+              </div>
+              <div className="an-traffic__bar"><i style={{ width: `${Math.max(4, Math.round((row.value / max) * 100))}%` }} /></div>
+              {row.sub && <small>{row.sub}</small>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function SiteBoard({ host, tone, data }) {
+  const visits = data?.visits || 0;
+  const views = data?.views || 0;
+  const pages = (data?.pages || []).map((row) => {
+    const info = pageInfo(row.path, tone);
+    const share = views ? `${Math.round((row.views / views) * 100)}% просмотров` : '';
+    const started = row.entries
+      ? `Начали визит здесь: ${row.entries} ${pluralRu(row.entries, 'раз', 'раза', 'раз')}`
+      : row.entries === 0
+        ? 'Открывали уже внутри визита, не с первого экрана'
+        : '';
+    return {
+      key: row.path,
+      title: info.title,
+      note: info.note || info.path,
+      value: row.views,
+      sub: [started, share].filter(Boolean).join('. '),
+    };
+  });
+  const sources = (data?.sources || []).map((row) => ({
+    key: `${row.group}|${row.host || row.label}`,
+    title: row.label,
+    note: row.hint,
+    value: row.visits,
+    sub: visits ? `${Math.round((row.visits / visits) * 100)}% визитов` : '',
+  }));
+  return (
+    <article className={`an-traffic__board an-traffic__board--${tone}`}>
+      <h4>{host}</h4>
+      <div className="an-traffic__split">
+        <TrafficRank
+          title="Куда заходили"
+          hint="Какие страницы открывали. «Начали визит здесь» значит, что человек попал на сайт сразу на эту страницу."
+          empty="Страниц пока нет."
+          rows={pages}
+        />
+        <TrafficRank
+          title="Откуда пришли"
+          hint="Что было до первого захода. Прямой заход значит, что ссылки с другого сайта не было."
+          empty="Источников пока нет."
+          rows={sources}
+        />
+      </div>
+    </article>
+  );
+}
+
 function SiteTrafficBlock({ traffic, loading, error }) {
+  const [focus, setFocus] = useState('all');
+  const [metric, setMetric] = useState('visits');
   const sites = traffic?.sites;
   const series = traffic?.series || [];
-  const total = (sites?.pro?.visits || 0) + (sites?.ru?.visits || 0);
+  const pro = sites?.pro;
+  const ru = sites?.ru;
+  const focused = focus === 'all' ? null : sites?.[focus];
+  const visits = focus === 'all' ? (pro?.visits || 0) + (ru?.visits || 0) : (focused?.visits || 0);
+  const views = focus === 'all' ? (pro?.views || 0) + (ru?.views || 0) : (focused?.views || 0);
+  const prevVisits = focus === 'all' ? (pro?.prevVisits || 0) + (ru?.prevVisits || 0) : (focused?.prevVisits || 0);
+  const prevViews = focus === 'all' ? (pro?.prevViews || 0) + (ru?.prevViews || 0) : (focused?.prevViews || 0);
+  const hours = focus === 'pro' ? pro?.hours : focus === 'ru' ? ru?.hours : mergeHours(pro?.hours, ru?.hours);
+  const hourMax = Math.max(1, ...(hours || []).map((row) => row[metric] || 0));
+  const lineKeys = focus === 'pro'
+    ? [{ key: metric === 'views' ? 'proViews' : 'proVisits', name: 'Pro', color: '#c41e22' }]
+    : focus === 'ru'
+      ? [{ key: metric === 'views' ? 'ruViews' : 'ruVisits', name: 'Ru', color: '#c9a227' }]
+      : metric === 'views'
+        ? [{ key: 'proViews', name: 'Pro', color: '#c41e22' }, { key: 'ruViews', name: 'Ru', color: '#c9a227' }]
+        : [{ key: 'proVisits', name: 'Pro', color: '#c41e22' }, { key: 'ruVisits', name: 'Ru', color: '#c9a227' }];
   const started = traffic?.startedOn ? humanDate(traffic.startedOn) : '';
+
   return (
     <section className="glass analytics-chart-card an-traffic">
       <div className="an-traffic__head">
         <div>
           <h3 className="analytics-h3">Посещаемость сайтов</h3>
           <p className="muted small an-h3-sub">
-            reaktivo.pro и reaktivo.ru. Визит — одно открытие сайта в браузере, просмотр — каждая страница.
-            Яндекс Метрика сюда не входит{started ? `, считаем с ${started}` : ''}.
+            Живые заходы на reaktivo.pro и reaktivo.ru. Период тот же, что выбран сверху.
+            {started ? ` Считаем с ${started}.` : ''} Яндекс сюда не подключён.
           </p>
         </div>
-        <div className="an-traffic__legend">
-          <span className="an-leg-pill an-leg-pill--pro">Pro</span>
-          <span className="an-leg-pill an-leg-pill--ru">Ru</span>
-        </div>
       </div>
+      <dl className="an-traffic__glossary">
+        <div><dt>Что</dt><dd>Визит: открыл сайт и ходил по нему, пока не закрыл вкладку. Просмотр: каждая открытая страница.</dd></div>
+        <div><dt>Куда</dt><dd>Какой раздел смотрел: главная, продать, курьер, слитки и остальные.</dd></div>
+        <div><dt>Откуда</dt><dd>Сам набрал адрес, пришёл из поиска, из Telegram или с другого сайта.</dd></div>
+        <div><dt>Когда</dt><dd>В какой час по Москве был первый заход. Так видно, вечером люди заходят или днём.</dd></div>
+      </dl>
       {error && <p className="analytics-err">{error}</p>}
       {loading && !sites && <p className="muted small">Считаем посещаемость…</p>}
       {sites && (
         <>
-          <div className="an-traffic__sites">
+          <div className="an-traffic__tabs" role="tablist" aria-label="Какой сайт смотреть">
             {[
-              ['pro', 'reaktivo.pro', sites.pro],
-              ['ru', 'reaktivo.ru', sites.ru],
-            ].map(([key, host, row]) => (
-              <article key={key} className={`an-traffic__site an-traffic__site--${key}`}>
-                <span className="an-traffic__host">{host}</span>
-                <div className="an-traffic__metric">
-                  <b className="mono-nums">{row.visits}</b>
-                  <span>{pluralRu(row.visits, 'визит', 'визита', 'визитов')}</span>
-                  <DeltaBadge d={delta(row.visits, row.prevVisits)} />
-                </div>
-                <p className="an-traffic__views muted">
-                  {row.views} {pluralRu(row.views, 'просмотр', 'просмотра', 'просмотров')}
-                </p>
-                {row.pages?.length > 0 && (
-                  <ul className="an-traffic__pages">
-                    {row.pages.map((p) => (
-                      <li key={p.path}>
-                        <span>{p.path}</span>
-                        <b className="mono-nums">{p.views}</b>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </article>
+              ['all', 'Оба сайта', (pro?.visits || 0) + (ru?.visits || 0)],
+              ['pro', 'reaktivo.pro', pro?.visits || 0],
+              ['ru', 'reaktivo.ru', ru?.visits || 0],
+            ].map(([id, label, count]) => (
+              <button key={id} type="button" role="tab" aria-selected={focus === id} className={focus === id ? 'is-on' : ''} onClick={() => setFocus(id)}>
+                <span>{label}</span>
+                <b className="mono-nums">{count}</b>
+              </button>
             ))}
           </div>
-          <div className="analytics-chart-h an-traffic__chart">
-            {total === 0 ? (
-              <p className="muted small an-traffic__empty">
-                За этот период визитов нет. Новые откроются здесь по дням, как только кто-то зайдёт на сайт.
-              </p>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={series} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--stroke-soft, #333)" opacity={0.5} />
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => humanDateShort(v)} stroke="var(--text-muted)" minTickGap={24} />
-                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} stroke="var(--text-muted)" width={32} />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.[0]) return null;
-                      const p = payload[0].payload;
-                      return (
-                        <div className="an-tt">
-                          <div className="an-tt__label">{humanDateShort(p.date)}</div>
-                          <div className="an-tt__val">Pro: {p.proVisits} {pluralRu(p.proVisits, 'визит', 'визита', 'визитов')}</div>
-                          <div className="an-tt__sub">Ru: {p.ruVisits} {pluralRu(p.ruVisits, 'визит', 'визита', 'визитов')}</div>
-                          <div className="an-tt__sub muted">Просмотры {p.proViews} / {p.ruViews}</div>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Line type="monotone" dataKey="proVisits" name="Pro" stroke="#c41e22" strokeWidth={2.4} dot={false} />
-                  <Line type="monotone" dataKey="ruVisits" name="Ru" stroke="#c9a227" strokeWidth={2.4} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
+          <p className="an-traffic__read">{trafficReading(focus, sites, traffic?.startedOn)}</p>
+          <div className="an-traffic__kpis">
+            <article>
+              <span>Визиты</span>
+              <b className="mono-nums">{visits}</b>
+              <DeltaBadge d={delta(visits, prevVisits)} />
+              <small>Сколько раз сайт открыли. Повторные страницы внутри того же захода не прибавляют визит.</small>
+            </article>
+            <article>
+              <span>Просмотры</span>
+              <b className="mono-nums">{views}</b>
+              <DeltaBadge d={delta(views, prevViews)} />
+              <small>Сколько страниц открыли. Если человек посмотрел три раздела, здесь будет 3.</small>
+            </article>
+            <article>
+              <span>Страниц за визит</span>
+              <b className="mono-nums">{fmtDepth(views, visits)}</b>
+              <small>Больше 1 значит, что люди не закрывают сайт на первой странице, а идут дальше.</small>
+            </article>
+            <article>
+              <span>К прошлому периоду</span>
+              <b className="mono-nums">{prevVisits}</b>
+              <small>Столько визитов было в предыдущем отрезке той же длины. Стрелка рядом с визитами показывает разницу.</small>
+            </article>
           </div>
+
+          <div className="an-traffic__chart-head">
+            <h4>Динамика по дням</h4>
+            <div className="an-traffic__legend">
+              {lineKeys.map((line) => (
+                <span key={line.key} className={`an-leg-pill an-leg-pill--${line.name === 'Ru' ? 'ru' : 'pro'}`}>{line.name}</span>
+              ))}
+            </div>
+            <div className="an-traffic__metric-toggle">
+              <button type="button" aria-pressed={metric === 'visits'} className={metric === 'visits' ? 'is-on' : ''} onClick={() => setMetric('visits')}>Визиты</button>
+              <button type="button" aria-pressed={metric === 'views'} className={metric === 'views' ? 'is-on' : ''} onClick={() => setMetric('views')}>Просмотры</button>
+            </div>
+          </div>
+          <div className="analytics-chart-h an-traffic__chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={series} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--stroke-soft, #333)" opacity={0.5} />
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => humanDateShort(v)} stroke="var(--text-muted)" minTickGap={24} />
+                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} stroke="var(--text-muted)" width={32} />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.[0]) return null;
+                    const p = payload[0].payload;
+                    return (
+                      <div className="an-tt">
+                        <div className="an-tt__label">{humanDate(p.date)}</div>
+                        <div className="an-tt__val">Pro: {p.proVisits} {pluralRu(p.proVisits, 'визит', 'визита', 'визитов')}, {p.proViews} просм.</div>
+                        <div className="an-tt__sub">Ru: {p.ruVisits} {pluralRu(p.ruVisits, 'визит', 'визита', 'визитов')}, {p.ruViews} просм.</div>
+                      </div>
+                    );
+                  }}
+                />
+                {lineKeys.map((line) => (
+                  <Line key={line.key} type="monotone" dataKey={line.key} name={line.name} stroke={line.color} strokeWidth={2.4} dot={false} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="an-traffic__hours">
+            <h4>В какое время заходят</h4>
+            <p className="muted small">
+              {peakHourText(hours, metric) || 'Когда появятся визиты, здесь будет видно, в какой час по Москве их больше.'}
+              {' '}Высота столбика сейчас показывает {metric === 'views' ? 'просмотры' : 'первые заходы'}. Переключатель над графиком меняет и столбики. Час по Москве.
+            </p>
+            <div className={`an-traffic__hour-bars${focus === 'ru' ? ' is-ru' : ''}`}>
+              {(hours || []).map((row) => (
+                <div key={row.hour} title={`${String(row.hour).padStart(2, '0')}:00, визитов ${row.visits}, просмотров ${row.views}`}>
+                  <span className="an-traffic__hour-track"><i style={{ height: `${Math.round(((row[metric] || 0) / hourMax) * 100)}%` }} /></span>
+                  <span>{row.hour % 3 === 0 ? String(row.hour).padStart(2, '0') : ''}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {focus === 'all' ? (
+            <div className="an-traffic__boards">
+              <SiteBoard host="reaktivo.pro" tone="pro" data={pro} />
+              <SiteBoard host="reaktivo.ru" tone="ru" data={ru} />
+            </div>
+          ) : (
+            <SiteBoard host={focus === 'pro' ? 'reaktivo.pro' : 'reaktivo.ru'} tone={focus} data={focused} />
+          )}
         </>
       )}
     </section>
@@ -602,7 +835,7 @@ export function Analytics({ formatMoney, toast }) {
   return (
     <div className="analytics-page">
       <PageHint id="analytics" title="Как читать аналитику">
-        Выберите период вверху — все цифры и графики пересчитаются. <b>Посещаемость сайтов</b> показывает визиты reaktivo.pro и reaktivo.ru по дням. <b>Каналы оформления</b> показывают долю отделения и доставки. Кнопка <b>PDF-отчёт</b> выгрузит сводку с графиками. Строка <b>AI-аналитик</b> ответит на вопросы по данным периода.
+        Выберите период вверху — все цифры и графики пересчитаются. <b>Посещаемость сайтов</b> отвечает, что смотрели, куда заходили, откуда пришли и в какой час по Москве. Вкладки переключают оба сайта, только Pro или только Ru. <b>Каналы оформления</b> показывают долю отделения и доставки. Кнопка <b>PDF-отчёт</b> выгрузит сводку с графиками. Строка <b>AI-аналитик</b> ответит на вопросы по данным периода.
       </PageHint>
       {/* HERO: период, оборот, дельта */}
       <div className="an-hero">
@@ -1862,22 +2095,52 @@ const ANALYTICS_CSS = `
 .an-leg-pill--net::before { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 .an-leg-pill--pro::before { background: #c41e22; }
 .an-leg-pill--ru::before { background: #c9a227; }
+.an-traffic { display: grid; gap: 14px; color: var(--text); }
+.an-traffic__read { margin: 0; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--gold) 8%, transparent); line-height: 1.45; color: var(--text); }
 .an-traffic__head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
-.an-traffic__sites { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.an-traffic__site { border: 1px solid var(--stroke); border-radius: 14px; padding: 14px 14px 10px; min-width: 0; }
-.an-traffic__site--pro { border-top: 3px solid #c41e22; }
-.an-traffic__site--ru { border-top: 3px solid #c9a227; }
-.an-traffic__host { font-size: 0.78rem; font-weight: 700; color: var(--text-dim); }
-.an-traffic__metric { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
-.an-traffic__metric b { font-size: 1.8rem; letter-spacing: -0.03em; line-height: 1; }
-.an-traffic__views { margin: 4px 0 8px; font-size: 0.84rem; }
-.an-traffic__pages { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-.an-traffic__pages li { display: flex; justify-content: space-between; gap: 10px; font-size: 0.8rem; }
-.an-traffic__pages span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
-.an-traffic__chart { margin-top: 14px; }
-.an-traffic__empty { margin: 28px 0; }
-@media (max-width: 720px) {
-  .an-traffic__head, .an-traffic__sites { display: grid; grid-template-columns: 1fr; }
+.an-traffic__glossary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+.an-traffic__glossary div { border: 1px solid var(--stroke); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.an-traffic__glossary dt { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+.an-traffic__glossary dd { margin: 0; font-size: 0.82rem; line-height: 1.4; color: var(--text-dim); }
+.an-traffic__tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.an-traffic__tabs button { display: flex; align-items: center; gap: 8px; border: 1px solid var(--stroke); background: transparent; color: inherit; border-radius: 999px; padding: 7px 12px; cursor: pointer; font: inherit; }
+.an-traffic__tabs button.is-on { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 14%, transparent); }
+.an-traffic__tabs b { font-size: 0.95rem; }
+.an-traffic__kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.an-traffic__kpis article { border: 1px solid var(--stroke); border-radius: 14px; padding: 12px; min-width: 0; display: grid; gap: 4px; }
+.an-traffic__kpis span { font-size: 0.75rem; color: var(--text-dim); }
+.an-traffic__kpis b { font-size: 1.6rem; letter-spacing: -0.03em; line-height: 1; }
+.an-traffic__kpis small { color: var(--text-muted); line-height: 1.35; }
+.an-traffic__chart-head, .an-traffic__hours { display: flex; justify-content: space-between; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.an-traffic__hours { display: grid; gap: 6px; }
+.an-traffic__chart-head h4, .an-traffic__hours h4, .an-traffic__board > h4, .an-traffic__panel h4 { margin: 0; font-size: 0.95rem; }
+.an-traffic__metric-toggle { display: flex; gap: 6px; }
+.an-traffic__metric-toggle button { border: 1px solid var(--stroke); background: transparent; color: inherit; border-radius: 999px; padding: 5px 10px; cursor: pointer; font: inherit; font-size: 0.8rem; }
+.an-traffic__metric-toggle button.is-on { border-color: var(--gold); color: var(--gold); }
+.an-traffic__chart { min-height: 220px; }
+.an-traffic__hour-bars { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; }
+.an-traffic__hour-bars div { min-width: 0; }
+.an-traffic__hour-track { display: flex; align-items: flex-end; height: 64px; }
+.an-traffic__legend { display: flex; gap: 8px; align-items: center; }
+.an-traffic__board--ru .an-traffic__hour-track i,
+.an-traffic__hour-bars.is-ru i { background: #c9a227; }
+.an-traffic__hour-track i { display: block; width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: #c41e22; }
+.an-traffic__hour-bars div > span:last-child { display: block; height: 14px; font-size: 0.62rem; color: var(--text-muted); text-align: center; margin-top: 3px; }
+.an-traffic__boards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.an-traffic__board { border: 1px solid var(--stroke); border-radius: 14px; padding: 12px; min-width: 0; }
+.an-traffic__board--pro { border-top: 3px solid #c41e22; }
+.an-traffic__board--ru { border-top: 3px solid #c9a227; }
+.an-traffic__split { display: grid; gap: 14px; margin-top: 10px; }
+.an-traffic__panel p { margin: 4px 0 8px; }
+.an-traffic__ranks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.an-traffic__rank-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.an-traffic__rank-top b { display: block; }
+.an-traffic__rank-top span, .an-traffic__ranks small { color: var(--text-muted); font-size: 0.75rem; }
+.an-traffic__bar { height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--stroke) 70%, transparent); overflow: hidden; margin: 4px 0; }
+.an-traffic__bar i { display: block; height: 100%; border-radius: 99px; background: var(--gold); }
+.an-traffic__none { margin: 0; }
+@media (max-width: 900px) {
+  .an-traffic__glossary, .an-traffic__kpis, .an-traffic__boards { grid-template-columns: 1fr; }
 }
 
 .analytics-err { padding: 12px 16px; color: var(--crimson, #d63b3b); font-size: 0.9rem; }

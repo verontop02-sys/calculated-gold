@@ -147,7 +147,7 @@ async function fetchHits(supabase, from, to) {
   for (let offset = 0; offset < MAX_ROWS; offset += PAGE_SIZE) {
     const { data, error } = await supabase
       .from('site_hits')
-      .select('created_at, site, session_id, path')
+      .select('created_at, site, session_id, path, referrer_host')
       .gte('created_at', start)
       .lt('created_at', end)
       .order('created_at', { ascending: true })
@@ -160,11 +160,56 @@ async function fetchHits(supabase, from, to) {
   return rows;
 }
 
-function topPages(map) {
+const OWN_HOSTS = new Set([
+  'reaktivo.pro',
+  'reaktivo.ru',
+  'gold-panel.web.app',
+  'gold-panel.firebaseapp.com',
+  'reaktivo-ru.web.app',
+  'reaktivo-ru.firebaseapp.com',
+]);
+
+/** Откуда открыли сайт: по адресу первого захода в визите. */
+export function classifyReferrer(raw) {
+  const host = String(raw || '').replace(/^www\./i, '').toLowerCase();
+  if (!host) {
+    return { host: '', group: 'direct', label: 'Прямой заход', hint: 'Адрес набрали сами или открыли из закладки' };
+  }
+  if (OWN_HOSTS.has(host)) {
+    return { host, group: 'own', label: 'С нашего сайта', hint: `Перешли с ${host}` };
+  }
+  if (/(^|\.)google\./.test(host)) return { host, group: 'search', label: 'Google', hint: 'Нашли в поиске Google' };
+  if (/(^|\.)yandex\./.test(host) || host === 'ya.ru') return { host, group: 'search', label: 'Яндекс', hint: 'Нашли в поиске Яндекса' };
+  if (/(^|\.)bing\./.test(host)) return { host, group: 'search', label: 'Bing', hint: 'Нашли в поиске Bing' };
+  if (host.includes('duckduckgo.')) return { host, group: 'search', label: 'DuckDuckGo', hint: 'Нашли в поиске' };
+  if (host === 't.me' || host.endsWith('.t.me') || host.includes('telegram')) return { host, group: 'social', label: 'Telegram', hint: 'Перешли из Telegram' };
+  if (host === 'vk.com' || host === 'vk.ru' || host.endsWith('.vk.com')) return { host, group: 'social', label: 'ВКонтакте', hint: 'Перешли из ВКонтакте' };
+  if (host.includes('instagram')) return { host, group: 'social', label: 'Instagram', hint: 'Перешли из Instagram' };
+  if (host.includes('youtube') || host === 'youtu.be') return { host, group: 'social', label: 'YouTube', hint: 'Перешли из YouTube' };
+  if (host === 'dzen.ru') return { host, group: 'social', label: 'Дзен', hint: 'Перешли из Дзена' };
+  if (host === 'ok.ru') return { host, group: 'social', label: 'Одноклассники', hint: 'Перешли из Одноклассников' };
+  return { host, group: 'referral', label: host, hint: 'Перешли по ссылке с этого сайта' };
+}
+
+export function moscowHour(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return 0;
+  return Number(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Moscow',
+    hour: 'numeric',
+    hourCycle: 'h23',
+  }).format(d));
+}
+
+function emptyHours() {
+  return Array.from({ length: 24 }, (_, hour) => ({ hour, visits: 0, views: 0 }));
+}
+
+function topList(map, limit, mapRow) {
   return [...map.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, 6)
-    .map(([path, views]) => ({ path, views }));
+    .sort((a, b) => b[1].views - a[1].views || b[1].entries - a[1].entries || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([path, row]) => mapRow(path, row));
 }
 
 export function summarizeSiteHits(rows, from, to) {
@@ -178,7 +223,10 @@ export function summarizeSiteHits(rows, from, to) {
   const byDate = new Map(series.map((row) => [row.date, row]));
   const sessions = { pro: new Set(), ru: new Set() };
   const daySessions = new Map();
+  const seenEntry = new Set();
   const pages = { pro: new Map(), ru: new Map() };
+  const sources = { pro: new Map(), ru: new Map() };
+  const hours = { pro: emptyHours(), ru: emptyHours() };
 
   for (const row of rows || []) {
     const site = row.site === 'ru' || row.site === 'pro' ? row.site : '';
@@ -186,20 +234,36 @@ export function summarizeSiteHits(rows, from, to) {
     const date = moscowDateKey(row.created_at);
     const bucket = byDate.get(date);
     if (!bucket) continue;
+    const path = String(row.path || '/');
+    const hour = moscowHour(row.created_at);
     bucket[site === 'pro' ? 'proViews' : 'ruViews'] += 1;
+    hours[site][hour].views += 1;
+    const page = pages[site].get(path) || { views: 0, entries: 0 };
+    page.views += 1;
+
     const sid = String(row.session_id || '');
     if (sid) {
       sessions[site].add(sid);
-      const key = `${date}|${site}`;
-      let set = daySessions.get(key);
+      const dayKey = `${date}|${site}`;
+      let set = daySessions.get(dayKey);
       if (!set) {
         set = new Set();
-        daySessions.set(key, set);
+        daySessions.set(dayKey, set);
       }
       set.add(sid);
+      const entryKey = `${site}|${sid}`;
+      if (!seenEntry.has(entryKey)) {
+        seenEntry.add(entryKey);
+        page.entries += 1;
+        hours[site][hour].visits += 1;
+        const src = classifyReferrer(row.referrer_host);
+        const srcKey = src.group === 'direct' ? 'direct' : `${src.group}|${src.host}`;
+        const prev = sources[site].get(srcKey) || { ...src, visits: 0 };
+        prev.visits += 1;
+        sources[site].set(srcKey, prev);
+      }
     }
-    const path = String(row.path || '/');
-    pages[site].set(path, (pages[site].get(path) || 0) + 1);
+    pages[site].set(path, page);
   }
 
   for (const row of series) {
@@ -208,12 +272,16 @@ export function summarizeSiteHits(rows, from, to) {
   }
 
   const views = (key) => series.reduce((sum, row) => sum + row[key], 0);
+  const pack = (site) => ({
+    views: views(site === 'pro' ? 'proViews' : 'ruViews'),
+    visits: sessions[site].size,
+    pages: topList(pages[site], 8, (path, row) => ({ path, views: row.views, entries: row.entries })),
+    sources: [...sources[site].values()].sort((a, b) => b.visits - a.visits || a.label.localeCompare(b.label, 'ru')).slice(0, 8),
+    hours: hours[site],
+  });
   return {
     series,
-    sites: {
-      pro: { views: views('proViews'), visits: sessions.pro.size, pages: topPages(pages.pro) },
-      ru: { views: views('ruViews'), visits: sessions.ru.size, pages: topPages(pages.ru) },
-    },
+    sites: { pro: pack('pro'), ru: pack('ru') },
   };
 }
 
