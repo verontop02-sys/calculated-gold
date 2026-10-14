@@ -15,6 +15,7 @@ import { ToastProvider } from './ToastContext.jsx';
 import { initThemeFromStorage } from './theme.js';
 import { pingApiHealth } from './api.js';
 import { matchRuRoute, PRO_ORIGIN } from './ru/ruSite.js';
+import { trackPageView } from './siteTraffic.js';
 
 initThemeFromStorage();
 void pingApiHealth({ timeout: 90_000 }).catch(() => {});
@@ -56,4 +57,5 @@ if (typeof window !== 'undefined' && sendToPro) {
       <ToastProvider>{inner}</ToastProvider>
     </StrictMode>
   );
+  trackPageView();
 }
