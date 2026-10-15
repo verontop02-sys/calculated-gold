@@ -42,7 +42,7 @@ import {
 } from './fieldDealSession.js';
 import { sendConsultLeadEmailIfConfigured } from './emailDealReceipt.js';
 import { sendTelegramMessage, sendTelegramPhoto } from './telegramNotify.js';
-import { sendDealConfirmationSms } from './smsSend.js';
+import { LEAD_ACK_SMS, leadSmsDigits, sendDealConfirmationSms } from './smsSend.js';
 import { mountSupabaseBrowserProxy } from './supabaseBrowserProxy.js';
 import {
   buildGoldIndexOverview,
@@ -1438,6 +1438,31 @@ function isLeadName(value) {
   return /[a-zA-Zа-яА-ЯёЁ]/.test(s);
 }
 
+const recentLeadSms = new Map();
+
+/** Одно смс на номер за минуту: повторный клик по кнопке не шлёт второе. */
+function claimLeadSms(digits) {
+  const now = Date.now();
+  for (const [key, at] of recentLeadSms) {
+    if (now - at > 10 * 60_000) recentLeadSms.delete(key);
+  }
+  const prev = recentLeadSms.get(digits);
+  if (prev && now - prev < 60_000) return false;
+  recentLeadSms.set(digits, now);
+  return true;
+}
+
+async function sendLeadAckSms(phone) {
+  const digits = leadSmsDigits(phone);
+  if (!digits || !claimLeadSms(digits)) return;
+  try {
+    await sendDealConfirmationSms({ to: digits, text: LEAD_ACK_SMS });
+  } catch (e) {
+    recentLeadSms.delete(digits);
+    console.warn('[lead sms]', e?.message || e);
+  }
+}
+
 /**
  * Публичная заявка с лендингов reaktivo.ru: база + Telegram.
  * Телефон обязателен: без него заявку не принимаем.
@@ -1478,6 +1503,7 @@ app.post(
     if (!saved && !tg?.sent) {
       return res.status(502).json({ error: 'Не удалось отправить заявку. Напишите на team@reaktivo.ru' });
     }
+    await sendLeadAckSms(phone);
     res.json({ ok: true });
   })
 );
@@ -1764,15 +1790,7 @@ app.post(
       return res.status(502).json({ error: 'Не удалось отправить заявку. Напишите на team@reaktivo.ru' });
     }
 
-    // SMS клиенту — best-effort: если провайдер упал, заявка всё равно принята (есть в БД/Telegram).
-    try {
-      await sendDealConfirmationSms({
-        to: phone,
-        text: `Reaktivo — курьер забронирован. ${formatKurierDateRu(date)}, ${time}. Курьер позвонит за 1 час до визита для подтверждения. reaktivo.ru/kurier/`,
-      });
-    } catch (e) {
-      console.warn('[courier-order sms]', e?.message || e);
-    }
+    await sendLeadAckSms(phone);
 
     res.json({ ok: true });
   })
@@ -1835,12 +1853,17 @@ app.post(
       const out = await sendConsultLeadEmailIfConfigured({ name, phone: phonePretty });
       if (!out.sent && out.reason === 'not_configured') {
         console.info('[consult-lead]', name, phone);
+        await sendLeadAckSms(phonePretty);
         return res.json({ ok: true, queued: true });
       }
+      await sendLeadAckSms(phonePretty);
       return res.json({ ok: true });
     } catch (e) {
       console.error('[consult-lead]', e?.message || e);
-      if (tg?.sent) return res.json({ ok: true });
+      if (tg?.sent) {
+        await sendLeadAckSms(phonePretty);
+        return res.json({ ok: true });
+      }
       return res.status(502).json({ error: 'Не удалось отправить заявку. Напишите на team@reaktivo.ru' });
     }
   })

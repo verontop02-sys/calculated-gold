@@ -22,6 +22,23 @@ function enrichSmsError(err, providerData) {
   return err;
 }
 
+/** Подтверждение заявки с сайта. Опечатку в черновике (Reakrivo) не отправляем. */
+export const LEAD_ACK_SMS = [
+  'Здравствуйте! Вы оставили заявку на нашем сайте Reaktivo.ru',
+  'Мы уже занимаемся вашим заказом и скоро позвоним.',
+  'Тел. менеджера 8 993 633 01 01',
+  'С уважением, команда Reaktivo',
+].join('\n');
+
+/** 7XXXXXXXXXX или пусто, если это не российский мобильный. */
+export function leadSmsDigits(phone) {
+  let d = String(phone || '').replace(/\D/g, '');
+  if (d.length === 11 && d.startsWith('8')) d = `7${d.slice(1)}`;
+  else if (d.length === 10 && d.startsWith('9')) d = `7${d}`;
+  if (d.length !== 11 || !d.startsWith('79')) return '';
+  return d;
+}
+
 export async function sendDealConfirmationSms({ to, text }) {
   const apiId = (process.env.SMSRU_API_ID || '').trim();
   if (apiId) {
