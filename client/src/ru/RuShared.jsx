@@ -823,10 +823,13 @@ export function RuSbpBadge({ className = '' }) {
 
 export const PAYOUT_DISCLAIMER = 'Выплата считается по официальному курсу выкупа офиса. Точная сумма — после проверки пробы и веса курьером.';
 
-export function PayoutDisclaimer() {
+export function PayoutDisclaimer({ channel = 'office' }) {
+  const text = channel === 'courier'
+    ? 'Выплата курьера считается по курсу выкупа курьера. Точная сумма — после проверки пробы и веса.'
+    : PAYOUT_DISCLAIMER;
   return (
     <p className="rl-payout-note">
-      {PAYOUT_DISCLAIMER}
+      {text}
       <RuSbpBadge className="rl-sbp--lg" />
     </p>
   );

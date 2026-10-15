@@ -44,7 +44,7 @@ const STEPS = [
   { n: '01', title: 'Заявка', text: 'Считаете сумму в калькуляторе и вызываете курьера. Никуда ехать не нужно.' },
   { n: '02', title: 'Курьер', text: 'Красная сумка едет по адресу. За час до визита курьер позвонит и подтвердит время.' },
   { n: '03', title: 'Проверка', text: 'Специалист проверит изделие при вас и подтвердит оценку. Клеймо не обязательно.' },
-  { n: '04', title: 'Деньги', text: 'Наличные или СБП сразу после проверки. Сумма та, что вы видели на сайте.' },
+  { n: '04', title: 'Деньги', text: 'Наличные или СБП сразу после проверки. Сумма та, что зафиксировали в заявке на курьера.' },
 ];
 
 const TRACK = [
@@ -63,14 +63,14 @@ const EVOLUTION = [
 const STORIES = [
   { k: 'В тот же день', t: 'Заявка утром — деньги в тот же день', d: 'Курьер приезжает в день заявки. Проверка и выплата — в один визит, без отделения.' },
   { k: 'При вас', t: 'Реактивная оценка', d: 'Специалист проверит изделие при вас и подтвердит оценку.' },
-  { k: 'Один курс', t: 'Сделали заказ — сумма зафиксирована', d: 'Сумма, которую вы увидели на сайте, — это та выплата, которую привезёт курьер.' },
+  { k: 'Один курс', t: 'Сделали заказ — сумма зафиксирована', d: 'Сумма в заявке на курьера — это выплата, которую привезёт курьер.' },
 ];
 
 const COMPARE = [
   {
     title: 'Курьер',
     on: true,
-    points: ['Не нужно везти золото', 'Курс тот же, что и на сайте', 'Проверка и выплата при вас', 'Вызов бесплатный'],
+    points: ['Не нужно везти золото', 'Сумма видна до выезда', 'Проверка и выплата при вас', 'Вызов бесплатный'],
   },
   {
     title: 'Отделение',
@@ -504,7 +504,7 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
     if (open) setMode(initialMode);
   }, [open, initialMode]);
 
-  const priced = quoteForChannel(quote, mode === 'branch' ? 'office' : 'courier');
+  const priced = quoteForChannel(quote, mode === 'courier' ? 'courier' : 'office');
   const ceiling = quotePayoutRange(priced, purity || 585, grams > 0 ? grams : 10).high;
 
   useEffect(() => {
@@ -640,7 +640,7 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
               <span>Предварительно, до<small>Проба {purity || 585} · {grams || 10} г</small></span>
               <b className="mono-nums rl-payout-sum">{ceiling != null ? formatMoney(Math.round(ceiling)) : '—'}</b>
             </div>
-            <PayoutDisclaimer />
+            <PayoutDisclaimer channel={mode === 'courier' ? 'courier' : 'office'} />
             <label className="dl2-modal-field">
               <span>Телефон</span>
               <input type="tel" inputMode="tel" autoComplete="tel" enterKeyHint="next" placeholder="+7 900 000-00-00" value={phone} onChange={(e) => setPhone(e.target.value)} />
@@ -772,20 +772,23 @@ export function DeliveryLanding() {
   }, []);
 
   const lockedAlive = Boolean(locked && left > 0);
+  const officeQuote = useMemo(() => quoteForChannel(liveQuote, 'office'), [liveQuote]);
   const courierQuote = useMemo(() => quoteForChannel(liveQuote, 'courier'), [liveQuote]);
-  const quote = lockedAlive ? locked.quote : courierQuote;
+  const quote = lockedAlive ? locked.quote : officeQuote;
   const activePurity = lockedAlive ? locked.purity : purity;
   const activeGrams = lockedAlive ? locked.grams : grams;
   const payout = useMemo(() => quotePayout(quote, activePurity, activeGrams), [quote, activePurity, activeGrams]);
   const perG = useMemo(() => quotePerGram(quote, activePurity), [quote, activePurity]);
+  const officePayout = useMemo(() => quotePayout(officeQuote, purity, grams), [officeQuote, purity, grams]);
   const spot = Number(quote?.goldRubPerGram) || 0;
   const scrap = spot > 0 && activeGrams > 0 ? spot * (activePurity / 1000) * activeGrams : null;
   const shownAmount = lockedAlive ? locked.amount : payout;
   const waitingQuote = status === 'loading' && !liveQuote;
   const quoteFailed = status === 'error' && !liveQuote;
   const payoutDisplay = useAnimatedNumber(shownAmount);
+  const officePayoutDisplay = useAnimatedNumber(officePayout);
   const scrapDisplay = useAnimatedNumber(scrap);
-  const gapDisplay = useAnimatedNumber(scrap != null && shownAmount != null ? Math.max(0, scrap - shownAmount) : null);
+  const gapDisplay = useAnimatedNumber(scrap != null && officePayout != null ? Math.max(0, scrap - officePayout) : null);
 
   useEffect(() => {
     if (!locked) return undefined;
@@ -802,15 +805,17 @@ export function DeliveryLanding() {
       setError('Курс сейчас недоступен. Обновите страницу или позвоните: 8 800 555-18-48');
       return;
     }
-    if (payout == null || payout <= 0) {
+    const courierPay = quotePayout(courierQuote, purity, grams);
+    const courierPerG = quotePerGram(courierQuote, purity);
+    if (courierPay == null || courierPay <= 0) {
       setError(waitingQuote ? 'Курс ещё загружается — подождите секунду.' : 'Укажите вес изделия, чтобы посчитать выплату.');
       return;
     }
     setLocked({
-      amount: Math.round(payout),
+      amount: Math.round(courierPay),
       purity,
       grams: Number(grams),
-      perGram: perG,
+      perGram: courierPerG,
       quote: courierQuote,
       until: Date.now() + LOCK_MS,
     });
@@ -901,10 +906,10 @@ export function DeliveryLanding() {
         ? 'Курс недоступен'
         : waitingQuote
           ? 'Загружаем курс…'
-          : 'Вызвать курьера на эту сумму';
+          : 'Вызвать курьера';
 
   const quickGrams = grams > 0 ? grams : 1;
-  const quickCeiling = quotePayoutRange(courierQuote, purity, quickGrams).high;
+  const quickCeiling = quotePayoutRange(officeQuote, purity, quickGrams).high;
   const quickCalc = (
     <div className="dl2-quick">
       <div className="dl2-quick-in">
@@ -920,7 +925,7 @@ export function DeliveryLanding() {
         </p>
       </div>
       <div className="dl2-quick-out">
-        <span className="dl2-quick-label">Вы получите до</span>
+        <span className="dl2-quick-label">В отделении до</span>
         <b className="dl2-quick-sum rl-payout-sum mono-nums" key={quickGrams}>
           {waitingQuote ? <Skel wide /> : quickCeiling != null ? formatMoney(Math.round(quickCeiling)) : '—'}
         </b>
@@ -995,7 +1000,7 @@ export function DeliveryLanding() {
 
           <div className="rl-calc-out dl2-out">
             <span className="rl-calc-out-label">
-              {lockedAlive ? 'Зафиксировали' : 'К выплате'} наличными или<RuSbpBadge />
+              {lockedAlive ? 'Зафиксировали для курьера' : 'К выплате в отделении'} наличными или<RuSbpBadge />
             </span>
             <span className="rl-calc-out-val mono-nums">
               {waitingQuote ? <Skel wide /> : payoutDisplay != null ? formatMoney(payoutDisplay) : '—'}
@@ -1003,7 +1008,7 @@ export function DeliveryLanding() {
             {lockedAlive ? (
               <span className="dl2-timer" aria-live="polite">
                 <b>{formatTimer(left)}</b>
-                <span>курс держим 15 минут</span>
+                <span>курс курьера, держим 15 минут</span>
               </span>
             ) : (
               <span className="dl2-out-note">
@@ -1161,8 +1166,8 @@ export function DeliveryLanding() {
               </motion.div>
                 <motion.div className="il-card" variants={listChild}>
                 <span className="il-card-label">Ваша выплата</span>
-                <div className="il-card-big mono-nums">{waitingQuote ? <Skel wide /> : payoutDisplay != null ? formatMoney(payoutDisplay) : '—'}</div>
-                <p className="il-card-text">Сумма, которую вы получите от курьера — наличными или через СБП.</p>
+                <div className="il-card-big mono-nums">{waitingQuote ? <Skel wide /> : officePayoutDisplay != null ? formatMoney(officePayoutDisplay) : '—'}</div>
+                <p className="il-card-text">Сумма по курсу отделения, наличными или через СБП.</p>
               </motion.div>
                 <motion.div className="il-card" variants={listChild}>
                 <span className="il-card-label">Разница</span>
@@ -1270,7 +1275,7 @@ export function DeliveryLanding() {
           <div className="il-section-inner">
             <div className="il-section-head">
               <Reveal><span className="il-pill">Дома или в отделении</span></Reveal>
-              <Reveal delay={0.06}><h2 className="il-h2">Курс один. Выбирайте, <span className="il-accent-text">как удобнее</span></h2></Reveal>
+              <Reveal delay={0.06}><h2 className="il-h2">Дома или в отделении. Выбирайте, <span className="il-accent-text">как удобнее</span></h2></Reveal>
             </div>
             <div className="dl2-compare dl2-compare--pair">
               {COMPARE.map((c) => (

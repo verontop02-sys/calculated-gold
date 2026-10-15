@@ -91,7 +91,7 @@ test('courier coefficient multiplies the payout and leaves the exchange base', (
   assert.equal(office.scrapRub, 58500);
   assert.equal(office.midRub, 58500 * 0.85);
   assert.equal(courier.midRub, office.midRub * 0.9);
-  assert.equal(courier.buybackPct, 85);
+  assert.equal(courier.buybackPct, 76.5);
 });
 
 test('quoteForChannel picks the courier map and keeps office perGram by default', () => {

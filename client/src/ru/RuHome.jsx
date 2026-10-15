@@ -4,7 +4,7 @@ import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../Inv
 import {
   RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuMarketTiles, RuMarquee, RuPhotoCard, RuSbpBadge, RuStatement, RuThemedImg, RuTiltCard,
   GramsSlider, PayoutDisclaimer, formatMoney, officeHallPhoto, ruHref, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
-  quoteForChannel, quotePayout,
+  quotePayout,
 } from './RuShared.jsx';
 
 const DIRECTIONS = [
@@ -42,7 +42,7 @@ const DIRECTIONS = [
 
 const STEPS = [
   { n: '01', title: 'Считаете сами', text: 'Укажите пробу и вес в калькуляторе. Ваш результат — точная сумма, которую вы получите, а не раздутая оценка.' },
-  { n: '02', title: 'Оформляете заявку', text: 'Укажите адрес и удобное время. Или приезжайте в отделение — курс будет тот же самый.' },
+  { n: '02', title: 'Оформляете заявку', text: 'Укажите адрес и удобное время или приезжайте в отделение. Сумма на экране считается под выбранный способ.' },
   { n: '03', title: 'Проверка при вас', text: 'Проба и вес определяются на ваших глазах. Никаких комиссий и вычетов из-за состояния изделия.' },
   { n: '04', title: 'Деньги и документы', text: 'Наличные на месте или перевод. Договор — в приложении, без бумажной волокиты.' },
 ];
@@ -64,7 +64,7 @@ function LiveCalcCard({ quote }) {
   const [proba, setProba] = useState(585);
   const [grams, setGrams] = useState(12);
   const perGram = quote?.goldRubPerGram || null;
-  const sum = quotePayout(quoteForChannel(quote, 'courier'), proba, grams);
+  const sum = quotePayout(quote, proba, grams);
   const sumDisplay = useAnimatedNumber(sum);
 
   return (

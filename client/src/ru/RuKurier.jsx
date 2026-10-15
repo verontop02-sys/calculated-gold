@@ -71,7 +71,7 @@ const COMPARE = [
   },
   {
     title: 'Визит в отделение',
-    points: ['Курс точно такой же', 'Не нужно ждать назначенного окна', 'Подходит, если рядом есть отделение Reaktivo', 'Можно прийти без записи'],
+    points: ['Сумма отделения на экране продажи', 'Не нужно ждать назначенного окна', 'Подходит, если рядом есть отделение Reaktivo', 'Можно прийти без записи'],
   },
   {
     title: 'Заявка «перезвоним»',
@@ -465,7 +465,7 @@ export function KurierOrderCard({ quote, pulseKey }) {
           <span className="rl-price-range-val rl-payout-sum">
             {priceLow != null && priceHigh != null ? `≈ ${formatMoney(roundTo100(priceLow))} – ${formatMoney(roundTo100(priceHigh))}` : '· · ·'}
           </span>
-          <PayoutDisclaimer />
+          <PayoutDisclaimer channel="courier" />
         </div>
       </div>
 
@@ -603,7 +603,7 @@ export function RuKurier() {
 
         <RuMarquee items={[
           'Курьер бесплатно', 'Вы выбираете время', 'Проверка при вас', 'Деньги сразу',
-          'Подтверждаем звонком', 'Договор в приложении', 'Без комиссий', 'Курс как в отделении',
+          'Подтверждаем звонком', 'Договор в приложении', 'Без комиссий', 'Сумма на экране — выплата курьера',
         ]} />
 
         <section className="il-section rl-kpis-section">

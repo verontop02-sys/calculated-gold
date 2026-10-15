@@ -37,7 +37,7 @@ const FAQ = [
 function BigCalcCard({ quote, pulseKey }) {
   const [proba, setProba] = useState(585);
   const [grams, setGrams] = useState(12);
-  const [channel, setChannel] = useState('courier');
+  const [channel, setChannel] = useState('office');
   const [pulse, setPulse] = useState(false);
   const priced = quoteForChannel(quote, channel);
   const perGram = quote?.goldRubPerGram || null;
@@ -79,7 +79,7 @@ function BigCalcCard({ quote, pulseKey }) {
       <div className="rl-calc-out">
         <span className="rl-calc-out-label">Вы получите наличными или переводом<RuSbpBadge /></span>
         <span className="rl-calc-out-val rl-payout-sum">{sumDisplay != null ? formatMoney(sumDisplay) : '· · ·'}</span>
-        <PayoutDisclaimer />
+        <PayoutDisclaimer channel={channel} />
       </div>
       <a href="#zayavka" className="rl-btn rl-btn--primary rl-calc-cta">Продать золото</a>
     </motion.div>
