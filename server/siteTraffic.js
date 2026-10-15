@@ -205,6 +205,23 @@ function emptyHours() {
   return Array.from({ length: 24 }, (_, hour) => ({ hour, visits: 0, views: 0 }));
 }
 
+function emptyWeek() {
+  return Array.from({ length: 7 }, (_, dow) => ({ dow, visits: 0, views: 0 }));
+}
+
+function emptyGroups() {
+  return { direct: 0, search: 0, social: 0, own: 0, referral: 0 };
+}
+
+/** 0 = понедельник … 6 = воскресенье, по Москве. */
+export function moscowDowMonday(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return 0;
+  const name = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Moscow', weekday: 'short' }).format(d);
+  const sun0 = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[name] ?? 0;
+  return (sun0 + 6) % 7;
+}
+
 function topList(map, limit, mapRow) {
   return [...map.entries()]
     .sort((a, b) => b[1].views - a[1].views || b[1].entries - a[1].entries || a[0].localeCompare(b[0]))
@@ -224,9 +241,12 @@ export function summarizeSiteHits(rows, from, to) {
   const sessions = { pro: new Set(), ru: new Set() };
   const daySessions = new Map();
   const seenEntry = new Set();
+  const sessionMeta = new Map();
   const pages = { pro: new Map(), ru: new Map() };
   const sources = { pro: new Map(), ru: new Map() };
   const hours = { pro: emptyHours(), ru: emptyHours() };
+  const week = { pro: emptyWeek(), ru: emptyWeek() };
+  const groups = { pro: emptyGroups(), ru: emptyGroups() };
 
   for (const row of rows || []) {
     const site = row.site === 'ru' || row.site === 'pro' ? row.site : '';
@@ -236,9 +256,11 @@ export function summarizeSiteHits(rows, from, to) {
     if (!bucket) continue;
     const path = String(row.path || '/');
     const hour = moscowHour(row.created_at);
+    const dow = moscowDowMonday(row.created_at);
     bucket[site === 'pro' ? 'proViews' : 'ruViews'] += 1;
     hours[site][hour].views += 1;
-    const page = pages[site].get(path) || { views: 0, entries: 0 };
+    week[site][dow].views += 1;
+    const page = pages[site].get(path) || { views: 0, entries: 0, sources: new Map() };
     page.views += 1;
 
     const sid = String(row.session_id || '');
@@ -252,18 +274,45 @@ export function summarizeSiteHits(rows, from, to) {
       }
       set.add(sid);
       const entryKey = `${site}|${sid}`;
+      let meta = sessionMeta.get(entryKey);
+      if (!meta) {
+        meta = { n: 0, entry: path, second: '' };
+        sessionMeta.set(entryKey, meta);
+      }
+      meta.n += 1;
+      if (meta.n === 2 && path !== meta.entry) meta.second = path;
       if (!seenEntry.has(entryKey)) {
         seenEntry.add(entryKey);
         page.entries += 1;
         hours[site][hour].visits += 1;
+        week[site][dow].visits += 1;
         const src = classifyReferrer(row.referrer_host);
         const srcKey = src.group === 'direct' ? 'direct' : `${src.group}|${src.host}`;
         const prev = sources[site].get(srcKey) || { ...src, visits: 0 };
         prev.visits += 1;
         sources[site].set(srcKey, prev);
+        groups[site][src.group] = (groups[site][src.group] || 0) + 1;
+        const pageSrc = page.sources.get(srcKey) || { ...src, visits: 0 };
+        pageSrc.visits += 1;
+        page.sources.set(srcKey, pageSrc);
       }
     }
     pages[site].set(path, page);
+  }
+
+  const depth = { pro: { one: 0, more: 0 }, ru: { one: 0, more: 0 } };
+  const flows = { pro: new Map(), ru: new Map() };
+  for (const [key, meta] of sessionMeta) {
+    const site = key.slice(0, key.indexOf('|'));
+    if (!depth[site]) continue;
+    if (meta.n <= 1) depth[site].one += 1;
+    else {
+      depth[site].more += 1;
+      if (meta.second) {
+        const flowKey = `${meta.entry}\t${meta.second}`;
+        flows[site].set(flowKey, (flows[site].get(flowKey) || 0) + 1);
+      }
+    }
   }
 
   for (const row of series) {
@@ -272,12 +321,30 @@ export function summarizeSiteHits(rows, from, to) {
   }
 
   const views = (key) => series.reduce((sum, row) => sum + row[key], 0);
+  const packSources = (map) => [...map.values()]
+    .sort((a, b) => b.visits - a.visits || a.label.localeCompare(b.label, 'ru'))
+    .slice(0, 5);
   const pack = (site) => ({
     views: views(site === 'pro' ? 'proViews' : 'ruViews'),
     visits: sessions[site].size,
-    pages: topList(pages[site], 8, (path, row) => ({ path, views: row.views, entries: row.entries })),
-    sources: [...sources[site].values()].sort((a, b) => b.visits - a.visits || a.label.localeCompare(b.label, 'ru')).slice(0, 8),
+    pages: topList(pages[site], 20, (path, row) => ({
+      path,
+      views: row.views,
+      entries: row.entries,
+      sources: packSources(row.sources || new Map()),
+    })),
+    sources: [...sources[site].values()].sort((a, b) => b.visits - a.visits || a.label.localeCompare(b.label, 'ru')).slice(0, 30),
     hours: hours[site],
+    week: week[site],
+    groups: groups[site],
+    depth: depth[site],
+    flows: [...flows[site].entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([key, count]) => {
+        const [from, to] = key.split('\t');
+        return { from, to, visits: count };
+      }),
   });
   return {
     series,
