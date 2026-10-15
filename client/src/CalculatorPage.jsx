@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Calculator } from './Calculator.jsx';
 import { ClientPresentation } from './ClientPresentation.jsx';
 import { api } from './api.js';
-import { buybackChannelForRole, calculateBuybackRange, mergeSettings, readBuybackCoeff } from './calc.js';
+import { buybackChannelForRole, calculateBuybackRange, effectiveBuybackPercent, mergeSettings, readBuybackCoeff } from './calc.js';
 import { computeClientView } from './clientView.js';
 
 const DISPLAY_CODE_KEY = 'cg_display_operator_code';
@@ -123,8 +123,10 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
   const buyPct = settings?.buybackPercentOfScrap != null ? Number(settings.buybackPercentOfScrap) : null;
   const corridor = settings?.rangeHalfWidthPercent != null ? Number(settings.rangeHalfWidthPercent) : null;
   const goldRub = price?.goldRubPerGram;
-  const channelCoeff = settings ? readBuybackCoeff(settings, channel) : 1;
-  const buybackRub = goldRub && buyPct ? Math.round(goldRub * (buyPct / 100) * channelCoeff) : null;
+  const officeCoeff = settings ? readBuybackCoeff(settings, 'office') : 1;
+  const courierPct = settings ? effectiveBuybackPercent(settings, 'courier') : null;
+  const shownPct = channel === 'courier' ? courierPct : (settings ? effectiveBuybackPercent(settings, 'office') : buyPct);
+  const buybackRub = goldRub && shownPct != null ? Math.round(goldRub * (shownPct / 100)) : null;
 
   // Выкуп за 1 грамм изделия указанной пробы (с учётом политики и поправок по пробе).
   const perGram = useMemo(() => {
@@ -217,7 +219,11 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
             <span className="cg-side-card__per"> / г</span>
           </div>
           <div className="cg-side-card__sub">
-            {buyPct != null ? `${buyPct}% от ${goldRub ? formatMoney(goldRub) : '—'} (биржа)${channelCoeff !== 1 ? ` × ${channelCoeff}` : ''}` : 'Настройте политику в «Настройки»'}
+            {shownPct != null
+              ? (channel === 'courier'
+                ? `${shownPct}% от ${goldRub ? formatMoney(goldRub) : '—'} (биржа), выкуп курьера`
+                : `${buyPct}% от ${goldRub ? formatMoney(goldRub) : '—'} (биржа)${officeCoeff !== 1 ? ` × ${officeCoeff}` : ''}`)
+              : 'Настройте политику в «Настройки»'}
           </div>
 
           {/* Выкуп за грамм по ходовым пробам */}
@@ -258,8 +264,8 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
               <span className="cg-side-row__v">{settings ? readBuybackCoeff(settings, 'office') : '—'}</span>
             </div>
             <div className="cg-side-row">
-              <span className="cg-side-row__k">Коэффициент курьера</span>
-              <span className="cg-side-row__v">{settings ? readBuybackCoeff(settings, 'courier') : '—'}</span>
+              <span className="cg-side-row__k">Выкуп курьера</span>
+              <span className="cg-side-row__v">{courierPct != null ? `${courierPct}% от биржи` : '—'}</span>
             </div>
             <div className="cg-side-row">
               <span className="cg-side-row__k">Источник курса</span>

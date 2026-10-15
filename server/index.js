@@ -538,6 +538,23 @@ function normalizeBuybackCoeff(v) {
   return Math.round(readBuybackCoeff({ buybackCoeffOffice: v, buybackCoeffCourier: v }, 'office') * 1000) / 1000;
 }
 
+/** Итоговый процент курьера от биржи. Пустое поле сохраняет старый расчёт: процент отделения × коэффициент. */
+function readCourierBuybackPercent(settings) {
+  const raw = settings?.buybackPercentCourier;
+  if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
+    const n = Number(String(raw).trim().replace(',', '.'));
+    if (Number.isFinite(n)) return Math.min(100, Math.max(0, n));
+  }
+  const base = Math.min(100, Math.max(0, Number(settings?.buybackPercentOfScrap) || 0));
+  return Math.min(100, Math.round(base * readBuybackCoeff(settings, 'courier') * 100) / 100);
+}
+
+function normalizeBuybackPercent(v) {
+  const n = Number(String(v ?? '').trim().replace(',', '.'));
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(Math.min(100, Math.max(0, n)) * 100) / 100;
+}
+
 function parseRussianNum(v) {
   if (v == null) return null;
   const n = parseFloat(String(v).trim().replace(/\s/g, '').replace(',', '.'));
@@ -865,6 +882,7 @@ async function saveSettings(partial) {
   };
   if (partial.buybackCoeffOffice !== undefined) next.buybackCoeffOffice = normalizeBuybackCoeff(partial.buybackCoeffOffice);
   if (partial.buybackCoeffCourier !== undefined) next.buybackCoeffCourier = normalizeBuybackCoeff(partial.buybackCoeffCourier);
+  if (partial.buybackPercentCourier !== undefined) next.buybackPercentCourier = normalizeBuybackPercent(partial.buybackPercentCourier);
   await setKv('settings', next);
   return next;
 }
@@ -881,9 +899,11 @@ function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubPerGram,
   const fineGrams = w * (purity / 1000);
   const scrapRub = fineGrams * goldRubPerGram;
   const adjPct = settings.purityAdjustments[String(Math.round(purity))] ?? 0;
-  const buybackPct = Math.min(100, Math.max(0, Number(settings.buybackPercentOfScrap) || 0));
   const usedChannel = channel === 'courier' ? 'courier' : 'office';
-  const buybackCoeff = readBuybackCoeff(settings, usedChannel);
+  const buybackPct = usedChannel === 'courier'
+    ? readCourierBuybackPercent(settings)
+    : Math.min(100, Math.max(0, Number(settings.buybackPercentOfScrap) || 0));
+  const buybackCoeff = usedChannel === 'courier' ? 1 : readBuybackCoeff(settings, 'office');
   const midRub = scrapRub * (buybackPct / 100) * (1 + adjPct / 100) * buybackCoeff;
   const half = Math.min(50, Math.max(0, Number(settings.rangeHalfWidthPercent) || 0));
 
@@ -1887,6 +1907,7 @@ app.get(
       change: Number.isFinite(Number(cache?.change)) ? Number(cache.change) : null,
       source: quote === 'xaut' ? 'xaut' : (cache?.source ?? 'cbr'),
       buybackPercentOfScrap: Number(settings.buybackPercentOfScrap) || null,
+      buybackPercentCourier: readCourierBuybackPercent(settings),
       rangeHalfWidthPercent: Number(settings.rangeHalfWidthPercent) || 0,
       buybackCoeffOffice: readBuybackCoeff(settings, 'office'),
       buybackCoeffCourier: readBuybackCoeff(settings, 'courier'),
@@ -4478,7 +4499,7 @@ app.put(
   asyncHandler(requireSuperAdmin),
   asyncHandler(async (req, res) => {
     const body = req.body || {};
-    const allowed = ['buybackPercentOfScrap', 'rangeHalfWidthPercent', 'purityAdjustments', 'purityOrder', 'buybackCoeffOffice', 'buybackCoeffCourier'];
+    const allowed = ['buybackPercentOfScrap', 'buybackPercentCourier', 'rangeHalfWidthPercent', 'purityAdjustments', 'purityOrder', 'buybackCoeffOffice', 'buybackCoeffCourier'];
     const patch = {};
     for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];
     const result = await saveSettings(patch);

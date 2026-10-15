@@ -41,7 +41,7 @@ export function SettingsPanel({ user }) {
   const [buybackStr, setBuybackStr] = useState('');
   const [rangeStr, setRangeStr] = useState('');
   const [coeffOfficeStr, setCoeffOfficeStr] = useState('1');
-  const [coeffCourierStr, setCoeffCourierStr] = useState('1');
+  const [courierPctStr, setCourierPctStr] = useState('');
   const [adjStr, setAdjStr] = useState(null);
   const [fieldLog, setFieldLog] = useState(null);
   const [fieldLogErr, setFieldLogErr] = useState('');
@@ -109,7 +109,7 @@ export function SettingsPanel({ user }) {
     setBuybackStr(String(settings.buybackPercentOfScrap ?? ''));
     setRangeStr(String(settings.rangeHalfWidthPercent ?? ''));
     setCoeffOfficeStr(String(settings.buybackCoeffOffice ?? 1));
-    setCoeffCourierStr(String(settings.buybackCoeffCourier ?? 1));
+    setCourierPctStr(courierPercentShown(settings));
     const o = {};
     for (const p of (settings.purityOrder || []).map(String)) {
       o[p] = String(settings.purityAdjustments[p] ?? 0);
@@ -128,6 +128,16 @@ export function SettingsPanel({ user }) {
     return Math.round(Math.min(2, Math.max(0.5, n)) * 1000) / 1000;
   }
 
+  function courierPercentShown(row) {
+    if (row?.buybackPercentCourier != null && String(row.buybackPercentCourier).trim() !== '') {
+      return String(row.buybackPercentCourier);
+    }
+    const base = Number(row?.buybackPercentOfScrap) || 0;
+    const coeff = Number(row?.buybackCoeffCourier);
+    const used = Number.isFinite(coeff) && coeff > 0 ? coeff : 1;
+    return String(Math.round(Math.min(100, base * used) * 100) / 100);
+  }
+
   async function save(section) {
     if (!isSuper || !settings) return;
     setErr('');
@@ -144,7 +154,7 @@ export function SettingsPanel({ user }) {
         buybackPercentOfScrap: parseNum(buybackStr, 0),
         rangeHalfWidthPercent: parseNum(rangeStr, 0),
         buybackCoeffOffice: parseCoeff(coeffOfficeStr),
-        buybackCoeffCourier: parseCoeff(coeffCourierStr),
+        buybackPercentCourier: Math.min(100, Math.max(0, parseNum(courierPctStr, 0))),
         purityAdjustments,
       };
       const next = await api.saveSettings(patch);
@@ -357,7 +367,7 @@ export function SettingsPanel({ user }) {
               <h2 className="block-title">Политика выкупа</h2>
             </div>
             <p className="muted small block-desc">
-              Процент от стоимости чистого золота по курсу в верхней панели. Биржевой курс общий. Коэффициенты умножают уже посчитанную выплату: отделение и курьер по своим. 1 оставляет сумму как сейчас. Меняет только супер-администратор.
+              Процент от стоимости чистого золота по биржевому курсу в верхней панели. У курьера свой процент от той же биржи, его пишут числом, без коэффициента. Коэффициент отделения по-прежнему умножает выплату отделения. Меняет только супер-администратор.
             </p>
             <label className="field">
               <span className="field-label">Выкуп, % от биржевой стоимости</span>
@@ -405,21 +415,21 @@ export function SettingsPanel({ user }) {
               />
             </label>
             <label className="field">
-              <span className="field-label">Коэффициент курьера</span>
+              <span className="field-label">Выкуп курьера, % от биржевой стоимости</span>
               <input
                 type="text"
                 inputMode="decimal"
                 autoComplete="off"
-                value={coeffCourierStr}
-                onChange={(e) => { setSavedSection(null); setCoeffCourierStr(e.target.value); }}
+                value={courierPctStr}
+                onChange={(e) => { setSavedSection(null); setCourierPctStr(e.target.value); }}
                 onBlur={() => {
-                  const n = parseCoeff(coeffCourierStr);
-                  setCoeffCourierStr(String(n));
-                  setSettings((s) => ({ ...s, buybackCoeffCourier: n }));
+                  const n = Math.min(100, Math.max(0, parseNum(courierPctStr, 0)));
+                  setCourierPctStr(String(n));
+                  setSettings((s) => ({ ...s, buybackPercentCourier: n }));
                 }}
               />
             </label>
-            <p className="muted small block-desc">От 0,5 до 2. Например 0,97 снижает выплату на 3%. Курьерские калькуляторы берут коэффициент курьера, расчёт в отделении — коэффициент отделения.</p>
+            <p className="muted small block-desc">Например 88 значит, что курьер платит 88% биржевой цены чистого золота. Коэффициент отделения от 0,5 до 2: 0,97 снижает выплату отделения на 3%.</p>
             <button
               type="button"
               className={`btn-primary save-btn${savedSection === 'policy' ? ' save-btn--ok' : ''}`}

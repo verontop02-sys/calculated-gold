@@ -15,6 +15,27 @@ export function readBuybackCoeff(settings, channel) {
   return Math.min(2, Math.max(0.5, n));
 }
 
+/**
+ * Процент выкупа курьера от биржи, уже итоговый.
+ * Если поле ещё не задавали, берём прежний процент отделения, умноженный на старый коэффициент.
+ */
+export function readCourierBuybackPercent(settings) {
+  const raw = settings?.buybackPercentCourier;
+  if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
+    const n = Number(String(raw).trim().replace(',', '.'));
+    if (Number.isFinite(n)) return Math.min(100, Math.max(0, n));
+  }
+  const base = Math.min(100, Math.max(0, Number(settings?.buybackPercentOfScrap) || 0));
+  return Math.min(100, Math.round(base * readBuybackCoeff(settings, 'courier') * 100) / 100);
+}
+
+/** Итоговый процент от биржи: у курьера свой, у отделения базовый процент на коэффициент. */
+export function effectiveBuybackPercent(settings, channel) {
+  if (channel === 'courier') return readCourierBuybackPercent(settings);
+  const base = Math.min(100, Math.max(0, Number(settings?.buybackPercentOfScrap) || 0));
+  return Math.min(100, Math.round(base * readBuybackCoeff(settings, 'office') * 100) / 100);
+}
+
 /** Курьер в панели считает по коэффициенту курьера, отделение и остальные роли — по отделению. */
 export function buybackChannelForRole(role) {
   const r = String(role ?? '')
@@ -45,9 +66,11 @@ export function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubP
   const fineGrams = w * (purity / 1000);
   const scrapRub = fineGrams * goldRubPerGram;
   const adjPct = settings.purityAdjustments[String(Math.round(purity))] ?? 0;
-  const buybackPct = Math.min(100, Math.max(0, Number(settings.buybackPercentOfScrap) || 0));
-  const buybackCoeff = readBuybackCoeff(settings, channel);
   const usedChannel = channel === 'courier' ? 'courier' : 'office';
+  const buybackPct = usedChannel === 'courier'
+    ? readCourierBuybackPercent(settings)
+    : Math.min(100, Math.max(0, Number(settings.buybackPercentOfScrap) || 0));
+  const buybackCoeff = usedChannel === 'courier' ? 1 : readBuybackCoeff(settings, 'office');
   const midRub = scrapRub * (buybackPct / 100) * (1 + adjPct / 100) * buybackCoeff;
   const half = Math.min(50, Math.max(0, Number(settings.rangeHalfWidthPercent) || 0));
 
@@ -82,13 +105,13 @@ export function quoteForChannel(quote, channel) {
   const bag = ch === 'courier' ? quote.perGramCourier : quote.perGramOffice;
   if (bag && typeof bag === 'object') return { ...quote, perGram: bag };
   if (ch === 'office') return quote;
-  const cc = readBuybackCoeff(quote, 'courier');
-  const oc = readBuybackCoeff(quote, 'office');
-  if (!quote.perGram || cc === oc) return quote;
+  const courierPct = readCourierBuybackPercent(quote);
+  const officePct = effectiveBuybackPercent(quote, 'office');
+  if (!quote.perGram || !officePct || courierPct === officePct) return quote;
   const scaled = {};
   for (const [k, v] of Object.entries(quote.perGram)) {
     const n = Number(v);
-    if (Number.isFinite(n)) scaled[k] = Math.round((n * cc) / oc);
+    if (Number.isFinite(n)) scaled[k] = Math.round((n * courierPct) / officePct);
   }
   return { ...quote, perGram: scaled };
 }
@@ -134,8 +157,9 @@ export function quotePayoutRange(quote, purityPerThousand, weightGrams) {
 }
 
 export function quoteBuybackPctLabel(quote, channel) {
-  const pct = numOrNull(quote?.buybackPercentOfScrap);
+  const pct = channel
+    ? effectiveBuybackPercent(quote, channel === 'courier' ? 'courier' : 'office')
+    : numOrNull(quote?.buybackPercentOfScrap);
   if (pct == null || pct <= 0) return 'по курсу выкупа';
-  const coeff = channel ? readBuybackCoeff(quote, channel) : 1;
-  return `до ${Math.round(pct * coeff)}%`;
+  return `до ${Math.round(pct)}%`;
 }
