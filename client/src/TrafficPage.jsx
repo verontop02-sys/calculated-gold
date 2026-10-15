@@ -205,13 +205,19 @@ const TRAFFIC_CSS = `
 .an-studio__source-num strong { font-size: 1rem; color: var(--text); }
 .an-studio__flows i { font-style: normal; color: var(--text-muted); font-size: 0.75rem; }
 .an-studio__tools, .an-studio__search { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+.an-studio__tools p { margin: 0; flex: 1 1 220px; }
 .an-studio__search { display: grid; gap: 4px; justify-items: start; }
 .an-studio__search input { border: 1px solid var(--stroke); background: transparent; color: inherit; border-radius: 10px; padding: 8px 10px; font: inherit; min-width: min(100%, 280px); }
 .an-studio__table-wrap { overflow: auto; max-height: 560px; border: 1px solid var(--stroke); border-radius: 12px; }
 .an-studio__table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
-.an-studio__table th, .an-studio__table td { padding: 8px 10px; border-bottom: 1px solid var(--stroke); text-align: left; vertical-align: top; }
-.an-studio__table th { position: sticky; top: 0; background: var(--bg-panel-solid); color: var(--text-dim); font-size: 0.72rem; }
-.an-studio__table .num { text-align: right; white-space: nowrap; }
+.an-studio__table th, .an-studio__table td { padding: 11px 14px; border-bottom: 1px solid var(--stroke); text-align: left; vertical-align: middle; }
+.an-studio__table th { position: sticky; top: 0; background: var(--bg-panel-solid); color: var(--text-dim); font-size: 0.72rem; font-weight: 700; }
+.an-studio__table th.num, .an-studio__table td.num, .an-studio__table th.site, .an-studio__table td.site { width: 1%; white-space: nowrap; }
+.an-studio__table th.num, .an-studio__table td.num { text-align: right; }
+.an-studio__table th.site, .an-studio__table td.site { text-align: center; }
+.an-studio__table td.site { font-weight: 700; }
+.an-studio__table td b { display: block; }
+.an-studio__table td small { display: block; margin-top: 2px; }
 .an-studio__table tbody tr { cursor: pointer; }
 .an-studio__table tbody tr.is-open td { background: color-mix(in srgb, var(--gold) 8%, transparent); }
 .an-studio__table tbody tr.is-hot td:first-child { color: var(--gold); font-weight: 700; }

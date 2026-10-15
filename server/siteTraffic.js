@@ -58,6 +58,8 @@ export function cleanPath(raw) {
   if (!p.startsWith('/')) p = `/${p}`;
   p = p.replace(/\/{2,}/g, '/');
   if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+  p = p.replace(/\/index\.html$/i, '');
+  if (!p) p = '/';
   if (p.length > 160) p = p.slice(0, 160);
   if (/[\u0000-\u001f<>]/.test(p)) return '/';
   return p || '/';
@@ -254,7 +256,7 @@ export function summarizeSiteHits(rows, from, to) {
     const date = moscowDateKey(row.created_at);
     const bucket = byDate.get(date);
     if (!bucket) continue;
-    const path = String(row.path || '/');
+    const path = cleanPath(row.path);
     const hour = moscowHour(row.created_at);
     const dow = moscowDowMonday(row.created_at);
     bucket[site === 'pro' ? 'proViews' : 'ruViews'] += 1;

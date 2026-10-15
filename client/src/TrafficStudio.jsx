@@ -84,22 +84,63 @@ function DeltaBadge({ d }) {
   const arrow = d.tone === 'up' ? '▲' : d.tone === 'down' ? '▼' : '•';
   return <span className={`an-delta an-delta--${d.tone}`}><span className="an-delta__arrow">{arrow}</span>{txt}</span>;
 }
+function canonicalPath(path) {
+  let p = String(path || '/').split('?')[0].split('#')[0].trim();
+  if (!p.startsWith('/')) p = `/${p}`;
+  p = p.replace(/\/{2,}/g, '/');
+  if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+  p = p.replace(/\/index\.html$/i, '');
+  return p || '/';
+}
 function pageInfo(path, site) {
-  const raw = String(path || '/');
+  const raw = canonicalPath(path);
   const stripped = raw === '/ru' ? '/' : raw.startsWith('/ru/') ? `/${raw.slice(4)}` : raw;
   let title = PAGE_TITLES[stripped] || stripped;
   if (stripped === '/' && site === 'pro' && !raw.startsWith('/ru')) title = 'Главная, вызов курьера';
   if (stripped === '/' && site === 'ru') title = 'Главная выкупа';
   const viaPro = site === 'pro' && (raw === '/ru' || raw.startsWith('/ru/'));
-  return { title, path: raw, note: viaPro ? 'Раздел Ru открыли на адресе reaktivo.pro' : '' };
+  const showPath = !viaPro && raw !== '/' && title !== raw;
+  return { title, path: showPath ? raw : '', note: viaPro ? 'Раздел Ru открыли на адресе reaktivo.pro' : '' };
+}
+function mergePageRows(list) {
+  const map = new Map();
+  for (const row of list || []) {
+    const path = canonicalPath(row.path);
+    const key = `${row.site || ''}|${path}`;
+    const prev = map.get(key);
+    if (!prev) map.set(key, { ...row, path, sources: [...(row.sources || [])] });
+    else {
+      prev.views = (prev.views || 0) + (row.views || 0);
+      prev.entries = (prev.entries || 0) + (row.entries || 0);
+      prev.sources = mergeSources(prev.sources, row.sources);
+    }
+  }
+  return [...map.values()];
+}
+function mergeFlowRows(list) {
+  const map = new Map();
+  for (const row of list || []) {
+    const from = canonicalPath(row.from);
+    const to = canonicalPath(row.to);
+    if (from === to) continue;
+    const key = `${row.site || ''}|${from}|${to}`;
+    const prev = map.get(key);
+    if (!prev) map.set(key, { ...row, from, to, visits: row.visits || 0 });
+    else prev.visits += row.visits || 0;
+  }
+  return [...map.values()].sort((a, b) => b.visits - a.visits).slice(0, 8);
 }
 function fmtDepth(views, visits) {
   if (!visits) return '—';
   return (views / visits).toFixed(1).replace('.', ',');
 }
 function share(part, total) {
-  if (!total) return '0%';
-  return `${Math.round((part / total) * 100)}%`;
+  const n = Number(part) || 0;
+  const all = Number(total) || 0;
+  if (!all || !n) return '0%';
+  const pct = (n / all) * 100;
+  if (pct < 1) return '<1%';
+  return `${Math.round(pct)}%`;
 }
 function mergeBuckets(a = [], b = [], key, len) {
   return Array.from({ length: len }, (_, i) => ({
@@ -137,13 +178,13 @@ function viewOf(focus, sites) {
       views: row.views || 0,
       prevVisits: row.prevVisits || 0,
       prevViews: row.prevViews || 0,
-      pages: (row.pages || []).map((p) => ({ ...p, site: focus })),
+      pages: mergePageRows((row.pages || []).map((p) => ({ ...p, site: focus }))),
       sources: row.sources || [],
       hours: row.hours || [],
       week: row.week || [],
       groups: row.groups || null,
       depth: row.depth || null,
-      flows: (row.flows || []).map((f) => ({ ...f, site: focus })),
+      flows: mergeFlowRows((row.flows || []).map((f) => ({ ...f, site: focus }))),
     };
   }
   return {
@@ -151,10 +192,10 @@ function viewOf(focus, sites) {
     views: (pro.views || 0) + (ru.views || 0),
     prevVisits: (pro.prevVisits || 0) + (ru.prevVisits || 0),
     prevViews: (pro.prevViews || 0) + (ru.prevViews || 0),
-    pages: [
+    pages: mergePageRows([
       ...(pro.pages || []).map((p) => ({ ...p, site: 'pro' })),
       ...(ru.pages || []).map((p) => ({ ...p, site: 'ru' })),
-    ].sort((a, b) => (b.views || 0) - (a.views || 0)),
+    ]).sort((a, b) => (b.views || 0) - (a.views || 0)),
     sources: mergeSources(pro.sources, ru.sources),
     hours: mergeBuckets(pro.hours, ru.hours, 'hour', 24),
     week: mergeBuckets(pro.week, ru.week, 'dow', 7),
@@ -163,10 +204,10 @@ function viewOf(focus, sites) {
       one: (pro.depth?.one || 0) + (ru.depth?.one || 0),
       more: (pro.depth?.more || 0) + (ru.depth?.more || 0),
     } : null,
-    flows: [
+    flows: mergeFlowRows([
       ...(pro.flows || []).map((f) => ({ ...f, site: 'pro' })),
       ...(ru.flows || []).map((f) => ({ ...f, site: 'ru' })),
-    ].sort((a, b) => b.visits - a.visits).slice(0, 8),
+    ]),
   };
 }
 function trafficReading(focus, view, startedOn) {
@@ -318,10 +359,10 @@ function PagesPane({ focus, view }) {
             <thead>
               <tr>
                 <th>Страница</th>
-                {focus === 'all' && <th>Сайт</th>}
-                <th>Просмотры</th>
-                <th>Доля</th>
-                <th>Начали здесь</th>
+                {focus === 'all' && <th className="site">Сайт</th>}
+                <th className="num">Просмотры</th>
+                <th className="num">Доля</th>
+                <th className="num">Начали здесь</th>
               </tr>
             </thead>
             <tbody>
@@ -335,11 +376,11 @@ function PagesPane({ focus, view }) {
                     <tr className={open ? 'is-open' : ''} onClick={() => setOpenKey(open ? '' : key)}>
                       <td>
                         <b>{info.title}</b>
-                        <small>{info.note || info.path}</small>
+                        {(info.note || info.path) ? <small>{info.note || info.path}</small> : null}
                       </td>
-                      {focus === 'all' && <td>{row.site === 'pro' ? 'Pro' : 'Ru'}</td>}
+                      {focus === 'all' && <td className="site">{row.site === 'pro' ? 'Pro' : 'Ru'}</td>}
                       <td className="num mono-nums">{row.views}</td>
-                      <td className="num">{share(row.views, view.views)}</td>
+                      <td className="num mono-nums">{share(row.views, view.views)}</td>
                       <td className="num mono-nums">{row.entries || 0}</td>
                     </tr>
                     {open && (
@@ -516,10 +557,10 @@ function DaysPane({ series }) {
           <thead>
             <tr>
               <th>День</th>
-              <th>Pro, визиты</th>
-              <th>Ru, визиты</th>
-              <th>Pro, просмотры</th>
-              <th>Ru, просмотры</th>
+              <th className="num">Pro, визиты</th>
+              <th className="num">Ru, визиты</th>
+              <th className="num">Pro, просмотры</th>
+              <th className="num">Ru, просмотры</th>
             </tr>
           </thead>
           <tbody>
