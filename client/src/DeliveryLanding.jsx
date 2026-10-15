@@ -408,15 +408,14 @@ function DutyTicker() {
     hour: '2-digit',
     minute: '2-digit',
   }).format(now);
-  const line = onDuty
-    ? `Курьеры на линии · Москва ${time} · Срочный вызов курьера 0 ₽ · Фиксация курса 15 минут`
-    : `Заявки принимаем — перезвоним утром · Москва ${time} · Срочный вызов курьера 0 ₽ · Фиксация курса 15 минут`;
+  const bits = onDuty
+    ? ['Курьеры на линии', `Москва ${time}`, 'Срочный вызов курьера 0 ₽', 'Фиксация курса 15 минут']
+    : ['Заявки принимаем, перезвоним утром', `Москва ${time}`, 'Срочный вызов курьера 0 ₽', 'Фиксация курса 15 минут'];
   return (
-    <div className="dl2-ticker" role="status" aria-live="polite">
-      <div className="dl2-ticker-track">
-        <span>{line}</span>
-        <span aria-hidden="true">{line}</span>
-      </div>
+    <div className="dl2-ticker" role="status">
+      <p>
+        {bits.map((bit) => <span key={bit}>{bit}</span>)}
+      </p>
     </div>
   );
 }
@@ -1604,18 +1603,19 @@ const DL2_CSS = `
 .dl2-calc-note .rl-payout-note { max-width: 62ch; margin: 0; }
 .dl2-sell-main { min-height: 68px; font-size: 1.25rem; padding: 18px 40px; width: min(440px, 100%); justify-content: center; }
 .dl2-ticker {
-  overflow: hidden; background: #1a1408; color: #f6e7c1;
+  background: #1a1408; color: #f6e7c1;
   border-top: 2px solid #c9a227; border-bottom: 2px solid #c9a227;
 }
-.dl2-ticker-track { display: flex; width: max-content; animation: dl2Tick 32s linear infinite; }
-.dl2-ticker span {
-  padding: 12px 48px 12px 0; font-weight: 800; font-size: 1rem; letter-spacing: 0.01em; white-space: nowrap;
+.dl2-ticker p {
+  margin: 0 auto; max-width: 1180px;
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+  gap: 4px 0; padding: 11px 22px;
+  font-weight: 800; font-size: 0.98rem; line-height: 1.35; letter-spacing: 0.01em;
+  text-align: center;
 }
-@keyframes dl2Tick { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-@media (prefers-reduced-motion: reduce) {
-  .dl2-ticker-track { animation: none; width: 100%; }
-  .dl2-ticker span[aria-hidden] { display: none; }
-  .dl2-ticker span { white-space: normal; padding: 12px 16px; }
+.dl2-ticker span { white-space: nowrap; }
+.dl2-ticker span:not(:last-child)::after {
+  content: '·'; display: inline-block; margin: 0 12px; color: #c9a227; font-weight: 700;
 }
 .dl2-sticky { display: none; }
 .dl2-cta-short { display: none; }
@@ -1842,7 +1842,7 @@ const DL2_CSS = `
   .dl2-root .il-btn--header-buy { padding: 8px 12px; font-size: 0.8rem; }
   .dl2-root .il-logo { gap: 8px; }
   .dl2-root .il-logo-mark { width: 34px; height: 34px; }
-  .dl2-ticker span { font-size: 0.95rem; padding-top: 11px; padding-bottom: 11px; }
+  .dl2-ticker p { font-size: 0.88rem; padding: 10px 14px; }
   .dl2-path { padding: 36px 0 24px; height: auto; min-height: 0; }
   .dl2-path-sticky { min-height: 0; height: auto; align-items: flex-start; }
   .dl2-path-inner {
