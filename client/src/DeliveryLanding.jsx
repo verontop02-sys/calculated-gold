@@ -684,13 +684,9 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
               <section className={`rl-urgent-block${isMoscowOffDuty(clock) ? ' is-off' : ''}`}>
                 <span className="rl-urgent-kicker">{isMoscowOffDuty(clock) ? 'Сейчас нерабочее время' : 'Если уже нерабочее время'}</span>
                 <h3>Срочный вызов курьера</h3>
-                <p>
-                  {isMoscowOffDuty(clock)
-                    ? 'Линия уже закрыта. Такую заявку ставим вперёд всех и отрабатываем срочно, не ждём общей очереди до утра. Вызов 0 ₽.'
-                    : 'Это отдельная заявка, не обычная запись. Когда время уже нерабочее, её ставим вперёд всех и отрабатываем срочно. Вызов 0 ₽.'}
-                </p>
+                <p>Доставим деньги реактивно быстро. Для оформления оставьте заявку, и мы сразу перезвоним.</p>
                 <button type="submit" className="rl-urgent-btn" data-urgent="1" disabled={phase === 'sending'}>
-                  {phase === 'sending' ? 'Отправляем…' : 'Срочный вызов курьера · 0 ₽'}
+                  {phase === 'sending' ? 'Отправляем…' : 'Срочный вызов курьера'}
                 </button>
               </section>
             )}

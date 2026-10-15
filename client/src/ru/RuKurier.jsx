@@ -547,14 +547,10 @@ export function KurierOrderCard({ quote, pulseKey }) {
       <section className={`rl-urgent-block${isMoscowOffDuty(now) ? ' is-off' : ''}`} aria-labelledby="urgent-call-title">
         <span className="rl-urgent-kicker">{isMoscowOffDuty(now) ? 'Сейчас нерабочее время' : 'Если уже нерабочее время'}</span>
         <h3 id="urgent-call-title">Срочный вызов курьера</h3>
-        <p>
-          {isMoscowOffDuty(now)
-            ? 'Линия уже закрыта. Такую заявку ставим вперёд всех и отрабатываем срочно, не ждём общей очереди до утра. Вызов 0 ₽.'
-            : 'Это отдельная заявка, не обычная запись. Когда время уже нерабочее, её ставим вперёд всех и отрабатываем срочно. Вызов 0 ₽.'}
-        </p>
+        <p>Доставим деньги реактивно быстро. Для оформления оставьте заявку, и мы сразу перезвоним.</p>
         <p className="rl-urgent-hint">Заполните адрес и контакты выше, затем нажмите кнопку.</p>
         <button type="submit" className="rl-urgent-btn" data-urgent="1" disabled={phase === 'sending'}>
-          {phase === 'sending' ? 'Отправляем…' : 'Срочный вызов курьера · 0 ₽'}
+          {phase === 'sending' ? 'Отправляем…' : 'Срочный вызов курьера'}
         </button>
       </section>
     </motion.form>
