@@ -37,6 +37,7 @@ export function Sidebar({ tab, onChange, user, onSignOut, onPinnedChange, onOpen
   // Их экраны: калькулятор, договор, клиенты, своя аналитика.
   const analyticsItems = [
     { key: 'analytics', label: 'Аналитика', icon: <IconChart /> },
+    { key: 'traffic', label: 'Посещаемость', icon: <IconVisits /> },
     ...(isAdmin ? [{ key: 'team', label: 'Команда и KPI', icon: <IconTeam /> }] : []),
     ...(isAdmin ? [{ key: 'employees', label: 'Сделки сотрудников', icon: <IconEmployees /> }] : []),
     ...(isSuper ? [{ key: 'gold-index', label: 'Индекс золота', icon: <IconMap /> }] : []),
@@ -211,6 +212,15 @@ function IconChart() {
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 3v18h18" />
       <path d="M7 15l4-5 4 3 5-7" />
+    </svg>
+  );
+}
+function IconVisits() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3c2.5 2.6 3.8 5.7 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.7-3.8-9s1.3-6.4 3.8-9z" />
     </svg>
   );
 }

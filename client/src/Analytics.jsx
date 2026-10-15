@@ -19,8 +19,6 @@ import { importChunk } from './importChunk.js';
 import { SkeletonStats, SkeletonChart, SkeletonTable } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
 import { PageHint } from './PageHint.jsx';
-import { SiteTrafficBlock } from './TrafficStudio.jsx';
-
 // ── helpers ─────────────────────────────────────────────────────────────────
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -150,9 +148,6 @@ export function Analytics({ formatMoney, toast }) {
   const [err, setErr] = useState('');
   const [data, setData] = useState(null);
   const [prevData, setPrevData] = useState(null);
-  const [traffic, setTraffic] = useState(null);
-  const [trafficErr, setTrafficErr] = useState('');
-  const [trafficLoading, setTrafficLoading] = useState(true);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfSec, setPdfSec] = useState({ summary: true, operators: true, probe: true, series: true });
   const reqIdRef = useRef(0);
@@ -185,29 +180,13 @@ export function Analytics({ formatMoney, toast }) {
     const myId = ++reqIdRef.current;
     setErr('');
     setLoading(true);
-    setTrafficLoading(true);
     try {
       const days = daysBetween(from, to);
       const prevTo = addDays(from, -1);
       const prevFrom = addDays(prevTo, -(days - 1));
-      const trafficPromise = api.analyticsTraffic(from, to)
-        .then((row) => {
-          if (myId !== reqIdRef.current) return;
-          setTraffic(row);
-          setTrafficErr('');
-        })
-        .catch((e) => {
-          if (myId !== reqIdRef.current) return;
-          setTraffic(null);
-          setTrafficErr(e?.message || 'Не удалось загрузить посещаемость');
-        })
-        .finally(() => {
-          if (myId === reqIdRef.current) setTrafficLoading(false);
-        });
       const [cur, prev] = await Promise.all([
         api.analyticsSummary(from, to),
         api.analyticsSummary(prevFrom, prevTo).catch(() => null),
-        trafficPromise,
       ]);
       if (myId !== reqIdRef.current) return; // устаревший запрос
       setData(cur);
@@ -514,7 +493,7 @@ export function Analytics({ formatMoney, toast }) {
   return (
     <div className="analytics-page">
       <PageHint id="analytics" title="Как читать аналитику">
-        Выберите период вверху — все цифры и графики пересчитаются. <b>Посещаемость сайтов</b> на этом экране короткая. Кнопка <b>Разобрать подробно</b> открывает страницы, источники перехода, часы и дни. <b>Каналы оформления</b> показывают долю отделения и доставки. Кнопка <b>PDF-отчёт</b> выгрузит сводку с графиками. Строка <b>AI-аналитик</b> ответит на вопросы по данным периода.
+        Выберите период вверху — все цифры и графики пересчитаются. <b>Каналы оформления</b> показывают долю отделения и доставки. Кнопка <b>PDF-отчёт</b> выгрузит сводку с графиками. Строка <b>AI-аналитик</b> ответит на вопросы по данным периода. Посещаемость сайтов открывается в отдельном разделе меню.
       </PageHint>
       {/* HERO: период, оборот, дельта */}
       <div className="an-hero">
@@ -652,8 +631,6 @@ export function Analytics({ formatMoney, toast }) {
           </div>
         </details>
       </div>
-
-      <SiteTrafficBlock traffic={traffic} loading={trafficLoading} error={trafficErr} />
 
       {err && <div className="glass analytics-err">{err}</div>}
 
@@ -1774,73 +1751,6 @@ const ANALYTICS_CSS = `
 .an-leg-pill--net::before { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 .an-leg-pill--pro::before { background: #c41e22; }
 .an-leg-pill--ru::before { background: #c9a227; }
-.an-traffic { display: grid; gap: 14px; color: var(--text); }
-.an-traffic .analytics-chart-h { height: 168px; }
-.an-traffic__read { margin: 0; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--gold) 8%, transparent); line-height: 1.45; color: var(--text); }
-.an-traffic__head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
-.an-traffic__tabs, .an-studio__nav, .an-traffic__metric-toggle { display: flex; gap: 8px; flex-wrap: wrap; }
-.an-traffic__tabs button, .an-studio__nav button, .an-traffic__metric-toggle button, .an-traffic__open {
-  border: 1px solid var(--stroke); background: transparent; color: inherit; border-radius: 999px; padding: 7px 12px; cursor: pointer; font: inherit;
-}
-.an-traffic__tabs button { display: flex; align-items: center; gap: 8px; }
-.an-traffic__tabs button.is-on, .an-studio__nav button.is-on, .an-traffic__metric-toggle button.is-on { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 14%, transparent); }
-.an-traffic__kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.an-traffic__kpis article { border: 1px solid var(--stroke); border-radius: 14px; padding: 12px; min-width: 0; display: grid; gap: 4px; align-content: start; }
-.an-traffic__kpis span, .an-traffic__kpis small { font-size: 0.75rem; color: var(--text-dim); }
-.an-traffic__kpis b { font-size: 1.6rem; letter-spacing: -0.03em; line-height: 1; }
-.an-traffic__chart-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
-.an-traffic__chart-head h4, .an-studio h4 { margin: 0; font-size: 0.95rem; }
-.an-traffic__metric-toggle button { font-size: 0.8rem; padding: 5px 10px; }
-.an-traffic__metric-toggle button.is-on { color: var(--gold); }
-.an-traffic__legend { display: flex; gap: 8px; align-items: center; }
-.an-traffic__open { justify-self: start; font-weight: 700; }
-.an-traffic__hour-bars { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; }
-.an-traffic__hour-bars div { min-width: 0; }
-.an-traffic__hour-track { display: flex; align-items: flex-end; height: 72px; }
-.an-traffic__hour-track i { display: block; width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: #c41e22; }
-.an-traffic__hour-bars div > span:last-child { display: block; height: 14px; font-size: 0.62rem; color: var(--text-muted); text-align: center; margin-top: 3px; }
-.an-studio { display: grid; gap: 14px; padding-top: 4px; border-top: 1px solid var(--stroke); }
-.an-studio__summary, .an-studio__pane { display: grid; gap: 14px; }
-.an-studio__notes { display: grid; gap: 6px; }
-.an-studio__notes p { margin: 0; line-height: 1.45; }
-.an-studio__depth-top, .an-studio__daycard { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.an-studio__depth-bar, .an-studio__groups i, .an-studio__sources i { display: block; height: 8px; border-radius: 99px; background: color-mix(in srgb, var(--stroke) 70%, transparent); overflow: hidden; }
-.an-studio__depth-bar i { display: block; height: 100%; background: #c41e22; }
-.an-studio__compare, .an-studio__groups, .an-studio__detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.an-studio__groups { grid-template-columns: repeat(3, 1fr); }
-.an-studio__site, .an-studio__groups button {
-  text-align: left; border: 1px solid var(--stroke); background: transparent; color: inherit; border-radius: 14px; padding: 12px; cursor: pointer; font: inherit; display: grid; gap: 4px; min-width: 0;
-}
-.an-studio__site--pro { border-top: 3px solid #c41e22; }
-.an-studio__site--ru { border-top: 3px solid #c9a227; }
-.an-studio__site strong, .an-studio__groups strong { font-size: 1.4rem; line-height: 1; }
-.an-studio__groups button.is-on, .an-studio__site:hover { border-color: var(--gold); }
-.an-studio__groups small, .an-studio__table small, .an-studio__sources small { display: block; color: var(--text-muted); font-weight: 400; }
-.an-studio__groups i { margin-top: 6px; }
-.an-studio__groups em, .an-studio__sources em { display: block; height: 100%; background: var(--gold); }
-.an-studio__flows ul, .an-studio__mini, .an-studio__sources { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
-.an-studio__flows li, .an-studio__mini li, .an-studio__sources li { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; }
-.an-studio__mini li, .an-studio__sources li { grid-template-columns: 1fr auto; }
-.an-studio__sources li { grid-template-columns: 1fr auto; }
-.an-studio__sources i { grid-column: 1 / -1; }
-.an-studio__flows i { font-style: normal; color: var(--text-muted); font-size: 0.75rem; }
-.an-studio__tools, .an-studio__search { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
-.an-studio__search { display: grid; gap: 4px; justify-items: start; }
-.an-studio__search input { border: 1px solid var(--stroke); background: transparent; color: inherit; border-radius: 10px; padding: 8px 10px; font: inherit; min-width: min(100%, 280px); }
-.an-studio__table-wrap { overflow: auto; max-height: 420px; border: 1px solid var(--stroke); border-radius: 12px; }
-.an-studio__table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
-.an-studio__table th, .an-studio__table td { padding: 8px 10px; border-bottom: 1px solid var(--stroke); text-align: left; vertical-align: top; }
-.an-studio__table th { position: sticky; top: 0; background: var(--bg-panel-solid); color: var(--text-dim); font-size: 0.72rem; }
-.an-studio__table .num { text-align: right; white-space: nowrap; }
-.an-studio__table tbody tr { cursor: pointer; }
-.an-studio__table tbody tr.is-open td { background: color-mix(in srgb, var(--gold) 8%, transparent); }
-.an-studio__table tbody tr.is-hot td:first-child { color: var(--gold); font-weight: 700; }
-.an-studio__detail td { cursor: default; background: color-mix(in srgb, var(--gold) 5%, transparent); }
-.an-studio__week { height: 180px; }
-.an-studio__daycard { border: 1px solid var(--stroke); border-radius: 12px; padding: 10px 12px; }
-@media (max-width: 900px) {
-  .an-traffic__kpis, .an-studio__compare, .an-studio__groups, .an-studio__detail-grid { grid-template-columns: 1fr; }
-}
 
 .analytics-err { padding: 12px 16px; color: var(--crimson, #d63b3b); font-size: 0.9rem; }
 .small-digits { font-size: 0.95rem; }

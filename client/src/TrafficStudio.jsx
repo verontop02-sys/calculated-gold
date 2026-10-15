@@ -43,11 +43,11 @@ const PAGE_TITLES = {
   '/o-kompanii': 'О компании',
 };
 const SECTIONS = [
-  ['summary', 'Сводка'],
-  ['pages', 'Страницы'],
-  ['sources', 'Источники'],
-  ['time', 'Время'],
-  ['days', 'По дням'],
+  ['summary', 'Сводка', 'Вывод по периоду, глубина визита и куда идут дальше'],
+  ['pages', 'Страницы', 'Какие разделы смотрели. Строка открывает источник и следующий шаг'],
+  ['sources', 'Источники', 'Откуда был первый заход. Список сайтов только здесь'],
+  ['time', 'Время', 'Час и день недели, время московское'],
+  ['days', 'По дням', 'Каждый день отдельно. Самый живой день отмечен'],
 ];
 
 function humanDate(iso) {
@@ -170,7 +170,7 @@ function viewOf(focus, sites) {
   };
 }
 function trafficReading(focus, view, startedOn) {
-  const who = focus === 'pro' ? 'На reaktivo.pro' : focus === 'ru' ? 'На reaktivo.ru' : 'На оба сайта';
+  const who = focus === 'pro' ? 'На reaktivo.pro' : focus === 'ru' ? 'На reaktivo.ru' : 'На обоих сайтах';
   if (!view.visits) {
     const since = startedOn ? ` Счётчик включён ${humanDate(startedOn)}.` : '';
     return `За эти дни заходов нет.${since} Старые цифры Яндекса сюда не попадают.`;
@@ -267,7 +267,7 @@ function SummaryPane({ focus, view, pro, ru, onSite }) {
             <button key={id} type="button" className={`an-studio__site an-studio__site--${id}`} onClick={() => onSite(id)}>
               <b>{host}</b>
               <strong className="mono-nums">{row?.visits || 0}</strong>
-              <span>{pluralRu(row?.visits || 0, 'визит', 'визита', 'визитов')}, {row?.views || 0} просм.</span>
+              <span>{`${pluralRu(row?.visits || 0, 'визит', 'визита', 'визитов')}, ${row?.views || 0} просм.`}</span>
               <span>{top ? `Чаще «${pageInfo(top.path, id).title}»` : 'Страниц пока нет'}</span>
               <span>{hour?.visits ? `Пик в ${String(hour.hour).padStart(2, '0')}:00` : 'Часа пика пока нет'}</span>
             </button>
@@ -399,7 +399,7 @@ function SourcesPane({ view }) {
   const topVisits = Math.max(1, ...list.map((row) => row.visits || 0));
   return (
     <div className="an-studio__pane">
-      <p className="muted small">Источник считается по первому заходу визита. Список живёт только здесь, на общем экране аналитики его нет.</p>
+      <p className="muted small">Источник считается по первому заходу визита. Нажмите канал, чтобы оставить только его, или найдите сайт по имени.</p>
       <div className="an-studio__groups">
         <button type="button" className={group === 'all' ? 'is-on' : ''} onClick={() => setGroup('all')}>
           <b>Все каналы</b>
@@ -439,17 +439,23 @@ function SourcesPane({ view }) {
   );
 }
 
-function TimePane({ view, metric }) {
+function TimePane({ view, metric, setMetric }) {
   const hours = view.hours || [];
   const week = (view.week || []).map((row, i) => ({ ...row, name: WEEKDAYS[row.dow ?? i] || WEEKDAYS[i] }));
   const hourMax = Math.max(1, ...hours.map((row) => row[metric] || 0));
   const best = peakHour(hours);
   return (
     <div className="an-studio__pane">
-      <p className="muted small">
+      <div className="an-studio__tools">
+        <p className="muted small" style={{ margin: 0 }}>
         {best?.visits ? `Пик первых заходов: ${String(best.hour).padStart(2, '0')}:00 по Москве.` : 'Когда появятся визиты, здесь будет час и день недели.'}
         {' '}Час и день считаются по Москве.
-      </p>
+        </p>
+        <div className="an-traffic__metric-toggle">
+          <button type="button" aria-pressed={metric === 'visits'} className={metric === 'visits' ? 'is-on' : ''} onClick={() => setMetric('visits')}>Визиты</button>
+          <button type="button" aria-pressed={metric === 'views'} className={metric === 'views' ? 'is-on' : ''} onClick={() => setMetric('views')}>Просмотры</button>
+        </div>
+      </div>
       <h4>День недели</h4>
       <div className="an-studio__week">
         <ResponsiveContainer width="100%" height="100%">
@@ -539,7 +545,6 @@ function DaysPane({ series }) {
 export function SiteTrafficBlock({ traffic, loading, error }) {
   const [focus, setFocus] = useState('all');
   const [metric, setMetric] = useState('visits');
-  const [open, setOpen] = useState(false);
   const [section, setSection] = useState('summary');
   const sites = traffic?.sites;
   const series = traffic?.series || [];
@@ -556,88 +561,86 @@ export function SiteTrafficBlock({ traffic, loading, error }) {
   const started = traffic?.startedOn ? humanDate(traffic.startedOn) : '';
 
   return (
-    <section className="glass analytics-chart-card an-traffic">
-      <div className="an-traffic__head">
-        <div>
-          <h3 className="analytics-h3">Посещаемость сайтов</h3>
-          <p className="muted small an-h3-sub">
-            Короткая сводка за период сверху.
-            {started ? ` Считаем с ${started}.` : ''} Источники и подробный разбор открываются отдельно.
-          </p>
-        </div>
-      </div>
-      {error && <p className="analytics-err">{error}</p>}
-      {loading && !sites && <p className="muted small">Считаем посещаемость…</p>}
+    <div className="an-traffic">
+      {error && <p className="tv-err">{error}</p>}
+      {loading && !sites && <p className="muted">Считаем посещаемость…</p>}
       {sites && (
         <>
-          <div className="an-traffic__tabs" role="tablist" aria-label="Какой сайт смотреть">
+          <div className="tv-sites" role="tablist" aria-label="Какой сайт смотреть">
             {[
-              ['all', 'Оба сайта', (pro?.visits || 0) + (ru?.visits || 0)],
-              ['pro', 'reaktivo.pro', pro?.visits || 0],
-              ['ru', 'reaktivo.ru', ru?.visits || 0],
-            ].map(([id, label, count]) => (
-              <button key={id} type="button" role="tab" aria-selected={focus === id} className={focus === id ? 'is-on' : ''} onClick={() => setFocus(id)}>
+              ['all', 'Оба сайта', 'Pro и Ru вместе', (pro?.visits || 0) + (ru?.visits || 0), (pro?.prevVisits || 0) + (ru?.prevVisits || 0)],
+              ['pro', 'reaktivo.pro', 'Вызов курьера и витрина', pro?.visits || 0, pro?.prevVisits || 0],
+              ['ru', 'reaktivo.ru', 'Выкуп, слитки, курьер', ru?.visits || 0, ru?.prevVisits || 0],
+            ].map(([id, label, note, count, prev]) => (
+              <button key={id} type="button" role="tab" aria-selected={focus === id} className={`tv-site tv-site--${id}${focus === id ? ' is-on' : ''}`} onClick={() => setFocus(id)}>
                 <span>{label}</span>
-                <b className="mono-nums">{count}</b>
+                <strong className="mono-nums">{count}</strong>
+                <small>{note}</small>
+                <DeltaBadge d={delta(count, prev)} />
               </button>
             ))}
           </div>
-          <p className="an-traffic__read">{trafficReading(focus, view, traffic?.startedOn)}</p>
+          <p className="an-traffic__read">{trafficReading(focus, view, traffic?.startedOn)}{started ? ` Счётчик включён ${started}.` : ''}</p>
           <div className="an-traffic__kpis">
             <article>
               <span>Визиты</span>
               <b className="mono-nums">{view.visits}</b>
               <DeltaBadge d={delta(view.visits, view.prevVisits)} />
+              <small>Одно открытие сайта, пока вкладку не закрыли</small>
             </article>
             <article>
               <span>Просмотры</span>
               <b className="mono-nums">{view.views}</b>
               <DeltaBadge d={delta(view.views, view.prevViews)} />
+              <small>Каждая открытая страница</small>
             </article>
             <article>
               <span>Страниц за визит</span>
               <b className="mono-nums">{fmtDepth(view.views, view.visits)}</b>
+              <small>Больше 1 значит, что идут дальше первой страницы</small>
             </article>
             <article>
               <span>Прошлый период</span>
               <b className="mono-nums">{view.prevVisits}</b>
-              <small>визитов за такой же прошлый отрезок</small>
+              <small>Столько визитов было в предыдущем отрезке той же длины</small>
             </article>
           </div>
-          <div className="an-traffic__chart-head">
-            <h4>Динамика по дням</h4>
-            <div className="an-traffic__legend">
-              {lineKeys.map((line) => (
-                <span key={line.key} className={`an-leg-pill an-leg-pill--${line.name === 'Ru' ? 'ru' : 'pro'}`}>{line.name}</span>
+          <div className="tv-split">
+            <nav className="tv-rail" role="tablist" aria-label="Разделы посещаемости">
+              {SECTIONS.map(([id, label, hint]) => (
+                <button key={id} type="button" role="tab" aria-selected={section === id} className={section === id ? 'is-on' : ''} onClick={() => setSection(id)}>
+                  <b>{label}</b>
+                  <small>{hint}</small>
+                </button>
               ))}
-            </div>
-            <div className="an-traffic__metric-toggle">
-              <button type="button" aria-pressed={metric === 'visits'} className={metric === 'visits' ? 'is-on' : ''} onClick={() => setMetric('visits')}>Визиты</button>
-              <button type="button" aria-pressed={metric === 'views'} className={metric === 'views' ? 'is-on' : ''} onClick={() => setMetric('views')}>Просмотры</button>
-            </div>
-          </div>
-          <TrafficChart series={series} metric={metric} lineKeys={lineKeys} />
-          <button type="button" className="an-traffic__open" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-            {open ? 'Свернуть разбор' : 'Разобрать подробно'}
-          </button>
-          {open && (
-            <div className="an-studio">
-              <div className="an-studio__nav" role="tablist" aria-label="Разделы разбора">
-                {SECTIONS.map(([id, label]) => (
-                  <button key={id} type="button" role="tab" aria-selected={section === id} className={section === id ? 'is-on' : ''} onClick={() => setSection(id)}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {section === 'summary' && <SummaryPane focus={focus} view={view} pro={pro} ru={ru} onSite={setFocus} />}
+            </nav>
+            <div className="tv-main glass">
+              {section === 'summary' && (
+                <>
+                  <div className="an-traffic__chart-head">
+                    <h4>Динамика по дням</h4>
+                    <div className="an-traffic__legend">
+                      {lineKeys.map((line) => (
+                        <span key={line.key} className={`an-leg-pill an-leg-pill--${line.name === 'Ru' ? 'ru' : 'pro'}`}>{line.name}</span>
+                      ))}
+                    </div>
+                    <div className="an-traffic__metric-toggle">
+                      <button type="button" aria-pressed={metric === 'visits'} className={metric === 'visits' ? 'is-on' : ''} onClick={() => setMetric('visits')}>Визиты</button>
+                      <button type="button" aria-pressed={metric === 'views'} className={metric === 'views' ? 'is-on' : ''} onClick={() => setMetric('views')}>Просмотры</button>
+                    </div>
+                  </div>
+                  <TrafficChart series={series} metric={metric} lineKeys={lineKeys} />
+                  <SummaryPane focus={focus} view={view} pro={pro} ru={ru} onSite={setFocus} />
+                </>
+              )}
               {section === 'pages' && <PagesPane key={focus} focus={focus} view={view} />}
               {section === 'sources' && <SourcesPane key={`${focus}|sources`} view={view} />}
-              {section === 'time' && <TimePane view={view} metric={metric} />}
+              {section === 'time' && <TimePane view={view} metric={metric} setMetric={setMetric} />}
               {section === 'days' && <DaysPane series={series} />}
             </div>
-          )}
+          </div>
         </>
       )}
-    </section>
+    </div>
   );
 }

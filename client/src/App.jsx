@@ -9,6 +9,7 @@ import { DeviceVerify } from './DeviceVerify.jsx';
 import { CalculatorPage } from './CalculatorPage.jsx';
 import { ContractPage } from './ContractPage.jsx';
 import { Analytics } from './Analytics.jsx';
+import TrafficPage from './TrafficPage.jsx';
 import { TeamPerformance } from './TeamPerformance.jsx';
 import { ClientsPage } from './ClientsPage.jsx';
 import { SettingsPage } from './SettingsPage.jsx';
@@ -30,6 +31,7 @@ const TAB_TITLES = {
   contract: 'Договор',
   clients: 'Клиенты',
   analytics: 'Аналитика',
+  traffic: 'Посещаемость',
   team: 'Команда и KPI',
   employees: 'Сделки сотрудников',
   'gold-index': 'Индекс золота',
@@ -43,6 +45,7 @@ const TAB_SUBTITLES = {
   contract: 'Договор-квитанция, PDF и email',
   clients: 'База клиентов, поиск и история сделок',
   analytics: 'KPI, графики и выгрузка PDF',
+  traffic: 'Визиты Pro и Ru: страницы, источники, часы',
   team: 'Сотрудники, рейтинг и динамика по дням',
   employees: 'Сделки сотрудников: суммы, фото и документы',
   'gold-index': 'Цены конкурентов по городам, карта',
@@ -825,6 +828,7 @@ export default function App() {
             )}
             {tab === 'clients' && <ClientsPage formatMoney={formatMoney} toast={toast} user={user} />}
             {tab === 'analytics' && <Analytics formatMoney={formatMoney} toast={toast} />}
+            {tab === 'traffic' && <TrafficPage />}
             {tab === 'team' && user && isUserManagerRole(user.role) && (
               <TeamPerformance formatMoney={formatMoney} toast={toast} user={user} />
             )}
@@ -1064,6 +1068,7 @@ export default function App() {
         .cg-section--contract { max-width: 1600px; }
         .cg-section--clients { max-width: 1600px; }
         .cg-section--analytics { max-width: 1600px; }
+        .cg-section--traffic { max-width: 1600px; }
         .cg-section--team { max-width: 1480px; }
         .cg-section--gold-index { max-width: 1680px; }
         .cg-section--settings { max-width: 1480px; }

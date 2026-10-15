@@ -1023,6 +1023,9 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
             <button type="button" className="dx-mini-action" onClick={() => onNavigate?.('analytics')}>
               <span>Аналитика</span> <span aria-hidden>→</span>
             </button>
+            <button type="button" className="dx-mini-action" onClick={() => onNavigate?.('traffic')}>
+              <span>Посещаемость</span> <span aria-hidden>→</span>
+            </button>
           </div>
         </section>
 
