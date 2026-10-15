@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useScroll, useSpring } from 'motion/react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -255,10 +256,138 @@ export function KurierLocationField({ city, setCity, address, setAddress, lat, l
  * заявке остаётся только готовая ссылка.
  */
 /**
+ * Срочный вызов — отдельная заявка, не кнопка внутри бронирования.
+ * Пуш собирает телефон и адрес сам, даже если форму выше ещё не заполнили.
+ */
+export function UrgentCourierSheet({ open, onClose, source = 'kurier', initial, extraFields, onSent }) {
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [city, setCity] = useState('');
+  const [address, setAddress] = useState('');
+  const [consent, setConsent] = useState(false);
+  const [website, setWebsite] = useState('');
+  const [error, setError] = useState('');
+  const [phase, setPhase] = useState('idle');
+
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const initialRef = useRef(initial);
+  initialRef.current = initial;
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const seed = initialRef.current || {};
+    setName(seed.name || '');
+    setPhone(seed.phone || '');
+    setCity(seed.city || '');
+    setAddress(seed.address || '');
+    setConsent(false);
+    setWebsite('');
+    setError('');
+    setPhase('idle');
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      e.stopImmediatePropagation();
+      onCloseRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  if (!open) return null;
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    if (phase === 'sending') return;
+    setError('');
+    if (website.trim()) {
+      onSent({ name, phone, city, address });
+      return;
+    }
+    if (!isRuPhone(phone)) return setError('Укажите номер телефона, без него мы не сможем связаться');
+    if (!isLeadName(name)) return setError('Укажите имя');
+    if (city.trim().length < 2) return setError('Укажите город');
+    if (address.trim().length < 5) return setError('Укажите адрес: улица и дом');
+    if (!consent) return setError('Нужно согласие на обработку персональных данных');
+    setPhase('sending');
+    try {
+      await clientApi.landingLead({
+        source,
+        name: name.trim(),
+        phone: phone.trim(),
+        website,
+        fields: {
+          'Срочный вызов': 'да, вне очереди, 0 ₽',
+          Город: city.trim(),
+          Адрес: address.trim(),
+          ...(extraFields || {}),
+        },
+      });
+      ymReachGoal('lead', { source: source === 'delivery' ? 'delivery-urgent' : 'kurier-urgent' });
+      onSent({ name: name.trim(), phone: phone.trim(), city: city.trim(), address: address.trim() });
+    } catch (err) {
+      setPhase('idle');
+      setError(err?.message || 'Не получилось отправить. Позвоните: 8 800 555-18-48');
+    }
+  }
+
+  return createPortal(
+    <div className="rl-urgent-sheet" role="presentation" onMouseDown={onClose}>
+      <form
+        className="rl-urgent-sheet-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="urgent-sheet-title"
+        onMouseDown={(e) => e.stopPropagation()}
+        onSubmit={onSubmit}
+      >
+        <span className="rl-urgent-sheet-grip" aria-hidden />
+        <div className="rl-urgent-sheet-head">
+          <h2 id="urgent-sheet-title">Срочный вызов курьера</h2>
+          <button type="button" className="rl-urgent-sheet-x" onClick={onClose} aria-label="Закрыть">×</button>
+        </div>
+        <p className="rl-urgent-sheet-lead">Оставьте телефон и адрес. Перезвоним сразу и поставим вызов вперёд очереди.</p>
+        <label className="rl-urgent-sheet-field">
+          <span>Телефон</span>
+          <input className="rl-input" inputMode="tel" autoComplete="tel" autoFocus placeholder="+7 (900) 000-00-00" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </label>
+        <label className="rl-urgent-sheet-field">
+          <span>Имя</span>
+          <input className="rl-input" autoComplete="name" placeholder="Как к вам обращаться" value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label className="rl-urgent-sheet-field">
+          <span>Город</span>
+          <input className="rl-input" autoComplete="address-level2" placeholder="Москва" value={city} onChange={(e) => setCity(e.target.value)} />
+        </label>
+        <label className="rl-urgent-sheet-field">
+          <span>Адрес</span>
+          <input className="rl-input" autoComplete="street-address" placeholder="Улица, дом, квартира" value={address} onChange={(e) => setAddress(e.target.value)} />
+        </label>
+        <input className="rl-hp" type="text" tabIndex={-1} autoComplete="off" aria-hidden="true" value={website} onChange={(e) => setWebsite(e.target.value)} />
+        <label className="rl-consent">
+          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+          <span>Согласен на <a href="/privacy" target="_blank" rel="noreferrer">обработку персональных данных</a></span>
+        </label>
+        {error && <p className="rl-form-error" role="alert">{error}</p>}
+        <button type="submit" className="rl-urgent-sheet-submit" disabled={phase === 'sending'}>
+          {phase === 'sending' ? 'Отправляем…' : 'Срочный вызов курьера'}
+        </button>
+      </form>
+    </div>,
+    document.body,
+  );
+}
+
+/**
  * Единый блок: расчёт суммы и запись курьера — без разрыва на калькулятор и
  * отдельную форму с шагами. Всё видно сразу, скроллом сверху вниз.
  */
-export function KurierOrderCard({ quote, pulseKey }) {
+export function KurierOrderCard({ quote, pulseKey, leadSource = 'kurier' }) {
   const now = useNowMinute();
   const days = useMemo(
     () => getAvailableDays(now).filter((d) => getQuickTimes(d.iso, now).length > 0),
@@ -271,6 +400,7 @@ export function KurierOrderCard({ quote, pulseKey }) {
 
   const [phase, setPhase] = useState('idle'); // idle | sending | sent
   const [sentUrgent, setSentUrgent] = useState(false);
+  const [urgentOpen, setUrgentOpen] = useState(false);
   const [error, setError] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -352,9 +482,7 @@ export function KurierOrderCard({ quote, pulseKey }) {
     }
     if (cityNow.length < 2) return setError('Укажите город');
     if (addressNow.length < 5) return setError('Укажите адрес для курьера');
-    const urgent = e.nativeEvent?.submitter?.dataset?.urgent === '1';
-    const visitTime = time || (urgent ? (quickTimes[0] || '') : '');
-    if (!isKurierDayAllowed(day, now) || !isKurierTimeAllowed(day, visitTime, now)) {
+    if (!isKurierDayAllowed(day, now) || !isKurierTimeAllowed(day, time, now)) {
       return setError('Выберите дату и время визита');
     }
     if (!isLeadName(nameNow)) return setError('Укажите имя');
@@ -371,21 +499,17 @@ export function KurierOrderCard({ quote, pulseKey }) {
         lat,
         lng,
         date: day,
-        time: visitTime,
+        time,
         website: websiteNow,
         fields: {
           'Проба (заявка)': isUnknownProba ? 'не знает' : String(proba),
           'Вес, г': String(grams),
-          ...(urgent ? {
-            'Срочный вызов': 'да, вне очереди, 0 ₽',
-            'Очередь': 'вперёд всех',
-          } : {}),
           ...(photoUrl ? { 'Фото изделия': photoUrl } : {}),
           ...(photoPath ? { photoPath } : {}),
         },
       });
-      ymReachGoal('lead', { source: urgent ? 'kurier-urgent' : 'kurier' });
-      setSentUrgent(urgent);
+      ymReachGoal('lead', { source: leadSource === 'delivery' ? 'delivery' : 'kurier' });
+      setSentUrgent(false);
       setPhase('sent');
     } catch (err) {
       setPhase('idle');
@@ -429,6 +553,7 @@ export function KurierOrderCard({ quote, pulseKey }) {
   }
 
   return (
+    <div className="rl-order-bundle">
     <motion.form
       className={`rl-calc-card rl-calc-card--wide rl-order-card${pulse ? ' rl-calc-card--pulse' : ''}`}
       onSubmit={onSubmit}
@@ -544,16 +669,37 @@ export function KurierOrderCard({ quote, pulseKey }) {
         </AnimatePresence>
       </div>
 
-      <section className={`rl-urgent-block${isMoscowOffDuty(now) ? ' is-off' : ''}`} aria-labelledby="urgent-call-title">
+    </motion.form>
+
+      <section className="rl-urgent-block" aria-labelledby="urgent-call-title">
         <span className="rl-urgent-kicker">{isMoscowOffDuty(now) ? 'Сейчас нерабочее время' : 'Если уже нерабочее время'}</span>
         <h3 id="urgent-call-title">Срочный вызов курьера</h3>
         <p>Доставим деньги реактивно быстро. Для оформления оставьте заявку, и мы сразу перезвоним.</p>
-        <p className="rl-urgent-hint">Заполните адрес и контакты выше, затем нажмите кнопку.</p>
-        <button type="submit" className="rl-urgent-btn" data-urgent="1" disabled={phase === 'sending'}>
-          {phase === 'sending' ? 'Отправляем…' : 'Срочный вызов курьера'}
+        <button type="button" className="rl-urgent-btn" onClick={() => setUrgentOpen(true)}>
+          Срочный вызов курьера
         </button>
       </section>
-    </motion.form>
+      <UrgentCourierSheet
+        open={urgentOpen}
+        onClose={() => setUrgentOpen(false)}
+        source={leadSource}
+        initial={{ name, phone, city, address }}
+        extraFields={{
+          'Проба (заявка)': isUnknownProba ? 'не знает' : String(proba),
+          'Вес, г': String(grams),
+          ...(photoUrl ? { 'Фото изделия': photoUrl } : {}),
+        }}
+        onSent={(info) => {
+          setName(info.name);
+          setPhone(info.phone);
+          setCity(info.city);
+          setAddress(info.address);
+          setSentUrgent(true);
+          setUrgentOpen(false);
+          setPhase('sent');
+        }}
+      />
+    </div>
   );
 }
 
@@ -811,27 +957,72 @@ export const KURIER_CSS = `
 .rl-consent span { font-size: 0.76rem; color: var(--text-dim); line-height: 1.4; }
 .rl-consent a { color: var(--text-strong); text-decoration: underline; }
 .rl-order-card .rl-order-hint { margin: 16px 0 0; line-height: 1.45; }
+.rl-order-bundle { width: 100%; }
 .rl-urgent-block {
-  grid-column: 1 / -1;
-  margin-top: 22px;
+  margin-top: 16px;
   padding: 22px 22px 18px;
   border-radius: 18px;
-  border: 1px solid var(--stroke);
-  background: var(--stroke-soft);
+  border: 2px solid #8e1216;
+  background: #c41e22;
+  color: #fff8f6;
   display: grid;
   gap: 8px;
+  box-shadow: 0 14px 36px rgba(196, 30, 34, 0.28);
 }
-.rl-urgent-block.is-off { border-color: #c41e22; }
-.rl-urgent-kicker {
+.rl-urgent-block .rl-urgent-kicker,
+:root[data-theme='light'] .rl-urgent-block .rl-urgent-kicker {
   font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em;
-  text-transform: uppercase; color: #e2b340;
+  text-transform: uppercase; color: #ffe7a3;
 }
-:root[data-theme='light'] .rl-urgent-kicker { color: #8a6208; }
-.rl-urgent-block.is-off .rl-urgent-kicker { color: #c41e22; }
-.rl-urgent-block h3 { margin: 0; font-size: 1.2rem; letter-spacing: -0.02em; }
-.rl-urgent-block p { margin: 0; font-size: 0.92rem; line-height: 1.5; color: var(--text-dim); }
-.rl-urgent-hint { font-size: 0.84rem !important; }
-.rl-urgent-block .rl-urgent-btn { margin: 8px 0 0; }
+.rl-urgent-block h3 { margin: 0; font-size: 1.2rem; letter-spacing: -0.02em; color: #fff; }
+.rl-urgent-block p { margin: 0; font-size: 0.92rem; line-height: 1.5; color: rgba(255, 248, 246, 0.92); }
+.rl-urgent-block .rl-urgent-btn {
+  margin: 10px 0 0; border: 0; background: #fff6e8; color: #1a1408;
+}
+.rl-urgent-block .rl-urgent-btn:hover { background: #fff; }
+.rl-urgent-sheet {
+  position: fixed; inset: 0; z-index: 120;
+  display: grid; place-items: end center; padding: 0;
+  background: rgba(8, 8, 10, 0.62);
+  backdrop-filter: blur(8px);
+}
+.rl-urgent-sheet-card {
+  width: min(480px, 100%);
+  max-height: 92svh; overflow-y: auto; overscroll-behavior: contain;
+  margin: 0; padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0; border: 0;
+  background: var(--bg-panel-solid); color: var(--text-strong);
+  box-shadow: 0 -16px 60px rgba(0, 0, 0, 0.35);
+}
+.rl-urgent-sheet-grip {
+  display: block; width: 40px; height: 4px; margin: 4px auto 12px;
+  border-radius: 99px; background: var(--stroke);
+}
+.rl-urgent-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rl-urgent-sheet-head h2 { margin: 0; font-size: 1.28rem; letter-spacing: -0.03em; }
+.rl-urgent-sheet-x {
+  width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--stroke);
+  background: transparent; color: var(--text-strong); font-size: 1.3rem; line-height: 1; cursor: pointer;
+}
+.rl-urgent-sheet-lead { margin: 10px 0 14px; color: var(--text-dim); font-size: 0.92rem; line-height: 1.45; }
+.rl-urgent-sheet-field { display: grid; gap: 6px; margin-bottom: 10px; }
+.rl-urgent-sheet-field span {
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.rl-urgent-sheet-card .rl-consent { margin: 8px 0 12px; }
+.rl-urgent-sheet-card .rl-form-error { margin: 0 0 10px; color: #c41e22; font-weight: 700; }
+.rl-urgent-sheet-submit {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; min-height: 52px; margin-bottom: 8px; border: 0; border-radius: 14px;
+  background: #c41e22; color: #fff; font: inherit; font-size: 1.02rem; font-weight: 800; cursor: pointer;
+}
+.rl-urgent-sheet-submit:disabled { opacity: 0.7; cursor: wait; }
+@media (min-width: 760px) {
+  .rl-urgent-sheet { place-items: center; padding: 20px; }
+  .rl-urgent-sheet-card { border-radius: 22px; padding: 22px 22px 16px; }
+  .rl-urgent-sheet-grip { display: none; }
+}
 
 .rl-sticky-cta { display: none; }
 @media (max-width: 900px) {

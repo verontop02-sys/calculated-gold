@@ -30,7 +30,7 @@ import {
   isRuPhone,
   useAnimatedNumber,
 } from './ru/RuShared.jsx';
-import { KURIER_CSS, KurierLocationField, KurierOrderCard } from './ru/RuKurier.jsx';
+import { KURIER_CSS, KurierLocationField, KurierOrderCard, UrgentCourierSheet } from './ru/RuKurier.jsx';
 import { isMoscowOffDuty, pickNextCourierSlot } from './ru/kurierSlots.js';
 import { useToast } from './ToastContext.jsx';
 import { ymReachGoal } from './yandexMetrika.js';
@@ -492,6 +492,7 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
   const [photoPath, setPhotoPath] = useState('');
   const [phase, setPhase] = useState('idle');
   const [sentUrgent, setSentUrgent] = useState(false);
+  const [urgentOpen, setUrgentOpen] = useState(false);
   const [error, setError] = useState('');
   const [clock, setClock] = useState(() => new Date());
 
@@ -502,6 +503,7 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
 
   useEffect(() => {
     if (open) setMode(initialMode);
+    else setUrgentOpen(false);
   }, [open, initialMode]);
 
   const priced = quoteForChannel(quote, mode === 'courier' ? 'courier' : 'office');
@@ -681,18 +683,35 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
             </button>
             <p className="dl2-modal-legal">Нажимая кнопку, вы соглашаетесь с <a href="/privacy">обработкой персональных данных</a>.</p>
             {mode === 'courier' && (
-              <section className={`rl-urgent-block${isMoscowOffDuty(clock) ? ' is-off' : ''}`}>
+              <section className="rl-urgent-block">
                 <span className="rl-urgent-kicker">{isMoscowOffDuty(clock) ? 'Сейчас нерабочее время' : 'Если уже нерабочее время'}</span>
                 <h3>Срочный вызов курьера</h3>
                 <p>Доставим деньги реактивно быстро. Для оформления оставьте заявку, и мы сразу перезвоним.</p>
-                <button type="submit" className="rl-urgent-btn" data-urgent="1" disabled={phase === 'sending'}>
-                  {phase === 'sending' ? 'Отправляем…' : 'Срочный вызов курьера'}
+                <button type="button" className="rl-urgent-btn" onClick={() => setUrgentOpen(true)}>
+                  Срочный вызов курьера
                 </button>
               </section>
             )}
           </form>
         )}
       </div>
+      <UrgentCourierSheet
+        open={urgentOpen}
+        onClose={() => setUrgentOpen(false)}
+        source="delivery"
+        initial={{ phone, city, address }}
+        extraFields={{
+          Проба: String(purity || 585),
+          'Вес, г': String(grams || 10),
+        }}
+        onSent={(info) => {
+          setPhone(info.phone);
+          setCity(info.city);
+          setSentUrgent(true);
+          setUrgentOpen(false);
+          setPhase('sent');
+        }}
+      />
     </div>
   );
 }
@@ -1125,7 +1144,7 @@ export function DeliveryLanding() {
               <Reveal><span className="il-pill">Вызвать курьера</span></Reveal>
               <Reveal delay={0.06}><h2 className="il-h2">Посчитайте сумму и выберите <span className="il-accent-text">время визита</span></h2></Reveal>
             </div>
-            <KurierOrderCard quote={liveQuote} />
+            <KurierOrderCard quote={liveQuote} leadSource="delivery" />
           </div>
         </section>
 
