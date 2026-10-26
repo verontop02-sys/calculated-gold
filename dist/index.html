@@ -30,21 +30,22 @@
           });
         }
         var ready = (async function () {
-          var moscowP = ping('https://api.reaktivo.pro/api/health', 5000);
+          var here = ping(location.origin + '/api/health', 4000);
           var directP = ping('https://calculated-gold.onrender.com/api/health', 5000);
-          var quick = await Promise.race([
-            moscowP.then(function (ok) { return ok ? 'moscow' : 'down'; }),
-            new Promise(function (resolve) { setTimeout(function () { resolve('slow'); }, 3500); })
-          ]);
-          if (quick === 'moscow') return;
-          if (await directP) { mode = 'direct'; return; }
-          if (await moscowP) mode = 'moscow';
+          if (await here) return;
+          if (await directP) mode = 'direct';
         })();
         function rewrite(url) {
-          if (mode !== 'direct') return url;
-          return String(url)
-            .replace('https://api.reaktivo.pro/api', 'https://calculated-gold.onrender.com/api')
-            .replace('https://api.reaktivo.pro/sb', 'https://csfrsctvrhltthwocspo.supabase.co');
+          var s = String(url);
+          if (s.indexOf('https://api.reaktivo.pro/') === 0) {
+            s = location.origin + s.slice('https://api.reaktivo.pro'.length);
+          }
+          if (mode === 'direct') {
+            s = s
+              .replace(location.origin + '/api', 'https://calculated-gold.onrender.com/api')
+              .replace(location.origin + '/sb', 'https://csfrsctvrhltthwocspo.supabase.co');
+          }
+          return s;
         }
         window.fetch = function (input, init) {
           return ready.then(function () {
@@ -66,7 +67,7 @@
     <link rel="preload" href="/fonts/geometria/Geometria-Bold.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/geometria/Geometria-ExtraBold.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/fonts/brand.css" />
-    <script type="module" crossorigin src="/assets/index-BqmuNESO.js"></script>
+    <script type="module" crossorigin src="/assets/index-LZdH9KRB.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-AOlsja4O.css">
   </head>
   <body>
