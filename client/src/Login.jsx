@@ -5,6 +5,9 @@ import { ThemeToggle } from './ThemeToggle.jsx';
 
 function mapLoginError(ex) {
   const msg = String(ex?.message || '');
+  if (/load failed|failed to fetch|networkerror|сеть/i.test(msg)) {
+    return 'Нет связи с сервером. Обновите страницу и попробуйте ещё раз.';
+  }
   if (/invalid login credentials|invalid_credentials/i.test(msg)) return 'Неверный email или пароль';
   if (/email not confirmed/i.test(msg)) return 'Подтвердите email в письме от Supabase';
   if (/over_request_rate|rate limit|too many requests|429|security purposes/i.test(msg + String(ex?.status || '')))
@@ -169,7 +172,7 @@ export function Login() {
                     </div>
                     <span className="lg-warm__label">
                       {serverStatus === 'checking' && 'Подключение к серверу…'}
-                      {serverStatus === 'warming' && 'Нет ответа от API. Часто из РФ без VPN режется адрес сервера. Подождите или включите VPN.'}
+                      {serverStatus === 'warming' && 'Нет ответа от сервера. Подождите несколько секунд и обновите страницу.'}
                     </span>
                   </div>
                 )}

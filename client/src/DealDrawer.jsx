@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { api } from './api.js';
+import { api, ruMediaUrl } from './api.js';
 
 function fmtDateTime(iso) {
   if (!iso) return '—';
@@ -341,8 +341,8 @@ export function DealDrawer({ deal, onClose, formatMoney, toast, onUpdated, onDel
                 {rows.map((r, i) => (
                   <div key={i} className="ddw-pos">
                     {r.photoUrl && (
-                      <button type="button" className="ddw-pos__photo" onClick={() => setPhoto({ url: r.photoUrl, name: r.itemName || 'Изделие' })}>
-                        <img src={r.photoUrl} alt={r.itemName || 'Изделие'} />
+                      <button type="button" className="ddw-pos__photo" onClick={() => setPhoto({ url: ruMediaUrl(r.photoUrl), name: r.itemName || 'Изделие' })}>
+                        <img src={ruMediaUrl(r.photoUrl)} alt={r.itemName || 'Изделие'} />
                       </button>
                     )}
                     <div className="ddw-pos__body">

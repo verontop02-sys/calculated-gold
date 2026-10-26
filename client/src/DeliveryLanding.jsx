@@ -22,7 +22,6 @@ import {
   RuKpis,
   RuLeadForm,
   RuMarquee,
-  PayoutDisclaimer,
   RuSbpBadge,
   RuStatement,
   RuThemedImg,
@@ -31,9 +30,20 @@ import {
   useAnimatedNumber,
 } from './ru/RuShared.jsx';
 import { KURIER_CSS, KurierLocationField, KurierOrderCard, UrgentCourierSheet } from './ru/RuKurier.jsx';
-import { isMoscowOffDuty, pickNextCourierSlot } from './ru/kurierSlots.js';
+import { pickNextCourierSlot } from './ru/kurierSlots.js';
 import { useToast } from './ToastContext.jsx';
 import { ymReachGoal } from './yandexMetrika.js';
+
+const PRO_PAYOUT_NOTE = 'Точная сумма после проверки пробы и веса.';
+
+function ProPayoutNote() {
+  return (
+    <p className="rl-payout-note">
+      {PRO_PAYOUT_NOTE}
+      <RuSbpBadge className="rl-sbp--lg" />
+    </p>
+  );
+}
 
 const PROBES = [585, 750, 999];
 const QUICK_PROBES = [375, 500, 585, 750, 999];
@@ -442,7 +452,6 @@ function LiveProbes({ quote, grams, purity, onPick, lockedAmount, lockedPurity, 
   return (
     <div className={`dl2-probes${flash ? ' is-flash' : ''}`}>
       {PROBES.map((p) => {
-        const perG = quotePerGram(quote, p);
         const liveSum = quotePayout(quote, p, grams);
         const sum = lockedAmount != null && p === lockedPurity ? lockedAmount : liveSum;
         const on = p === purity;
@@ -456,11 +465,8 @@ function LiveProbes({ quote, grams, purity, onPick, lockedAmount, lockedPurity, 
             disabled={lockedAmount != null}
           >
             <span className="dl2-probe-k">Проба {p}</span>
-            <span className="dl2-probe-g mono-nums">
-              {waiting ? <Skel /> : failed ? 'нет курса' : formatPerGram(perG) || '—'}
-            </span>
             <span className="dl2-probe-s mono-nums">
-              {waiting ? <Skel wide /> : sum != null ? formatMoney(sum) : '—'}
+              {waiting ? <Skel wide /> : failed ? 'нет курса' : sum != null ? formatMoney(sum) : '—'}
             </span>
           </button>
         );
@@ -642,7 +648,7 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
               <span>Предварительно, до<small>Проба {purity || 585} · {grams || 10} г</small></span>
               <b className="mono-nums rl-payout-sum">{ceiling != null ? formatMoney(Math.round(ceiling)) : '—'}</b>
             </div>
-            <PayoutDisclaimer channel={mode === 'courier' ? 'courier' : 'office'} />
+            <ProPayoutNote />
             <label className="dl2-modal-field">
               <span>Телефон</span>
               <input type="tel" inputMode="tel" autoComplete="tel" enterKeyHint="next" placeholder="+7 900 000-00-00" value={phone} onChange={(e) => setPhone(e.target.value)} />
@@ -684,11 +690,12 @@ function CallModal({ open, onClose, quote, purity, grams, initialMode = 'courier
             <p className="dl2-modal-legal">Нажимая кнопку, вы соглашаетесь с <a href="/privacy">обработкой персональных данных</a>.</p>
             {mode === 'courier' && (
               <section className="rl-urgent-block">
-                <span className="rl-urgent-kicker">{isMoscowOffDuty(clock) ? 'Сейчас нерабочее время' : 'Если уже нерабочее время'}</span>
                 <h3>Срочный вызов курьера</h3>
-                <p>Доставим деньги реактивно быстро. Для оформления оставьте заявку, и мы сразу перезвоним.</p>
+                <p>Оставьте заявку, и курьер приедет к вам в ближайшее время. Доставка по городу — быстро и надежно.</p>
+                <h4 className="rl-urgent-sub">Вызвать курьера срочно</h4>
+                <p className="rl-urgent-hint">Укажите контактные данные для связи.</p>
                 <button type="button" className="rl-urgent-btn" onClick={() => setUrgentOpen(true)}>
-                  Срочный вызов курьера
+                  Вызвать курьера
                 </button>
               </section>
             )}
@@ -797,7 +804,6 @@ export function DeliveryLanding() {
   const activePurity = lockedAlive ? locked.purity : purity;
   const activeGrams = lockedAlive ? locked.grams : grams;
   const payout = useMemo(() => quotePayout(quote, activePurity, activeGrams), [quote, activePurity, activeGrams]);
-  const perG = useMemo(() => quotePerGram(quote, activePurity), [quote, activePurity]);
   const officePayout = useMemo(() => quotePayout(officeQuote, purity, grams), [officeQuote, purity, grams]);
   const spot = Number(quote?.goldRubPerGram) || 0;
   const scrap = spot > 0 && activeGrams > 0 ? spot * (activePurity / 1000) * activeGrams : null;
@@ -948,14 +954,12 @@ export function DeliveryLanding() {
         <b className="dl2-quick-sum rl-payout-sum mono-nums" key={quickGrams}>
           {waitingQuote ? <Skel wide /> : quickCeiling != null ? formatMoney(Math.round(quickCeiling)) : '—'}
         </b>
-        <PayoutDisclaimer />
-        <small>
-          {quoteFailed
-            ? 'Курс недоступен, перезвоним с точной суммой'
-            : spot > 0
-              ? `Проба ${purity} · курс ${formatPerGram(spot)} Au 999`
-              : 'Загружаем курс…'}
-        </small>
+        <ProPayoutNote />
+        {(quoteFailed || !(spot > 0)) && (
+          <small>
+            {quoteFailed ? 'Курс недоступен, перезвоним с точной суммой' : 'Загружаем курс…'}
+          </small>
+        )}
         <div className="dl2-quick-actions">
           <button type="button" className="il-btn il-btn--primary dl2-open-call" onClick={openCallAs('courier')}>Вызвать курьера</button>
           <button type="button" className="il-btn il-btn--outline dl2-open-call" onClick={openCallAs('branch')}>Продать в отделении</button>
@@ -975,7 +979,7 @@ export function DeliveryLanding() {
             <button type="button" className="dl2-retry" onClick={reload}>Обновить курс</button>
           ) : (
             <span className="dl2-live-wrap">
-              <span className="il-card-live il-card-live--ok mono-nums"><i />{formatPerGram(spot) || '—'}</span>
+              <span className="il-card-live il-card-live--ok"><i />курс онлайн</span>
               <RuGoldTicker value={spot} change={liveQuote?.change} storeKey="dl-gold-rate" />
             </span>
           )}
@@ -1029,11 +1033,9 @@ export function DeliveryLanding() {
                 <b>{formatTimer(left)}</b>
                 <span>курс курьера, держим 15 минут</span>
               </span>
-            ) : (
-              <span className="dl2-out-note">
-                {quoteFailed ? 'Не удалось получить курс' : `Проба ${purity} · ${formatPerGram(perG) || '₽/г'}`}
-              </span>
-            )}
+            ) : quoteFailed ? (
+              <span className="dl2-out-note">Не удалось получить курс</span>
+            ) : null}
           </div>
 
           {lockedAlive && (
@@ -1144,7 +1146,7 @@ export function DeliveryLanding() {
               <Reveal><span className="il-pill">Вызвать курьера</span></Reveal>
               <Reveal delay={0.06}><h2 className="il-h2">Посчитайте сумму и выберите <span className="il-accent-text">время визита</span></h2></Reveal>
             </div>
-            <KurierOrderCard quote={liveQuote} leadSource="delivery" />
+            <KurierOrderCard quote={liveQuote} leadSource="delivery" payoutNote={PRO_PAYOUT_NOTE} />
           </div>
         </section>
 
@@ -1163,7 +1165,7 @@ export function DeliveryLanding() {
             <RuKpis items={[
               { val: '15 мин', label: 'держим курс после расчёта', icon: 'clock', imgDark: '/ru/kpi-time-dark.jpg', imgLight: '/ru/kpi-time-light.jpg' },
               { val: '0 ₽', label: 'вызов курьера — без доплаты', icon: 'check', imgDark: '/ru/kpi-zerofee-dark.jpg', imgLight: '/ru/kpi-zerofee-light.jpg' },
-              { val: '45 мин', label: 'курьер приезжает в зоне', icon: 'clock', imgDark: '/ru/kpi-parcel-dark.jpg', imgLight: '/ru/kpi-parcel-light.jpg' },
+              { val: '45 мин', label: 'Среднее время доставки', icon: 'clock', imgDark: '/ru/kpi-parcel-dark.jpg', imgLight: '/ru/kpi-parcel-light.jpg' },
               { val: 'паспорт', label: 'нужен по закону, не «для галочки»', icon: 'shield', imgDark: '/ru/kpi-shield-dark.jpg', imgLight: '/ru/kpi-shield-light.jpg' },
             ]} />
           </div>
@@ -1200,7 +1202,7 @@ export function DeliveryLanding() {
               <Magnetic>
                 <button type="button" className="il-btn il-btn--primary dl2-sell-main dl2-open-call" onClick={openCall}>Продать золото</button>
               </Magnetic>
-              <PayoutDisclaimer />
+              <ProPayoutNote />
             </Reveal>
           </div>
         </section>
@@ -1501,17 +1503,32 @@ const DL2_CSS = `
 .dl2-root { --font-display: 'Geometria', system-ui, sans-serif; }
 .dl2-modal {
   position: fixed; inset: 0; z-index: 80;
-  display: grid; place-items: center; padding: 20px;
+  display: flex; flex-direction: column; align-items: center; justify-content: safe center;
+  padding: 20px;
   background: rgba(8, 8, 10, 0.62);
   backdrop-filter: blur(8px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 .dl2-modal-card {
   width: min(440px, 100%);
+  flex: 0 0 auto;
+  max-height: none;
+  min-height: 0;
+  overflow: visible;
   padding: 22px 22px 18px;
   border-radius: 22px;
   background: var(--bg-panel-solid);
   border: 1px solid var(--stroke);
   box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+}
+.dl2-modal .rl-urgent-block {
+  position: static;
+  width: 100%;
+  min-height: 0;
+  margin-top: 14px;
 }
 .dl2-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .dl2-modal-head h2 { margin: 0; font-size: 1.35rem; letter-spacing: -0.03em; }
@@ -1531,8 +1548,8 @@ const DL2_CSS = `
   margin-bottom: 14px; padding: 14px 16px; border-radius: 14px; background: var(--bg);
 }
 .dl2-modal-sum span { color: var(--text-muted); font-size: 0.92rem; }
-.dl2-modal-sum b { font-size: 1.7rem; letter-spacing: -0.03em; color: #f0c14a; }
-:root[data-theme='light'] .dl2-modal-sum b { color: #8a6208; }
+.dl2-modal-sum b { font-size: 1.7rem; letter-spacing: -0.03em; color: #c2413c; }
+:root[data-theme='light'] .dl2-modal-sum b { color: #c41e22; }
 .dl2-modal-field { display: grid; gap: 6px; margin-bottom: 12px; font-size: 0.78rem; font-weight: 700; color: var(--text-dim); }
 .dl2-modal-field input, .dl2-modal-field select {
   width: 100%; box-sizing: border-box; min-height: 48px; padding: 12px 14px;
@@ -1574,7 +1591,7 @@ const DL2_CSS = `
 .dl2-calc form { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
 .dl2-probes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
 .dl2-probe {
-  display: flex; flex-direction: column; gap: 6px; min-height: 92px;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 6px; min-height: 72px;
   padding: 12px 10px; border-radius: 14px;
   border: 1px solid var(--stroke); background: var(--bg);
   color: inherit; text-align: left; cursor: pointer; font: inherit;
@@ -1582,7 +1599,7 @@ const DL2_CSS = `
 }
 .dl2-probe:disabled { cursor: default; }
 .dl2-probe.is-on { border-color: var(--accent); background: var(--accent-soft); }
-.dl2-probes.is-flash .dl2-probe-g { color: var(--accent); }
+.dl2-probes.is-flash .dl2-probe-s { color: var(--accent); }
 .dl2-probe-k { font-size: 0.68rem; color: var(--text-dim); letter-spacing: 0.06em; text-transform: uppercase; }
 .dl2-probe-g { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); min-height: 1.2em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dl2-probe-s { font-size: 0.98rem; font-weight: 800; color: var(--text-strong); min-height: 1.25em; letter-spacing: -0.03em; line-height: 1.15; }
@@ -1623,8 +1640,9 @@ const DL2_CSS = `
 .dl2-calc-note .rl-payout-note { max-width: 62ch; margin: 0; }
 .dl2-sell-main { min-height: 68px; font-size: 1.25rem; padding: 18px 40px; width: min(440px, 100%); justify-content: center; }
 .dl2-ticker {
-  background: #1a1408; color: #f6e7c1;
-  border-top: 2px solid #c9a227; border-bottom: 2px solid #c9a227;
+  background: linear-gradient(165deg, #c2413c 0%, #a32024 46%, #8f1719 100%);
+  color: #fff;
+  border-top: 0; border-bottom: 0;
 }
 .dl2-ticker p {
   margin: 0 auto; max-width: 1180px;
@@ -1635,14 +1653,14 @@ const DL2_CSS = `
 }
 .dl2-ticker span { white-space: nowrap; }
 .dl2-ticker span:not(:last-child)::after {
-  content: '·'; display: inline-block; margin: 0 12px; color: #c9a227; font-weight: 700;
+  content: '·'; display: inline-block; margin: 0 12px; color: rgba(255, 255, 255, 0.72); font-weight: 700;
 }
 .dl2-sticky { display: none; }
 .dl2-cta-short { display: none; }
 .dl2-live-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .dl2-sent { display: flex; flex-direction: column; gap: 14px; }
-.dl2-modal-sum b.rl-payout-sum { color: #f0c14a; font-size: 1.7rem; }
-:root[data-theme='light'] .dl2-modal-sum b.rl-payout-sum { color: #8a6208; }
+.dl2-modal-sum b.rl-payout-sum { color: #c2413c; font-size: 1.7rem; }
+:root[data-theme='light'] .dl2-modal-sum b.rl-payout-sum { color: #c41e22; }
 .dl2-path { position: relative; height: auto; min-height: 0; padding: 72px 0 56px; }
 .dl2-path--static { height: auto; }
 .dl2-path-sticky {
@@ -1968,10 +1986,10 @@ const DL2_CSS = `
 }
 .dl2-quick-sum {
   font-size: clamp(2.6rem, 5.4vw, 3.6rem); line-height: 1; letter-spacing: -0.04em;
-  font-weight: 800; color: #f0c14a;
+  font-weight: 800; color: #c2413c;
   animation: dl2SumPop 0.28s ease;
 }
-:root[data-theme='light'] .dl2-quick-sum { color: #8a6208; }
+:root[data-theme='light'] .dl2-quick-sum { color: #c41e22; }
 @keyframes dl2SumPop { from { transform: scale(1.06); } to { transform: scale(1); } }
 .dl2-quick-out small { color: var(--text-dim); font-size: 0.8rem; }
 .dl2-quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
@@ -2057,9 +2075,26 @@ const DL2_CSS = `
   .dl2-root .il-footer-col { gap: 2px; }
   .dl2-root .il-footer .il-nav-link { min-height: 40px; font-size: 0.9rem; }
 
-  .dl2-modal { align-items: end; padding: 0; }
+  .dl2-modal {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    padding: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .dl2-modal::before {
+    content: '';
+    flex: 1 0 0px;
+    min-height: 10vh;
+  }
   .dl2-modal-card {
-    width: 100%; max-height: 92svh; overflow-y: auto; overscroll-behavior: contain;
+    width: 100%;
+    flex: 0 0 auto;
+    max-height: none;
+    overflow: visible;
+    margin-top: 0;
     border-radius: 24px 24px 0 0; border-bottom: 0;
     padding: 10px 16px calc(16px + env(safe-area-inset-bottom));
     animation: dl2Sheet 0.28s cubic-bezier(0.22, 1, 0.36, 1);

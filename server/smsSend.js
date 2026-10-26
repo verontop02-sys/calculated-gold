@@ -30,6 +30,15 @@ export const LEAD_ACK_SMS = [
   'С уважением, команда Reaktivo',
 ].join('\n');
 
+/** Смс после записи курьера: дата, время и звонок за час. */
+export function courierBookingSms({ dateLabel, time } = {}) {
+  const when = [String(dateLabel || '').trim(), String(time || '').trim()].filter(Boolean).join(', ');
+  const booked = when
+    ? `Reaktivo — курьер забронирован. ${when}.`
+    : 'Reaktivo — курьер забронирован.';
+  return `${booked} Курьер позвонит за 1 час до визита для подтверждения. https://reaktivo.ru/kurier/`;
+}
+
 /** 7XXXXXXXXXX или пусто, если это не российский мобильный. */
 export function leadSmsDigits(phone) {
   let d = String(phone || '').replace(/\D/g, '');

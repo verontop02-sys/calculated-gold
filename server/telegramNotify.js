@@ -6,6 +6,11 @@
  * один раз повторяем на новый id и логируем, чтобы обновить env.
  */
 
+function isRetryableTelegram(result) {
+  const status = Number(result?.status || 0);
+  return status === 0 || status === 429 || status >= 500;
+}
+
 export async function sendTelegramMessage(chatId, text) {
   const token = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
   const chat = String(chatId || '').trim();
@@ -14,7 +19,11 @@ export async function sendTelegramMessage(chatId, text) {
     return { sent: false, reason: 'not_configured' };
   }
 
-  const first = await postSendMessage(token, chat, text);
+  let first = await postSendMessage(token, chat, text);
+  for (let attempt = 1; !first.ok && isRetryableTelegram(first) && attempt < 3; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+    first = await postSendMessage(token, chat, text);
+  }
   if (first.ok) return { sent: true };
 
   const migrated = first.migrateTo;
@@ -78,7 +87,7 @@ export async function sendTelegramPhoto(chatId, photo, caption) {
 
 async function postSendMessage(token, chatId, text) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  const timer = setTimeout(() => controller.abort(), 12_000);
   try {
     const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',

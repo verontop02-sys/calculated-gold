@@ -41,6 +41,8 @@ server {{
         proxy_connect_timeout 60s;
         proxy_buffering off;
         proxy_cache off;
+        proxy_hide_header Alt-Svc;
+        add_header Alt-Svc "clear" always;
     }}
 }}
 """.strip()
@@ -73,6 +75,8 @@ server {{
         proxy_read_timeout 300s;
         proxy_send_timeout 300s;
         proxy_buffering off;
+        proxy_hide_header Alt-Svc;
+        add_header Alt-Svc "clear" always;
     }}
 }}
 """.strip()

@@ -55,8 +55,8 @@ const LEGAL_CLAUSES = [
   '1. Продавец передаёт в собственность Покупателя указанные в настоящем договоре ювелирные изделия (лом) в обмен на денежную сумму, указанную в графе «Итого».',
   '2. Продавец гарантирует, что является собственником передаваемого имущества, оно не находится под арестом, в залоге и не обременено правами третьих лиц.',
   '3. Оплата производится путём перечисления денежных средств на реквизиты, указанные Продавцом, либо наличными в кассу Покупателя в день заключения настоящего договора.',
-  '4. С момента подписания настоящего договора право собственности на переданные изделия переходит к Покупателю.',
-  '5. Продавец подтверждает, что ознакомлен с порядком оценки и согласен с результатами оценки и ценой выкупа.',
+  '4. Оплата за товар осуществлена наличным расчетом или банковским переводом, по соглашению сторон. После проверки покупателем изделия продавца.',
+  '5. Право собственности на товар перешло к покупателю в момент получения продавцом полной суммы по договору наличными или банковским переводом.',
   '6. Персональные данные Продавца обрабатываются Покупателем в целях исполнения настоящего договора и ведения учёта в соответствии с законодательством РФ о персональных данных.',
   '7. Споры разрешаются путём переговоров, при недостижении согласия — в судебном порядке по месту нахождения Покупателя.',
   '8. Настоящий договор составлен в двух экземплярах, имеющих одинаковую юридическую силу, по одному для каждой из сторон.',
@@ -196,6 +196,70 @@ function drawFit(page, text, x, yFromTop, options = {}) {
   drawTop(page, text, x, yFromTop, { size: fitted, font, color });
 }
 
+function wrapLines(font, text, size, maxWidth) {
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = '';
+  for (const word of words) {
+    const next = cur ? `${cur} ${word}` : word;
+    if (font.widthOfTextAtSize(next, size) <= maxWidth) cur = next;
+    else {
+      if (cur) lines.push(cur);
+      cur = word;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+function coverFromTop(page, x, yFromTop, width, height) {
+  page.drawRectangle({
+    x,
+    y: page.getHeight() - yFromTop - height,
+    width,
+    height,
+    color: rgb(1, 1, 1),
+    borderWidth: 0,
+  });
+}
+
+/**
+ * Пункты 4, 5 и опечатка в п. 9 зашиты в картинку шаблона.
+ * Закрываем старые строки и печатаем новую редакцию поверх.
+ */
+function overlayLegalClauses(page, font) {
+  const size = 7.15;
+  const leading = 8.7;
+  const x = 48;
+  const maxWidth = 246;
+  const clause4 = wrapLines(
+    font,
+    '4. Оплата за товар осуществлена наличным расчетом или банковским переводом, по соглашению сторон. После проверки покупателем изделия продавца.',
+    size,
+    maxWidth,
+  );
+  const clause5 = wrapLines(
+    font,
+    '5. Право собственности на товар перешло к покупателю в момент получения продавцом полной суммы по договору наличными или банковским переводом.',
+    size,
+    maxWidth,
+  );
+  // Старые п. 4–5 заканчиваются до п. 6 (его цифра около y 412). Правая колонка с п. 9 начинается около x 338.
+  coverFromTop(page, 44, 336, 288, 72);
+  const drawBlock = (lines, y0) => {
+    lines.forEach((line, i) => {
+      drawTop(page, line, x, y0 + i * leading, { size, font });
+    });
+    return y0 + lines.length * leading;
+  };
+  const after4 = drawBlock(clause4, 344);
+  drawBlock(clause5, after4 + 3.2);
+
+  // П. 9: в шаблоне «по ноМеру телефона».
+  coverFromTop(page, 336, 423.5, 236, 12);
+  drawTop(page, 'информации по номеру телефона.', 338, 432.2, { size: 7.6, font });
+}
+
 /** В шаблоне зашит 8(993) 633 01 01 — закрываем цифры и ставим 8 800. Иконку трубки не трогаем. */
 function overlayHeaderPhone(page, font) {
   const pageH = page.getHeight();
@@ -227,6 +291,7 @@ export async function buildScrapContractPdfBuffer(body) {
   const boldFont = await pdfDoc.embedFont(readFileSync(FONT_BOLD_PATH), { subset: true });
   const page = pdfDoc.getPages()[0];
   overlayHeaderPhone(page, regularFont);
+  overlayLegalClauses(page, regularFont);
 
   const contractNo = String(body.contractNo || '').trim() || '—';
   const sellerName = String(body.sellerName || '').trim() || '—';

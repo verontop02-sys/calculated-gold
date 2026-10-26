@@ -52,6 +52,8 @@ server {
         proxy_connect_timeout 60s;
         proxy_buffering off;
         proxy_cache off;
+        proxy_hide_header Alt-Svc;
+        add_header Alt-Svc "clear" always;
     }
 }
 EOF

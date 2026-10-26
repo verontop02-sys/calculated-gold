@@ -156,10 +156,6 @@ export function quotePayoutRange(quote, purityPerThousand, weightGrams) {
   };
 }
 
-export function quoteBuybackPctLabel(quote, channel) {
-  const pct = channel
-    ? effectiveBuybackPercent(quote, channel === 'courier' ? 'courier' : 'office')
-    : numOrNull(quote?.buybackPercentOfScrap);
-  if (pct == null || pct <= 0) return 'по курсу выкупа';
-  return `до ${Math.round(pct)}%`;
+export function quoteBuybackPctLabel() {
+  return 'до 90%';
 }

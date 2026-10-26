@@ -4,7 +4,7 @@ import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../Inv
 import {
   RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuStatement, RuThemedImg, RuTiltCard, RuTimeline,
   formatMoney, ruHref, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
-  quotePayout, quoteBuybackPctLabel,
+  quotePayout,
 } from './RuShared.jsx';
 
 const PERKS = [
@@ -138,7 +138,6 @@ export function RuAgenty() {
   const oldPay = quote?.goldRubPerGram ? quote.goldRubPerGram * 0.585 * 12 * 0.6 : null;
   const agentBuyPay = quotePayout(quote, 585, 12);
   const agentCut = agentBuyPay ? agentBuyPay * AGENT_MARKUP : null;
-  const pct = quoteBuybackPctLabel(quote);
 
   return (
     <div className="il-root rl-root">
@@ -201,7 +200,7 @@ export function RuAgenty() {
                   <li>Курс такой же, как на сайте Reaktivo</li>
                   <li>Проба и вес проверяются при клиенте</li>
                   <li>Расчёт виден в приложении на экране</li>
-                  <li>Выплата {pct} от биржевой стоимости</li>
+                  <li>Выплата до 90% от биржевой стоимости</li>
                 </ul>
                 <div className="rl-vs-fig">{agentBuyPay ? formatMoney(agentBuyPay) : '· · ·'}</div>
                 <div className="rl-vs-figl">Клиент получает · Вам ≈ {agentCut ? formatMoney(agentCut) : '· · ·'}</div>

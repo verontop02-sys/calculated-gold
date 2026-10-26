@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api } from './api.js';
+import { api, ruMediaUrl } from './api.js';
 import { isSuperAdminRole, roleLabel } from './roles.js';
 import { SkeletonRow, SkeletonCard } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
@@ -15,7 +15,7 @@ function fmtDateTime(iso) {
 
 function dealRowPhotos(d) {
   if (!Array.isArray(d.rows)) return [];
-  return d.rows.filter((r) => r?.photoUrl).map((r) => ({ url: r.photoUrl, name: r.itemName || 'Изделие' }));
+  return d.rows.filter((r) => r?.photoUrl).map((r) => ({ url: ruMediaUrl(r.photoUrl), name: r.itemName || 'Изделие' }));
 }
 
 export function EmployeeDeals({ formatMoney, toast, user }) {

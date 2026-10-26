@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api } from './api.js';
+import { api, ruMediaUrl } from './api.js';
 
 /**
  * Заявки с лендингов reaktivo.ru / reaktivo.pro: список, статусы, кто обработал.
@@ -58,6 +58,14 @@ function isPhotoField(key, value) {
     || /\/object\/(?:sign|public)\/courier-photos\//i.test(v);
 }
 
+function leadPhoto(lead) {
+  const fields = lead?.fields && typeof lead.fields === 'object' ? lead.fields : {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (isPhotoField(k, v)) return String(v);
+  }
+  return '';
+}
+
 function ContactLink({ value }) {
   const digits = String(value || '').replace(/\D/g, '');
   if (digits.length >= 10) {
@@ -114,8 +122,8 @@ function LeadModal({ lead, busy, onClose, onSetStatus }) {
                 <dt>{k}</dt>
                 {isPhotoField(k, v) ? (
                   <dd>
-                    <a className="cg-leads__photo-link" href={v} target="_blank" rel="noreferrer">
-                      <img className="cg-leads__photo-thumb" src={v} alt="Фото изделия" loading="lazy" />
+                    <a className="cg-leads__photo-link" href={ruMediaUrl(v)} target="_blank" rel="noreferrer">
+                      <img className="cg-leads__photo-thumb" src={ruMediaUrl(v)} alt="Фото изделия" loading="lazy" />
                       Открыть в полном размере
                     </a>
                   </dd>
@@ -296,10 +304,13 @@ export function LeadsPage({ toast }) {
                     )}
                     {isUrgentLead(lead) && <span className="cg-leads__urgent">Вперёд очереди</span>}
                   </div>
-                  <div className="cg-leads__person">
-                    <strong className="cg-leads__name">{lead.name}</strong>
-                    <span className="cg-leads__contact cg-leads__contact--plain">{lead.phone}</span>
-                  </div>
+                <div className="cg-leads__person">
+                  <strong className="cg-leads__name">{lead.name}</strong>
+                  <span className="cg-leads__contact cg-leads__contact--plain">{lead.phone}</span>
+                </div>
+                {leadPhoto(lead) && (
+                  <img className="cg-leads__card-photo" src={ruMediaUrl(leadPhoto(lead))} alt="Фото изделия" loading="lazy" />
+                )}
                 </div>
                 <svg className="cg-leads__chevron" aria-hidden viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
               </article>
@@ -373,6 +384,10 @@ const LEADS_CSS = `
 .cg-leads__card--urgent { border-color: #e2b340; }
 
 .cg-leads__person { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.cg-leads__card-photo {
+  display: block; width: 64px; height: 64px; margin-top: 10px;
+  border-radius: 12px; object-fit: cover; background: var(--stroke-soft);
+}
 .cg-leads__person--modal { margin-top: 4px; }
 .cg-leads__name { font-size: 0.95rem; color: var(--text-strong); letter-spacing: -0.01em; }
 .cg-leads__contact { font-size: 0.86rem; color: var(--text); text-decoration: none; border-bottom: 1px dashed var(--stroke-strong); }

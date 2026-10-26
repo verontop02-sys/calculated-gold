@@ -12,7 +12,7 @@ import {
   ReferenceLine,
   Cell,
 } from 'recharts';
-import { api } from './api.js';
+import { api, ruMediaUrl } from './api.js';
 import { importChunk } from './importChunk.js';
 import { PageHint } from './PageHint.jsx';
 import { WorldClocksCard } from './WorldClocks.jsx';
@@ -1538,7 +1538,7 @@ export function Dashboard({ formatMoney, price, user, onNavigate }) {
                     {drawerDetail.rows.filter(r => r.itemName || r.weightGross || r.priceRub).map((r, i) => (
                       <div key={i} className="dd-position">
                         {r.photoUrl && (
-                          <img src={r.photoUrl} alt="Фото изделия" className="dd-position__photo" />
+                          <img src={ruMediaUrl(r.photoUrl)} alt="Фото изделия" className="dd-position__photo" />
                         )}
                         <div className="dd-position__body">
                           <div className="dd-position__name">{r.itemName || 'Позиция'}</div>

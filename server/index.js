@@ -38,11 +38,12 @@ import {
   verifyFieldDealSession,
   sendFieldDealReceiptByClient,
   listFieldDealSessionsForManager,
+  getFieldDealSessionForStaff,
   cancelFieldDealSession,
 } from './fieldDealSession.js';
 import { sendConsultLeadEmailIfConfigured } from './emailDealReceipt.js';
 import { sendTelegramMessage, sendTelegramPhoto } from './telegramNotify.js';
-import { LEAD_ACK_SMS, leadSmsDigits, sendDealConfirmationSms } from './smsSend.js';
+import { LEAD_ACK_SMS, courierBookingSms, leadSmsDigits, sendDealConfirmationSms } from './smsSend.js';
 import { mountSupabaseBrowserProxy } from './supabaseBrowserProxy.js';
 import {
   buildGoldIndexOverview,
@@ -1419,7 +1420,10 @@ async function notifyLandingLeadTelegram({ source, name, phone, fields = {} }) {
     `Имя: ${name}`,
     `Контакт: ${phone}`,
   ];
-  for (const [k, v] of Object.entries(fields)) lines.push(`${k}: ${v}`);
+  for (const [k, v] of Object.entries(fields)) {
+    const raw = String(v);
+    lines.push(`${k}: ${/^https?:/i.test(raw) ? publicStorageUrl(raw) : raw}`);
+  }
   lines.push('', 'Панель → «Заявки с сайта»');
   return sendTelegramMessage(chatId, lines.join('\n'));
 }
@@ -1452,11 +1456,11 @@ function claimLeadSms(digits) {
   return true;
 }
 
-async function sendLeadAckSms(phone) {
+async function sendLeadAckSms(phone, text = LEAD_ACK_SMS) {
   const digits = leadSmsDigits(phone);
   if (!digits || !claimLeadSms(digits)) return;
   try {
-    await sendDealConfirmationSms({ to: digits, text: LEAD_ACK_SMS });
+    await sendDealConfirmationSms({ to: digits, text });
   } catch (e) {
     recentLeadSms.delete(digits);
     console.warn('[lead sms]', e?.message || e);
@@ -1652,7 +1656,20 @@ async function signCourierPhoto(path) {
     console.warn('[courier-photo sign]', error.message);
     return '';
   }
-  return data?.signedUrl || '';
+  return publicStorageUrl(data?.signedUrl || '');
+}
+
+/** Подписанные ссылки Supabase из РФ без VPN не открываются — отдаём их через московский прокси. */
+function publicStorageUrl(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  try {
+    const u = new URL(s);
+    if (!/\.supabase\.co$/i.test(u.hostname)) return s;
+    return `https://api.reaktivo.pro/sb${u.pathname}${u.search}`;
+  } catch {
+    return s;
+  }
 }
 
 async function downloadCourierPhoto(path) {
@@ -1716,7 +1733,7 @@ app.post(
       .createSignedUrl(fileName, COURIER_PHOTO_URL_TTL_SEC);
     if (signErr) return res.status(502).json({ error: `Не удалось получить ссылку на фото: ${signErr.message}` });
 
-    res.json({ ok: true, photoUrl: urlData?.signedUrl || '', photoPath: fileName });
+    res.json({ ok: true, photoUrl: publicStorageUrl(urlData?.signedUrl || ''), photoPath: fileName });
   })
 );
 
@@ -1790,7 +1807,10 @@ app.post(
       return res.status(502).json({ error: 'Не удалось отправить заявку. Напишите на team@reaktivo.ru' });
     }
 
-    await sendLeadAckSms(phone);
+    await sendLeadAckSms(phone, courierBookingSms({
+      dateLabel: formatKurierDateRu(date),
+      time,
+    }));
 
     res.json({ ok: true });
   })
@@ -3293,6 +3313,20 @@ app.post(
       body: req.body || {},
       publicAppOrigin: base,
     });
+    res.json(out);
+  })
+);
+
+app.get(
+  '/api/field-deal-sessions/:id',
+  asyncHandler(async (req, res) => {
+    const role = await getRequesterRole(req);
+    const out = await getFieldDealSessionForStaff(supabase, {
+      sessionId: req.params.id,
+      reqUser: req.user,
+      isManager: req.isUserManager || isUserManagerRole(role),
+    });
+    res.setHeader('Cache-Control', 'no-store');
     res.json(out);
   })
 );

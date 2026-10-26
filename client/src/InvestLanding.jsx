@@ -10,7 +10,7 @@ import {
   useTransform,
 } from 'motion/react';
 import Lenis from 'lenis';
-import { clientApi, fintechApi, getClientToken, getFintechToken } from './api.js';
+import { API_BASE, clientApi, fintechApi, getClientToken, getFintechToken } from './api.js';
 import { ymReachGoal } from './yandexMetrika.js';
 import { ThemeToggle } from './ThemeToggle.jsx';
 import { JewelryShowcase } from './JewelryShowcase.jsx';
@@ -314,7 +314,6 @@ function ConsultLeadForm() {
     }
     setBusy(true);
     try {
-      const API_BASE = import.meta.env.DEV ? '/api' : import.meta.env.VITE_API_BASE || '/api';
       const anon = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
       const viaSb = /supabase\.co\/functions\//i.test(API_BASE);
       const res = await fetch(`${API_BASE}/public/consult-lead`, {
@@ -1493,9 +1492,13 @@ export const CSS = `
 .il-section-inner--narrow { max-width: 960px; }
 .il-accent-text { color: var(--accent); }
 .il-gold-text {
-  color: #e6b422;
-  -webkit-text-fill-color: #e6b422;
+  color: #c2413c;
+  -webkit-text-fill-color: #c2413c;
   background: none;
+}
+:root[data-theme='light'] .il-gold-text {
+  color: #c41e22;
+  -webkit-text-fill-color: #c41e22;
 }
 .il-magnetic { display: inline-block; }
 

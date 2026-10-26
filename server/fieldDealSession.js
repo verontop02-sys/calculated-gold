@@ -737,6 +737,42 @@ export async function sendFieldDealReceiptByClient(supabase, { token, channel, t
   return { ok: true, channel: 'sms', target: phoneLast4(smsPhone) };
 }
 
+/** Статус своей сессии: курьер видит, подписал ли клиент договор после СМС. */
+export async function getFieldDealSessionForStaff(supabase, { sessionId, reqUser, isManager }) {
+  const id = String(sessionId || '').trim();
+  if (!/^[0-9a-f-]{36}$/i.test(id)) {
+    const err = new Error('Некорректный id');
+    err.status = 400;
+    throw err;
+  }
+  const { data: s, error } = await supabase
+    .from('field_deal_sessions')
+    .select('id, status, created_by, scrap_deal_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!s) {
+    const err = new Error('Сессия не найдена');
+    err.status = 404;
+    throw err;
+  }
+  if (s.created_by !== reqUser.id && !isManager) {
+    const err = new Error('Недостаточно прав');
+    err.status = 403;
+    throw err;
+  }
+  let contractNo = null;
+  if (s.status === 'confirmed' && s.scrap_deal_id) {
+    const { data: deal } = await supabase
+      .from('scrap_deals')
+      .select('contract_no')
+      .eq('id', s.scrap_deal_id)
+      .maybeSingle();
+    contractNo = deal?.contract_no || null;
+  }
+  return { id: s.id, status: s.status, contractNo };
+}
+
 export async function listFieldDealSessionsForManager(supabase, { limit = 40, offset = 0 }) {
   const lim = Math.min(100, Math.max(1, limit));
   const off = Math.max(0, offset);

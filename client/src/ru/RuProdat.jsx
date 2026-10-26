@@ -4,7 +4,7 @@ import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../Inv
 import {
   RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuSbpBadge, RuThemedImg, RuTiltCard,
   GramsSlider, PayoutDisclaimer, formatMoney, setDraftMeta, useAnimatedNumber, useGoldQuote, useRuLenis,
-  quoteForChannel, quotePerGram, quotePayout, quoteBuybackPctLabel,
+  quoteForChannel, quotePayout,
 } from './RuShared.jsx';
 
 const PRINCIPLES = [
@@ -42,10 +42,7 @@ function BigCalcCard({ quote, pulseKey }) {
   const priced = quoteForChannel(quote, channel);
   const perGram = quote?.goldRubPerGram || null;
   const sum = quotePayout(priced, proba, grams);
-  const perGramOut = quotePerGram(priced, proba);
   const sumDisplay = useAnimatedNumber(sum);
-  const perGramDisplay = useAnimatedNumber(perGramOut);
-  const pct = quoteBuybackPctLabel(quote, channel);
 
   useEffect(() => {
     if (!pulseKey) return;
@@ -72,10 +69,6 @@ function BigCalcCard({ quote, pulseKey }) {
         <button type="button" className={channel === 'office' ? 'is-active' : ''} onClick={() => setChannel('office')}>Отделение</button>
       </div>
       <GramsSlider value={grams} onChange={setGrams} max={1000} allowType typeMax={5000} />
-      <div className="rl-calc-mini">
-        <div>Цена за грамм<b>{perGramDisplay != null ? formatMoney(perGramDisplay) : '· · ·'}</b></div>
-        <div>Доля от биржи<b>{pct}</b></div>
-      </div>
       <div className="rl-calc-out">
         <span className="rl-calc-out-label">Вы получите наличными или переводом<RuSbpBadge /></span>
         <span className="rl-calc-out-val rl-payout-sum">{sumDisplay != null ? formatMoney(sumDisplay) : '· · ·'}</span>
@@ -106,7 +99,6 @@ export function RuProdat() {
   const { scrollYProgress } = useScroll();
   const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
   const [calcPulse, setCalcPulse] = useState(0);
-  const pct = quoteBuybackPctLabel(quote);
 
   const goToCalc = (e) => {
     e.preventDefault();
@@ -137,7 +129,7 @@ export function RuProdat() {
         />
 
         <RuMarquee items={[
-          'Курс каждые 3 секунды', `${pct} от биржи`, 'Курьер бесплатно', 'Деньги сразу',
+          'Курс каждые 3 секунды', 'до 90% от биржи', 'Курьер бесплатно', 'Деньги сразу',
           'Договор в приложении', 'Проверка при вас', 'Без комиссий', 'Без записи в отделение',
         ]} />
 
@@ -145,7 +137,7 @@ export function RuProdat() {
           <div className="il-section-inner">
             <RuKpis items={[
               { val: '3 сек', label: 'обновление курса с двух бирж', icon: 'bolt', imgDark: '/ru/kpi-ticker-dark.jpg', imgLight: '/ru/kpi-ticker-light.jpg' },
-              { val: pct, label: 'от биржевой стоимости — без вычетов', icon: 'percent', imgDark: '/ru/kpi-percent-dark.jpg', imgLight: '/ru/kpi-percent-light.jpg' },
+              { val: 'до 90%', label: 'от биржевой стоимости — без вычетов', icon: 'percent', imgDark: '/ru/kpi-percent-dark.jpg', imgLight: '/ru/kpi-percent-light.jpg' },
               { val: '45 мин', label: 'курьер приезжает бесплатно', icon: 'clock', imgDark: '/ru/kpi-parcel-dark.jpg', imgLight: '/ru/kpi-parcel-light.jpg' },
               { val: '0 ₽', label: 'комиссий за оценку и приём', icon: 'shield', imgDark: '/ru/kpi-zerofee-dark.jpg', imgLight: '/ru/kpi-zerofee-light.jpg' },
             ]} />

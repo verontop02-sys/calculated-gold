@@ -3,6 +3,19 @@ import { supabase } from './supabase.js';
 // Прод: VITE_API_BASE. Dev: Vite → localhost. Если московский прокси молчит, fetch уходит на Render.
 const API_BASE = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_BASE || '/api');
 export { API_BASE };
+
+/** Картинки из бакета Supabase. Прямой *.supabase.co из РФ без VPN не открывается. */
+export function ruMediaUrl(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return s;
+  try {
+    const u = new URL(s);
+    if (!/\.supabase\.co$/i.test(u.hostname)) return s;
+    return `https://api.reaktivo.pro/sb${u.pathname}${u.search}`;
+  } catch {
+    return s;
+  }
+}
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const USES_SUPABASE_FN = /supabase\.co\/functions\//i.test(API_BASE);
 
@@ -948,6 +961,8 @@ export const api = {
   /** Полевая сделка: СМС + ссылка клиенту (тело как у scrapContractPdf + phone + опционально courierId для руководителя). */
   fieldDealSessionCreate: (body) =>
     request('/field-deal-sessions', { method: 'POST', body: JSON.stringify(body) }),
+  fieldDealSessionStatus: (id) =>
+    request(`/field-deal-sessions/${encodeURIComponent(String(id))}`),
   fieldDealSessions: (opts = {}) => {
     const q = new URLSearchParams();
     if (opts.limit != null) q.set('limit', String(opts.limit));

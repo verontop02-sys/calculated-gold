@@ -1189,7 +1189,7 @@ export const RL_CSS = `
 .rl-aurora-b {
   width: min(64vw, 620px); height: min(64vw, 620px);
   left: -24%; bottom: 6%;
-  background: radial-gradient(circle, rgba(201, 158, 78, 0.16), transparent 70%);
+  background: radial-gradient(circle, rgba(143, 23, 25, 0.16), transparent 70%);
 }
 .rl-aurora-c {
   width: min(50vw, 480px); height: min(50vw, 480px);
@@ -1199,15 +1199,15 @@ export const RL_CSS = `
 .rl-dust {
   z-index: 1;
   background-image:
-    radial-gradient(1.2px 1.2px at 8% 12%, rgba(232, 196, 120, 0.42), transparent),
+    radial-gradient(1.2px 1.2px at 8% 12%, rgba(194, 65, 60, 0.42), transparent),
     radial-gradient(1px 1px at 22% 38%, rgba(255, 255, 255, 0.16), transparent),
-    radial-gradient(1.4px 1.4px at 41% 18%, rgba(232, 196, 120, 0.28), transparent),
+    radial-gradient(1.4px 1.4px at 41% 18%, rgba(194, 65, 60, 0.28), transparent),
     radial-gradient(1px 1px at 63% 8%, rgba(255, 255, 255, 0.14), transparent),
-    radial-gradient(1.2px 1.2px at 81% 26%, rgba(232, 196, 120, 0.32), transparent),
+    radial-gradient(1.2px 1.2px at 81% 26%, rgba(194, 65, 60, 0.32), transparent),
     radial-gradient(1px 1px at 93% 48%, rgba(255, 255, 255, 0.12), transparent),
-    radial-gradient(1.3px 1.3px at 14% 72%, rgba(232, 196, 120, 0.22), transparent),
+    radial-gradient(1.3px 1.3px at 14% 72%, rgba(194, 65, 60, 0.22), transparent),
     radial-gradient(1px 1px at 34% 88%, rgba(255, 255, 255, 0.12), transparent),
-    radial-gradient(1.2px 1.2px at 58% 64%, rgba(232, 196, 120, 0.26), transparent),
+    radial-gradient(1.2px 1.2px at 58% 64%, rgba(194, 65, 60, 0.26), transparent),
     radial-gradient(1px 1px at 76% 82%, rgba(255, 255, 255, 0.14), transparent);
   opacity: 0.7;
 }
@@ -1224,7 +1224,7 @@ export const RL_CSS = `
   background-size: 180px 180px;
 }
 .rl-cursor-glow {
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 11%, transparent), rgba(201, 158, 78, 0.05) 38%, transparent 68%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 11%, transparent), rgba(143, 23, 25, 0.05) 38%, transparent 68%);
 }
 
 .rl-hero-stage { overflow: hidden; }
@@ -1232,7 +1232,7 @@ export const RL_CSS = `
 .rl-root .il-hero-orb--2 { opacity: 0.16; }
 .rl-hero-orb-gold {
   position: absolute; width: 380px; height: 380px; left: 28%; top: 18%; border-radius: 50%;
-  background: radial-gradient(circle, rgba(201, 158, 78, 0.16), transparent 66%);
+  background: radial-gradient(circle, rgba(143, 23, 25, 0.16), transparent 66%);
   pointer-events: none;
 }
 .rl-hero-ring {
@@ -1386,18 +1386,18 @@ export const RL_CSS = `
 .rl-root.il-root {
   background-image:
     radial-gradient(1100px 700px at 88% -160px, color-mix(in srgb, var(--accent) 15%, transparent), transparent 70%),
-    radial-gradient(950px 640px at -8% 16%, rgba(201, 158, 78, 0.10), transparent 70%),
+    radial-gradient(950px 640px at -8% 16%, rgba(143, 23, 25, 0.10), transparent 70%),
     radial-gradient(1050px 700px at 110% 42%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%),
-    radial-gradient(950px 660px at -10% 68%, rgba(201, 158, 78, 0.075), transparent 70%),
+    radial-gradient(950px 660px at -10% 68%, rgba(143, 23, 25, 0.075), transparent 70%),
     radial-gradient(1100px 760px at 108% 92%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%),
     var(--bg-gradient);
 }
 :root[data-theme='light'] .rl-root.il-root {
   background-image:
     radial-gradient(1100px 700px at 88% -160px, color-mix(in srgb, var(--accent) 8%, transparent), transparent 70%),
-    radial-gradient(950px 640px at -8% 16%, rgba(186, 142, 72, 0.07), transparent 70%),
+    radial-gradient(950px 640px at -8% 16%, rgba(143, 23, 25, 0.07), transparent 70%),
     radial-gradient(1050px 700px at 110% 42%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%),
-    radial-gradient(950px 660px at -10% 68%, rgba(186, 142, 72, 0.055), transparent 70%),
+    radial-gradient(950px 660px at -10% 68%, rgba(143, 23, 25, 0.055), transparent 70%),
     radial-gradient(1100px 760px at 108% 92%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 70%),
     var(--bg-gradient);
 }
@@ -1566,25 +1566,25 @@ input[type='number'].rl-calc-num:focus,
   background: transparent; cursor: pointer;
 }
 .rl-calc-range:focus { outline: none; }
-.rl-calc-range:focus-visible { outline: 2px solid #c9a227; outline-offset: 4px; border-radius: 8px; }
+.rl-calc-range:focus-visible { outline: 2px solid #c2413c; outline-offset: 4px; border-radius: 8px; }
 .rl-calc-range::-webkit-slider-runnable-track {
   height: 12px; border-radius: 99px;
-  background: linear-gradient(90deg, #8a6208, #f0c14a);
+  background: linear-gradient(90deg, #8f1719, #c2413c);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28);
 }
 .rl-calc-range::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none;
   width: 32px; height: 32px; margin-top: -10px; border-radius: 50%;
-  background: #c41e22; border: 3px solid #fff8e6;
+  background: #8f1719; border: 3px solid #fff;
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
 }
 .rl-calc-range::-moz-range-track {
   height: 12px; border-radius: 99px; border: 0;
-  background: linear-gradient(90deg, #8a6208, #f0c14a);
+  background: linear-gradient(90deg, #8f1719, #c2413c);
 }
 .rl-calc-range::-moz-range-thumb {
   width: 32px; height: 32px; border-radius: 50%;
-  background: #c41e22; border: 3px solid #fff8e6;
+  background: #8f1719; border: 3px solid #fff;
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
 }
 .rl-calc-out {
@@ -1594,9 +1594,9 @@ input[type='number'].rl-calc-num:focus,
 }
 .rl-calc-out-label { font-size: 0.82rem; color: var(--text-dim); line-height: 1.35; }
 .rl-calc-out-val,
-.rl-payout-sum { font-size: clamp(2.05rem, 4vw, 2.7rem); font-weight: 800; letter-spacing: -0.03em; color: #f0c14a; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.rl-payout-sum { font-size: clamp(2.05rem, 4vw, 2.7rem); font-weight: 800; letter-spacing: -0.03em; color: #c2413c; font-variant-numeric: tabular-nums; line-height: 1.1; }
 :root[data-theme='light'] .rl-calc-out-val,
-:root[data-theme='light'] .rl-payout-sum { color: #8a6208; }
+:root[data-theme='light'] .rl-payout-sum { color: #c41e22; }
 .rl-payout-note {
   margin: 8px 0 0; font-size: 0.9rem; line-height: 1.45; color: var(--text-dim);
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
@@ -1632,7 +1632,7 @@ input[type='number'].rl-calc-num:focus,
 .rl-urgent-btn {
   display: flex; align-items: center; justify-content: center;
   width: 100%; margin: 16px 0 20px; min-height: 54px; border-radius: 14px;
-  border: 2px solid #c9a227; background: #fff4cc; color: #1a1408;
+  border: 0; background: linear-gradient(165deg, #c2413c 0%, #a32024 46%, #8f1719 100%); color: #fff;
   font: inherit; font-size: 1.02rem; font-weight: 800; cursor: pointer;
 }
 .rl-urgent-btn:hover { transform: translateY(-1px); }

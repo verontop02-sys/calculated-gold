@@ -22,6 +22,9 @@ export const supabase = createClient(url || '', anon || '', {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    // Без Navigator LockManager: иначе при второй вкладке в консоль падает
+    // «Acquiring an exclusive Navigator LockManager lock … immediately failed».
+    lock: async (_name, _acquireTimeout, fn) => fn(),
   },
 });
 

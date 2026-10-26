@@ -185,6 +185,8 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   const [smsBusy, setSmsBusy] = useState(false);
   const [smsLink, setSmsLink] = useState('');
   const [smsDev, setSmsDev] = useState('');
+  const [smsSessionId, setSmsSessionId] = useState('');
+  const [smsStatus, setSmsStatus] = useState('');
   const [fieldStaff, setFieldStaff] = useState([]);
   const [fieldCourierUid, setFieldCourierUid] = useState('');
   const [saveBusy, setSaveBusy] = useState(false);
@@ -428,6 +430,10 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     setSearchHits([]);
     setFieldCourierUid('');
     setValidityResult(null);
+    setSmsSessionId('');
+    setSmsStatus('');
+    setSmsLink('');
+    setSmsDev('');
     firstCalcRef.current = false;
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -729,6 +735,41 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
     };
   }, [user?.role]);
 
+  useEffect(() => {
+    if (!smsSessionId || smsStatus === 'confirmed' || smsStatus === 'expired' || smsStatus === 'failed' || smsStatus === 'cancelled') {
+      return undefined;
+    }
+    let alive = true;
+    async function tick() {
+      try {
+        const s = await api.fieldDealSessionStatus(smsSessionId);
+        if (!alive) return;
+        setSmsStatus(s.status || 'pending');
+      } catch {
+        /* сеть моргнула, следующий опрос повторит */
+      }
+    }
+    tick();
+    const id = setInterval(tick, 3000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [smsSessionId, smsStatus]);
+
+  const smsSigned = smsStatus === 'confirmed';
+  const smsStatusText = smsSigned
+    ? 'Договор подписан!'
+    : smsStatus === 'expired'
+      ? 'Код истёк. Отправьте СМС ещё раз.'
+      : smsStatus === 'failed'
+        ? 'Не удалось сохранить договор.'
+        : smsStatus === 'cancelled'
+          ? 'Отменено.'
+          : smsStatus === 'pending'
+            ? 'Ждём, пока клиент введёт код из СМС.'
+            : '';
+
   async function sendSmsSession() {
     const fn = sellerName.trim();
     if (!fn) {
@@ -769,6 +810,8 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       const r = await api.fieldDealSessionCreate(body);
       setSmsLink(r.confirmUrl || '');
       setSmsDev(r.devCodePreview || '');
+      setSmsSessionId(r.sessionId || '');
+      setSmsStatus('pending');
       setSmsOpen(true);
       toast?.('Ссылка создана, СМС отправлена (или см. лог сервера в режиме заглушки)', 'success');
     } catch (e) {
@@ -1143,6 +1186,11 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         >
           {smsBusy ? 'Отправка…' : 'Ссылка + СМС клиенту'}
         </button>
+        {smsStatusText && (
+          <p className={`contract-sms-status${smsSigned ? ' is-signed' : ''}`} role="status">
+            {smsStatusText}
+          </p>
+        )}
         <button
           type="button"
           className="contract-reset-btn"
@@ -1167,13 +1215,20 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
             <div className="csm-icon" aria-hidden>
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
             </div>
-            <h3 className="csm-title">Ссылка отправлена клиенту</h3>
-            <p className="csm-sub">Клиент откроет ссылку на телефоне и подтвердит сделку кодом из СМС. После подтверждения она автоматически попадёт в учёт и аналитику.</p>
+            <h3 className="csm-title">{smsSigned ? 'Договор подписан!' : 'Ссылка отправлена клиенту'}</h3>
+            <p className="csm-sub">
+              {smsSigned
+                ? 'Клиент ввёл код из СМС. Договор сохранён в учёте.'
+                : 'Клиент откроет ссылку на телефоне и подтвердит сделку кодом из СМС. Статус ниже обновится сам.'}
+            </p>
+            {smsStatusText && (
+              <p className={`csm-status${smsSigned ? ' is-signed' : ''}`} role="status">{smsStatusText}</p>
+            )}
 
             <div className="csm-steps">
               <div className="csm-step"><span className="csm-step__n">1</span> Клиент открывает ссылку</div>
               <div className="csm-step"><span className="csm-step__n">2</span> Вводит код из СМС</div>
-              <div className="csm-step"><span className="csm-step__n">3</span> Сделка сохранена ✓</div>
+              <div className={`csm-step${smsSigned ? ' is-done' : ''}`}><span className="csm-step__n">3</span> {smsSigned ? 'Договор подписан!' : 'Ждём подпись'}</div>
             </div>
 
             <div className="csm-link-row">
@@ -1452,6 +1507,15 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         }
         @keyframes csmPop { from { transform: scale(0.5); opacity: 0; } }
         .csm-title { font-family: var(--font-display); font-size: 1.2rem; font-weight: 700; margin: 0 0 8px; color: var(--text-strong); }
+        .csm-status, .contract-sms-status {
+          margin: 0 0 14px; padding: 10px 12px; border-radius: 12px;
+          background: var(--bg-elevated); color: var(--text); font-weight: 700; font-size: 0.92rem;
+        }
+        .csm-status.is-signed, .contract-sms-status.is-signed {
+          background: var(--emerald-soft); color: var(--emerald-strong, var(--emerald));
+        }
+        .contract-sms-status { margin: 0; flex: 1 0 100%; }
+        .csm-step.is-done { font-weight: 700; }
         .csm-sub { font-size: 0.85rem; line-height: 1.5; color: var(--text-muted); margin: 0 0 18px; }
         .csm-steps { display: flex; flex-direction: column; gap: 8px; text-align: left; margin-bottom: 18px; }
         .csm-step { display: flex; align-items: center; gap: 10px; font-size: 0.84rem; color: var(--text); }

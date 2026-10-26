@@ -50,7 +50,10 @@ export default function TrafficPage() {
     try {
       setTraffic(await api.analyticsTraffic(from, to));
     } catch (e) {
-      setError(e.message || 'Не удалось загрузить посещаемость');
+      const raw = String(e?.message || '');
+      setError(/load failed|failed to fetch|networkerror/i.test(raw)
+        ? 'Нет связи с сервером. Обновите страницу.'
+        : (raw || 'Не удалось загрузить посещаемость'));
     } finally {
       setLoading(false);
     }

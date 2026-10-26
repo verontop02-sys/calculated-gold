@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api } from './api.js';
+import { api, ruMediaUrl } from './api.js';
 import { SkeletonRow, SkeletonCard } from './Skeleton.jsx';
 import { EmptyState } from './EmptyState.jsx';
 import { PageHint } from './PageHint.jsx';
@@ -50,7 +50,7 @@ function collectDealPhotos(deals) {
   for (const d of deals || []) {
     if (!Array.isArray(d.rows)) continue;
     for (const r of d.rows) {
-      if (r?.photoUrl) photos.push({ url: r.photoUrl, name: r.itemName || 'Изделие' });
+      if (r?.photoUrl) photos.push({ url: ruMediaUrl(r.photoUrl), name: r.itemName || 'Изделие' });
     }
   }
   return photos;
@@ -351,7 +351,7 @@ export function Clients({ formatMoney, toast, user }) {
                 <div className="cl-deal-list">
                   {deals.map((d) => {
                     const rowPhotos = Array.isArray(d.rows)
-                      ? d.rows.filter((r) => r?.photoUrl).map((r) => ({ url: r.photoUrl, name: r.itemName || 'Изделие' }))
+                      ? d.rows.filter((r) => r?.photoUrl).map((r) => ({ url: ruMediaUrl(r.photoUrl), name: r.itemName || 'Изделие' }))
                       : [];
                     return (
                       <div key={d.id} className="cl-deal">

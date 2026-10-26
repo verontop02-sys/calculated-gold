@@ -8,13 +8,13 @@ import {
   PayoutDisclaimer,
   RL_CSS, RuAtmosphere, RuFaq, RuFooter, RuFullHero, RuGoldTicker, RuHeader, RuKpis, RuMarquee, RuPhotoField, RuThemedImg, RuTiltCard,
   GramsSlider, formatMoney, isLeadName, isRuPhone, setDraftMeta, useGoldQuote, useRuLenis,
-  quoteForChannel, quotePayoutRange, quoteBuybackPctLabel,
+  quoteForChannel, quotePayoutRange,
 } from './RuShared.jsx';
 import { clientApi } from '../api.js';
 import { ymReachGoal } from '../yandexMetrika.js';
 import {
   formatKurierTimeLabel, getAvailableDays,
-  getQuickTimes, isKurierDayAllowed, isKurierTimeAllowed, isMoscowOffDuty,
+  getQuickTimes, isKurierDayAllowed, isKurierTimeAllowed,
 } from './kurierSlots.js';
 
 const STEPS = [
@@ -387,7 +387,7 @@ export function UrgentCourierSheet({ open, onClose, source = 'kurier', initial, 
  * Единый блок: расчёт суммы и запись курьера — без разрыва на калькулятор и
  * отдельную форму с шагами. Всё видно сразу, скроллом сверху вниз.
  */
-export function KurierOrderCard({ quote, pulseKey, leadSource = 'kurier' }) {
+export function KurierOrderCard({ quote, pulseKey, leadSource = 'kurier', payoutNote = '' }) {
   const now = useNowMinute();
   const days = useMemo(
     () => getAvailableDays(now).filter((d) => getQuickTimes(d.iso, now).length > 0),
@@ -590,7 +590,9 @@ export function KurierOrderCard({ quote, pulseKey, leadSource = 'kurier' }) {
           <span className="rl-price-range-val rl-payout-sum">
             {priceLow != null && priceHigh != null ? `≈ ${formatMoney(roundTo100(priceLow))} – ${formatMoney(roundTo100(priceHigh))}` : '· · ·'}
           </span>
-          <PayoutDisclaimer channel="courier" />
+          {payoutNote
+            ? <p className="rl-payout-note">{payoutNote}</p>
+            : <PayoutDisclaimer channel="courier" />}
         </div>
       </div>
 
@@ -672,11 +674,12 @@ export function KurierOrderCard({ quote, pulseKey, leadSource = 'kurier' }) {
     </motion.form>
 
       <section className="rl-urgent-block" aria-labelledby="urgent-call-title">
-        <span className="rl-urgent-kicker">{isMoscowOffDuty(now) ? 'Сейчас нерабочее время' : 'Если уже нерабочее время'}</span>
         <h3 id="urgent-call-title">Срочный вызов курьера</h3>
-        <p>Доставим деньги реактивно быстро. Для оформления оставьте заявку, и мы сразу перезвоним.</p>
+        <p>Оставьте заявку, и курьер приедет к вам в ближайшее время. Доставка по городу — быстро и надежно.</p>
+        <h4 className="rl-urgent-sub">Вызвать курьера срочно</h4>
+        <p className="rl-urgent-hint">Укажите контактные данные для связи.</p>
         <button type="button" className="rl-urgent-btn" onClick={() => setUrgentOpen(true)}>
-          Срочный вызов курьера
+          Вызвать курьера
         </button>
       </section>
       <UrgentCourierSheet
@@ -709,7 +712,6 @@ export function RuKurier() {
   const { scrollYProgress } = useScroll();
   const progressX = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.4 });
   const [calcPulse, setCalcPulse] = useState(0);
-  const pct = quoteBuybackPctLabel(quote, 'courier');
 
   const goToOrder = (e) => {
     e.preventDefault();
@@ -761,7 +763,7 @@ export function RuKurier() {
             <RuKpis items={[
               { val: '0 ₽', label: 'вызов курьера — без скрытых доплат', icon: 'zerofee', imgDark: '/ru/kpi-zerofee-dark.jpg', imgLight: '/ru/kpi-zerofee-light.jpg' },
               { val: 'При вас', label: 'проба и вес проверяются на глазах у клиента', icon: 'shield', imgDark: '/ru/kpi-shield-dark.jpg', imgLight: '/ru/kpi-shield-light.jpg' },
-              { val: pct, label: 'от биржевой стоимости — курс фиксирован заранее', icon: 'percent', imgDark: '/ru/kpi-percent-dark.jpg', imgLight: '/ru/kpi-percent-light.jpg' },
+              { val: 'до 90%', label: 'от биржевой стоимости — курс фиксирован заранее', icon: 'percent', imgDark: '/ru/kpi-percent-dark.jpg', imgLight: '/ru/kpi-percent-light.jpg' },
               { val: 'Любое', label: 'время приезда — вы указываете его сами, а не диапазон', icon: 'time', imgDark: '/ru/kpi-time-dark.jpg', imgLight: '/ru/kpi-time-light.jpg' },
             ]} />
           </div>
@@ -891,8 +893,8 @@ export const KURIER_CSS = `
   background: var(--stroke-soft); text-align: left;
   display: flex; flex-direction: column; justify-content: center; gap: 8px;
 }
-.rl-price-range-val { display: block; font-size: clamp(1.85rem, 3.4vw, 2.45rem); font-weight: 800; letter-spacing: -0.02em; color: #f0c14a; font-variant-numeric: tabular-nums; line-height: 1.15; }
-:root[data-theme='light'] .rl-price-range-val { color: #8a6208; }
+.rl-price-range-val { display: block; font-size: clamp(1.85rem, 3.4vw, 2.45rem); font-weight: 800; letter-spacing: -0.02em; color: #c2413c; font-variant-numeric: tabular-nums; line-height: 1.15; }
+:root[data-theme='light'] .rl-price-range-val { color: #c41e22; }
 .rl-price-range .rl-payout-note { margin: 0; }
 
 .rl-order-divider { display: flex; align-items: center; gap: 10px; margin: 26px 0 4px; }
@@ -960,26 +962,71 @@ export const KURIER_CSS = `
 .rl-order-bundle { width: 100%; }
 .rl-urgent-block {
   margin-top: 16px;
-  padding: 22px 22px 18px;
-  border-radius: 18px;
-  border: 2px solid #8e1216;
-  background: #c41e22;
-  color: #fff8f6;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 0;
+  background: linear-gradient(165deg, #c2413c 0%, #a32024 46%, #8f1719 100%);
+  color: #fff;
   display: grid;
-  gap: 8px;
-  box-shadow: 0 14px 36px rgba(196, 30, 34, 0.28);
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title btn"
+    "lead btn";
+  column-gap: 20px;
+  row-gap: 4px;
+  align-items: center;
+  box-shadow: 0 10px 24px rgba(143, 23, 25, 0.22);
+  box-sizing: border-box;
 }
-.rl-urgent-block .rl-urgent-kicker,
-:root[data-theme='light'] .rl-urgent-block .rl-urgent-kicker {
-  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em;
-  text-transform: uppercase; color: #ffe7a3;
+.rl-order-bundle > .rl-urgent-block {
+  width: 100%;
+  aspect-ratio: auto;
+  min-height: 156px;
+  margin: 18px 0 0;
+  padding: 18px 22px;
 }
-.rl-urgent-block h3 { margin: 0; font-size: 1.2rem; letter-spacing: -0.02em; color: #fff; }
-.rl-urgent-block p { margin: 0; font-size: 0.92rem; line-height: 1.5; color: rgba(255, 248, 246, 0.92); }
+.rl-urgent-block h3 {
+  grid-area: title;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #fff;
+}
+.rl-urgent-block p {
+  grid-area: lead;
+  margin: 0;
+  max-width: none;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.9);
+}
+.rl-urgent-block .rl-urgent-sub,
+.rl-urgent-block .rl-urgent-hint { display: none; }
 .rl-urgent-block .rl-urgent-btn {
-  margin: 10px 0 0; border: 0; background: #fff6e8; color: #1a1408;
+  grid-area: btn;
+  width: auto;
+  min-width: 196px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
+  color: #9a1f22;
+  font-weight: 800;
+  font-size: 0.95rem;
 }
-.rl-urgent-block .rl-urgent-btn:hover { background: #fff; }
+.rl-urgent-block .rl-urgent-btn:hover { background: #fff; color: #7d1618; }
+@media (max-width: 720px) {
+  .rl-urgent-block {
+    grid-template-columns: 1fr;
+    grid-template-areas: "title" "lead" "btn";
+    row-gap: 8px;
+  }
+  .rl-urgent-block .rl-urgent-btn { width: 100%; }
+}
 .rl-urgent-sheet {
   position: fixed; inset: 0; z-index: 120;
   display: grid; place-items: end center; padding: 0;
