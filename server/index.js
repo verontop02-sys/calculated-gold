@@ -1666,7 +1666,7 @@ function publicStorageUrl(raw) {
   try {
     const u = new URL(s);
     if (!/\.supabase\.co$/i.test(u.hostname)) return s;
-    return `https://api.reaktivo.pro/sb${u.pathname}${u.search}`;
+    return `https://reaktivo.ru/sb${u.pathname}${u.search}`;
   } catch {
     return s;
   }

@@ -11,7 +11,8 @@ export function ruMediaUrl(raw) {
   try {
     const u = new URL(s);
     if (!/\.supabase\.co$/i.test(u.hostname)) return s;
-    return `https://api.reaktivo.pro/sb${u.pathname}${u.search}`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://reaktivo.ru';
+    return `${origin}/sb${u.pathname}${u.search}`;
   } catch {
     return s;
   }
