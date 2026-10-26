@@ -12,6 +12,52 @@
         document.documentElement.setAttribute('data-theme', 'dark');
       }
     </script>
+    <script>
+      (function () {
+        var host = location.hostname;
+        if (host === 'localhost' || host === '127.0.0.1') return;
+        var nativeFetch = window.fetch.bind(window);
+        var mode = 'moscow';
+        function ping(url, ms) {
+          var ctrl = new AbortController();
+          var timer = setTimeout(function () { ctrl.abort(); }, ms);
+          return nativeFetch(url, { method: 'GET', cache: 'no-store', signal: ctrl.signal }).then(function (res) {
+            clearTimeout(timer);
+            return res.ok;
+          }).catch(function () {
+            clearTimeout(timer);
+            return false;
+          });
+        }
+        var ready = (async function () {
+          var moscowP = ping('https://api.reaktivo.pro/api/health', 5000);
+          var directP = ping('https://calculated-gold.onrender.com/api/health', 5000);
+          var quick = await Promise.race([
+            moscowP.then(function (ok) { return ok ? 'moscow' : 'down'; }),
+            new Promise(function (resolve) { setTimeout(function () { resolve('slow'); }, 3500); })
+          ]);
+          if (quick === 'moscow') return;
+          if (await directP) { mode = 'direct'; return; }
+          if (await moscowP) mode = 'moscow';
+        })();
+        function rewrite(url) {
+          if (mode !== 'direct') return url;
+          return String(url)
+            .replace('https://api.reaktivo.pro/api', 'https://calculated-gold.onrender.com/api')
+            .replace('https://api.reaktivo.pro/sb', 'https://csfrsctvrhltthwocspo.supabase.co');
+        }
+        window.fetch = function (input, init) {
+          return ready.then(function () {
+            if (typeof input === 'string') return nativeFetch(rewrite(input), init);
+            if (input && typeof input.url === 'string') {
+              var next = rewrite(input.url);
+              if (next !== input.url) return nativeFetch(new Request(next, input), init);
+            }
+            return nativeFetch(input, init);
+          });
+        };
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/logo-reaktivo-mark.svg" />
     <title>Reaktivo — золото это деньги, не выходя из дома</title>
     <meta name="description" content="Скупка золота с выездом курьера. Живой курс, мгновенная оценка, выплата дома. Вызвать курьера Reaktivo." />
@@ -20,7 +66,7 @@
     <link rel="preload" href="/fonts/geometria/Geometria-Bold.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/geometria/Geometria-ExtraBold.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/fonts/brand.css" />
-    <script type="module" crossorigin src="/assets/index-Cj1ZFtIy.js"></script>
+    <script type="module" crossorigin src="/assets/index-BqmuNESO.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-AOlsja4O.css">
   </head>
   <body>
