@@ -783,6 +783,7 @@ export function RuFooter() {
           <div className="il-footer-col">
             <span className="il-footer-col-title">Продать и купить</span>
             <a href={ruHref('prodat')} className="il-nav-link">Выкуп золота</a>
+            <a href={ruHref('serebro')} className="il-nav-link">Выкуп серебра</a>
             <a href={ruHref('kurier')} className="il-nav-link">Вызвать курьера</a>
             <a href={ruHref('slitki')} className="il-nav-link">Ювелирные слитки</a>
             <a href={ruHref('resale')} className="il-nav-link">Reaktivo Resale</a>

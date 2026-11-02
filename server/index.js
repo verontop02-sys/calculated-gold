@@ -1512,6 +1512,7 @@ app.post(
  */
 const LANDING_LEAD_SOURCES = {
   prodat: 'Продать золото',
+  serebro: 'Выкуп серебра',
   kurier: 'Вызов курьера',
   agenty: 'Агентская программа',
   slitki: 'Ювелирные слитки',

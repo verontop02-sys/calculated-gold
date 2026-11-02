@@ -14,6 +14,11 @@ const DIRECTIONS = [
     text: 'Оценка по бирже, оплата сразу — в отделениях или с курьером.',
   },
   {
+    tag: 'Выкуп серебра', title: 'Продать серебро', page: 'serebro',
+    imgDark: '/ru/kpi-zerofee-dark.jpg', imgLight: '/ru/kpi-zerofee-light.jpg', imgPos: '50% 45%',
+    text: 'Лом и изделия в отделении. Без курьера и без онлайн-калькулятора — сумма после проверки.',
+  },
+  {
     tag: 'Вызов на дом', title: 'Курьер', page: 'kurier',
     imgDark: '/ru/courier.jpg', imgLight: '/ru/courier-light.jpg', imgPos: '50% 36%',
     text: 'Сами выбираете день и время. Курьер приедет бесплатно, проверит пробу при вас и оплатит сразу.',

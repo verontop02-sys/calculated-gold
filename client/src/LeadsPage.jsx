@@ -11,6 +11,7 @@ import { api, ruMediaUrl } from './api.js';
 
 const SOURCE_META = {
   prodat: { label: 'Продать золото', color: '#c81e22' },
+  serebro: { label: 'Серебро', color: '#94a3b8' },
   kurier: { label: 'Курьер', color: '#0891b2' },
   agenty: { label: 'Агенты', color: '#1f9d55' },
   slitki: { label: 'Слитки', color: '#b8860b' },
