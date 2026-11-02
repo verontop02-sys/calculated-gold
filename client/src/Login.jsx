@@ -12,10 +12,13 @@ function mapLoginError(ex) {
     return 'Проверьте email и пароль и попробуйте снова.';
   }
   if (/invalid login credentials|invalid_credentials/i.test(msg)) return 'Неверный email или пароль';
-  if (/email not confirmed/i.test(msg)) return 'Подтвердите email в письме от Supabase';
+  if (/email not confirmed/i.test(msg)) return 'Подтвердите email по ссылке из письма';
   if (/over_request_rate|rate limit|too many requests|429|security purposes/i.test(msg + String(ex?.status || '')))
     return 'Слишком много попыток. Подождите пару минут и попробуйте снова.';
-  return msg || 'Ошибка входа';
+  if (/API|VITE_|не-JSON|Node |Supabase|проксир/i.test(msg)) {
+    return 'Сейчас не получается войти. Обновите страницу и попробуйте ещё раз.';
+  }
+  return msg || 'Не удалось войти. Попробуйте ещё раз.';
 }
 
 const CLIENT_SITE_URL = 'https://reaktivo.ru';
@@ -183,8 +186,8 @@ export function Login() {
                       />
                     </div>
                     <span className="lg-warm__label">
-                      {serverStatus === 'checking' && 'Подключение к серверу…'}
-                      {serverStatus === 'warming' && 'Сервер API не отвечает. Если через минуту не оживёт, напишите Никите.'}
+                      {serverStatus === 'checking' && 'Подключение…'}
+                      {serverStatus === 'warming' && 'Сервис пока недоступен. Подождите немного и обновите страницу.'}
                     </span>
                   </div>
                 )}

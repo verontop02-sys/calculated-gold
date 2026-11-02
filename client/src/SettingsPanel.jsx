@@ -99,7 +99,7 @@ export function SettingsPanel({ user }) {
       setUsers([]);
       setUserListStatus('error');
       setUsersNote(
-        'Список пользователей недоступен: API не отвечает или нет прав. Проверьте, что Node API доступен и в Supabase выполнена миграция.'
+        'Список сотрудников сейчас недоступен. Обновите страницу или зайдите позже.'
       );
     }
   }, [isSuper]);

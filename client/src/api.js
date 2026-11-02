@@ -168,7 +168,7 @@ async function request(path, options = {}) {
     const contentType = (response.headers.get('content-type') || '').toLowerCase();
     if (!contentType.includes('application/json')) {
       const err = new Error(
-        'API недоступно: сервер вернул не-JSON. Укажите VITE_API_BASE на задеплоенный Node API или проксируйте /api.'
+        'Сервис временно недоступен. Обновите страницу и попробуйте ещё раз.'
       );
       err.status = response.status;
       err.code = 'API_NON_JSON';
@@ -179,7 +179,7 @@ async function request(path, options = {}) {
     try {
       data = text ? JSON.parse(text) : null;
     } catch {
-      const err = new Error('API недоступно: некорректный JSON в ответе сервера.');
+      const err = new Error('Сервис временно недоступен. Обновите страницу и попробуйте ещё раз.');
       err.status = response.status;
       err.code = 'API_BAD_JSON';
       throw err;
@@ -191,7 +191,11 @@ async function request(path, options = {}) {
       if (response.status === 403 && isDeviceUnverifiedBody(data)) {
         notifyDeviceUnverified();
       }
-      const err = new Error(data?.error || `HTTP ${response.status}`);
+      const err = new Error(
+        data?.error || (response.status >= 500
+          ? 'Сервис временно недоступен. Попробуйте ещё раз через минуту.'
+          : 'Не удалось выполнить запрос. Попробуйте ещё раз.')
+      );
       err.status = response.status;
       err.body = data;
       throw err;
@@ -289,7 +293,7 @@ async function requestBlob(path, options = {}) {
         err.code = 'API_TIMEOUT';
         throw err;
       }
-      const err = new Error('Сервер недоступен. Подождите 10–20 секунд (он «просыпается») и повторите.');
+      const err = new Error('Нет связи с сервером. Подождите немного и повторите.');
       err.code = 'API_OFFLINE';
       throw err;
     }
@@ -304,18 +308,26 @@ async function requestBlob(path, options = {}) {
       try {
         data = await res.json();
       } catch {}
-      const err = new Error(data?.error || `HTTP ${res.status}`);
+      const err = new Error(
+        data?.error || (res.status >= 500
+          ? 'Сервис временно недоступен. Попробуйте ещё раз через минуту.'
+          : `Не удалось скачать ${expectedLabel}. Попробуйте ещё раз.`)
+      );
       err.status = res.status;
       throw err;
     }
-    const err = new Error(`HTTP ${res.status}`);
+    const err = new Error(
+      res.status >= 500
+        ? 'Сервис временно недоступен. Попробуйте ещё раз через минуту.'
+        : `Не удалось скачать ${expectedLabel}. Попробуйте ещё раз.`
+    );
     err.status = res.status;
     throw err;
   }
   const expected = Array.isArray(expectedContentTypes) ? expectedContentTypes : [String(expectedContentTypes || '')];
   const contentOk = expected.some((x) => x && ct.includes(String(x).toLowerCase()));
   if (!contentOk) {
-    let msg = `Ожидался ${expectedLabel}`;
+    let msg = `Не удалось скачать ${expectedLabel}. Попробуйте ещё раз.`;
     try {
       const j = await res.json();
       if (j?.error) msg = j.error;

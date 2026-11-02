@@ -136,10 +136,11 @@ function profileErrorMessage(e) {
   if (isTransientProfileLoadError(e)) {
     return 'Не удалось связаться с сервером. Нажмите «Повторить».';
   }
-  return (
-    e?.message ||
-    'Не удалось загрузить профиль. Проверьте Node API, миграцию Supabase (profiles, app_kv) и SUPABASE_SERVICE_ROLE_KEY на сервере.'
-  );
+  const raw = String(e?.message || '');
+  if (/API|VITE_|Node |Supabase|миграц|SERVICE_ROLE|не-JSON|проксир/i.test(raw)) {
+    return 'Не удалось загрузить профиль. Обновите страницу или нажмите «Повторить».';
+  }
+  return raw || 'Не удалось загрузить профиль. Обновите страницу или нажмите «Повторить».';
 }
 
 function clearCalculatorLocalForUid(uid) {
@@ -635,7 +636,7 @@ export default function App() {
           </p>
           {profilePatientNote && (
             <p className="muted small load-card__patient">
-              Сервер просыпается после паузы — первый запуск занимает 30–60 сек. Не закрывайте вкладку.
+              Загрузка занимает чуть дольше обычного. Не закрывайте вкладку.
             </p>
           )}
         </div>

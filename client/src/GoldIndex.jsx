@@ -1221,7 +1221,7 @@ export function GoldIndex({ formatMoney, toast }) {
           .map((x) => String(x).trim())
           .join('|');
         if (before !== after) {
-          toast('Часть адресных полей не сохранилась. Проверьте миграции БД и перезапуск API.', 'error');
+          toast('Часть адресных полей не сохранилась. Обновите страницу и попробуйте ещё раз.', 'error');
         }
       }
       await loadCityHistory(editingCityId);
