@@ -1,7 +1,14 @@
 import { supabase } from './supabase.js';
+import { isUnstableProHost, PANEL_ORIGIN } from './stableHosts.js';
 
-// Прод: VITE_API_BASE. Dev: Vite → localhost. Если московский прокси молчит, fetch уходит на Render.
-const API_BASE = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_BASE || '/api');
+// Прод: VITE_API_BASE. На сломанном reaktivo.pro берём API с рабочего pro.reaktivo.ru.
+function resolveApiBase() {
+  if (import.meta.env.DEV) return '/api';
+  if (import.meta.env.VITE_API_BASE) return import.meta.env.VITE_API_BASE;
+  if (typeof window !== 'undefined' && isUnstableProHost()) return `${PANEL_ORIGIN}/api`;
+  return '/api';
+}
+const API_BASE = resolveApiBase();
 export { API_BASE };
 
 /** Картинки из бакета Supabase. Прямой *.supabase.co из РФ без VPN не открывается. */

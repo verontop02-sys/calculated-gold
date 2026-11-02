@@ -24,10 +24,16 @@ import { recoverAuthIfNeeded } from './supabase.js';
 import { pingApiHealth } from './api.js';
 import { isReaktivoRuHost, matchRuRoute } from './ru/ruSite.js';
 import { trackPageView } from './siteTraffic.js';
+import { redirectUnstableProHost } from './stableHosts.js';
 
+// reaktivo.pro часто ломает /api — уводим на рабочий pro.reaktivo.ru до любых запросов.
+if (redirectUnstableProHost()) {
+  /* hard navigation */
+} else {
 initThemeFromStorage();
-// Прогрев Render с первой миллисекунды — пока грузится JS и восстанавливается сессия.
+// Прогрев API с первой миллисекунды — пока грузится JS и восстанавливается сессия.
 void pingApiHealth({ timeout: 90_000 }).catch(() => {});
+
 
 if (import.meta.env.DEV) {
   const nativeInfo = console.info.bind(console);
@@ -102,3 +108,4 @@ createRoot(el).render(tree);
 if (!isStaffApp && !isClientPortal && !isClientDisplay && !token) trackPageView();
 // Восстановление сессии сотрудника только на /pro (не на лендинге / кабинете / display).
 if (isStaffApp) void recoverAuthIfNeeded().catch(() => {});
+} // end stable-host else

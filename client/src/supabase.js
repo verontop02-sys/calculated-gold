@@ -1,9 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
+import { isUnstableProHost, PANEL_ORIGIN } from './stableHosts.js';
 
 function resolveSupabaseUrl() {
   const raw = String(import.meta.env.VITE_SUPABASE_URL || '/sb').trim();
   if (/^https?:\/\//i.test(raw)) return raw.replace(/\/$/, '');
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://reaktivo.pro';
+  const origin = typeof window !== 'undefined'
+    ? (isUnstableProHost() ? PANEL_ORIGIN : window.location.origin)
+    : PANEL_ORIGIN;
   const path = raw.startsWith('/') ? raw : `/${raw}`;
   return `${origin}${path}`.replace(/\/$/, '');
 }
