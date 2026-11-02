@@ -1,10 +1,9 @@
-# Render → Blueprint: один Web Service: Node отдаёт и /api, и фронт из client/dist
-# (иначе /api/* на static-only даёт 404 и тело HTML — в браузере «сервер вернул не-JSON»).
+# COLD BACKUP ONLY.
+# Боевой API: Node на VPS (systemd reaktivo-api) за nginx → 127.0.0.1:8787.
+# См. scripts/ops/README.md и scripts/migrate-vps-a-to-local-api.sh.
+# После миграции: Suspend этот сервис / выключить Auto-Deploy.
 #
-# Build: корень monorepo — сначала зависимости, потом Vite (client/dist).
 # Секреты: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (legacy eyJ…)
-# CORS: если тот же домен для UI и API — CORS обычно не нужен; иначе добавьте origin: CORS_ORIGIN=https://<ваш-сайт>.onrender.com
-# PANEL_FULL_ACCESS_EMAILS, PRICE_SOURCE — по желанию
 services:
   - type: web
     name: gold-calculated-api

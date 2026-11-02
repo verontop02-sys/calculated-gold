@@ -164,37 +164,77 @@ async function request(path, options = {}) {
     clearTimeout(to);
   }
 
-  const contentType = (res.headers.get('content-type') || '').toLowerCase();
-  if (!contentType.includes('application/json')) {
-    const err = new Error(
-      'API недоступно: сервер вернул не-JSON. Укажите VITE_API_BASE на задеплоенный Node API или проксируйте /api.'
-    );
-    err.status = res.status;
-    throw err;
-  }
+  const parseJsonResponse = async (response) => {
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    if (!contentType.includes('application/json')) {
+      const err = new Error(
+        'API недоступно: сервер вернул не-JSON. Укажите VITE_API_BASE на задеплоенный Node API или проксируйте /api.'
+      );
+      err.status = response.status;
+      err.code = 'API_NON_JSON';
+      throw err;
+    }
+    const text = await response.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      const err = new Error('API недоступно: некорректный JSON в ответе сервера.');
+      err.status = response.status;
+      err.code = 'API_BAD_JSON';
+      throw err;
+    }
+    if (!response.ok) {
+      if (response.status === 401) {
+        notifyAuthExpired();
+      }
+      if (response.status === 403 && isDeviceUnverifiedBody(data)) {
+        notifyDeviceUnverified();
+      }
+      const err = new Error(data?.error || `HTTP ${response.status}`);
+      err.status = response.status;
+      err.body = data;
+      throw err;
+    }
+    return data;
+  };
 
-  const text = await res.text();
-  let data;
   try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    const err = new Error('API недоступно: некорректный JSON в ответе сервера.');
-    err.status = res.status;
-    throw err;
-  }
-  if (!res.ok) {
-    if (res.status === 401) {
-      notifyAuthExpired();
+    return await parseJsonResponse(res);
+  } catch (e) {
+    // Холодный старт / 502 HTML от nginx→Render: будим API и повторяем один раз.
+    if (e?.code !== 'API_NON_JSON' && e?.code !== 'API_BAD_JSON') throw e;
+    const woke = await pingApiHealth({ timeout: 95_000 });
+    if (!woke) throw e;
+    const deviceToken = getDeviceToken();
+    const hdrs = {
+      ...apiGatewayHeaders(token),
+      ...(deviceToken ? { 'X-Device-Token': deviceToken } : {}),
+      ...(fetchOpts.headers || {}),
+    };
+    if (fetchOpts.body != null && !hdrs['Content-Type'] && !hdrs['content-type']) {
+      hdrs['Content-Type'] = 'application/json';
     }
-    if (res.status === 403 && isDeviceUnverifiedBody(data)) {
-      notifyDeviceUnverified();
+    const c2 = new AbortController();
+    const to2 = setTimeout(() => c2.abort(), timeout);
+    try {
+      const res2 = await fetch(withBase(path), {
+        ...fetchOpts,
+        signal: c2.signal,
+        headers: hdrs,
+      });
+      return await parseJsonResponse(res2);
+    } catch (e2) {
+      if (e2?.name === 'AbortError') {
+        const err = new Error('Сервер не ответил за отведённое время. Попробуйте ещё раз через несколько секунд.');
+        err.code = 'API_TIMEOUT';
+        throw err;
+      }
+      throw e2?.code ? e2 : e;
+    } finally {
+      clearTimeout(to2);
     }
-    const err = new Error(data?.error || `HTTP ${res.status}`);
-    err.status = res.status;
-    err.body = data;
-    throw err;
   }
-  return data;
 }
 
 async function requestBlob(path, options = {}) {
@@ -920,11 +960,20 @@ export const api = {
       timeout: 120_000,
     }),
   /** Сводка для вкладки «Аналитика» (Y-M-D). */
-  analyticsTraffic: (from, to) => {
+  analyticsTraffic: async (from, to) => {
     const q = new URLSearchParams();
     if (from) q.set('from', from);
     if (to) q.set('to', to);
-    return request(`/analytics/traffic?${q.toString()}`);
+    const qs = q.toString();
+    // Канон без слова analytics: uBlock/EasyPrivacy режут /api/analytics/* и подставляют пустой/HTML ответ.
+    try {
+      return await request(`/site-visits?${qs}`);
+    } catch (e) {
+      if (e?.status === 404 || e?.code === 'API_NON_JSON' || e?.code === 'API_BAD_JSON') {
+        return request(`/analytics/traffic?${qs}`);
+      }
+      throw e;
+    }
   },
   analyticsSummary: (from, to) => {
     const q = new URLSearchParams();

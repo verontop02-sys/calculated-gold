@@ -68,8 +68,8 @@ export function RuSerebro() {
 
       <main>
         <RuFullHero
-          imgDark="/ru/home-prodat.jpg"
-          imgLight="/ru/home-prodat-light.jpg"
+          imgDark="/ru/hero-serebro-dark.jpg"
+          imgLight="/ru/hero-serebro-light.jpg"
           imgPos="50% 52%"
           kicker="Выкуп серебра"
           title={<>Принимаем серебро<br /> <span className="il-accent-text">в отделении</span></>}
@@ -89,7 +89,7 @@ export function RuSerebro() {
               <Reveal><span className="il-pill">Коротко</span></Reveal>
               <Reveal delay={0.08}><h2 className="il-h2">Как устроен выкуп серебра</h2></Reveal>
             </div>
-            <motion.div className="il-cards" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
+            <motion.div className="il-cards rl-perks-grid" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
               {POINTS.map((a) => (
                 <motion.div className="il-card" key={a.title} variants={staggerChild} whileHover={{ y: -8 }} transition={{ duration: 0.35, ease: EASE }}>
                   <h3 className="il-card-title">{a.title}</h3>
@@ -116,7 +116,7 @@ export function RuSerebro() {
                 ))}
               </div>
               <RuTiltCard className="rl-media-split-visual">
-                <RuThemedImg dark="/ru/kpi-zerofee-dark.jpg" light="/ru/kpi-zerofee-light.jpg" alt="Выплата в отделении Reaktivo" style={{ objectPosition: '50% 45%' }} />
+                <RuThemedImg dark="/ru/kpi-silver-coin-dark.jpg" light="/ru/kpi-silver-coin-light.jpg" alt="Серебро в отделении Reaktivo" style={{ objectPosition: '50% 45%' }} />
               </RuTiltCard>
             </div>
           </div>

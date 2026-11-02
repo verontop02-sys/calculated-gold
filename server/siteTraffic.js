@@ -84,6 +84,7 @@ export function resolveSite(origin, claimed, path) {
   const host = hostOf(origin);
   if (host === 'localhost' || host === '127.0.0.1') return '';
   if (host === 'reaktivo.ru' || host === 'reaktivo-ru.web.app' || host === 'reaktivo-ru.firebaseapp.com') return 'ru';
+  if (host === 'pro.reaktivo.ru') return 'pro';
   if (host === 'reaktivo.pro' || host === 'gold-panel.web.app' || host === 'gold-panel.firebaseapp.com') {
     return path === '/ru' || path.startsWith('/ru/') ? 'ru' : 'pro';
   }
@@ -164,6 +165,7 @@ async function fetchHits(supabase, from, to) {
 
 const OWN_HOSTS = new Set([
   'reaktivo.pro',
+  'pro.reaktivo.ru',
   'reaktivo.ru',
   'gold-panel.web.app',
   'gold-panel.firebaseapp.com',

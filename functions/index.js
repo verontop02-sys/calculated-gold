@@ -1,7 +1,8 @@
 /**
- * Прокси /api/* → Render (calculated-gold.onrender.com).
+ * Legacy Firebase proxy → Render. Боевой путь: VPS nginx → local Node (8787).
+ * См. scripts/ops/README.md. Render — только cold backup.
  *
- * Зачем: из РФ браузеры часто плохо достукиваются до *.onrender.com без VPN,
+ * Зачем был: из РФ браузеры плохо достукивались до *.onrender.com без VPN,
  * а Firebase Hosting (reaktivo.pro) и Cloud Functions — нормально. ЮKassa при
  * этом должна открываться БЕЗ VPN с российского IP.
  *

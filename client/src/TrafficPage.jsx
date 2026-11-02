@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from './api';
+import { api, pingApiHealth } from './api';
 import { SiteTrafficBlock } from './TrafficStudio';
 
 function toIso(d) {
@@ -48,6 +48,7 @@ export default function TrafficPage() {
     setLoading(true);
     setError('');
     try {
+      await pingApiHealth({ timeout: 45_000 });
       setTraffic(await api.analyticsTraffic(from, to));
     } catch (e) {
       const raw = String(e?.message || '');

@@ -1,0 +1,26 @@
+[Unit]
+Description=Reaktivo Node API (Calculated Gold)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/reaktivo/src/server
+Environment=NODE_ENV=production
+Environment=PORT=8787
+# Секреты: один файл. Не коммитить.
+EnvironmentFile=-/opt/reaktivo/src/server/.env
+ExecStart=/usr/bin/node /opt/reaktivo/src/server/index.js
+Restart=always
+RestartSec=3
+TimeoutStopSec=20
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=reaktivo-api
+MemoryMax=1024M
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

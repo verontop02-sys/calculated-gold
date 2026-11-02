@@ -196,6 +196,7 @@ const PORT = Number(process.env.PORT || 8787);
 const PUBLIC_WEB_ORIGINS = [
   'https://reaktivo.pro',
   'https://www.reaktivo.pro',
+  'https://pro.reaktivo.ru',
   'https://reaktivo.ru',
   'https://www.reaktivo.ru',
   'https://gold-panel.web.app',
@@ -4310,28 +4311,29 @@ app.delete(
   })
 );
 
-app.get(
-  '/api/analytics/traffic',
-  asyncHandler(async (req, res) => {
-    res.setHeader('Cache-Control', 'no-store');
-    await analyticsScopeFromRequest(req);
-    const fromD = String(req.query.from || '').trim();
-    const toD = String(req.query.to || '').trim();
-    const cacheKey = `traffic:${fromD}:${toD}`;
-    const hit = cacheGet(cacheKey);
-    if (hit) return res.json(hit);
-    try {
-      const data = await trafficReport(supabase, fromD, toD);
-      cacheSet(cacheKey, data, 2 * 60_000);
-      res.json(data);
-    } catch (e) {
-      if (isMissingHitsTable(e)) {
-        return res.status(503).json({ error: 'Счётчик посещений ещё не подключён к базе' });
-      }
-      throw e;
+async function handleSiteVisitsReport(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
+  await analyticsScopeFromRequest(req);
+  const fromD = String(req.query.from || '').trim();
+  const toD = String(req.query.to || '').trim();
+  const cacheKey = `traffic:${fromD}:${toD}`;
+  const hit = cacheGet(cacheKey);
+  if (hit) return res.json(hit);
+  try {
+    const data = await trafficReport(supabase, fromD, toD);
+    cacheSet(cacheKey, data, 2 * 60_000);
+    res.json(data);
+  } catch (e) {
+    if (isMissingHitsTable(e)) {
+      return res.status(503).json({ error: 'Счётчик посещений ещё не подключён к базе' });
     }
-  })
-);
+    throw e;
+  }
+}
+
+// Канон: /api/site-visits — путь без «analytics», иначе uBlock/EasyPrivacy режут запрос и панель видит HTML/пусто.
+app.get('/api/site-visits', asyncHandler(handleSiteVisitsReport));
+app.get('/api/analytics/traffic', asyncHandler(handleSiteVisitsReport));
 
 app.get(
   '/api/analytics/summary',
