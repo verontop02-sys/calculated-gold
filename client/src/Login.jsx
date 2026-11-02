@@ -5,8 +5,11 @@ import { ThemeToggle } from './ThemeToggle.jsx';
 
 function mapLoginError(ex) {
   const msg = String(ex?.message || '');
-  if (/load failed|failed to fetch|networkerror|сеть/i.test(msg)) {
+  if (/load failed|failed to fetch|networkerror|сеть|fetch failed|503|suspended|service unavailable/i.test(msg)) {
     return 'Нет связи с сервером. Обновите страницу и попробуйте ещё раз.';
+  }
+  if (/did not match the expected pattern|invalid format|unable to validate email/i.test(msg)) {
+    return 'Проверьте email и пароль и попробуйте снова.';
   }
   if (/invalid login credentials|invalid_credentials/i.test(msg)) return 'Неверный email или пароль';
   if (/email not confirmed/i.test(msg)) return 'Подтвердите email в письме от Supabase';
@@ -16,6 +19,8 @@ function mapLoginError(ex) {
 }
 
 const CLIENT_SITE_URL = 'https://reaktivo.ru';
+/** Панель с VPN / фильтром .pro — тот же билд на .ru */
+const STAFF_PANEL_URL = 'https://pro.reaktivo.ru';
 
 // Сколько секунд симулировать прогресс до 90% при прогреве
 const WARM_PROGRESS_DURATION = 55;
@@ -131,14 +136,20 @@ export function Login() {
                 <p className="lg-card-sub">Калькулятор выкупа, договоры, аналитика и команда</p>
               </div>
 
-              <form onSubmit={handleSubmit} className="lg-form">
+              <form onSubmit={handleSubmit} className="lg-form" noValidate>
                 <label className="lg-field">
                   <span className="lg-field-label">Email</span>
                   <input
+                    type="text"
+                    inputMode="email"
                     autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@reaktivo.ru"
+                    required
                   />
                 </label>
                 <label className="lg-field">
@@ -149,6 +160,7 @@ export function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Пароль"
+                    required
                   />
                 </label>
                 {err && <p className="lg-err">{err}</p>}
@@ -172,7 +184,7 @@ export function Login() {
                     </div>
                     <span className="lg-warm__label">
                       {serverStatus === 'checking' && 'Подключение к серверу…'}
-                      {serverStatus === 'warming' && 'Нет ответа от сервера. Подождите несколько секунд и обновите страницу.'}
+                      {serverStatus === 'warming' && 'Сервер API не отвечает. Если через минуту не оживёт, напишите Никите.'}
                     </span>
                   </div>
                 )}
@@ -244,6 +256,10 @@ export function Login() {
 
         <p className="lg-foot lg-anim" style={{ '--d': '300ms' }}>
           © {new Date().getFullYear()} Reaktivo.PRO · панель оценки и выкупа
+          {' · '}
+          <a className="lg-staff-link" href={STAFF_PANEL_URL}>
+            pro.reaktivo.ru
+          </a>
           {!staffVisible && (
             <>
               {' · '}
@@ -611,7 +627,9 @@ const CSS = `
   text-underline-offset: 2px;
   cursor: pointer;
   transition: color 0.15s;
+  font-family: inherit;
 }
+a.lg-staff-link { color: var(--text-dim); }
 .lg-staff-link:hover { color: var(--text); }
 
 @media (max-width: 760px) {

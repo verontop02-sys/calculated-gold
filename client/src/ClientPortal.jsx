@@ -181,6 +181,10 @@ export function ClientPortal() {
         setStep('pin');
       } else {
         const out = await clientApi.requestCode(`7${phoneDigits}`);
+        if (out?.smsOk === false) {
+          setErr('СМС не удалось отправить. Подождите минуту и нажмите ещё раз — либо войдите по PIN.');
+          return;
+        }
         setPhoneMasked(out.phoneMasked || '');
         setStep('code');
         setResendIn(60);
@@ -202,6 +206,10 @@ export function ClientPortal() {
     setBusy(true);
     try {
       const out = await clientApi.requestCode(`7${phoneDigits}`);
+      if (out?.smsOk === false) {
+        setErr('СМС не удалось отправить. Подождите минуту и нажмите ещё раз — либо войдите по PIN.');
+        return;
+      }
       setPhoneMasked(out.phoneMasked || '');
       setStep('code');
       setResendIn(60);

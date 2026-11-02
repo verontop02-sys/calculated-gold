@@ -3,15 +3,21 @@ import { api } from './api.js';
 import { calculateBuybackRange } from './calc.js';
 import { PageHint } from './PageHint.jsx';
 
-const PRESETS = ['585', '750', '999'];
+const GOLD_PRESETS = ['585', '750', '999'];
+const SILVER_PRESETS = ['925', '875', '999'];
 
-function calcLocalKeys(userUid) {
+function calcLocalKeys(userUid, metal = 'gold') {
   const id = userUid && String(userUid).trim() ? String(userUid).replace(/[^a-zA-Z0-9-]/g, '') : '';
   const suffix = id || 'anon';
-  return { weight: `cg_weight__${suffix}`, purity: `cg_purity__${suffix}` };
+  const m = metal === 'silver' ? 'ag' : 'au';
+  return { weight: `cg_weight_${m}__${suffix}`, purity: `cg_purity_${m}__${suffix}` };
 }
 
-function quoteRowLabel(price) {
+function quoteRowLabel(price, metal = 'gold') {
+  if (metal === 'silver') {
+    if (!price) return 'По курсу чистого серебра';
+    return 'По курсу ЦБ (чистое серебро)';
+  }
   if (!price) return 'По курсу чистого золота';
   if (price.source === 'xaut') return 'По курсу XAUT (USD→₽, ЦБ), чистое золото';
   if (price.source === 'moex') return 'По курсу Мосбиржи (чистое золото)';
@@ -19,14 +25,25 @@ function quoteRowLabel(price) {
   return 'По курсу ЦБ (чистое золото)';
 }
 
-export function Calculator({ formatMoney, price, userUid, onGoToContract, onShowClient, channel = 'office' }) {
-  const lsKeys = useMemo(() => calcLocalKeys(userUid), [userUid]);
+export function Calculator({
+  formatMoney,
+  price,
+  userUid,
+  onGoToContract,
+  onShowClient,
+  channel = 'office',
+  metal = 'gold',
+}) {
+  const isSilver = metal === 'silver';
+  const PRESETS = isSilver ? SILVER_PRESETS : GOLD_PRESETS;
+  const defaultPurity = isSilver ? '925' : '585';
+  const lsKeys = useMemo(() => calcLocalKeys(userUid, metal), [userUid, metal]);
 
   const [settings, setSettings] = useState(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [weight, setWeight] = useState('');
   const [weightErr, setWeightErr] = useState('');
-  const [purity, setPurity] = useState('585');
+  const [purity, setPurity] = useState(defaultPurity);
   const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
@@ -36,13 +53,13 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
 
   useEffect(() => {
     setWeight(localStorage.getItem(lsKeys.weight) || '');
-    setPurity(localStorage.getItem(lsKeys.purity) || '585');
+    setPurity(localStorage.getItem(lsKeys.purity) || defaultPurity);
     setWeightErr('');
     setResult(null);
     setErr('');
     setJustCalced(false);
     setCopied(false);
-  }, [lsKeys.weight, lsKeys.purity]);
+  }, [lsKeys.weight, lsKeys.purity, defaultPurity]);
 
   useEffect(() => {
     setSettingsLoading(true);
@@ -69,6 +86,10 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
   }, []);
 
   const purityOptions = useMemo(() => {
+    if (isSilver) {
+      const order = settings?.silver?.purityOrder || [800, 875, 925, 999];
+      return [...new Set(order.map((p) => Number(p)).filter((p) => Number.isFinite(p)))].map(String);
+    }
     const order = settings?.purityOrder || [375, 500, 583, 585, 750, 875, 900, 916, 958, 999];
     const nums = [...new Set(order.map((p) => Number(p)).filter((p) => Number.isFinite(p)))];
     if (!nums.includes(900)) {
@@ -77,9 +98,12 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
       else nums.push(900);
     }
     return nums.map(String);
-  }, [settings]);
+  }, [settings, isSilver]);
 
-  const canCalc = price?.goldRubPerGram != null && !settingsLoading;
+  const metalRub = isSilver ? price?.silverRubPerGram : price?.goldRubPerGram;
+  const canCalc = metalRub != null && !settingsLoading;
+  // Серебро считаем только как отделение (курьер не выезжает).
+  const calcChannel = isSilver ? 'office' : channel;
 
   function validateWeight(val) {
     const v = String(val).replace(',', '.').trim();
@@ -125,9 +149,11 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
     const r = calculateBuybackRange({
       weightGrams: w,
       purityPerThousand: p,
-      goldRubPerGram: price.goldRubPerGram,
+      goldRubPerGram: isSilver ? undefined : price.goldRubPerGram,
+      metalRubPerGram: isSilver ? price.silverRubPerGram : undefined,
       settings,
-      channel,
+      channel: calcChannel,
+      metal: isSilver ? 'silver' : 'gold',
     });
 
     if (!r.ok) {
@@ -151,11 +177,12 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
 
   async function handleCopy() {
     if (!result) return;
+    const metalLabel = isSilver ? 'серебра' : 'золота';
     const text =
-      `Расчёт выкупа золота\n` +
+      `Расчёт выкупа ${metalLabel}\n` +
       `Вес: ${weight} г, проба ${purity}\n` +
-      `Чистого золота: ${result.fineGrams.toFixed(3)} г\n` +
-      `${quoteRowLabel(price)}: ${formatMoney(result.scrapRub)}\n` +
+      `Чистого ${metalLabel}: ${result.fineGrams.toFixed(3)} г\n` +
+      `${quoteRowLabel(price, metal)}: ${formatMoney(result.scrapRub)}\n` +
       `Диапазон выкупа: ${formatMoney(result.lowRub)} — ${formatMoney(result.highRub)}\n` +
       `Ориентир: ${formatMoney(result.midRub)}`;
     try {
@@ -169,13 +196,17 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
 
   return (
     <div className="calc">
-      <PageHint id="calc" title="Быстрый расчёт">
-        Введите вес и пробу — получите сумму выкупа по текущему курсу и политике. Кнопкой можно перейти к оформлению договора с уже подставленными данными.
+      <PageHint id={isSilver ? 'calc-silver' : 'calc'} title="Быстрый расчёт">
+        {isSilver
+          ? 'Выкуп серебра только в отделении. Вес и проба — сумма по курсу ЦБ и политике серебра в настройках.'
+          : 'Введите вес и пробу — получите сумму выкупа по текущему курсу и политике. Кнопкой можно перейти к оформлению договора с уже подставленными данными.'}
       </PageHint>
       <div className="glass calc-card">
-        <h2 className="calc-heading">Расчёт выкупа</h2>
+        <h2 className="calc-heading">{isSilver ? 'Расчёт выкупа серебра' : 'Расчёт выкупа золота'}</h2>
         <p className="calc-hint muted">
-          Укажите вес изделия и пробу. Курс чистого золота в верхней панели, коэффициенты в настройках.
+          {isSilver
+            ? 'Укажите вес и пробу. Курс чистого серебра — ЦБ РФ. Курьер по серебру не выезжает.'
+            : 'Укажите вес изделия и пробу. Курс чистого золота в верхней панели, коэффициенты в настройках.'}
         </p>
         <div className="fields">
           <label className="field">
@@ -237,9 +268,9 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
           </p>
         )}
 
-        {!canCalc && !settingsLoading && price?.goldRubPerGram == null && (
+        {!canCalc && !settingsLoading && metalRub == null && (
           <p className="warn-box">
-            Курс недоступен. Дождитесь обновления или попросите администратора обновить вручную.
+            Курс {isSilver ? 'серебра' : 'золота'} недоступен. Дождитесь обновления или попросите администратора обновить вручную.
           </p>
         )}
 
@@ -261,7 +292,7 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
         {result && (
           <div ref={resultRef} className={`result-block${justCalced ? ' result-enter' : ''}`}>
             <div className="result-row muted small">
-              <span>Чистого золота</span>
+              <span>{isSilver ? 'Чистого серебра' : 'Чистого золота'}</span>
               <span className="mono-nums">{result.fineGrams.toFixed(3)} г</span>
             </div>
             <div className="result-row muted small">
@@ -284,7 +315,7 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
               <span className="result-mid muted small">ориентир: {formatMoney(result.midRub)}</span>
             </div>
             <div className="result-actions">
-              {onShowClient && (
+              {onShowClient && !isSilver && (
                 <button
                   type="button"
                   className="btn-show-client"
@@ -322,7 +353,8 @@ export function Calculator({ formatMoney, price, userUid, onGoToContract, onShow
                       weightGrams: Number.isFinite(w) ? w : null,
                       purity: parseInt(purity, 10),
                       fineGrams: result.fineGrams,
-                      itemName: 'Лом ювелирных изделий',
+                      itemName: isSilver ? 'Лом серебра' : 'Лом ювелирных изделий',
+                      metal: isSilver ? 'Серебро' : 'Золото',
                     });
                   }}
                 >

@@ -149,6 +149,10 @@ function clearCalculatorLocalForUid(uid) {
   try {
     localStorage.removeItem(`cg_weight__${safe}`);
     localStorage.removeItem(`cg_purity__${safe}`);
+    localStorage.removeItem(`cg_weight_au__${safe}`);
+    localStorage.removeItem(`cg_purity_au__${safe}`);
+    localStorage.removeItem(`cg_weight_ag__${safe}`);
+    localStorage.removeItem(`cg_purity_ag__${safe}`);
   } catch {
     /* ignore */
   }

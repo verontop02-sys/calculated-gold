@@ -292,7 +292,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       if (prefill.weightGrams != null && prefill.purity != null) {
         next[0] = {
           itemName: prefill.itemName || 'Лом ювелирных изделий',
-          metal: 'Золото',
+          metal: prefill.metal || 'Золото',
           probe: String(prefill.purity),
           weightGross: String(prefill.weightGrams).replace('.', ','),
           weightNet:

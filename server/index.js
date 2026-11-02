@@ -518,6 +518,15 @@ app.use((req, res, next) => {
   return jsonSmall(req, res, next);
 });
 
+const DEFAULT_SILVER_SETTINGS = {
+  buybackPercentOfScrap: 90,
+  rangeHalfWidthPercent: 2,
+  buybackCoeffOffice: 1,
+  /** Только офис: курьер по серебру не выезжает (блок Reaktivo Silver). */
+  purityAdjustments: { 800: 0, 875: 0, 925: 0, 999: 0 },
+  purityOrder: [800, 875, 925, 999],
+};
+
 const DEFAULT_SETTINGS = {
   buybackPercentOfScrap: 92,
   rangeHalfWidthPercent: 2,
@@ -525,7 +534,24 @@ const DEFAULT_SETTINGS = {
   buybackCoeffCourier: 1,
   purityAdjustments: { 375: 0, 500: 0, 583: 0, 585: 0, 750: 0, 875: 0, 900: 0, 916: 0, 958: 0, 999: 0 },
   purityOrder: [375, 500, 583, 585, 750, 875, 900, 916, 958, 999],
+  silver: { ...DEFAULT_SILVER_SETTINGS },
 };
+
+function mergeSilverSettings(raw) {
+  const v = raw && typeof raw === 'object' ? raw : {};
+  const order = Array.isArray(v.purityOrder) && v.purityOrder.length
+    ? [...new Set(v.purityOrder.map((p) => Number(p)).filter((p) => Number.isFinite(p)))]
+    : [...DEFAULT_SILVER_SETTINGS.purityOrder];
+  return {
+    ...DEFAULT_SILVER_SETTINGS,
+    ...v,
+    buybackPercentOfScrap: Math.min(100, Math.max(0, Number(v.buybackPercentOfScrap) || DEFAULT_SILVER_SETTINGS.buybackPercentOfScrap)),
+    rangeHalfWidthPercent: Math.min(50, Math.max(0, Number(v.rangeHalfWidthPercent) || 0)),
+    buybackCoeffOffice: normalizeBuybackCoeff(v.buybackCoeffOffice ?? 1),
+    purityAdjustments: { ...DEFAULT_SILVER_SETTINGS.purityAdjustments, ...(v.purityAdjustments || {}) },
+    purityOrder: order.length ? order : [...DEFAULT_SILVER_SETTINGS.purityOrder],
+  };
+}
 
 /** Множитель поверх процента выкупа. Нет поля или мусор = 1, сумма как раньше. */
 function readBuybackCoeff(settings, channel) {
@@ -701,8 +727,8 @@ async function fetchXautGoldRubPerGram() {
   };
 }
 
-async function fetchCbrGoldRubPerGram() {
-  // CBR doesn't publish quotes on weekends/holidays — try up to 4 days back
+/** ЦБ: Code 1 золото, Code 2 серебро (₽/г). */
+async function fetchCbrMetalsRubPerGram() {
   const MAX_DAYS_BACK = 4;
   let lastError;
 
@@ -723,6 +749,7 @@ async function fetchCbrGoldRubPerGram() {
       const records = doc?.Metall?.Record;
       const list = Array.isArray(records) ? records : records ? [records] : [];
       const gold = list.find((r) => String(r['@_Code']) === '1');
+      const silver = list.find((r) => String(r['@_Code']) === '2');
       if (!gold) {
         lastError = new Error(`CBR: нет данных за ${dateReq}`);
         continue;
@@ -735,11 +762,27 @@ async function fetchCbrGoldRubPerGram() {
         continue;
       }
 
+      const silverBuy = silver ? parseRussianNum(silver.Buy) : null;
+      const silverSell = silver ? parseRussianNum(silver.Sell) : null;
+      const cbrDate = gold['@_Date'] || dateReq;
+      const fetchedAt = new Date().toISOString();
+
       return {
-        goldRubPerGram: buy,
-        sellRubPerGram: sell,
-        cbrDate: gold['@_Date'] || dateReq,
-        fetchedAt: new Date().toISOString(),
+        gold: {
+          goldRubPerGram: buy,
+          sellRubPerGram: sell,
+          cbrDate,
+          fetchedAt,
+        },
+        silver: silverBuy
+          ? {
+              silverRubPerGram: silverBuy,
+              sellRubPerGram: silverSell,
+              cbrDate: silver?.['@_Date'] || cbrDate,
+              source: 'cbr',
+              fetchedAt,
+            }
+          : null,
       };
     } catch (err) {
       lastError = err;
@@ -747,6 +790,17 @@ async function fetchCbrGoldRubPerGram() {
   }
 
   throw lastError || new Error(`CBR: нет данных за последние ${MAX_DAYS_BACK + 1} дней`);
+}
+
+async function fetchCbrGoldRubPerGram() {
+  const { gold } = await fetchCbrMetalsRubPerGram();
+  return gold;
+}
+
+async function fetchCbrSilverRubPerGram() {
+  const { silver } = await fetchCbrMetalsRubPerGram();
+  if (!silver?.silverRubPerGram) throw new Error('CBR: нет цены серебра');
+  return silver;
 }
 
 function ttlMs() {
@@ -772,6 +826,68 @@ async function setPriceCache(value) {
   await setKv('gold_price', value);
 }
 
+const KV_SILVER = 'silver_price';
+
+async function getSilverPriceCache() {
+  return getKv(KV_SILVER);
+}
+
+async function setSilverPriceCache(value) {
+  await setKv(KV_SILVER, value);
+}
+
+async function refreshSilverPriceCache(force = false) {
+  const existing = await getSilverPriceCache();
+  if (!force && existing?.cachedAt) {
+    const age = Date.now() - new Date(existing.cachedAt).getTime();
+    if (age < ttlMs()) return { ...existing, stale: false, ageMs: age };
+  }
+
+  try {
+    const fresh = await fetchCbrSilverRubPerGram();
+    const payload = {
+      ...fresh,
+      cachedAt: new Date().toISOString(),
+      error: null,
+      lastRefreshError: null,
+    };
+    await setSilverPriceCache(payload);
+    return { ...payload, stale: false, ageMs: 0 };
+  } catch (err) {
+    const message = err?.message || 'Ошибка загрузки курса серебра';
+    if (existing) {
+      const merged = { ...existing, lastRefreshError: message, lastRefreshAttemptAt: new Date().toISOString() };
+      await setSilverPriceCache(merged);
+      return { ...merged, stale: true, error: message };
+    }
+    const fallback = {
+      silverRubPerGram: null,
+      sellRubPerGram: null,
+      cbrDate: null,
+      source: 'cbr',
+      cachedAt: new Date().toISOString(),
+      error: message,
+    };
+    await setSilverPriceCache(fallback);
+    return { ...fallback, stale: true };
+  }
+}
+
+/** Если золото тянем с ЦБ одним XML — заодно обновить серебро. */
+async function maybeRefreshSilverFromCbrBundle(bundleSilver) {
+  if (!bundleSilver?.silverRubPerGram) return;
+  try {
+    await setSilverPriceCache({
+      ...bundleSilver,
+      cachedAt: new Date().toISOString(),
+      error: null,
+      lastRefreshError: null,
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 async function refreshPriceCache(force = false) {
   const existing = await getPriceCache();
   if (!force && existing?.cachedAt) {
@@ -788,6 +904,8 @@ async function refreshPriceCache(force = false) {
       lastRefreshError: null,
     };
     await setPriceCache(payload);
+    // Серебро всегда с ЦБ (отдельный кэш), параллельно с обновлением золота.
+    void refreshSilverPriceCache(true).catch(() => {});
     return { ...payload, stale: false, ageMs: 0 };
   } catch (err) {
     const message = err?.message || 'Ошибка загрузки курса';
@@ -871,6 +989,7 @@ async function getSettings() {
     buybackCoeffCourier: normalizeBuybackCoeff(value.buybackCoeffCourier ?? 1),
     purityAdjustments: { ...DEFAULT_SETTINGS.purityAdjustments, ...(value.purityAdjustments || {}) },
     purityOrder: uniqueOrder,
+    silver: mergeSilverSettings(value.silver),
   };
 }
 
@@ -884,32 +1003,54 @@ async function saveSettings(partial) {
   if (partial.buybackCoeffOffice !== undefined) next.buybackCoeffOffice = normalizeBuybackCoeff(partial.buybackCoeffOffice);
   if (partial.buybackCoeffCourier !== undefined) next.buybackCoeffCourier = normalizeBuybackCoeff(partial.buybackCoeffCourier);
   if (partial.buybackPercentCourier !== undefined) next.buybackPercentCourier = normalizeBuybackPercent(partial.buybackPercentCourier);
+  if (partial.silver !== undefined) {
+    next.silver = mergeSilverSettings({ ...current.silver, ...partial.silver });
+  }
   await setKv('settings', next);
   return next;
 }
 
-function calculateBuybackRange({ weightGrams, purityPerThousand, goldRubPerGram, settings, channel = 'office' }) {
+function calculateBuybackRange({
+  weightGrams,
+  purityPerThousand,
+  goldRubPerGram,
+  metalRubPerGram,
+  settings,
+  channel = 'office',
+  metal = 'gold',
+}) {
   const w = Number(weightGrams);
   const purity = Number(purityPerThousand);
   if (!Number.isFinite(w) || w <= 0) return { ok: false, error: 'Укажите положительный вес, г' };
   if (!Number.isFinite(purity) || purity <= 0 || purity > 1000) return { ok: false, error: 'Некорректная проба' };
-  if (!Number.isFinite(goldRubPerGram) || goldRubPerGram <= 0) {
-    return { ok: false, error: 'Курс золота недоступен. Подождите обновления.' };
+  const isSilver = metal === 'silver';
+  const priceRub = Number.isFinite(metalRubPerGram) && metalRubPerGram > 0
+    ? metalRubPerGram
+    : goldRubPerGram;
+  if (!Number.isFinite(priceRub) || priceRub <= 0) {
+    return {
+      ok: false,
+      error: isSilver
+        ? 'Курс серебра недоступен. Подождите обновления.'
+        : 'Курс золота недоступен. Подождите обновления.',
+    };
   }
+  const policy = isSilver ? mergeSilverSettings(settings?.silver) : settings;
+  const usedChannel = isSilver ? 'office' : (channel === 'courier' ? 'courier' : 'office');
 
   const fineGrams = w * (purity / 1000);
-  const scrapRub = fineGrams * goldRubPerGram;
-  const adjPct = settings.purityAdjustments[String(Math.round(purity))] ?? 0;
-  const usedChannel = channel === 'courier' ? 'courier' : 'office';
-  const buybackPct = usedChannel === 'courier'
+  const scrapRub = fineGrams * priceRub;
+  const adjPct = policy.purityAdjustments?.[String(Math.round(purity))] ?? 0;
+  const buybackPct = !isSilver && usedChannel === 'courier'
     ? readCourierBuybackPercent(settings)
-    : Math.min(100, Math.max(0, Number(settings.buybackPercentOfScrap) || 0));
-  const buybackCoeff = usedChannel === 'courier' ? 1 : readBuybackCoeff(settings, 'office');
+    : Math.min(100, Math.max(0, Number(policy.buybackPercentOfScrap) || 0));
+  const buybackCoeff = usedChannel === 'courier' ? 1 : readBuybackCoeff(policy, 'office');
   const midRub = scrapRub * (buybackPct / 100) * (1 + adjPct / 100) * buybackCoeff;
-  const half = Math.min(50, Math.max(0, Number(settings.rangeHalfWidthPercent) || 0));
+  const half = Math.min(50, Math.max(0, Number(policy.rangeHalfWidthPercent) || 0));
 
   return {
     ok: true,
+    metal: isSilver ? 'silver' : 'gold',
     fineGrams,
     scrapRub,
     midRub,
@@ -1353,6 +1494,11 @@ app.post(
       }
     }
     await ensureProfileAndBootstrap(user.id);
+    const metal = String(req.query.metal || req.body?.metal || 'gold').toLowerCase();
+    if (metal === 'silver') {
+      const data = await refreshSilverPriceCache(true);
+      return res.json(data);
+    }
     await refreshXautPriceCache(true);
     const data = await refreshPriceCache(true);
     broadcastPrice(data);
@@ -3620,6 +3766,23 @@ app.delete(
 app.get(
   '/api/price',
   asyncHandler(async (req, res) => {
+    const metal = String(req.query.metal || 'gold').toLowerCase();
+    if (metal === 'silver') {
+      let data = await getSilverPriceCache();
+      if (!data?.silverRubPerGram) data = await refreshSilverPriceCache(false);
+      const ageMs = data?.cachedAt ? Date.now() - new Date(data.cachedAt).getTime() : Number.MAX_SAFE_INTEGER;
+      return res.json({
+        metal: 'silver',
+        silverRubPerGram: data?.silverRubPerGram ?? null,
+        sellRubPerGram: data?.sellRubPerGram ?? null,
+        cbrDate: data?.cbrDate ?? null,
+        cachedAt: data?.cachedAt ?? null,
+        stale: ageMs > ttlMs(),
+        source: data?.source ?? 'cbr',
+        error: data?.error || data?.lastRefreshError || null,
+      });
+    }
+
     const quote = String(req.query.quote || 'moex').toLowerCase();
 
     if (quote === 'xaut') {
@@ -3668,23 +3831,33 @@ app.post(
   '/api/calculate',
   asyncHandler(async (req, res) => {
     const { weightGrams, purityPerThousand } = req.body || {};
+    const metal = String(req.body?.metal || 'gold').toLowerCase() === 'silver' ? 'silver' : 'gold';
     const channel = String(req.body?.channel || 'office').toLowerCase() === 'courier' ? 'courier' : 'office';
     const quote = String(req.body?.quote || 'moex').toLowerCase();
-    let cache;
-    if (quote === 'xaut') {
-      cache = await getKv(KV_XAUT);
-      if (!cache?.goldRubPerGram) cache = await refreshXautPriceCache(false);
-    } else {
-      cache = await getPriceCache();
-      if (!cache?.goldRubPerGram) cache = await refreshPriceCache(false);
-    }
     const settings = await getSettings();
+    let metalRubPerGram = null;
+    let goldRubPerGram = null;
+    if (metal === 'silver') {
+      let cache = await getSilverPriceCache();
+      if (!cache?.silverRubPerGram) cache = await refreshSilverPriceCache(false);
+      metalRubPerGram = cache?.silverRubPerGram ?? null;
+    } else if (quote === 'xaut') {
+      let cache = await getKv(KV_XAUT);
+      if (!cache?.goldRubPerGram) cache = await refreshXautPriceCache(false);
+      goldRubPerGram = cache?.goldRubPerGram ?? null;
+    } else {
+      let cache = await getPriceCache();
+      if (!cache?.goldRubPerGram) cache = await refreshPriceCache(false);
+      goldRubPerGram = cache?.goldRubPerGram ?? null;
+    }
     const result = calculateBuybackRange({
       weightGrams,
       purityPerThousand,
-      goldRubPerGram: cache?.goldRubPerGram,
+      goldRubPerGram,
+      metalRubPerGram,
       settings,
       channel,
+      metal,
     });
     if (!result.ok) return res.status(400).json(result);
     res.json(result);

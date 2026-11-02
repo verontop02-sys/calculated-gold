@@ -80,9 +80,14 @@ export async function sendDealConfirmationSms({ to, text }) {
     };
   }
 
-  const isDev = process.env.NODE_ENV !== 'production';
   const line = `[SMS stub → ${maskPhone(to)}] ${text.replace(/\d{4,8}/g, '******')}`;
-  if (isDev) console.info(line);
-  else console.info(line);
+  console.warn(line);
+  if (process.env.NODE_ENV === 'production') {
+    const err = new Error('SMSRU_API_ID не задан: SMS не отправлены');
+    err.status = 503;
+    err.publicMessage =
+      'SMS-шлюз не настроен на сервере. Напишите в поддержку Reaktivo или войдите по PIN.';
+    throw err;
+  }
   return { ok: true, provider: 'stub' };
 }

@@ -43,6 +43,10 @@ export function SettingsPanel({ user }) {
   const [coeffOfficeStr, setCoeffOfficeStr] = useState('1');
   const [courierPctStr, setCourierPctStr] = useState('');
   const [adjStr, setAdjStr] = useState(null);
+  const [agBuybackStr, setAgBuybackStr] = useState('');
+  const [agRangeStr, setAgRangeStr] = useState('');
+  const [agCoeffStr, setAgCoeffStr] = useState('1');
+  const [agAdjStr, setAgAdjStr] = useState(null);
   const [fieldLog, setFieldLog] = useState(null);
   const [fieldLogErr, setFieldLogErr] = useState('');
 
@@ -115,6 +119,15 @@ export function SettingsPanel({ user }) {
       o[p] = String(settings.purityAdjustments[p] ?? 0);
     }
     setAdjStr(o);
+    const ag = settings.silver || {};
+    setAgBuybackStr(String(ag.buybackPercentOfScrap ?? '90'));
+    setAgRangeStr(String(ag.rangeHalfWidthPercent ?? '2'));
+    setAgCoeffStr(String(ag.buybackCoeffOffice ?? 1));
+    const ao = {};
+    for (const p of (ag.purityOrder || [800, 875, 925, 999]).map(String)) {
+      ao[p] = String(ag.purityAdjustments?.[p] ?? 0);
+    }
+    setAgAdjStr(ao);
   }, [settings]);
 
   function parseNum(raw, fallback = 0) {
@@ -144,19 +157,37 @@ export function SettingsPanel({ user }) {
     setSaving(true);
     setSavedSection(null);
     try {
-      const probsKeys = (settings.purityOrder || []).map(String);
-      const purityAdjustments = { ...settings.purityAdjustments };
-      for (const p of probsKeys) {
-        const raw = adjStr?.[p];
-        purityAdjustments[p] = parseNum(raw, 0);
+      let patch;
+      if (section === 'silver' || section === 'silver-adj') {
+        const order = (settings.silver?.purityOrder || [800, 875, 925, 999]).map(String);
+        const purityAdjustments = { ...(settings.silver?.purityAdjustments || {}) };
+        for (const p of order) {
+          purityAdjustments[p] = parseNum(agAdjStr?.[p], 0);
+        }
+        patch = {
+          silver: {
+            buybackPercentOfScrap: Math.min(100, Math.max(0, parseNum(agBuybackStr, 90))),
+            rangeHalfWidthPercent: Math.min(50, Math.max(0, parseNum(agRangeStr, 2))),
+            buybackCoeffOffice: parseCoeff(agCoeffStr),
+            purityOrder: order.map(Number),
+            purityAdjustments,
+          },
+        };
+      } else {
+        const probsKeys = (settings.purityOrder || []).map(String);
+        const purityAdjustments = { ...settings.purityAdjustments };
+        for (const p of probsKeys) {
+          const raw = adjStr?.[p];
+          purityAdjustments[p] = parseNum(raw, 0);
+        }
+        patch = {
+          buybackPercentOfScrap: parseNum(buybackStr, 0),
+          rangeHalfWidthPercent: parseNum(rangeStr, 0),
+          buybackCoeffOffice: parseCoeff(coeffOfficeStr),
+          buybackPercentCourier: Math.min(100, Math.max(0, parseNum(courierPctStr, 0))),
+          purityAdjustments,
+        };
       }
-      const patch = {
-        buybackPercentOfScrap: parseNum(buybackStr, 0),
-        rangeHalfWidthPercent: parseNum(rangeStr, 0),
-        buybackCoeffOffice: parseCoeff(coeffOfficeStr),
-        buybackPercentCourier: Math.min(100, Math.max(0, parseNum(courierPctStr, 0))),
-        purityAdjustments,
-      };
       const next = await api.saveSettings(patch);
       setSettings(next);
       window.dispatchEvent(new CustomEvent('cg:settings-saved', { detail: { settings: next } }));
@@ -475,6 +506,91 @@ export function SettingsPanel({ user }) {
             </div>
             <button type="button" className={`btn-primary save-btn${savedSection === 'adj' ? ' save-btn--ok' : ''}`} style={{ marginTop: 14 }} disabled={saving} onClick={() => save('adj')}>
               {saving ? <><span className="spinner inline" /> Сохранение…</> : savedSection === 'adj' ? '✓ Сохранено' : 'Сохранить пробы'}
+            </button>
+          </div>
+
+          <div className="st-block st-in" style={{ '--d': '90ms' }}>
+            <div className="st-block-head">
+              <span className="st-icon st-icon--accent" aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg>
+              </span>
+              <h2 className="block-title">Политика выкупа серебра</h2>
+            </div>
+            <p className="muted small block-desc">
+              Отдельно от золота. Курс чистого серебра — ЦБ РФ. Выкуп только в отделении, курьер по серебру не выезжает. Пробы: 800, 875, 925, 999.
+            </p>
+            <label className="field">
+              <span className="field-label">Выкуп серебра, % от биржевой стоимости</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={agBuybackStr}
+                onChange={(e) => { setSavedSection(null); setAgBuybackStr(e.target.value); }}
+                onBlur={() => {
+                  const n = Math.min(100, Math.max(0, parseNum(agBuybackStr, 90)));
+                  setAgBuybackStr(String(n));
+                }}
+              />
+            </label>
+            <label className="field">
+              <span className="field-label">Полуширина коридора, %</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={agRangeStr}
+                onChange={(e) => { setSavedSection(null); setAgRangeStr(e.target.value); }}
+                onBlur={() => {
+                  const n = Math.min(50, Math.max(0, parseNum(agRangeStr, 2)));
+                  setAgRangeStr(String(n));
+                }}
+              />
+            </label>
+            <label className="field">
+              <span className="field-label">Коэффициент отделения</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={agCoeffStr}
+                onChange={(e) => { setSavedSection(null); setAgCoeffStr(e.target.value); }}
+                onBlur={() => {
+                  const n = parseCoeff(agCoeffStr);
+                  setAgCoeffStr(String(n));
+                }}
+              />
+            </label>
+            <p className="muted small block-desc" style={{ marginTop: 8 }}>Поправки по пробам серебра, %</p>
+            <div className="grid-adj">
+              {(settings.silver?.purityOrder || [800, 875, 925, 999]).map(String).map((p) => (
+                <label key={`ag-${p}`} className="adj-cell">
+                  <span className="prob">{p}</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={agAdjStr?.[p] ?? '0'}
+                    onChange={(e) => {
+                      setSavedSection(null);
+                      setAgAdjStr((prev) => ({ ...(prev || {}), [p]: e.target.value }));
+                    }}
+                    onBlur={() => {
+                      const n = parseNum(agAdjStr?.[p], 0);
+                      setAgAdjStr((prev) => ({ ...(prev || {}), [p]: String(n) }));
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+            <button
+              type="button"
+              className={`btn-primary save-btn${savedSection === 'silver' || savedSection === 'silver-adj' ? ' save-btn--ok' : ''}`}
+              style={{ marginTop: 14 }}
+              disabled={saving}
+              onClick={() => save('silver')}
+            >
+              {saving ? <><span className="spinner inline" /> Сохранение…</> : (savedSection === 'silver' || savedSection === 'silver-adj') ? '✓ Сохранено' : 'Сохранить серебро'}
             </button>
           </div>
         </>

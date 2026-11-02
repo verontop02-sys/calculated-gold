@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Calculator } from './Calculator.jsx';
 import { ClientPresentation } from './ClientPresentation.jsx';
 import { api } from './api.js';
-import { buybackChannelForRole, calculateBuybackRange, effectiveBuybackPercent, mergeSettings, readBuybackCoeff } from './calc.js';
+import { buybackChannelForRole, calculateBuybackRange, effectiveBuybackPercent, mergeSettings, mergeSilverSettings, readBuybackCoeff } from './calc.js';
 import { computeClientView } from './clientView.js';
 
 const DISPLAY_CODE_KEY = 'cg_display_operator_code';
 const DISPLAY_CITY_KEY = 'cg_client_view_city';
+const CALC_METAL_KEY = 'cg_calc_metal';
 
 function genDisplayCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -31,9 +32,33 @@ function getDisplayCode() {
  * Справа — правая «приборная панель»: курс, политика выкупа, сегодня, экран клиента.
  */
 export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToContract, toast }) {
+  const [metal, setMetal] = useState(() => {
+    try {
+      return localStorage.getItem(CALC_METAL_KEY) === 'silver' ? 'silver' : 'gold';
+    } catch {
+      return 'gold';
+    }
+  });
+  const [silverPrice, setSilverPrice] = useState(null);
+  const [silverPriceLoading, setSilverPriceLoading] = useState(false);
   const [settings, setSettings] = useState(null);
   const [todayStats, setTodayStats] = useState(null);
   const [clientView, setClientView] = useState({ open: false, weight: null, purity: null });
+
+  useEffect(() => {
+    try { localStorage.setItem(CALC_METAL_KEY, metal); } catch { /* ignore */ }
+  }, [metal]);
+
+  useEffect(() => {
+    if (metal !== 'silver') return undefined;
+    let alive = true;
+    setSilverPriceLoading(true);
+    api.price({ metal: 'silver' })
+      .then((p) => { if (alive) setSilverPrice(p); })
+      .catch(() => { if (alive) setSilverPrice(null); })
+      .finally(() => { if (alive) setSilverPriceLoading(false); });
+    return () => { alive = false; };
+  }, [metal]);
 
   // Экран клиента (покупательский дисплей)
   const [summary, setSummary] = useState(null);
@@ -120,48 +145,102 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
     return () => { alive = false; };
   }, []);
 
-  const buyPct = settings?.buybackPercentOfScrap != null ? Number(settings.buybackPercentOfScrap) : null;
-  const corridor = settings?.rangeHalfWidthPercent != null ? Number(settings.rangeHalfWidthPercent) : null;
+  const isSilver = metal === 'silver';
+  const silver = settings ? mergeSilverSettings(settings.silver) : null;
+  const buyPct = isSilver
+    ? (silver?.buybackPercentOfScrap != null ? Number(silver.buybackPercentOfScrap) : null)
+    : (settings?.buybackPercentOfScrap != null ? Number(settings.buybackPercentOfScrap) : null);
+  const corridor = isSilver
+    ? (silver?.rangeHalfWidthPercent != null ? Number(silver.rangeHalfWidthPercent) : null)
+    : (settings?.rangeHalfWidthPercent != null ? Number(settings.rangeHalfWidthPercent) : null);
   const goldRub = price?.goldRubPerGram;
-  const officeCoeff = settings ? readBuybackCoeff(settings, 'office') : 1;
+  const silverRub = silverPrice?.silverRubPerGram;
+  const metalRub = isSilver ? silverRub : goldRub;
+  const officeCoeff = isSilver
+    ? (silver ? readBuybackCoeff(silver, 'office') : 1)
+    : (settings ? readBuybackCoeff(settings, 'office') : 1);
   const courierPct = settings ? effectiveBuybackPercent(settings, 'courier') : null;
-  const shownPct = channel === 'courier' ? courierPct : (settings ? effectiveBuybackPercent(settings, 'office') : buyPct);
-  const buybackRub = goldRub && shownPct != null ? Math.round(goldRub * (shownPct / 100)) : null;
+  const shownPct = isSilver
+    ? buyPct
+    : (channel === 'courier' ? courierPct : (settings ? effectiveBuybackPercent(settings, 'office') : buyPct));
+  const buybackRub = metalRub && shownPct != null ? Math.round(metalRub * (shownPct / 100)) : null;
+  const activePrice = isSilver ? silverPrice : price;
+  const activeChannel = isSilver ? 'office' : channel;
 
   // Выкуп за 1 грамм изделия указанной пробы (с учётом политики и поправок по пробе).
   const perGram = useMemo(() => {
-    if (!goldRub || !settings) return {};
+    if (!metalRub || !settings) return {};
     const calc = (purity) => {
       const r = calculateBuybackRange({
         weightGrams: 1,
         purityPerThousand: purity,
-        goldRubPerGram: goldRub,
+        goldRubPerGram: isSilver ? undefined : metalRub,
+        metalRubPerGram: isSilver ? metalRub : undefined,
         settings: mergeSettings(settings),
-        channel,
+        channel: activeChannel,
+        metal: isSilver ? 'silver' : 'gold',
       });
       return r.ok ? Math.round(r.midRub) : null;
     };
-    return { 585: calc(585), 750: calc(750) };
-  }, [goldRub, settings, channel]);
+    return isSilver
+      ? { 925: calc(925), 875: calc(875), 999: calc(999), 800: calc(800) }
+      : { 585: calc(585), 750: calc(750) };
+  }, [metalRub, settings, activeChannel, isSilver]);
 
   const todaySum = todayStats?.totals?.sumRub ?? null;
   const todayDeals = todayStats?.totals?.deals ?? null;
 
+  async function refreshSilver() {
+    setSilverPriceLoading(true);
+    try {
+      const p = await api.refreshPrice({ metal: 'silver' });
+      setSilverPrice(p);
+      toast?.('Курс серебра обновлён', 'success');
+    } catch (e) {
+      toast?.(e?.message || 'Не удалось обновить курс серебра', 'error');
+    } finally {
+      setSilverPriceLoading(false);
+    }
+  }
+
   return (
     <div className="cg-page">
       <div className="cg-page__main cg-calc-page__main">
+        <div className="cg-metal-tabs" role="tablist" aria-label="Металл выкупа">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isSilver}
+            className={`cg-metal-tab${!isSilver ? ' is-active' : ''}`}
+            onClick={() => setMetal('gold')}
+          >
+            Золото
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isSilver}
+            className={`cg-metal-tab${isSilver ? ' is-active' : ''}`}
+            onClick={() => setMetal('silver')}
+          >
+            Серебро
+          </button>
+        </div>
         <Calculator
+          key={metal}
           formatMoney={formatMoney}
-          price={price}
+          price={activePrice}
           userUid={userUid}
-          channel={channel}
+          channel={activeChannel}
+          metal={metal}
           onGoToContract={onGoToContract}
-          onShowClient={pushToDisplay}
+          onShowClient={isSilver ? undefined : pushToDisplay}
         />
       </div>
 
       <aside className="cg-page__side cg-stagger">
-        {/* Карточка: экран клиента (покупательский дисплей) */}
+        {/* Карточка: экран клиента (покупательский дисплей) — только золото */}
+        {!isSilver && (
         <div className="cg-side-card cg-cd-card">
           <div className="cg-side-card__head">
             <span className="cg-side-card__title">Экран клиента</span>
@@ -210,45 +289,56 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
             <span className="cg-cd-pair__code">{displayCode}</span>
           </div>
         </div>
+        )}
 
         {/* Карточка: ваш выкуп за грамм */}
         <div className="cg-side-card cg-side-card--accent">
-          <div className="cg-side-card__label">Ваш выкуп, чистое золото</div>
+          <div className="cg-side-card__label">
+            {isSilver ? 'Ваш выкуп, чистое серебро' : 'Ваш выкуп, чистое золото'}
+          </div>
           <div className="cg-side-card__value mono-nums">
-            {buybackRub != null ? formatMoney(buybackRub) : '—'}
+            {buybackRub != null ? formatMoney(buybackRub) : (silverPriceLoading ? '…' : '—')}
             <span className="cg-side-card__per"> / г</span>
           </div>
           <div className="cg-side-card__sub">
             {shownPct != null
-              ? (channel === 'courier'
-                ? `${shownPct}% от ${goldRub ? formatMoney(goldRub) : '—'} (биржа), выкуп курьера`
-                : `${buyPct}% от ${goldRub ? formatMoney(goldRub) : '—'} (биржа)${officeCoeff !== 1 ? ` × ${officeCoeff}` : ''}`)
+              ? (isSilver
+                ? `${buyPct}% от ${silverRub != null ? formatMoney(silverRub) : '—'} (ЦБ)${officeCoeff !== 1 ? ` × ${officeCoeff}` : ''}`
+                : (channel === 'courier'
+                  ? `${shownPct}% от ${goldRub ? formatMoney(goldRub) : '—'} (биржа), выкуп курьера`
+                  : `${buyPct}% от ${goldRub ? formatMoney(goldRub) : '—'} (биржа)${officeCoeff !== 1 ? ` × ${officeCoeff}` : ''}`))
               : 'Настройте политику в «Настройки»'}
           </div>
 
           {/* Выкуп за грамм по ходовым пробам */}
           <div className="cg-pergram">
-            <div className="cg-pergram__item">
-              <span className="cg-pergram__probe">585</span>
-              <span className="cg-pergram__val mono-nums">
-                {perGram[585] != null ? formatMoney(perGram[585]) : '—'}
-                <span className="cg-pergram__per"> / г</span>
-              </span>
-            </div>
-            <div className="cg-pergram__item">
-              <span className="cg-pergram__probe">750</span>
-              <span className="cg-pergram__val mono-nums">
-                {perGram[750] != null ? formatMoney(perGram[750]) : '—'}
-                <span className="cg-pergram__per"> / г</span>
-              </span>
-            </div>
+            {(isSilver ? [925, 875, 999, 800] : [585, 750]).map((probe) => (
+              <div className="cg-pergram__item" key={probe}>
+                <span className="cg-pergram__probe">{probe}</span>
+                <span className="cg-pergram__val mono-nums">
+                  {perGram[probe] != null ? formatMoney(perGram[probe]) : '—'}
+                  <span className="cg-pergram__per"> / г</span>
+                </span>
+              </div>
+            ))}
           </div>
+          {isSilver && (
+            <button
+              type="button"
+              className="cg-cd-btn"
+              style={{ marginTop: 12, width: '100%' }}
+              disabled={silverPriceLoading}
+              onClick={refreshSilver}
+            >
+              {silverPriceLoading ? 'Обновляем…' : 'Обновить курс серебра'}
+            </button>
+          )}
         </div>
 
         {/* Карточка: политика */}
         <div className="cg-side-card">
           <div className="cg-side-card__head">
-            <span className="cg-side-card__title">Политика выкупа</span>
+            <span className="cg-side-card__title">{isSilver ? 'Политика серебра' : 'Политика выкупа'}</span>
           </div>
           <div className="cg-side-card__rows">
             <div className="cg-side-row">
@@ -261,15 +351,23 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
             </div>
             <div className="cg-side-row">
               <span className="cg-side-row__k">Коэффициент отделения</span>
-              <span className="cg-side-row__v">{settings ? readBuybackCoeff(settings, 'office') : '—'}</span>
+              <span className="cg-side-row__v">{officeCoeff}</span>
             </div>
-            <div className="cg-side-row">
-              <span className="cg-side-row__k">Выкуп курьера</span>
-              <span className="cg-side-row__v">{courierPct != null ? `${courierPct}% от биржи` : '—'}</span>
-            </div>
+            {!isSilver && (
+              <div className="cg-side-row">
+                <span className="cg-side-row__k">Выкуп курьера</span>
+                <span className="cg-side-row__v">{courierPct != null ? `${courierPct}% от биржи` : '—'}</span>
+              </div>
+            )}
+            {isSilver && (
+              <div className="cg-side-row">
+                <span className="cg-side-row__k">Канал</span>
+                <span className="cg-side-row__v">только отделение</span>
+              </div>
+            )}
             <div className="cg-side-row">
               <span className="cg-side-row__k">Источник курса</span>
-              <span className="cg-side-row__v">{quoteSourceLabel(price)}</span>
+              <span className="cg-side-row__v">{isSilver ? 'ЦБ РФ' : quoteSourceLabel(price)}</span>
             </div>
           </div>
         </div>
@@ -305,8 +403,10 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
           <div>
             <div className="cg-side-card__title">Как работает расчёт</div>
             <p className="cg-side-card__hint-text">
-              Курс чистого золота × {buyPct ?? 70}% × масса × проба = ориентир.
-              Диапазон выкупа ± {corridor ?? 1}% от ориентира.
+              {isSilver
+                ? `Курс чистого серебра (ЦБ) × ${buyPct ?? 90}% × масса × проба = ориентир. Только отделение.`
+                : `Курс чистого золота × ${buyPct ?? 70}% × масса × проба = ориентир.`}
+              {' '}Диапазон выкупа ± {corridor ?? 1}% от ориентира.
             </p>
           </div>
         </div>
@@ -324,6 +424,23 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
       <style>{`
         .cg-calc-page__main { max-width: none; }
         @media (max-width: 1100px) { .cg-calc-page__main { max-width: none; } }
+
+        .cg-metal-tabs {
+          display: inline-flex; gap: 4px; margin: 0 0 14px;
+          padding: 4px; border-radius: 12px;
+          border: 1px solid var(--stroke-soft); background: var(--bg-elevated);
+        }
+        .cg-metal-tab {
+          border: none; background: transparent; cursor: pointer;
+          padding: 8px 16px; border-radius: 9px;
+          font-size: 0.88rem; font-weight: 700; color: var(--text-muted);
+          font-family: var(--font-ui); transition: background 0.15s, color 0.15s;
+        }
+        .cg-metal-tab:hover { color: var(--text); }
+        .cg-metal-tab.is-active {
+          background: var(--accent-grad, var(--accent)); color: #fff;
+          box-shadow: 0 4px 14px var(--accent-glow, transparent);
+        }
 
         /* ── Карточка «Экран клиента» ── */
         .cg-cd-card { display: flex; flex-direction: column; gap: 12px; }

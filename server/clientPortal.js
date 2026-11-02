@@ -126,15 +126,29 @@ export async function requestClientCode(supabase, { phone, origin }) {
   const link = base ? ` Кабинет: ${base}/kabinet` : '';
   const text = `REAKTIVO код ${code}.${link}`;
 
-  let smsOk = true;
+  let smsOut;
   try {
-    await sendDealConfirmationSms({ to: `+7${phoneNormalized}`, text });
+    smsOut = await sendDealConfirmationSms({ to: `+7${phoneNormalized}`, text });
   } catch (e) {
-    smsOk = false;
     if (e?.status === 402) throw e;
+    const err = new Error(
+      e?.publicMessage ||
+        'Не удалось отправить SMS. Подождите минуту и попробуйте ещё раз — либо войдите по PIN.'
+    );
+    err.status = e?.status || 502;
+    throw err;
   }
 
-  return { ok: true, phoneMasked: maskPhone(phoneNormalized), smsOk };
+  // Без SMSRU_API_ID провайдер пишет код только в лог сервера — клиенту ничего не придёт.
+  if (smsOut?.provider === 'stub') {
+    const err = new Error(
+      'SMS-шлюз не настроен на сервере. Напишите в поддержку Reaktivo или войдите по PIN.'
+    );
+    err.status = 503;
+    throw err;
+  }
+
+  return { ok: true, phoneMasked: maskPhone(phoneNormalized), smsOk: true };
 }
 
 // ── Проверка кода ───────────────────────────────────────────────────────────

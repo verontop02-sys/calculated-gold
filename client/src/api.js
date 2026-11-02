@@ -792,12 +792,18 @@ export const api = {
   prefetchMe: () => {
     void fetchMeOnce();
   },
-  /** quote: moex | xaut (Мосбиржа / Tether Gold XAUT в USD → ₽ через ЦБ) */
+  /** quote: moex | xaut; metal: gold | silver */
   price: (opts = {}) => {
-    const q = opts.quote === 'xaut' ? '?quote=xaut' : '';
+    const sp = new URLSearchParams();
+    if (opts.metal === 'silver') sp.set('metal', 'silver');
+    else if (opts.quote === 'xaut') sp.set('quote', 'xaut');
+    const q = sp.toString() ? `?${sp}` : '';
     return request(`/price${q}`);
   },
-  refreshPrice: () => request('/price/refresh', { method: 'POST' }),
+  refreshPrice: (opts = {}) => {
+    const q = opts.metal === 'silver' ? '?metal=silver' : '';
+    return request(`/price/refresh${q}`, { method: 'POST' });
+  },
   calculate: (weightGrams, purityPerThousand, opts = {}) =>
     request('/calculate', {
       method: 'POST',
@@ -805,6 +811,8 @@ export const api = {
         weightGrams,
         purityPerThousand,
         ...(opts.quote ? { quote: opts.quote } : {}),
+        ...(opts.metal ? { metal: opts.metal } : {}),
+        ...(opts.channel ? { channel: opts.channel } : {}),
       }),
     }),
   settings: () => request('/settings'),

@@ -29,7 +29,7 @@ export async function sendTelegramMessage(chatId, text) {
   const migrated = first.migrateTo;
   if (migrated) {
     console.warn(
-      `[telegram notify] chat migrated ${chat} → ${migrated}. Обновите TELEGRAM_SUPPORT_CHAT_ID на Render.`
+      `[telegram notify] chat migrated ${chat} → ${migrated}. Обновите TELEGRAM_SUPPORT_CHAT_ID в server/.env на VPS.`
     );
     const second = await postSendMessage(token, String(migrated), text);
     if (second.ok) return { sent: true, migratedTo: String(migrated) };
