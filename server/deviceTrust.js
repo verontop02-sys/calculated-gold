@@ -200,11 +200,12 @@ export function isSmsProviderReady() {
   return Boolean((process.env.SMSRU_API_ID || '').trim());
 }
 
-/** Куда слать OTP: SMS на телефон сотрудника, почта только если номера нет. */
+/** Куда слать OTP: SMS на телефон сотрудника, иначе почта; без шлюза не блокируем вход. */
 export function resolveDeviceOtpDelivery({ phoneNormalized, smsReady, emailReady }) {
   if (phoneNormalized && smsReady) return { mode: 'sms' };
   if (emailReady) return { mode: 'email' };
-  if (phoneNormalized) return { mode: 'sms-stub' };
+  // Раньше sms-stub в production кидал «SMS-шлюз не настроен» и ломал вход.
+  // Нет ни SMS, ни почты — доверяем устройство (как при полном отсутствии канала).
   return { mode: 'auto-trust' };
 }
 

@@ -39,6 +39,10 @@ test('device OTP prefers SMS when phone is set', () => {
     resolveDeviceOtpDelivery({ phoneNormalized: '', smsReady: false, emailReady: false }).mode,
     'auto-trust'
   );
+  assert.equal(
+    resolveDeviceOtpDelivery({ phoneNormalized: '9161234567', smsReady: false, emailReady: false }).mode,
+    'auto-trust'
+  );
 });
 
 // Регресс: повторный запрос кода в течение окна отправки (кулдаун) не должен
