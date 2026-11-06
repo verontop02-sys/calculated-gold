@@ -157,7 +157,7 @@ async function newdbFetch(url, opts = {}) {
  */
 export async function getNewDbBalance() {
   if (!passportValidityCheckConfigured()) {
-    throw fail(503, 'NEWDB_API_KEY не настроен на сервере');
+    throw fail(503, 'Проверка паспорта по базе МВД сейчас недоступна');
   }
   const res = await fetch(`${BASE_URL}/balance`, { headers: apiHeaders() });
   const text = await res.text();
@@ -310,7 +310,7 @@ function cleanArgs({ seria, number, firstname, lastname, secondname, dob }) {
 
 export async function checkPassportValidity(body) {
   if (!passportValidityCheckConfigured()) {
-    throw fail(503, 'Проверка действительности паспорта не настроена (нет ключа NewDB на сервере)');
+    throw fail(503, 'Проверка паспорта по базе МВД сейчас недоступна. Можно оформить договор без неё — данные сверьте по документу.');
   }
   const args = cleanArgs(body);
   const incoming = String(body.requestId || '').trim();
@@ -324,7 +324,7 @@ export async function checkPassportValidity(body) {
 
 export async function pollPassportValidity(requestIdRaw) {
   if (!passportValidityCheckConfigured()) {
-    throw fail(503, 'Проверка действительности паспорта не настроена (нет ключа NewDB на сервере)');
+    throw fail(503, 'Проверка паспорта по базе МВД сейчас недоступна. Можно оформить договор без неё — данные сверьте по документу.');
   }
   const requestId = String(requestIdRaw || '').trim();
   if (!isPassportCheckRequestId(requestId)) {

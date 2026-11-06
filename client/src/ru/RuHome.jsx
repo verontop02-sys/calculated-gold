@@ -15,8 +15,8 @@ const DIRECTIONS = [
   },
   {
     tag: 'Выкуп серебра', title: 'Продать серебро', page: 'serebro',
-    imgDark: '/ru/kpi-zerofee-dark.jpg', imgLight: '/ru/kpi-zerofee-light.jpg', imgPos: '50% 45%',
-    text: 'Лом и изделия в отделении. Без курьера и без онлайн-калькулятора — сумма после проверки.',
+    imgDark: '/ru/hero-serebro-dark.jpg', imgLight: '/ru/hero-serebro-light.jpg', imgPos: '50% 52%',
+    text: 'Лом, украшения и монеты любых проб. Только в отделении, сумма после проверки.',
   },
   {
     tag: 'Вызов на дом', title: 'Курьер', page: 'kurier',

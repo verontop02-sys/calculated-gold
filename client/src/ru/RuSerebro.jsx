@@ -2,9 +2,16 @@ import { useEffect } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { CSS as IL_CSS, EASE, Reveal, staggerChild, staggerParent } from '../InvestLanding.jsx';
 import {
-  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuHeader, RuLeadForm, RuMarquee, RuThemedImg, RuTiltCard,
+  RL_CSS, RuAtmosphere, RuCtaPanel, RuFaq, RuFooter, RuFullHero, RuHeader, RuKpis, RuLeadForm, RuMarquee, RuThemedImg, RuTiltCard,
   ruHref, setDraftMeta, useRuLenis,
 } from './RuShared.jsx';
+
+const ACCEPT = [
+  { title: 'Лом', text: 'Цепи, кольца, серьги без пары, обломки. Клеймо не обязательно: пробу смотрим на месте.' },
+  { title: 'Украшения', text: 'Целые изделия любых проб. Камни и состояние не снижают выплату отдельной комиссией.' },
+  { title: 'Монеты', text: 'Инвестиционные и памятные. Смотрим металл и вес, не коллекционную надбавку.' },
+  { title: 'Столовое серебро', text: 'Ложки, вилки, подстаканники и посуда. Принимаем набором и по одной вещи.' },
+];
 
 const POINTS = [
   {
@@ -83,7 +90,35 @@ export function RuSerebro() {
           'Деньги сразу', 'Паспорт по закону', 'Без онлайн-калькулятора', 'Лом и украшения',
         ]} />
 
+        <section className="il-section rl-kpis-section">
+          <div className="il-section-inner">
+            <RuKpis items={[
+              { val: '4 пробы', label: '800, 875, 925 и 999', icon: 'percent', imgDark: '/ru/kpi-hallmark-dark.jpg', imgLight: '/ru/kpi-hallmark-light.jpg' },
+              { val: 'Офис', label: 'оценка и выплата в отделении', icon: 'pin', imgDark: '/ru/kpi-office-dark.jpg', imgLight: '/ru/kpi-office-light.jpg' },
+              { val: 'Без курьера', label: 'за серебром не выезжаем', icon: 'shield', imgDark: '/ru/kpi-silver-coin-dark.jpg', imgLight: '/ru/kpi-silver-coin-light.jpg' },
+              { val: 'Сразу', label: 'наличные или перевод после договора', icon: 'bolt', imgDark: '/ru/kpi-time-dark.jpg', imgLight: '/ru/kpi-time-light.jpg' },
+            ]} />
+          </div>
+        </section>
+
         <section className="il-section">
+          <div className="il-section-inner">
+            <div className="il-section-head">
+              <Reveal><span className="il-pill">Что принимаем</span></Reveal>
+              <Reveal delay={0.08}><h2 className="il-h2">Серебро любого вида</h2></Reveal>
+            </div>
+            <motion.div className="il-cards" variants={staggerParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-8% 0px' }}>
+              {ACCEPT.map((a) => (
+                <motion.div className="il-card" key={a.title} variants={staggerChild} whileHover={{ y: -8 }} transition={{ duration: 0.35, ease: EASE }}>
+                  <h3 className="il-card-title">{a.title}</h3>
+                  <p className="il-card-text">{a.text}</p>
+                </motion.div>
+              ))}
+            </motion.div>
+          </div>
+        </section>
+
+        <section className="il-section il-section--alt">
           <div className="il-section-inner">
             <div className="il-section-head">
               <Reveal><span className="il-pill">Коротко</span></Reveal>
@@ -100,7 +135,7 @@ export function RuSerebro() {
           </div>
         </section>
 
-        <section className="il-section il-section--alt">
+        <section className="il-section">
           <div className="il-section-inner">
             <div className="il-section-head">
               <Reveal><span className="il-pill">Процесс</span></Reveal>

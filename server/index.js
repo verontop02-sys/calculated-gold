@@ -4405,7 +4405,7 @@ app.post(
   asyncHandler(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     if (!GROK_API_KEY) {
-      return res.status(503).json({ error: 'AI не настроен: задайте GROK_API_KEY на сервере' });
+      return res.status(503).json({ error: 'Аналитик сейчас недоступен. Попробуйте позже.' });
     }
     const question = String(req.body?.question || '').trim().slice(0, 600);
     if (!question) return res.status(400).json({ error: 'Задайте вопрос' });
@@ -4460,8 +4460,11 @@ app.post(
     const j = await r.json().catch(() => null);
     if (!r.ok) {
       const raw = j?.error?.message || j?.error || `Grok API: HTTP ${r.status}`;
-      console.warn('[ai/ask] Grok error:', raw);
-      return res.status(502).json({ error: typeof raw === 'string' ? raw : 'Ошибка AI-сервиса' });
+      console.warn('[ai/ask] Grok error:', r.status, raw);
+      const userMsg = r.status === 401 || r.status === 403
+        ? 'Аналитик сейчас недоступен. Попробуйте позже.'
+        : 'Не удалось получить ответ. Попробуйте ещё раз.';
+      return res.status(502).json({ error: userMsg });
     }
     const answer = String(j?.choices?.[0]?.message?.content || '').trim();
     if (!answer) return res.status(502).json({ error: 'AI вернул пустой ответ, попробуйте переформулировать' });
