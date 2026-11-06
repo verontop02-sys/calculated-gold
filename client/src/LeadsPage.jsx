@@ -83,7 +83,7 @@ function ContactLink({ value }) {
 function LeadModal({ lead, busy, onClose, onSetStatus }) {
   const meta = SOURCE_META[lead.source] || { label: lead.source, color: '#64748b' };
   const fields = lead.fields && typeof lead.fields === 'object'
-    ? Object.entries(lead.fields).filter(([k]) => k !== 'photoPath')
+    ? Object.entries(lead.fields).filter(([k]) => k !== 'photoPath' && !String(k).startsWith('_'))
     : [];
 
   useEffect(() => {

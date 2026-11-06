@@ -1554,13 +1554,39 @@ async function insertLandingLead({ source, name, phone, fields = {} }) {
   return data;
 }
 
+function leadsTelegramChatId() {
+  return String(process.env.TELEGRAM_LEADS_CHAT_ID || process.env.TELEGRAM_SUPPORT_CHAT_ID || '').trim();
+}
+
+function telegramLeadsReady() {
+  return Boolean((process.env.TELEGRAM_BOT_TOKEN || '').trim() && leadsTelegramChatId());
+}
+
+/** Служебные ключи в fields не показываем в панели и не шлём в Telegram. */
+function publicLeadFields(fields) {
+  const out = {};
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return out;
+  for (const [k, v] of Object.entries(fields)) {
+    if (!k || k.startsWith('_') || k === 'photoPath') continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+async function setLeadTelegramState(id, fields, state) {
+  if (!id) return;
+  const next = { ...(fields && typeof fields === 'object' ? fields : {}), _tg: state };
+  const { error } = await supabase.from('landing_leads').update({ fields: next }).eq('id', id);
+  if (error) console.warn('[landing-lead tg mark]', error.message);
+}
+
 async function notifyLandingLeadTelegram({ source, name, phone, fields = {} }) {
-  const chatId = process.env.TELEGRAM_LEADS_CHAT_ID || process.env.TELEGRAM_SUPPORT_CHAT_ID;
-  if (!chatId) {
-    console.warn('[landing-lead tg] skip: TELEGRAM_SUPPORT_CHAT_ID not set');
+  const chatId = leadsTelegramChatId();
+  if (!chatId || !(process.env.TELEGRAM_BOT_TOKEN || '').trim()) {
     return { sent: false, reason: 'not_configured' };
   }
-  const urgent = /^да/i.test(String(fields?.['Срочный вызов'] || ''));
+  const visible = publicLeadFields(fields);
+  const urgent = /^да/i.test(String(visible['Срочный вызов'] || ''));
   const lines = [
     urgent
       ? `🚨 СРОЧНЫЙ вызов. Вперёд очереди (${LANDING_LEAD_SOURCES[source] || source})`
@@ -1568,12 +1594,52 @@ async function notifyLandingLeadTelegram({ source, name, phone, fields = {} }) {
     `Имя: ${name}`,
     `Контакт: ${phone}`,
   ];
-  for (const [k, v] of Object.entries(fields)) {
+  for (const [k, v] of Object.entries(visible)) {
     const raw = String(v);
     lines.push(`${k}: ${/^https?:/i.test(raw) ? publicStorageUrl(raw) : raw}`);
   }
   lines.push('', 'Панель → «Заявки с сайта»');
   return sendTelegramMessage(chatId, lines.join('\n'));
+}
+
+/** Заявки с 2 ноября писались в панель без Telegram: бот не был в .env на VPS. */
+const LEAD_TG_BACKFILL_FROM = '2026-11-02T00:00:00.000Z';
+let leadTgSweepBusy = false;
+let leadTgMissingLogged = false;
+
+async function sweepUnsentLandingLeads() {
+  if (leadTgSweepBusy) return;
+  if (!telegramLeadsReady()) {
+    if (!leadTgMissingLogged) {
+      leadTgMissingLogged = true;
+      console.error('[landing-lead tg] не настроен: задайте TELEGRAM_BOT_TOKEN и TELEGRAM_LEADS_CHAT_ID (или TELEGRAM_SUPPORT_CHAT_ID) в server/.env');
+    }
+    return;
+  }
+  leadTgSweepBusy = true;
+  try {
+    const { data, error } = await supabase
+      .from('landing_leads')
+      .select('id, source, name, phone, fields, created_at')
+      .gte('created_at', LEAD_TG_BACKFILL_FROM)
+      .order('created_at', { ascending: true })
+      .limit(40);
+    if (error) {
+      console.warn('[landing-lead tg sweep]', error.message);
+      return;
+    }
+    for (const lead of data || []) {
+      if (lead?.fields?._tg === 'sent') continue;
+      const tg = await notifyLandingLeadTelegram(lead).catch((e) => {
+        console.warn('[landing-lead tg sweep]', e?.message || e);
+        return { sent: false };
+      });
+      if (tg?.sent) await setLeadTelegramState(lead.id, lead.fields, 'sent');
+      else if (lead?.fields?._tg !== 'pending') await setLeadTelegramState(lead.id, lead.fields, 'pending');
+    }
+  } finally {
+    leadTgSweepBusy = false;
+  }
 }
 
 /** Российский номер: +7 / 8XXXXXXXXXX / 9XXXXXXXXX. */
@@ -1651,6 +1717,7 @@ app.post(
       console.warn('[landing-lead tg]', e?.message || e);
       return { sent: false, reason: 'error' };
     });
+    if (saved?.id) await setLeadTelegramState(saved.id, fields, tg?.sent ? 'sent' : 'pending');
 
     if (!saved && !tg?.sent) {
       return res.status(502).json({ error: 'Не удалось отправить заявку. Напишите на team@reaktivo.ru' });
@@ -1839,11 +1906,17 @@ async function refreshLeadPhotoFields(fields) {
   if (!path) {
     const next = { ...fields };
     delete next.photoPath;
+    for (const key of Object.keys(next)) {
+      if (key.startsWith('_')) delete next[key];
+    }
     return next;
   }
   const signed = await signCourierPhoto(path);
   const next = { ...fields };
   delete next.photoPath;
+  for (const key of Object.keys(next)) {
+    if (key.startsWith('_')) delete next[key];
+  }
   if (signed) next['Фото изделия'] = signed;
   return next;
 }
@@ -1950,6 +2023,7 @@ app.post(
       console.warn('[courier-order tg]', e?.message || e);
       return { sent: false, reason: 'error' };
     });
+    if (saved?.id) await setLeadTelegramState(saved.id, fields, tg?.sent ? 'sent' : 'pending');
 
     if (!saved && !tg?.sent) {
       return res.status(502).json({ error: 'Не удалось отправить заявку. Напишите на team@reaktivo.ru' });
@@ -5320,6 +5394,8 @@ app.use((err, _req, res, _next) => {
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Calculated Gold API listening on ${PORT}`);
   console.log(`CORS origins: ${corsOrigins.join(', ')}`);
+  setTimeout(() => { sweepUnsentLandingLeads().catch((e) => console.warn('[landing-lead tg]', e?.message || e)); }, 8_000);
+  setInterval(() => { sweepUnsentLandingLeads().catch((e) => console.warn('[landing-lead tg]', e?.message || e)); }, 60_000);
 
   // Keep-alive: пингуем собственный публичный эндпоинт каждые 10 минут,
   // чтобы Render не усыплял бесплатный Web Service.
