@@ -1361,7 +1361,7 @@ setInterval(async () => {
  * Эти три маршрута — напрямую на app (не через Router), до authMiddleware: только JWT внутри.
  * Так POST /api/price/refresh никогда не попадает в цепочку с проверкой ролей (403).
  */
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get('/api/health', (_req, res) => res.json({ ok: true, silverPolicy: 1 }));
 
 function clientIp(req) {
   const xf = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();

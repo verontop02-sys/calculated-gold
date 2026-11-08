@@ -189,6 +189,9 @@ export function SettingsPanel({ user }) {
         };
       }
       const next = await api.saveSettings(patch);
+      if (patch.silver && Number(next?.silver?.buybackPercentOfScrap) !== Number(patch.silver.buybackPercentOfScrap)) {
+        throw new Error('Процент серебра не сохранился. Обновите страницу через минуту и сохраните ещё раз.');
+      }
       setSettings(next);
       window.dispatchEvent(new CustomEvent('cg:settings-saved', { detail: { settings: next } }));
       setSavedSection(section);
