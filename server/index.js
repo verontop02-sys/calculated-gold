@@ -546,8 +546,8 @@ function mergeSilverSettings(raw) {
   return {
     ...DEFAULT_SILVER_SETTINGS,
     ...v,
-    buybackPercentOfScrap: Math.min(100, Math.max(0, Number(v.buybackPercentOfScrap) || DEFAULT_SILVER_SETTINGS.buybackPercentOfScrap)),
-    rangeHalfWidthPercent: Math.min(50, Math.max(0, Number(v.rangeHalfWidthPercent) || 0)),
+    buybackPercentOfScrap: clampPercent(v.buybackPercentOfScrap, DEFAULT_SILVER_SETTINGS.buybackPercentOfScrap, 100),
+    rangeHalfWidthPercent: clampPercent(v.rangeHalfWidthPercent, 0, 50),
     buybackCoeffOffice: normalizeBuybackCoeff(v.buybackCoeffOffice ?? 1),
     purityAdjustments: { ...DEFAULT_SILVER_SETTINGS.purityAdjustments, ...(v.purityAdjustments || {}) },
     purityOrder: order.length ? order : [...DEFAULT_SILVER_SETTINGS.purityOrder],
@@ -575,6 +575,12 @@ function readCourierBuybackPercent(settings) {
   }
   const base = Math.min(100, Math.max(0, Number(settings?.buybackPercentOfScrap) || 0));
   return Math.min(100, Math.round(base * readBuybackCoeff(settings, 'courier') * 100) / 100);
+}
+
+function clampPercent(v, fallback, max) {
+  const n = Number(String(v ?? '').trim().replace(',', '.'));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(0, n));
 }
 
 function normalizeBuybackPercent(v) {
@@ -4809,7 +4815,7 @@ app.put(
   asyncHandler(requireSuperAdmin),
   asyncHandler(async (req, res) => {
     const body = req.body || {};
-    const allowed = ['buybackPercentOfScrap', 'buybackPercentCourier', 'rangeHalfWidthPercent', 'purityAdjustments', 'purityOrder', 'buybackCoeffOffice', 'buybackCoeffCourier'];
+    const allowed = ['buybackPercentOfScrap', 'buybackPercentCourier', 'rangeHalfWidthPercent', 'purityAdjustments', 'purityOrder', 'buybackCoeffOffice', 'buybackCoeffCourier', 'silver'];
     const patch = {};
     for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];
     const result = await saveSettings(patch);

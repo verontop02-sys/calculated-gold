@@ -77,11 +77,12 @@ function buildContractPayloadForSession({
   return base;
 }
 
-function isGoldScrapMetal(metal) {
+function scrapMetalKind(metal) {
   const t = String(metal || '').trim().toLowerCase();
-  if (!t) return true;
-  if (/(серебр|паллад|платин|палладий)/.test(t)) return false;
-  return true;
+  if (!t) return 'gold';
+  if (/серебр/.test(t)) return 'silver';
+  if (/(паллад|платин|палладий)/.test(t)) return 'other';
+  return 'gold';
 }
 
 function parsePurityThousand(probe) {
@@ -192,6 +193,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   const [saveBusy, setSaveBusy] = useState(false);
   const [baseOpen, setBaseOpen] = useState(false);
   const [settings, setSettings] = useState(null);
+  const [silverPrice, setSilverPrice] = useState(null);
   const rowCalcTimers = useRef({});
   const firstCalcRef = useRef(false);
 
@@ -226,6 +228,9 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
       .catch(() => {
         if (alive) setSettings(mergeSettings(null));
       });
+    api.price({ metal: 'silver' })
+      .then((p) => { if (alive) setSilverPrice(p); })
+      .catch(() => {});
     return () => {
       alive = false;
     };
@@ -233,20 +238,26 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
 
   const applyCalcToRow = useCallback(
     (i) => {
-      if (!settings || !price?.goldRubPerGram) return;
+      if (!settings) return;
       setRows((prev) => {
         const row = prev[i];
         if (!row) return prev;
-        if (!isGoldScrapMetal(row.metal)) return prev;
+        const kind = scrapMetalKind(row.metal);
+        if (kind === 'other') return prev;
+        const isSilver = kind === 'silver';
+        const metalRub = isSilver ? silverPrice?.silverRubPerGram : price?.goldRubPerGram;
+        if (!metalRub) return prev;
         const w = parseGrossG(row.weightGross);
         const purity = parsePurityThousand(row.probe);
         if (w <= 0 || purity <= 0) return prev;
         const r = calculateBuybackRange({
           weightGrams: w,
           purityPerThousand: purity,
-          goldRubPerGram: price.goldRubPerGram,
+          goldRubPerGram: isSilver ? undefined : metalRub,
+          metalRubPerGram: metalRub,
           settings,
-          channel: buybackChannelForRole(user?.role),
+          channel: isSilver ? 'office' : buybackChannelForRole(user?.role),
+          metal: isSilver ? 'silver' : 'gold',
         });
         if (!r.ok) return prev;
         const pr = String(Math.round(r.midRub));
@@ -255,7 +266,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
         return prev.map((x, j) => (j === i ? { ...x, priceRub: pr, weightNet: wn } : x));
       });
     },
-    [settings, price, user?.role]
+    [settings, price, silverPrice, user?.role]
   );
 
   const scheduleRowCalc = useCallback(
@@ -270,12 +281,12 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
   );
 
   useEffect(() => {
-    if (!settings || !price?.goldRubPerGram || firstCalcRef.current) return;
+    if (!settings || (!price?.goldRubPerGram && !silverPrice?.silverRubPerGram) || firstCalcRef.current) return;
     firstCalcRef.current = true;
     for (let k = 0; k < 12; k++) {
       setTimeout(() => applyCalcToRow(k), 90 * k);
     }
-  }, [settings, price, applyCalcToRow]);
+  }, [settings, price, silverPrice, applyCalcToRow]);
 
   function patchRowAndMaybeCalc(i, patch) {
     setRows((prev) => prev.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -999,7 +1010,7 @@ export function ContractReceipt({ formatMoney, prefill, onConsumedPrefill, toast
           <div>
             <h3 className="contract-h3">Позиции (лом)</h3>
             <p className="muted small contract-pos-hint">
-              Для <strong>золота</strong> — проба и вес, стоимость подставится автоматически. Серебро и другие металлы вводятся вручную.
+              Для <strong>золота</strong> и <strong>серебра</strong> укажите пробу и вес: стоимость подставится по своей политике выкупа. Другие металлы вводятся вручную.
             </p>
           </div>
         </div>

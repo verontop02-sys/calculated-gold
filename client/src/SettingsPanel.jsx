@@ -395,13 +395,13 @@ export function SettingsPanel({ user }) {
               <span className="st-icon st-icon--accent" aria-hidden>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               </span>
-              <h2 className="block-title">Политика выкупа</h2>
+              <h2 className="block-title">Политика выкупа золота</h2>
             </div>
             <p className="muted small block-desc">
               Процент от стоимости чистого золота по биржевому курсу в верхней панели. У курьера свой процент от той же биржи, его пишут числом, без коэффициента. Коэффициент отделения по-прежнему умножает выплату отделения. Меняет только супер-администратор.
             </p>
             <label className="field">
-              <span className="field-label">Выкуп, % от биржевой стоимости</span>
+              <span className="field-label">Выкуп золота, % от биржевой стоимости</span>
               <input
                 type="text"
                 inputMode="decimal"
@@ -476,7 +476,7 @@ export function SettingsPanel({ user }) {
               <span className="st-icon st-icon--emerald" aria-hidden>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
               </span>
-              <h2 className="block-title">Поправки по пробам, %</h2>
+              <h2 className="block-title">Поправки по пробам золота, %</h2>
             </div>
             <p className="muted small block-desc">Дополнительный множитель к сумме: +2 означает +2% к расчёту для этой пробы.</p>
             <div className="grid-adj">
@@ -520,7 +520,7 @@ export function SettingsPanel({ user }) {
               Отдельно от золота. Курс чистого серебра — ЦБ РФ. Выкуп только в отделении, курьер по серебру не выезжает. Пробы: 800, 875, 925, 999.
             </p>
             <label className="field">
-              <span className="field-label">Выкуп серебра, % от биржевой стоимости</span>
+              <span className="field-label">Выкуп серебра, % от курса ЦБ</span>
               <input
                 type="text"
                 inputMode="decimal"
@@ -561,7 +561,24 @@ export function SettingsPanel({ user }) {
                 }}
               />
             </label>
-            <p className="muted small block-desc" style={{ marginTop: 8 }}>Поправки по пробам серебра, %</p>
+            <button
+              type="button"
+              className={`btn-primary save-btn${savedSection === 'silver' ? ' save-btn--ok' : ''}`}
+              disabled={saving}
+              onClick={() => save('silver')}
+            >
+              {saving ? <><span className="spinner inline" /> Сохранение…</> : savedSection === 'silver' ? '✓ Сохранено' : 'Сохранить политику'}
+            </button>
+          </div>
+
+          <div className="st-block st-in" style={{ '--d': '110ms' }}>
+            <div className="st-block-head">
+              <span className="st-icon st-icon--emerald" aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg>
+              </span>
+              <h2 className="block-title">Поправки по пробам серебра, %</h2>
+            </div>
+            <p className="muted small block-desc">Дополнительный множитель к сумме: +2 означает +2% к расчёту для этой пробы.</p>
             <div className="grid-adj">
               {(settings.silver?.purityOrder || [800, 875, 925, 999]).map(String).map((p) => (
                 <label key={`ag-${p}`} className="adj-cell">
@@ -585,12 +602,12 @@ export function SettingsPanel({ user }) {
             </div>
             <button
               type="button"
-              className={`btn-primary save-btn${savedSection === 'silver' || savedSection === 'silver-adj' ? ' save-btn--ok' : ''}`}
+              className={`btn-primary save-btn${savedSection === 'silver-adj' ? ' save-btn--ok' : ''}`}
               style={{ marginTop: 14 }}
               disabled={saving}
-              onClick={() => save('silver')}
+              onClick={() => save('silver-adj')}
             >
-              {saving ? <><span className="spinner inline" /> Сохранение…</> : (savedSection === 'silver' || savedSection === 'silver-adj') ? '✓ Сохранено' : 'Сохранить серебро'}
+              {saving ? <><span className="spinner inline" /> Сохранение…</> : savedSection === 'silver-adj' ? '✓ Сохранено' : 'Сохранить пробы'}
             </button>
           </div>
         </>

@@ -338,7 +338,7 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
         {/* Карточка: политика */}
         <div className="cg-side-card">
           <div className="cg-side-card__head">
-            <span className="cg-side-card__title">{isSilver ? 'Политика серебра' : 'Политика выкупа'}</span>
+            <span className="cg-side-card__title">{isSilver ? 'Политика выкупа серебра' : 'Политика выкупа золота'}</span>
           </div>
           <div className="cg-side-card__rows">
             <div className="cg-side-row">
