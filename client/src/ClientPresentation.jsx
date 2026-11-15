@@ -13,7 +13,7 @@ import { ClientResultView, CLIENT_RESULT_CSS } from './ClientResultView.jsx';
  * Светлая/тёмная палитра фиксированная (тёмный премиум) — чтобы клиент через стол
  * видел контрастно и без «компьютерных» цветов.
  */
-export function ClientPresentation({ open, onClose, formatMoney, price, weight, purity, brandName = 'REAKTIVO PRO' }) {
+export function ClientPresentation({ open, onClose, formatMoney, price, weight, purity, metal = 'gold', brandName = 'REAKTIVO PRO' }) {
   const [settings, setSettings] = useState(null);
   const [summary, setSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -82,8 +82,8 @@ export function ClientPresentation({ open, onClose, formatMoney, price, weight, 
   }, [cityId]);
 
   const view = useMemo(
-    () => computeClientView({ settings, price, summary, cityId, weight, purity }),
-    [settings, price, summary, cityId, weight, purity],
+    () => computeClientView({ settings, price, summary, cityId, weight, purity, metal }),
+    [settings, price, summary, cityId, weight, purity, metal],
   );
 
   const handleBackdropClick = useCallback((e) => {
@@ -135,7 +135,7 @@ export function ClientPresentation({ open, onClose, formatMoney, price, weight, 
         </header>
 
         <main className="cg-cp__body">
-          <ClientResultView view={view} formatMoney={formatMoney} cityControl={cityControl} />
+          <ClientResultView view={view} formatMoney={formatMoney} cityControl={view.metal === 'silver' ? null : cityControl} />
 
           {summaryErr && !summaryLoading && (
             <p className="cg-cp__err">{summaryErr}</p>
@@ -143,7 +143,7 @@ export function ClientPresentation({ open, onClose, formatMoney, price, weight, 
 
           <footer className="cg-cp__footer">
             <span className="cg-cp__footer-note">
-              Биржевая цена сегодня: {view.goldRubPerGram != null ? formatMoney(view.goldRubPerGram) : '—'} / г чистого
+              {view.metal === 'silver' ? 'Курс ЦБ' : 'Биржевая цена сегодня'}: {view.goldRubPerGram != null ? formatMoney(view.goldRubPerGram) : '—'} / г чистого
             </span>
             <button type="button" className="cg-cp__back" onClick={onClose}>
               К калькулятору

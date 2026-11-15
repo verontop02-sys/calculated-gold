@@ -14,10 +14,11 @@ import { calculateBuybackRange, mergeSettings } from './calc.js';
  * @param {number|string} p.weight  Вес изделия, г.
  * @param {number|string} p.purity  Проба (585, 750, …).
  */
-export function computeClientView({ settings, price, summary, cityId, weight, purity, channel = 'office' }) {
+export function computeClientView({ settings, price, summary, cityId, weight, purity, channel = 'office', metal = 'gold' }) {
+  const isSilver = metal === 'silver';
   const purityNum = Number(purity) || 0;
   const weightNum = parseFloat(String(weight ?? '').replace(',', '.')) || 0;
-  const goldRub = price?.goldRubPerGram;
+  const goldRub = isSilver ? price?.silverRubPerGram : price?.goldRubPerGram;
   const merged = settings ? mergeSettings(settings) : null;
 
   let ourSumRub = null;
@@ -27,9 +28,11 @@ export function computeClientView({ settings, price, summary, cityId, weight, pu
     const r = calculateBuybackRange({
       weightGrams: weightNum,
       purityPerThousand: purityNum,
-      goldRubPerGram: goldRub,
+      goldRubPerGram: isSilver ? undefined : goldRub,
+      metalRubPerGram: isSilver ? goldRub : undefined,
       settings: merged,
-      channel,
+      channel: isSilver ? 'office' : channel,
+      metal: isSilver ? 'silver' : 'gold',
     });
     if (r.ok) {
       ourSumRub = Math.round(r.midRub);
@@ -38,7 +41,7 @@ export function computeClientView({ settings, price, summary, cityId, weight, pu
     }
   }
 
-  const city = (summary?.cities || []).find((c) => c.id === cityId) || null;
+  const city = isSilver ? null : ((summary?.cities || []).find((c) => c.id === cityId) || null);
 
   let marketAvg = null;
   let marketLo = null;
@@ -62,6 +65,7 @@ export function computeClientView({ settings, price, summary, cityId, weight, pu
   }
 
   return {
+    metal: isSilver ? 'silver' : 'gold',
     ready: ourSumRub != null,
     weightNum,
     purityNum,

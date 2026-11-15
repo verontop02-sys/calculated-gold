@@ -29,10 +29,11 @@ export function ClientResultView({ view, formatMoney, cityControl = null }) {
             : 'Ожидаем расчёт оператора'}
         </p>
         {v.fineGrams != null && (
-          <p className="cg-crv__hero-meta">Чистого золота {v.fineGrams.toFixed(3)} г</p>
+          <p className="cg-crv__hero-meta">Чистого {v.metal === 'silver' ? 'серебра' : 'золота'} {v.fineGrams.toFixed(3)} г</p>
         )}
       </section>
 
+      {v.metal !== 'silver' && (
       <section className="cg-crv__compare">
         <div className="cg-crv__compare-head">
           <h3 className="cg-crv__compare-title">Сравнение с рынком</h3>
@@ -91,6 +92,7 @@ export function ClientResultView({ view, formatMoney, cityControl = null }) {
           </p>
         )}
       </section>
+      )}
     </div>
   );
 }

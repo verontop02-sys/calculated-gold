@@ -99,8 +99,18 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
 
   const channel = buybackChannelForRole(userRole);
 
-  const pushToDisplay = useCallback(async ({ weight, purity }) => {
-    const view = computeClientView({ settings, price, summary, cityId, weight, purity, channel });
+  const pushToDisplay = useCallback(async ({ weight, purity, metal: shownMetal }) => {
+    const shown = shownMetal === 'silver' ? 'silver' : 'gold';
+    const view = computeClientView({
+      settings,
+      price: shown === 'silver' ? silverPrice : price,
+      summary,
+      cityId,
+      weight,
+      purity,
+      channel,
+      metal: shown,
+    });
     if (!view.ready) {
       toast?.('Сначала введите вес и пробу', 'info');
       return;
@@ -108,7 +118,7 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
     setDisplayBusy(true);
     try {
       const r = await api.clientDisplayPush(displayCode, { mode: 'show', view, brandName: 'REAKTIVO PRO' });
-      setLastInput({ weight, purity });
+      setLastInput({ weight, purity, metal: shown });
       const connected = (r?.subscribers || 0) > 0;
       setDisplayInfo({ connected, at: Date.now() });
       if (connected) toast?.('Показано на экране клиента', 'success');
@@ -118,7 +128,7 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
     } finally {
       setDisplayBusy(false);
     }
-  }, [settings, price, summary, cityId, displayCode, toast, channel]);
+  }, [settings, price, silverPrice, summary, cityId, displayCode, toast, channel]);
 
   const clearDisplay = useCallback(async () => {
     setDisplayBusy(true);
@@ -234,13 +244,11 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
           channel={activeChannel}
           metal={metal}
           onGoToContract={onGoToContract}
-          onShowClient={isSilver ? undefined : pushToDisplay}
+          onShowClient={pushToDisplay}
         />
       </div>
 
       <aside className="cg-page__side cg-stagger">
-        {/* Карточка: экран клиента (покупательский дисплей) — только золото */}
-        {!isSilver && (
         <div className="cg-side-card cg-cd-card">
           <div className="cg-side-card__head">
             <span className="cg-side-card__title">Экран клиента</span>
@@ -254,7 +262,7 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
             «Очистить» возвращает экран с отзывом и QR на Яндекс Карты.
           </p>
 
-          {summary?.cities?.length > 0 && (
+          {!isSilver && summary?.cities?.length > 0 && (
             <label className="cg-cd-city">
               <span className="cg-cd-city__label">Город для сравнения</span>
               <select className="cg-cd-city__select" value={cityId || ''} onChange={(e) => setCityId(e.target.value)}>
@@ -273,7 +281,7 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
             <button
               type="button"
               className="cg-cd-btn"
-              onClick={() => lastInput && setClientView({ open: true, weight: lastInput.weight, purity: lastInput.purity })}
+              onClick={() => lastInput && setClientView({ open: true, weight: lastInput.weight, purity: lastInput.purity, metal: lastInput.metal || 'gold' })}
               disabled={!lastInput}
               title={lastInput ? 'Предпросмотр на этом экране' : 'Сначала покажите расчёт клиенту'}
             >
@@ -289,7 +297,6 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
             <span className="cg-cd-pair__code">{displayCode}</span>
           </div>
         </div>
-        )}
 
         {/* Карточка: ваш выкуп за грамм */}
         <div className="cg-side-card cg-side-card--accent">
@@ -416,7 +423,8 @@ export function CalculatorPage({ formatMoney, price, userUid, userRole, onGoToCo
         open={clientView.open}
         onClose={() => setClientView((v) => ({ ...v, open: false }))}
         formatMoney={formatMoney}
-        price={price}
+        price={clientView.metal === 'silver' ? silverPrice : price}
+        metal={clientView.metal || 'gold'}
         weight={clientView.weight}
         purity={clientView.purity}
       />

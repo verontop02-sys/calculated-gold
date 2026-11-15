@@ -315,7 +315,7 @@ export function Calculator({
               <span className="result-mid muted small">ориентир: {formatMoney(result.midRub)}</span>
             </div>
             <div className="result-actions">
-              {onShowClient && !isSilver && (
+              {onShowClient && (
                 <button
                   type="button"
                   className="btn-show-client"
@@ -324,6 +324,7 @@ export function Calculator({
                     onShowClient({
                       weight: Number.isFinite(w) ? w : null,
                       purity: parseInt(purity, 10),
+                      metal: isSilver ? 'silver' : 'gold',
                     });
                   }}
                   title="Полноэкранный режим для показа клиенту"
