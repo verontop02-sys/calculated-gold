@@ -19,7 +19,7 @@ export function ClientResultView({ view, formatMoney, cityControl = null }) {
   return (
     <div className="cg-crv">
       <section className="cg-crv__hero">
-        <p className="cg-crv__hero-label">Ваш выкуп</p>
+        <p className="cg-crv__hero-label">{v.metal === 'silver' ? 'Оценка серебра' : 'Оценка золота'}</p>
         <p className="cg-crv__hero-value mono-nums">
           {v.ourSumRub != null ? formatMoney(v.ourSumRub) : '—'}
         </p>
